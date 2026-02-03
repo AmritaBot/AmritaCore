@@ -1,0 +1,59 @@
+[project]
+name = "amrita_core"
+version = "0.1.0"
+description = "Agent core of Project Amrita"
+readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dependencies = [
+    "fastmcp>=2.14.4",
+    "jieba>=0.42.1",
+    "loguru>=0.7.3",
+    "openai>=2.16.0",
+    "pydantic>=2.12.5",
+    "pytz>=2025.2",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/AmritaBot/AmritaCore"
+"Source" = "https://github.com/AmritaBot/AmritaCore"
+"Issue Tracker" = "https://github.com/AmritaBot/AmritaCore/issues"
+
+[tool.uv]
+dev-dependencies = [
+    "ruff>=0.12.8",
+    "pytest>=8.4.1",
+    "mcp>=1.21.1",
+    "py-spy>=0.4.1",
+    "pyright>=1.1.407",
+]
+package= true
+
+[tool.ruff]
+line-length = 88
+target-version = "py310"
+[tool.ruff.lint]
+select = [
+    "F",     # Pyflakes
+    "W",     # pycodestyle warnings
+    "E",     # pycodestyle errors
+    "UP",    # pyupgrade
+    "ASYNC", # flake8-async
+    "C4",    # flake8-comprehensions
+    "T10",   # flake8-debugger
+    "PYI",   # flake8-pyi
+    "PT",    # flake8-pytest-style
+    "Q",     # flake8-quotes
+    "RUF",   # Ruff-specific rules
+    "I",     # isort
+    "PERF",  # pylint-performance
+]
+ignore = [
+    "E501",   # line-too-long
+    "UP037",  # quoted-annotation
+    "RUF001", # ambiguous-unicode-character-string
+    "RUF002", # ambiguous-unicode-character-docstring
+    "RUF003", # ambiguous-unicode-character-comment
+]
+
+[tool.pyright]
+typeCheckingMode = "standard"
