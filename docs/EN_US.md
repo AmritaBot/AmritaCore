@@ -1,12 +1,6 @@
-# AmritaCore - Agent Core Module
+# AmritaCore Documentation - English
 
-From [Proj.Amrita](https://github.com/AmritaBot/Amrita)
-
-## Overview
-
-**AmritaCore** is the intelligent agent core module extracted from Proj.Amrita, designed to serve as the primary logical or control component of the project. This module focuses on providing essential agent capabilities for automation, decision-making, and interaction scenarios.
-
-> **Documentation under construction** - More detailed documentation coming soon!
+> **Documentation under construction** - More detailed content coming soon!
 
 ## Project Aim
 
@@ -25,13 +19,26 @@ AmritaCore aims to provide a flexible, extensible foundation for building AI-pow
 - **Session Management**: Robust session handling with metadata tracking and persistence
 - **LLM Provider Agnostic**: Compatible with multiple LLM providers through adapter pattern (OpenAI, etc.)
 
-## Documentation
+## Quick Start
 
-For more detailed documentation, please check:
+> Note: Complete installation guide will be provided when documentation is finished
 
-- [简体中文文档](./docs/ZH_CN.md)
-- [English Documentation](./docs/EN_US.md)
+### Installation
 
----
+```bash
+# To be filled...
+```
 
-> **Note**: This is the core agent module extracted from AmritaBot. The complete solution may include additional components not present in this standalone module.
+### Basic Usage
+
+```python
+# To be filled...
+```
+
+## Contributing
+
+Contributions welcome! Please check the contributing guidelines (to be added).
+
+## License
+
+See the project license file.

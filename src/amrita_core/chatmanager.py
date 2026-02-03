@@ -37,11 +37,19 @@ from .types import (
     MemoryModel as Memory,
 )
 
+# Global lock for thread-safe operations in the chat manager
 LOCK = Lock()
 
 
 def get_current_datetime_timestamp(utc_time: None | datetime = None):
-    """Get current time and format as date, weekday and time string"""
+    """Get current time and format as date, weekday and time string in Asia/Shanghai timezone
+
+    Args:
+        utc_time: Optional datetime object in UTC. If None, current time will be used
+
+    Returns:
+        Formatted timestamp string in the format "[YYYY-MM-DD Weekday HH:MM:SS]"
+    """
     utc_time = utc_time or datetime.now(pytz.utc)
     asia_shanghai = pytz.timezone("Asia/Shanghai")
     now = utc_time.astimezone(asia_shanghai)
@@ -227,6 +235,12 @@ User input → Direct summary output
             debug_log("Context summarization skipped")
 
     def _drop_message(self):
+        """Remove the oldest message from memory and add it to dropped messages list.
+
+        This method removes the first message from the memory and adds it to the
+        dropped messages list. If the next message is a tool message, it is also
+        removed and added to the dropped messages list.
+        """
         data = self.memory
         if len(data.messages) < 2:
             return
@@ -305,6 +319,14 @@ User input → Direct summary output
         """
 
         def get_token(memory: CONTENT_LIST_TYPE) -> int:
+            """Calculate the total token count for a given message list
+
+            Args:
+                memory: List of messages to calculate token count for
+
+            Returns:
+                Total token count for the messages
+            """
             tk_tmp: int = 0
             for msg in text_generator(memory):
                 tk_tmp += hybrid_token_count(
@@ -397,7 +419,15 @@ class ChatObject:
         session_id: str,
         run_blocking: bool = True,
     ) -> None:
-        """Initialize chat object"""
+        """Initialize chat object
+
+        Args:
+            train: Training data (system prompts)
+            user_input: Input from the user
+            context: Memory context for the session
+            session_id: Unique identifier for the session
+            run_blocking: Whether to run in blocking mode
+        """
         self.train = train
         self.data = context
         self.session_id = session_id
@@ -550,14 +580,24 @@ class ChatObject:
         await self.set_queue_done()
 
     def queue_closed(self) -> bool:
+        """Check if the response queue is closed
+
+        Returns:
+            True if the queue is closed, False otherwise
+        """
         return self._queue_done
 
     async def set_queue_done(self) -> None:
+        """Mark the response queue as done by putting the done marker"""
         if not self.queue_closed():
             await self.response_queue.put(self.__done_marker)
 
     async def yield_response(self, response: str | MessageContent):
-        """Send chat model response to the queue allowing both str and MessageContent types."""
+        """Send chat model response to the queue allowing both str and MessageContent types.
+
+        Args:
+            response: Either a string or MessageContent object to be sent to the queue
+        """
         if not self.queue_closed():
             await self.response_queue.put(response)
         else:
@@ -566,18 +606,28 @@ class ChatObject:
     async def yield_response_iteration(
         self, iterator: AsyncGenerator[str | MessageContent, None]
     ):
-        """Send chat model response to the queue allowing both str and MessageContent types."""
+        """Send chat model response to the queue allowing both str and MessageContent types.
+
+        Args:
+            iterator: An async generator that yields either strings or MessageContent objects
+        """
         async for chunk in iterator:
             await self.yield_response(chunk)
 
-    def get_response_generator(
-        self,
-    ) -> AsyncGenerator[str | MessageContent, None]:
-        """Return an async generator to iterate over responses from the queue."""
+    def get_response_generator(self) -> AsyncGenerator[str | MessageContent, None]:
+        """Return an async generator to iterate over responses from the queue.
+
+        Yields:
+            Either a string or MessageContent object from the response queue
+        """
         return self._response_generator()
 
     async def full_response(self) -> str:
-        """Return full response from the queue."""
+        """Return full response from the queue as a single string.
+
+        Returns:
+            Complete response string combining all chunks in the queue
+        """
         builder = StringIO()
         async for item in self.get_response_generator():
             if isinstance(item, str):
@@ -586,10 +636,12 @@ class ChatObject:
                 builder.write(str(item.get_content()))
         return builder.getvalue()
 
-    async def _response_generator(
-        self,
-    ) -> AsyncGenerator[str | MessageContent, None]:
-        """Internal method to asynchronously yield items from the queue until done marker is reached."""
+    async def _response_generator(self) -> AsyncGenerator[str | MessageContent, None]:
+        """Internal method to asynchronously yield items from the queue until done marker is reached.
+
+        Yields:
+            Items from the response queue until the done marker is encountered
+        """
         while True:
             item = await self.response_queue.get()
             if item is self.__done_marker:
