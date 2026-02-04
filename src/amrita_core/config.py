@@ -162,7 +162,7 @@ def get_config() -> AmritaConfig:
         AmritaConfig: Amrita core config
     """
     if not __inited:
-        raise RuntimeError("AmritaCore is not initialized. Please set config first.")
+        raise RuntimeError("Config is not initialized. Please set config first.")
     return _CONFIG
 
 

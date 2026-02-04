@@ -1,4 +1,3 @@
-from .builtins import adapter, agent, tools
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta
 from .config import get_config, set_config
 from .hook.event import CompletionEvent, PreCompletionEvent
@@ -11,6 +10,7 @@ from .libchat import (
     text_generator,
     tools_caller,
 )
+from .logging import debug_log, logger
 from .preset import PresetManager, PresetReport
 from .tools.manager import ToolsManager, on_tools
 from .tools.models import (
@@ -60,18 +60,31 @@ __all__ = [
     "ToolsManager",
     "UniResponse",
     "UniResponseUsage",
-    "adapter",
-    "agent",
     "call_completion",
+    "debug_log",
     "get_config",
     "get_last_response",
     "get_tokens",
+    "logger",
     "on_completion",
     "on_event",
     "on_precompletion",
     "on_tools",
     "set_config",
     "text_generator",
-    "tools",
     "tools_caller",
 ]
+__inited: bool = False
+
+
+def init():
+    global __all__, __inited
+    if not __inited:
+        logger.info("AmritaCore is initalizing......")
+        import jieba
+
+        from . import builtins
+
+        __all__ += [builtins.__name__]
+
+        jieba.initialize()

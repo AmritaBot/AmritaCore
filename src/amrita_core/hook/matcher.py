@@ -1,5 +1,4 @@
 import inspect
-import warnings
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from copy import deepcopy
 from types import FrameType
@@ -14,7 +13,7 @@ from typing import (
 from pydantic import BaseModel, Field
 from typing_extensions import Self
 
-from amrita_core.logging import debug_log
+from amrita_core.logging import debug_log, logger
 
 from .event import Event
 from .exception import BlockException, CancelException, PassException
@@ -168,7 +167,7 @@ class MatcherManager:
                 }
                 if args_types != filtered_args_types:
                     failed_args = list(args_types.keys() - filtered_args_types.keys())
-                    warnings.warn(
+                    logger.warning(
                         f"Matcher {matcher.function.__name__} (File: {file_name}: Line {frame.f_lineno!s}) has untyped parameters!"
                         + f"(Args:{''.join(i + ',' for i in failed_args)}).Skipping......"
                     )
@@ -197,16 +196,16 @@ class MatcherManager:
                 # Call the handler
 
                 try:
-                    debug_log(f"Starting to run Matcher: '{handler.__name__}'")
+                    logger.info(f"Starting to run Matcher: '{handler.__name__}'")
 
                     await handler(*new_args, **f_kwargs)
                 except PassException:
-                    debug_log(
+                    logger.info(
                         f"Matcher '{handler.__name__}'(~{file_name}:{line_number}) was skipped"
                     )
                     continue
                 except CancelException:
-                    debug_log("Cancelled Matcher processing")
+                    logger.info("Cancelled Matcher processing")
                     return
                 except BlockException:
                     break

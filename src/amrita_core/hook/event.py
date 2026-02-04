@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
+from typing import TYPE_CHECKING
 
-from amrita_core.chatmanager import ChatObject
 from amrita_core.types import CONTENT_LIST_TYPE, USER_INPUT, SendMessageWrap
+
+if TYPE_CHECKING:
+    from amrita_core.chatmanager import ChatObject
 
 
 class EventTypeEnum(str, Enum):
@@ -27,7 +30,7 @@ class EventTypeEnum(str, Enum):
 class Event:
     user_input: USER_INPUT
     original_context: CONTENT_LIST_TYPE
-    chat_object: ChatObject
+    chat_object: "ChatObject"
 
     def __post_init__(self):
         # Initialize event type as none

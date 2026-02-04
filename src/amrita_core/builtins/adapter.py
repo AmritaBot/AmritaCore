@@ -25,6 +25,8 @@ from amrita_core.types import ToolCall, UniResponse, UniResponseUsage
 class OpenAIAdapter(ModelAdapter):
     """OpenAI Protocol Adapter"""
 
+    __override__ = True
+
     @override
     async def call_api(
         self, messages: Iterable[ChatCompletionMessageParam]
@@ -142,5 +144,5 @@ class OpenAIAdapter(ModelAdapter):
         )
 
     @staticmethod
-    def get_adapter_protocol() -> tuple[str, ...]:
+    def get_adapter_protocol() -> tuple[str, str]:
         return "openai", "__main__"

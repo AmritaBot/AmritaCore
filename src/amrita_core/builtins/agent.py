@@ -1,19 +1,19 @@
 import json
 import os
 import typing
-import warnings
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from typing import Any
 
+from amrita_core.chatmanager import MessageWithMetadata
 from amrita_core.config import get_config
 from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
-from amrita_core.hook.exception import MatcherException as ChatException
+from amrita_core.hook.exception import MatcherException as ProcEXC
 from amrita_core.hook.on import on_completion, on_precompletion
 from amrita_core.libchat import (
     tools_caller,
 )
-from amrita_core.logging import debug_log
+from amrita_core.logging import debug_log, logger
 from amrita_core.tools.manager import ToolsManager, on_tools
 from amrita_core.tools.models import ToolContext
 from amrita_core.types import CONTENT_LIST_TYPE as SEND_MESSAGES
@@ -59,7 +59,7 @@ class Continue(BaseException): ...
 )
 async def _(ctx: ToolContext) -> str | None:
     msg: str = ctx.data["content"]
-    debug_log(f"[LLM-ProcessMessage] {msg}")
+    logger.debug(f"[LLM-ProcessMessage] {msg}")
     await ctx.event.chat_object.yield_response(msg)
     return f"Sent a message to user:\n\n```text\n{msg}\n```\n"
 
@@ -90,10 +90,10 @@ async def agent_core(event: PreCompletionEvent) -> None:
                     )
                 )
                 agent_last_step = reasoning
-                debug_log(f"[AmritaAgent] {reasoning}")
+                logger.debug(f"[AmritaAgent] {reasoning}")
                 if not config.function_config.agent_reasoning_hide:
-                    await event.chat_object.yield_response(
-                        f"<think>\n\n{reasoning}\n\n</think>"
+                    await chat_object.yield_response(
+                        f"Thought:\n\n{reasoning}\n\nEnd Thought"
                     )
             else:
                 raise ValueError("Reasoning tool has no content!")
@@ -143,7 +143,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
             nonlocal suggested_stop
             suggested_stop = True
 
-        debug_log(
+        logger.info(
             f"Starting round {call_count} tool call, current message count: {len(msg_list)}"
         )
         config = get_config()
@@ -157,8 +157,8 @@ async def agent_core(event: PreCompletionEvent) -> None:
             await append_reasoning_msg(msg_list, original_msg, tools_ctx=tools)
 
         if call_count > config.function_config.agent_tool_call_limit:
-            await event.chat_object.yield_response(
-                "[AmritaAgent] 过多次的工具调用！已中止Workflow！"
+            await chat_object.yield_response(
+                "[AmritaAgent] Too many tool calls! Workflow terminated!"
             )
             msg_list.append(
                 Message(
@@ -184,15 +184,27 @@ async def agent_core(event: PreCompletionEvent) -> None:
                 function_name = tool_call.function.name
                 function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
                 debug_log(f"Function arguments are {tool_call.function.arguments}")
-                debug_log(f"Calling function {function_name}")
+                logger.info(f"Calling function {function_name}")
+                await chat_object.yield_response(
+                    MessageWithMetadata(
+                        content=f"Calling function {function_name}",
+                        metadata={
+                            "type": "function_call",
+                            "function_name": function_name,
+                            "is_done": False,
+                            "tool_id": tool_call.id,
+                        },
+                    )
+                )
+                err: Exception | None = None
                 try:
                     match function_name:
                         case REASONING_TOOL.function.name:
-                            debug_log("Generating task summary and reason.")
+                            logger.debug("Generating task summary and reason.")
                             await _append_reasoning(msg_list, response=response_msg)
                             raise Continue()
                         case STOP_TOOL.function.name:
-                            debug_log("Agent work has been terminated.")
+                            logger.info("Agent work has been terminated.")
                             func_response = (
                                 "You have indicated readiness to provide the final answer."
                                 + "Please now generate the final, comprehensive response for the user."
@@ -249,16 +261,17 @@ async def agent_core(event: PreCompletionEvent) -> None:
                 except Continue:
                     continue
                 except Exception as e:
-                    if isinstance(e, ChatException):
+                    err = e
+                    if isinstance(e, ProcEXC):
                         raise
-                    print(f"Function {function_name} execution failed: {e}")
+                    logger.error(f"Function {function_name} execution failed: {e}")
                     if (
                         config.function_config.tool_calling_mode == "agent"
                         and function_name not in BUILTIN_TOOLS_NAME
                         and config.function_config.agent_tool_call_notice
                     ):
-                        await event.chat_object.yield_response(
-                            f"Error:{function_name} failed."
+                        await chat_object.yield_response(
+                            f"Error: {function_name} failed."
                         )
                     msg_list.append(
                         ToolResult(
@@ -270,7 +283,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
                     )
                     continue
                 else:
-                    debug_log(f"Function {function_name} returned: {func_response}")
+                    logger.debug(f"Function {function_name} returned: {func_response}")
 
                     msg: ToolResult = ToolResult(
                         role="tool",
@@ -282,26 +295,28 @@ async def agent_core(event: PreCompletionEvent) -> None:
                     result_msg_list.append(msg)
                 finally:
                     call_count += 1
-            if config.function_config.tool_calling_mode == "agent":
-                # 发送工具调用信息给用户
+
+                # Send tool call info to user
                 if config.function_config.agent_tool_call_notice == "notify":
-                    if message := (
-                        "".join(
-                            f"✅ 调用了工具 {i.name}\n"
-                            for i in result_msg_list
-                            if (
-                                getattr(
-                                    ToolsManager().get_tool(i.name), "on_call", None
-                                )
-                                == "show"
-                                and i.name not in AGENT_PROCESS_TOOLS
+                    for rslt in result_msg_list:
+                        await chat_object.yield_response(
+                            MessageWithMetadata(
+                                content=f"✅ Called tool {rslt.name}\n",
+                                metadata={
+                                    "type": "function_call",
+                                    "function_name": function_name,
+                                    "is_done": True,
+                                    "tool_id": tool_call.id,
+                                    "error": err,
+                                },
                             )
                         )
-                    ):
-                        await event.chat_object.yield_response(message)
+
+            if config.function_config.tool_calling_mode == "agent":
                 await run_tools(msg_list, call_count, original_msg)
 
     config = get_config()
+    chat_object = event.chat_object
     if config.function_config.tool_calling_mode == "none":
         return
     msg_list: SEND_MESSAGES = (
@@ -320,23 +335,23 @@ async def agent_core(event: PreCompletionEvent) -> None:
         if config.function_config.agent_thought_mode.startswith("reasoning"):
             tools.append(REASONING_TOOL.model_dump())
     tools.extend(ToolsManager().tools_meta_dict().values())
-    debug_log(
-        "工具列表："
+    logger.debug(
+        "Tool list:"
         + "".join(
             f"{tool['function']['name']}: {tool['function']['description']}\n\n"
             for tool in tools
         )
     )
-    debug_log(f"工具列表：{tools}")
+    logger.debug(f"Tool list: {tools}")
     if not tools:
-        warnings.warn("未定义任何有效工具！Tools Workflow已跳过。")
+        logger.warning("No valid tools defined! Tools Workflow skipped.")
         return
     if str(os.getenv(key="AMRITA_IGNORE_AGENT_TOOLS")).lower() == "true" and (
         config.function_config.tool_calling_mode == "agent"
         and len(tools) == len(AGENT_PROCESS_TOOLS)
     ):
-        warnings.warn(
-            "注意：当前工具类型仅有Agent模式过程工具，而无其他有效工具定义，这通常不是使用Agent模式的最佳实践。配置环境变量AMRITA_IGNORE_AGENT_TOOLS=true可忽略此警告。"
+        logger.warning(
+            "Note: Currently there are only Agent mode process tools without other valid tools defined, which usually isn't a best practice for using Agent mode. Configure environment variable AMRITA_IGNORE_AGENT_TOOLS=true to ignore this warning."
         )
 
     try:
@@ -355,9 +370,9 @@ async def agent_core(event: PreCompletionEvent) -> None:
         event._context_messages.extend(msg_list[current_length:])
 
     except Exception as e:
-        if isinstance(e, ChatException):
+        if isinstance(e, ProcEXC):
             raise
-        warnings.warn(
+        logger.warning(
             f"ERROR\n{e!s}\n!Failed to call Tools! Continuing with old data..."
         )
         event._context_messages = chat_list_backup
@@ -371,6 +386,12 @@ async def cookie(event: CompletionEvent):
         if cookie := config.cookie.cookie:
             if cookie in response:
                 await event.chat_object.yield_response(
-                    "Some error occurred, please try again later."
+                    response=MessageWithMetadata(
+                        "Some error occurred, please try again later.",
+                        metadata={
+                            "type": "error",
+                            "content": "Some error occurred, please try again later.",
+                        },
+                    )
                 )
                 await event.chat_object.set_queue_done()

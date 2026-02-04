@@ -1,13 +1,13 @@
 import asyncio
 import copy
-from abc import ABC
+from abc import ABC, abstractmethod
 from asyncio import Lock, Task
 from collections import defaultdict
 from collections.abc import AsyncGenerator
 from dataclasses import dataclass, field
 from datetime import datetime
-from io import StringIO
-from typing import Any
+from io import BytesIO, StringIO
+from typing import Any, TypedDict
 from uuid import uuid4
 
 import pytz
@@ -69,6 +69,7 @@ class MessageContent(ABC):
     def __init__(self, content_type: str):
         self.type = content_type
 
+    @abstractmethod
     def get_content(self):
         """Return the actual content of the message"""
         raise NotImplementedError("Subclasses must implement get_content method")
@@ -96,6 +97,11 @@ class RawMessageContent(MessageContent):
         return self.raw_data
 
 
+class MessageMetadata(TypedDict):
+    content: str
+    metadata: dict[str, Any]
+
+
 class MessageWithMetadata(MessageContent):
     """Message with additional metadata"""
 
@@ -104,8 +110,19 @@ class MessageWithMetadata(MessageContent):
         self.content = content
         self.metadata = metadata
 
-    def get_content(self):
-        return {"content": self.content, "metadata": self.metadata}
+    def get_content(self) -> MessageMetadata:
+        return MessageMetadata(content=self.content, metadata=self.metadata)
+
+
+class ImageMessage(MessageContent):
+    """Image message"""
+
+    def __init__(self, image: str | BytesIO):
+        super().__init__("image")
+        self.image: str | BytesIO = image
+
+    def get_content(self) -> BytesIO | str:
+        return self.image
 
 
 class ChatObjectMeta(BaseModel):

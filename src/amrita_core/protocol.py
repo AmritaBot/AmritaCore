@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import warnings
 from abc import abstractmethod
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass
 
+from .logging import logger
 from .tools.models import ToolChoice, ToolFunctionSchema
 from .types import ModelPreset, ToolCall, UniResponse
 
@@ -79,7 +79,7 @@ class AdapterManager:
                     raise ValueError(
                         f"Model protocol adapter {protocol} is already registered"
                     )
-                warnings.warn(
+                logger.warning(
                     f"Model protocol adapter {protocol} has been registered by {self._adapter_class[protocol].__name__}, overriding existing adapter"
                 )
 
@@ -95,7 +95,7 @@ class AdapterManager:
                         raise ValueError(
                             f"Model protocol adapter {p} is already registered"
                         )
-                    warnings.warn(
+                    logger.warning(
                         f"Model protocol adapter {p} has been registered by {self._adapter_class[p].__name__}, overriding existing adapter"
                     )
                 self._adapter_class[p] = adapter
