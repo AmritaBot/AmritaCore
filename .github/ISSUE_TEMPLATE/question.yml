@@ -1,40 +1,48 @@
-name: 提出问题寻求解答
-description: 向开发者/其他用户表达您的疑惑并寻求帮助
+name: Ask a Question for Help
+description: Express your questions to developers/other users and seek help
 title: '[Question] '
 labels: [question,help wanted]
 body:
   - type: markdown
     attributes:
       value: |
-        来提问吧～
+        Ask your questions here~
+  - type: checkboxes
+    id: chinese-user
+    attributes:
+      label: 中文用户？
+      description: 请使用英语编写Issue,否则Issue将被Closed
+      options:
+        - label: 我是一个中文用户，并且我明白需要使用英语编写Issue
+          required: false
   - type: input
     id: python-version
     attributes:
-      label: Python 版本
-      description: 可通过 `python --version` 命令查看
+      label: Python Version
+      description: Check with `python --version` command
       placeholder: "3.12"
     validations:
       required: true
   - type: input
-    id: Amrita-version
+    id: AmritaCore-version
     attributes:
-      label: AmritaCore 版本
-      description: 使用`pip show amrita_core` 命令查看`命令查看
+      label: AmritaCore Version
+      description: Check with `pip show amrita_core` command
       placeholder: 0.1.0
     validations:
       required: false
   - type: textarea
     id: what-happened
     attributes:
-      label: 您遇到了什么问题？
-      description: 填写你遇到的问题
+      label: What problem did you encounter?
+      description: Describe the problem you encountered
     validations:
       required: true
   - type: textarea
-    id: Amrita-log
+    id: AmritaCore-log
     attributes:
-      label: Amrita 运行日志
-      description: 请粘贴Amrita运行后报错的控制台内容到此，如果您认为这有帮助。
+      label: AmritaCore Runtime Log
+      description: Please paste the console output from AmritaCore when an error occurs if you think this is helpful.
       render: shell
     validations:
       required: false

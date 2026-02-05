@@ -1,16 +1,24 @@
-name: 新功能
-description: 您希望AmritaCore添加什么新功能
+name: New Feature
+description: What new features would you like to see added to AmritaCore
 title: '[New Feature] '
 labels: [enhancement]
 body:
   - type: markdown
     attributes:
       value: |
-        欢迎来到 Amrita 新功能提交处。
+        Welcome to AmritaCore's new feature submission area.
+  - type: checkboxes
+    id: chinese-user
+    attributes:
+      label: 中文用户？
+      description: 请使用英语编写Issue,否则Issue将被Closed
+      options:
+        - label: 我是一个中文用户，并且我明白需要使用英语编写Issue
+          required: false
   - type: textarea
     id: feature-new-content
     attributes:
-      label: 什么新功能/改进
-      description: 您需要的新功能/改进
+      label: What new feature/improvement
+      description: The new feature/improvement you need
     validations:
       required: true

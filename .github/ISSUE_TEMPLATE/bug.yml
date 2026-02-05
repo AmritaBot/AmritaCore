@@ -1,40 +1,48 @@
-name: Bug 反馈
-description: 报告可能的异常行为
+name: Bug Report
+description: Report possible abnormal behavior
 title: '[BUG] '
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        欢迎来到 Amrita 的 Issue Tracker！请填写以下表格来提交 Bug。
+        Welcome to AmritaCore's Issue Tracker! Please fill out the following form to submit a Bug report.
+  - type: checkboxes
+    id: chinese-user
+    attributes:
+      label: 中文用户？
+      description: 请使用英语编写Issue,否则Issue将被Closed
+      options:
+        - label: 我是一个中文用户，并且我明白需要使用英语编写Issue
+          required: false
   - type: input
     id: python-version
     attributes:
-      label: Python 版本
-      description: 可通过 `python --version` 命令查看
+      label: Python Version
+      description: Check with `python --version` command
       placeholder: "3.12"
     validations:
       required: true
   - type: input
-    id: Amrita-version
+    id: AmritaCore-version
     attributes:
-      label: Amrita 版本
-      description: 使用`pip show amrita_core`查看
+      label: AmritaCore Version
+      description: Check with `pip show amrita_core`
       placeholder: 0.1.0
     validations:
       required: true
   - type: textarea
     id: what-happened
     attributes:
-      label: 发生了什么?
-      description: 填写你认为的 Amrita 的不正常行为
+      label: What happened?
+      description: Describe the abnormal behavior you believe AmritaCore exhibited
     validations:
       required: true
   - type: textarea
     id: how-reproduce
     attributes:
-      label: 如何复现
-      description: 填写应当如何操作才能触发这个不正常行为
+      label: How to reproduce
+      description: Describe how to trigger this abnormal behavior
       placeholder: |
         1. xxx
         2. xxx
@@ -44,13 +52,13 @@ body:
   - type: textarea
     id: what-expected
     attributes:
-      label: 期望的结果?
-      description: 填写你认为 Amrita 应当执行的正常行为
+      label: Expected Result?
+      description: Describe what normal behavior you think AmritaCore should perform
     validations:
       required: true
   - type: textarea
-    id: Amrita-log
+    id: AmritaCore-log
     attributes:
-      label: Amrita 运行日志
-      description: 请粘贴Amrita运行后报错的控制台内容到此
+      label: AmritaCore Runtime Log
+      description: Please paste the console output from AmritaCore when an error occurs
       render: shell
