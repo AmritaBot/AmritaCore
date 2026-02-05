@@ -161,7 +161,13 @@ async def agent_core(event: PreCompletionEvent) -> None:
 
         if call_count > config.function_config.agent_tool_call_limit:
             await chat_object.yield_response(
-                "[AmritaAgent] Too many tool calls! Workflow terminated!\n"
+                MessageWithMetadata(
+                    content="[AmritaAgent] Too many tool calls! Workflow terminated!\n",
+                    metadata={
+                        "type": "system",
+                        "message": "[AmritaAgent] Too many tool calls! Workflow terminated!\n",
+                    },
+                )
             )
             msg_list.append(
                 Message(
@@ -274,7 +280,16 @@ async def agent_core(event: PreCompletionEvent) -> None:
                         and config.function_config.agent_tool_call_notice
                     ):
                         await chat_object.yield_response(
-                            f"Error: {function_name} failed."
+                            MessageWithMetadata(
+                                content=f"Error: {function_name} failed.",
+                                metadata={
+                                    "type": "function_call",
+                                    "function_name": function_name,
+                                    "is_done": True,
+                                    "tool_id": tool_call.id,
+                                    "err": err,
+                                },
+                            )
                         )
                     msg_list.append(
                         ToolResult(
@@ -310,7 +325,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
                                     "function_name": function_name,
                                     "is_done": True,
                                     "tool_id": tool_call.id,
-                                    "error": err,
+                                    "err": None,
                                 },
                             )
                         )

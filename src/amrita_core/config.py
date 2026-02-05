@@ -74,25 +74,6 @@ class FunctionConfig(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    enable_report: bool = Field(
-        default=True, description="Whether to enable content moderation system"
-    )
-    report_exclude_system_prompt: bool = Field(
-        default=False,
-        description="Whether to exclude system prompts, by default, content moderation checks both system prompts and context",
-    )
-    report_exclude_context: bool = Field(
-        default=False,
-        description="Whether to exclude context and only check the last message, by default, content moderation checks both system prompts and context",
-    )
-    report_then_block: bool = Field(
-        default=True,
-        description="Whether to terminate session upon detecting violations",
-    )
-    report_invoke_level: Literal["low", "medium", "high"] = Field(
-        default="medium",
-        description="Strictness level of content moderation, options: low, medium, high",
-    )
     require_tools: bool = Field(
         default=False,
         description="Whether to force at least one tool to be used per call",

@@ -429,6 +429,8 @@ class ChatObject:
     last_call: datetime  # Last internal function call time
     session_id: str
     response: UniResponse[str, None]
+    response_queue: asyncio.Queue[Any]
+    overflow_queue: asyncio.Queue[Any]
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
@@ -436,6 +438,7 @@ class ChatObject:
     _err: BaseException | None = None
     _wait: bool = True
     _queue_done: bool = False
+    __done_marker = object()
 
     def __init__(
         self,
@@ -444,6 +447,8 @@ class ChatObject:
         context: Memory,
         session_id: str,
         run_blocking: bool = True,
+        queue_size: int = 25,
+        overflow_queue_size: int = 45,
     ) -> None:
         """Initialize chat object
 
@@ -466,8 +471,8 @@ class ChatObject:
         self._wait = run_blocking
 
         # Initialize async queue for streaming responses
-        self.response_queue = asyncio.Queue(25)
-        self.__done_marker = object()  # Special marker to signal completion
+        self.response_queue = asyncio.Queue(queue_size)
+        self.overflow_queue = asyncio.Queue(overflow_queue_size)
         self.stream_id = uuid4().hex
 
     def get_exception(self) -> BaseException | None:
@@ -620,7 +625,38 @@ class ChatObject:
     async def set_queue_done(self) -> None:
         """Mark the response queue as done by putting the done marker"""
         if not self.queue_closed():
-            await self.response_queue.put(self.__done_marker)
+            await self._put_to_queue(self.__done_marker)
+
+    async def _put_to_queue(self, item):
+        """Put an item to the queue, using overflow mechanism if primary queue is full
+
+        Args:
+            item: Item to put in the queue
+        """
+        try:
+            self.response_queue.put_nowait(item)
+        except asyncio.QueueFull:
+            try:
+                self.overflow_queue.put_nowait(item)
+            except asyncio.QueueFull:
+                timeout = 5
+                while timeout > 0:
+                    await asyncio.sleep(1)
+                    timeout -= 1
+                    try:
+                        self.response_queue.put_nowait(item)
+                        return
+                    except asyncio.QueueFull:
+                        try:
+                            self.overflow_queue.put_nowait(item)
+                            return
+                        except asyncio.QueueFull:
+                            continue
+
+                # After waiting, if still full, raise an exception
+                raise RuntimeError(
+                    "Both primary and overflow queues are full after waiting"
+                )
 
     async def yield_response(self, response: str | MessageContent):
         """Send chat model response to the queue allowing both str and MessageContent types.
@@ -629,7 +665,7 @@ class ChatObject:
             response: Either a string or MessageContent object to be sent to the queue
         """
         if not self.queue_closed():
-            await self.response_queue.put(response)
+            await self._put_to_queue(response)
         else:
             raise RuntimeError("Queue is closed.")
 
@@ -672,12 +708,32 @@ class ChatObject:
         Yields:
             Items from the response queue until the done marker is encountered
         """
+        # Yield from primary queue first
         while True:
-            item = await self.response_queue.get()
-            if item is self.__done_marker:
+            # Check primary queue first
+            while not self.response_queue.empty():
+                item = await self.response_queue.get()
                 self.response_queue.task_done()
-                break
-            yield item
+                if item is self.__done_marker:
+                    return
+                yield item
+
+            # If primary queue is empty, check overflow queue
+            if not self.overflow_queue.empty():
+                item = await self.overflow_queue.get()
+                self.overflow_queue.task_done()
+                if item is self.__done_marker:
+                    return
+                yield item
+            else:
+                if (
+                    self.queue_closed()
+                    and self.response_queue.empty()
+                    and self.overflow_queue.empty()
+                ):
+                    break
+                # Otherwise, wait a bit before checking again
+                await asyncio.sleep(0.01)
 
     async def _process_chat(
         self,
