@@ -60,7 +60,7 @@ class Continue(BaseException): ...
 async def _(ctx: ToolContext) -> str | None:
     msg: str = ctx.data["content"]
     logger.debug(f"[LLM-ProcessMessage] {msg}")
-    await ctx.event.chat_object.yield_response(msg)
+    await ctx.event.chat_object.yield_response(f"{msg}\n")
     return f"Sent a message to user:\n\n```text\n{msg}\n```\n"
 
 
@@ -93,7 +93,10 @@ async def agent_core(event: PreCompletionEvent) -> None:
                 logger.debug(f"[AmritaAgent] {reasoning}")
                 if not config.function_config.agent_reasoning_hide:
                     await chat_object.yield_response(
-                        f"Thought:\n\n{reasoning}\n\nEnd Thought"
+                        response=MessageWithMetadata(
+                            content=f"<think>\n\n{reasoning}\n\n</think>\n",
+                            metadata={"type": "reasoning", "content": reasoning},
+                        )
                     )
             else:
                 raise ValueError("Reasoning tool has no content!")
@@ -158,7 +161,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
 
         if call_count > config.function_config.agent_tool_call_limit:
             await chat_object.yield_response(
-                "[AmritaAgent] Too many tool calls! Workflow terminated!"
+                "[AmritaAgent] Too many tool calls! Workflow terminated!\n"
             )
             msg_list.append(
                 Message(
