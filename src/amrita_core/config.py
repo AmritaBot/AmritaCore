@@ -148,7 +148,7 @@ class AmritaConfig(BaseModel):
     )
 
 
-_CONFIG = AmritaConfig()
+__config = AmritaConfig()
 __inited: bool = False
 
 
@@ -163,7 +163,7 @@ def get_config() -> AmritaConfig:
     """
     if not __inited:
         raise RuntimeError("Config is not initialized. Please set config first.")
-    return _CONFIG
+    return __config
 
 
 def set_config(config: AmritaConfig):
@@ -172,8 +172,7 @@ def set_config(config: AmritaConfig):
     Args:
         config (AmritaConfig): Configuration object to set
     """
-    global _CONFIG, __inited
+    global __config, __inited
     if not __inited:
         __inited = True
-    for key, value in config.model_dump().items():
-        setattr(_CONFIG, key, value)
+    __config = config

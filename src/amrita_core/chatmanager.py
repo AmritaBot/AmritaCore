@@ -19,7 +19,7 @@ from .config import AmritaConfig, get_config
 from .hook.event import CompletionEvent, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
-from .logging import debug_log
+from .logging import logger
 from .tokenizer import hybrid_token_count
 from .types import (
     CONTENT_LIST_TYPE,
@@ -28,6 +28,7 @@ from .types import (
     Content,
     ImageContent,
     Message,
+    SendMessageWrap,
     TextContent,
     ToolResult,
     UniResponse,
@@ -110,7 +111,13 @@ class MessageWithMetadata(MessageContent):
         self.content = content
         self.metadata = metadata
 
-    def get_content(self) -> MessageMetadata:
+    def get_content(self) -> Any:
+        return self.content
+
+    def get_metadata(self) -> dict:
+        return self.metadata
+
+    def get_full_content(self) -> MessageMetadata:
         return MessageMetadata(content=self.content, metadata=self.metadata)
 
 
@@ -133,7 +140,7 @@ class ChatObjectMeta(BaseModel):
 
     stream_id: str  # Chat stream ID
     session_id: str  # Session ID
-    user_query: list[TextContent | ImageContent] | str
+    user_input: list[TextContent | ImageContent] | str
     time: datetime = Field(default_factory=datetime.now)  # Creation time
     last_call: datetime = Field(default_factory=datetime.now)  # Last call time
 
@@ -192,7 +199,7 @@ User input → Direct summary output
         """
         self._dropped_messages = []
         self._copied_messages = copy.deepcopy(self.memory)
-        debug_log(
+        logger.debug(
             f"MemoryLimiter initialized, message count: {len(self.memory.messages)}"
         )
         return self
@@ -203,7 +210,7 @@ User input → Direct summary output
         By calling LLM to summarize all message content in the current memory into a brief content,
         to reduce context length while preserving key information.
         """
-        debug_log("Starting context summarization..")
+        logger.debug("Starting context summarization..")
         proportion = self.config.llm.memory_abstract_proportion  # Summary proportion
         dropped_part: CONTENT_LIST_TYPE = copy.deepcopy(self._dropped_messages)
         index = int(len(self.memory.messages) * proportion) - len(dropped_part)
@@ -241,15 +248,15 @@ User input → Direct summary output
                     ),
                 ),
             ]
-            debug_log("Performing context summarization...")
+            logger.debug("Performing context summarization...")
             response = await get_last_response(call_completion(msg_list))
             usage = await get_tokens(msg_list, response)
             self.usage = usage
-            debug_log(f"Context summary received: {response.content}")
+            logger.debug(f"Context summary received: {response.content}")
             self.memory.abstract = response.content
-            debug_log("Context summarization completed")
+            logger.debug("Context summarization completed")
         else:
-            debug_log("Context summarization skipped")
+            logger.debug("Context summarization skipped")
 
     def _drop_message(self):
         """Remove the oldest message from memory and add it to dropped messages list.
@@ -275,7 +282,7 @@ User input → Direct summary output
         Raises:
             RuntimeError: Thrown when not used in an async context manager
         """
-        debug_log("Starting memory limitation processing..")
+        logger.debug("Starting memory limitation processing..")
         if not hasattr(self, "_dropped_messages") and not hasattr(
             self, "_copied_messages"
         ):
@@ -286,11 +293,11 @@ User input → Direct summary output
         await self._limit_tokens()
         if self.config.llm.enable_memory_abstract and self._dropped_messages:
             await self._make_abstract()
-        debug_log("Memory limitation processing completed")
+        logger.debug("Memory limitation processing completed")
 
     async def _limit_length(self):
         """Control memory length, remove old messages that exceed the limit, remove unsupported messages."""
-        debug_log("Starting memory length limitation..")
+        logger.debug("Starting memory length limitation..")
         is_multimodal = get_config().llm.enable_multi_modal
         data: Memory = self.memory
 
@@ -324,7 +331,7 @@ User input → Direct summary output
             else:
                 break
         final_count = len(data.messages)
-        debug_log(
+        logger.debug(
             f"Memory length limitation completed, removed {initial_count - final_count} messages"
         )
 
@@ -355,10 +362,10 @@ User input → Direct summary output
         train = self._train
         train_model = Message.model_validate(train)
         data = self.memory
-        debug_log("Starting token count limitation..")
+        logger.debug("Starting token count limitation..")
         memory_l: CONTENT_LIST_TYPE = [train_model, *data.messages]
         if not self.config.llm.enable_tokens_limit:
-            debug_log("Token limitation disabled, skipping processing")
+            logger.debug("Token limitation disabled, skipping processing")
             return
         prompt_length = hybrid_token_count(train["content"])
         if prompt_length > self.config.llm.session_tokens_windows:
@@ -381,10 +388,10 @@ User input → Direct summary output
                 0
             )  # CPU intensive tasks may cause performance issues, yielding control here
         final_count = len(data.messages)
-        debug_log(
+        logger.debug(
             f"Token count limitation completed, removed {initial_count - final_count} messages"
         )
-        debug_log(f"Final token count: {tk_tmp}")
+        logger.debug(f"Final token count: {tk_tmp}")
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         """Async context manager exit, handle rollback in case of exceptions
@@ -416,6 +423,8 @@ class ChatObject:
     end_at: datetime | None = None
     data: Memory  # (lateinit) Memory file
     user_input: USER_INPUT
+    user_message: Message[USER_INPUT]  # (lateinit) User message
+    context_wrap: SendMessageWrap
     train: dict[str, str]  # System message
     last_call: datetime  # Last internal function call time
     session_id: str
@@ -449,6 +458,7 @@ class ChatObject:
         self.data = context
         self.session_id = session_id
         self.user_input = user_input
+        self.user_message = Message(role="user", content=user_input)
         self.timestamp = get_current_datetime_timestamp()
         self.time = datetime.now(utc)
         self.config: AmritaConfig = get_config()
@@ -458,6 +468,7 @@ class ChatObject:
         # Initialize async queue for streaming responses
         self.response_queue = asyncio.Queue(25)
         self.__done_marker = object()  # Special marker to signal completion
+        self.stream_id = uuid4().hex
 
     def get_exception(self) -> BaseException | None:
         """
@@ -518,13 +529,13 @@ class ChatObject:
             bot: Bot instance
         """
         if not self._has_task:
-            debug_log("Starting chat object task...")
+            logger.debug("Starting chat object task...")
             self._has_task = True
             self._task = asyncio.create_task(self.__call__())
             return await self._task if self._wait else None
         if not self._is_running and not self._is_done:
-            debug_log(f"Starting chat processing, stream ID:{self.stream_id}")
             self.stream_id = uuid4().hex
+            logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
 
             try:
                 self._is_running = True
@@ -537,7 +548,7 @@ class ChatObject:
                 self._is_done = True
                 self.end_at = datetime.now(utc)
                 chat_manager.running_chat_object_id2map.pop(self.stream_id, None)
-                debug_log("Chat event processing completed")
+                logger.debug("Chat event processing completed")
 
         else:
             raise RuntimeError(
@@ -551,12 +562,13 @@ class ChatObject:
         processing message content, managing context length and token limitations,
         and sending responses.
         """
-        debug_log("Starting chat processing flow..")
+        logger.debug("Starting chat processing flow..")
         data = self.data
         config = self.config
 
-        data.messages.append(Message(role="user", content=self.user_input))
-        debug_log(
+        data.messages.append(self.user_message)
+
+        logger.debug(
             f"Added user message to memory, current message count: {len(data.messages)}"
         )
 
@@ -574,17 +586,18 @@ class ChatObject:
             + "\n</SYSTEM_INSTRUCTIONS>"
             + f"\n<SUMMARY>\n{data.abstract if config.llm.enable_memory_abstract else ''}\n</SUMMARY>"
         )
-        debug_log(self.train["content"])
+        logger.debug(self.train["content"])
 
-        debug_log("Starting applying memory limitations..")
+        logger.debug("Starting applying memory limitations..")
         async with MemoryLimiter(self.data, self.train) as lim:
             await lim.run_enforce()
             abs_usage = lim.usage
             self.data = lim.memory
-        debug_log("Memory limitation application completed")
+        logger.debug("Memory limitation application completed")
 
         send_messages = self._prepare_send_messages()
-        debug_log(
+        self.context_wrap = SendMessageWrap.validate_messages(send_messages)
+        logger.debug(
             f"Preparing sending messages completed, message count: {len(send_messages)}"
         )
         response: UniResponse[str, None] = await self._process_chat(send_messages)
@@ -593,7 +606,7 @@ class ChatObject:
             response.usage.prompt_tokens += abs_usage.prompt_tokens
             response.usage.total_tokens += abs_usage.total_tokens
 
-        debug_log("Chat processing completed, preparing to send response")
+        logger.debug("Chat processing completed, preparing to send response")
         await self.set_queue_done()
 
     def queue_closed(self) -> bool:
@@ -682,22 +695,26 @@ class ChatObject:
         self.last_call = datetime.now(utc)
 
         data = self.data
-        debug_log(
+        logger.debug(
             f"Starting chat processing, sending message count: {len(send_messages)}"
         )
 
-        debug_log("Triggering matcher functions..")
+        logger.debug("Triggering matcher functions..")
+        messages = self.context_wrap
         chat_event = PreCompletionEvent(
             chat_object=self,
             user_input=self.user_input,
-            original_context=self.data.messages,
+            original_context=messages,  # 使用包含系统消息的完整消息列表
         )
         await MatcherManager.trigger_event(chat_event)
-        self.data.messages = chat_event.get_context_messages().unwrap()
+        self.data.messages = chat_event.get_context_messages().unwrap(
+            exclude_system=True
+        )
+        send_messages = chat_event.get_context_messages().unwrap()
 
-        debug_log("Calling chat model..")
+        logger.debug("Calling chat model..")
         response: UniResponse[str, None] | None = None
-        async for chunk in call_completion(self.data.messages):
+        async for chunk in call_completion(send_messages):
             if isinstance(chunk, str):
                 await self.yield_response(StringMessageContent(chunk))
             elif isinstance(chunk, UniResponse):
@@ -707,8 +724,7 @@ class ChatObject:
         if response is None:
             raise RuntimeError("No final response from chat adapter.")
         self.response = response
-        messages = self.data.messages
-        debug_log("Triggering chat events..")
+        logger.debug("Triggering chat events..")
         chat_event = CompletionEvent(self.user_input, messages, self, response.content)
         await MatcherManager.trigger_event(chat_event)
         response.content = chat_event.model_response
@@ -718,11 +734,11 @@ class ChatObject:
                 role="assistant",
             )
         )
-        debug_log(
+        logger.debug(
             f"Added assistant response to memory, current message count: {len(data.messages)}"
         )
 
-        debug_log("Chat processing completed")
+        logger.debug("Chat processing completed")
         return response
 
     def _prepare_send_messages(
@@ -734,11 +750,11 @@ class ChatObject:
             Prepared message list to send
         """
         self.last_call = datetime.now(utc)
-        debug_log("Preparing messages to send..")
+        logger.debug("Preparing messages to send..")
         train: Message[str] = Message[str].model_validate(self.train)
         data = self.data
-        messages = [Message.model_validate(train), *copy.deepcopy(data.messages)]
-        debug_log(f"Messages preparation completed, total {len(messages)} messages")
+        messages = [train, *copy.deepcopy(data.messages)]
+        logger.debug(f"Messages preparation completed, total {len(messages)} messages")
         return messages
 
     def get_snapshot(self) -> ChatObjectMeta:

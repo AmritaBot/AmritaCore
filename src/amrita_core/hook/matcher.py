@@ -116,18 +116,8 @@ class MatcherManager:
     Event handling manager.
     """
 
-    @overload
     @staticmethod
-    async def trigger_event(
-        *args, return_exception: Literal[True] = True, **kwargs
-    ) -> AsyncGenerator[Exception, None] | None: ...
-    @overload
-    @staticmethod
-    async def trigger_event(*args, **kwargs) -> None: ...
-    @staticmethod
-    async def trigger_event(
-        *args, return_exception: bool = False, **kwargs
-    ) -> AsyncGenerator[Exception, None] | None:
+    async def trigger_event(*args, **kwargs) -> None:
         """
         Trigger a specific type of event and call all registered event handlers for that type.
 
@@ -210,17 +200,16 @@ class MatcherManager:
                 except BlockException:
                     break
                 except Exception as e:
-                    debug_log(
+                    logger.opt(exception=e, colors=True).error(
                         f"An error occurred while running '{handler.__name__}'({file_name}:{line_number}) "
                     )
-                    if return_exception:
-                        yield e
+
                     continue
                 finally:
-                    debug_log(f"Handler {handler.__name__} finished")
+                    logger.info(f"Handler {handler.__name__} finished")
                     if matcher.block:
                         break
         else:
-            debug_log(
+            logger.warning(
                 f"No registered Matcher for {event_type} event, skipping processing."
             )

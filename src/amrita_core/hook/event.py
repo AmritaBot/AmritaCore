@@ -29,16 +29,14 @@ class EventTypeEnum(str, Enum):
 @dataclass
 class Event:
     user_input: USER_INPUT
-    original_context: CONTENT_LIST_TYPE
+    original_context: SendMessageWrap
     chat_object: "ChatObject"
 
     def __post_init__(self):
         # Initialize event type as none
         self._event_type = EventTypeEnum.Nil
         # Validate and store messages using SendMessageWrap
-        self._context_messages: SendMessageWrap = SendMessageWrap.validate_messages(
-            self.original_context
-        )
+        self._context_messages = self.original_context
 
     @property
     def event_type(self) -> EventTypeEnum:

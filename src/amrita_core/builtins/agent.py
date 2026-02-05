@@ -187,7 +187,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
                 logger.info(f"Calling function {function_name}")
                 await chat_object.yield_response(
                     MessageWithMetadata(
-                        content=f"Calling function {function_name}",
+                        content=f"Calling function {function_name}\n",
                         metadata={
                             "type": "function_call",
                             "function_name": function_name,
@@ -301,7 +301,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
                     for rslt in result_msg_list:
                         await chat_object.yield_response(
                             MessageWithMetadata(
-                                content=f"✅ Called tool {rslt.name}\n",
+                                content=f"Called tool {rslt.name}\n",
                                 metadata={
                                     "type": "function_call",
                                     "function_name": function_name,

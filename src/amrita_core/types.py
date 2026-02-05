@@ -213,13 +213,14 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
         self,
         train: dict[str, str] | Message[str],
         memory: CONTENT_LIST_TYPE | MemoryModel,
+        user_query: Message | None = None,
     ):
         self.train = (
             train if isinstance(train, Message) else Message.model_validate(train)
         )
         self.end_messages = []
         self.memory = memory if isinstance(memory, list) else memory.messages
-        query = self.memory[-1]
+        query = user_query or self.memory[-1]
         if isinstance(query, ToolResult) or query.role != "user":
             raise ValueError("Invalid query message, expecting user message!")
         self.user_query = query
@@ -253,8 +254,9 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
     def copy(self) -> SendMessageWrap:
         return deepcopy(self)
 
-    def unwrap(self) -> CONTENT_LIST_TYPE:
-        return [self.train, *self.memory, self.user_query, *self.end_messages]
+    def unwrap(self, exclude_system: bool = False) -> CONTENT_LIST_TYPE:
+        system_msg: CONTENT_LIST_TYPE = [self.train] if not exclude_system else []
+        return [*system_msg, *self.memory, self.user_query, *self.end_messages]
 
     def get_train(self) -> Message[str]:
         return self.train

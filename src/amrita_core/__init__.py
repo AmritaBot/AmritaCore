@@ -12,6 +12,7 @@ from .libchat import (
 )
 from .logging import debug_log, logger
 from .preset import PresetManager, PresetReport
+from .tools import mcp
 from .tools.manager import ToolsManager, on_tools
 from .tools.models import (
     FunctionDefinitionSchema,
@@ -66,6 +67,7 @@ __all__ = [
     "get_last_response",
     "get_tokens",
     "logger",
+    "mcp",
     "on_completion",
     "on_event",
     "on_precompletion",
@@ -88,3 +90,12 @@ def init():
         __all__ += [builtins.__name__]
 
         jieba.initialize()
+
+
+async def load_amrita():
+    logger.info("Loading AmritaCore......")
+    config = get_config()
+    if config.function_config.agent_mcp_client_enable:
+        logger.info("Loading MCP clients......")
+        clients = list(config.function_config.agent_mcp_server_scripts)
+        await mcp.ClientManager().initialize_scripts_all(clients)
