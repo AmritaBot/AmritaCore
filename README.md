@@ -42,6 +42,8 @@ This repository contains documentation organized as follows:
 
 Documentation is currently under construction. For quick start, please refer to the examples in the `demo/` folder.
 
+Please view [Docs](https://amrita-core.suggar.top) for more information.
+
 ## 🛠️ Quick Start
 
 To quickly start using AmritaCore, check out the examples in the [demo](./demo/) directory. The basic example demonstrates how to initialize the core, configure settings, and run a simple chat session with the AI assistant.
