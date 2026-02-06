@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import asyncio
 import copy
 from abc import ABC, abstractmethod
@@ -434,10 +436,9 @@ class ChatObject:
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
-    _has_task: bool = False
     _err: BaseException | None = None
-    _wait: bool = True
     _queue_done: bool = False
+    _has_consumer: bool = False
     __done_marker = object()
 
     def __init__(
@@ -446,7 +447,6 @@ class ChatObject:
         user_input: USER_INPUT,
         context: Memory,
         session_id: str,
-        run_blocking: bool = True,
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
@@ -468,7 +468,6 @@ class ChatObject:
         self.time = datetime.now(utc)
         self.config: AmritaConfig = get_config()
         self.last_call = datetime.now(utc)
-        self._wait = run_blocking
 
         # Initialize async queue for streaming responses
         self.response_queue = asyncio.Queue(queue_size)
@@ -483,15 +482,6 @@ class ChatObject:
             BaseException | None: Returns exception object if an exception occurred during task execution, otherwise returns None
         """
         return self._err
-
-    def call(self):
-        """
-        Get callable object
-
-        Returns:
-            Callable object (usually the class's __call__ method)
-        """
-        return self.__call__()
 
     def is_running(self) -> bool:
         """
@@ -518,14 +508,31 @@ class ChatObject:
         """
         self._is_done = True
         self._is_running = False
-        self._task.cancel()
+        if hasattr(self, "_task") and not self._task.done():
+            self._task.cancel()
 
     def __await__(self):
         if not hasattr(self, "_task"):
             raise RuntimeError("ChatObject not running")
         return self._task.__await__()
 
-    async def __call__(self) -> None:
+    async def __aenter__(self) -> Self:
+        if not hasattr(self, "_task"):
+            raise RuntimeError("ChatObject not running")
+        if self._has_consumer:
+            raise RuntimeError("ChatObject already has a consumer")
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self.terminate()
+
+    def begin(self) -> Self:
+        if not hasattr(self, "_task"):
+            logger.debug("Starting chat object task...")
+            self._task = asyncio.create_task(self._entry())
+        return self
+
+    async def _entry(self) -> None:
         """Call chat object to process messages
 
         Args:
@@ -533,11 +540,6 @@ class ChatObject:
             matcher: Matcher
             bot: Bot instance
         """
-        if not self._has_task:
-            logger.debug("Starting chat object task...")
-            self._has_task = True
-            self._task = asyncio.create_task(self.__call__())
-            return await self._task if self._wait else None
         if not self._is_running and not self._is_done:
             self.stream_id = uuid4().hex
             logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
@@ -553,6 +555,7 @@ class ChatObject:
                 self._is_done = True
                 self.end_at = datetime.now(utc)
                 chat_manager.running_chat_object_id2map.pop(self.stream_id, None)
+                chat_manager.clean_obj(self.session_id, 1000)  # To avoid memory leaks
                 logger.debug("Chat event processing completed")
 
         else:
@@ -686,6 +689,9 @@ class ChatObject:
         Yields:
             Either a string or MessageContent object from the response queue
         """
+        if self._has_consumer:
+            raise RuntimeError("Queue is already being consumed.")
+        self._has_consumer = True
         return self._response_generator()
 
     async def full_response(self) -> str:

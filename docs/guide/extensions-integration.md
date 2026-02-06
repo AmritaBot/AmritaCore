@@ -2,7 +2,32 @@
 
 ## 5.1 Extension Mechanisms
 
-### 5.1.1 Tool System Extensions
+### 5.1.1 Simple Tools
+
+AmritaCore provides a simple way to extend its functionality through simple tools:
+
+```python
+from amrita_core import simple_tool
+
+@simple_tool
+def add(a: int, b: int) -> int:
+    """Add two numbers
+
+    Args:
+        a (int): First number
+        b (int): Second number
+    
+    Returns:
+        int: Sum of a and b
+    """
+    return a + b
+```
+
+This tool wll be automatically registered and available to the agent.
+
+In the `__doc__` block(Always is `"""` block) of the tool, you can add a description and parameters for the tool as Google's format. The parameters will be used to describe the paramenters for LLM when the tool is called.
+
+### 5.1.2 Tool System Extensions
 
 AmritaCore provides a flexible way to extend its functionality through custom tools. You can create new tools that the agent can use to perform specific tasks:
 
@@ -46,7 +71,7 @@ async def calculate_math(data: dict) -> str:
         return "Invalid expression"
 ```
 
-### 5.1.2 Advanced Tool Patterns
+### 5.1.3 Advanced Tool Patterns
 
 For tools that require access to the event context or more advanced processing, you can use the `custom_run` mode:
 
@@ -96,7 +121,7 @@ In custom run mode:
 - Functions can be synchronous or asynchronous
 - Return type can be `str` or `None`
 
-### 5.1.2 Event Hook Extensions
+### 5.1.4 Event Hook Extensions
 
 Event hooks allow you to intercept and modify the processing pipeline:
 
@@ -121,7 +146,7 @@ async def log_response(event: CompletionEvent):
     
 ```
 
-### 5.1.3 Protocol Adapters
+### 5.1.5 Protocol Adapters
 
 Protocol adapters allow AmritaCore to work with different LLM providers or communication protocols:
 
@@ -581,15 +606,13 @@ async def chat_endpoint(user_input: str, session_id: str):
     context = MemoryModel()
     train = Message(content="You are a helpful assistant.", role="system")
 
-    chat = ChatObject(
+    async with ChatObject(
         context=context,
         session_id=session_id,
         user_input=user_input,
         train=train.model_dump()
-    )
-
-    await chat.call()
-    response = await chat.full_response()
+    ).begin() as chat:
+        response = await chat.full_response()
 
     return {"response": response}
 ```

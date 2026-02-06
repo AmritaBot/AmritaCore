@@ -51,13 +51,8 @@ async def minimal_example():
         train=train.model_dump(),
     )
 
-    task = asyncio.create_task(msg_getter(chat)) # Create a task
-    try:
-        await chat.call()
-        await task
-    finally:
-        task.cancel()
-        chat.terminate()
+    async with chat.begin():
+        await msg_getter(chat)
 
 # Run the example
 if __name__ == "__main__":
@@ -75,8 +70,9 @@ In this minimal example:
 5. We register the preset with the PresetManager
 6. We create a memory context and system message
 7. We instantiate a ChatObject with our parameters
-8. We call `chat.call()` to execute the interaction
-9. Finally, we get the full response
+8. We call `chat.begin()` to execute the interaction
+9. We get the response by use generator or `await chat.get_full_response()` (just use full response this will lose metadata.)
+10. Finally, we get the full response
 
 ## 2.2.3 Running and Debugging
 

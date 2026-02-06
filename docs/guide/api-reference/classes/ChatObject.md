@@ -35,7 +35,7 @@ The ChatObject class is the primary interface for conversations with the AI.
 
 ## Methods
 
-- `call()`: Executes the conversation
+- `begin()`: Executes the conversation
 - `get_response_generator()`: Returns an async generator for streaming responses
 - `full_response()`: Returns the complete response
 

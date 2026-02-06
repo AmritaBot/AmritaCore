@@ -113,9 +113,13 @@ chat = ChatObject(
 
 **Methods**:
 
-- `call()`: Executes the conversation
+- `begin()`: Executes the conversation
 - `get_response_generator()`: Returns an async generator for streaming responses
 - `full_response()`: Returns the complete response
+
+**Specials**:
+
+- `__await__`: Allows the object to be used as an async context manager, we recommend using it.
 
 ### 7.2.2 Message - Message Class
 
@@ -180,29 +184,65 @@ config = AmritaConfig(
 
 ## 7.3 Decorator References
 
-### 7.3.1 @on_tools - Tool Registration
+### 7.3.1 @simple_tool - Simple Tool Decorator
+
+The `@simple_tool` decorator is used to register a simple tool.
+
+```python
+from amrita_core import simple_tool
+
+
+@simple_tool
+def add(a: int, b: int) -> int:
+    """Add number
+
+    Args:
+        a (int): First number
+        b (int): Second number
+    """
+    return a + b
+```
+
+**Purpose**: Register a simple tool
+
+**Usage Notes**:
+
+- The decorator registers a simple tool.
+- The tool is registered with the name of the function.
+- The description of each paramenter is from the docstring of the function, it follows the same format as the docstring.
+
+### 7.3.2 @on_tools - Tool Registration
 
 The `@on_tools` decorator registers functions as callable tools for the agent.
 
 ```python
-from amrita_core.tools.manager import on_tools
-from amrita_core.types import Function
+from typing import Any
 
-schema = FunctionDefinitionSchema(
-    name="get_time",
-    description="Get the current time in a given timezone",
-    parameters=...
+from amrita_core import on_tools
+from amrita_core.tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
 )
 
-@on_tools(
-    data=schema,
-    custom_run=True,
-    enable_if=lambda: get_config().function_config.agent_middle_message,
+DEFINITION = FunctionDefinitionSchema(
+    name="Add number",
+    description="Add two numbers",
+    parameters=FunctionParametersSchema(
+        type="object",
+        properties={
+            "a": FunctionPropertySchema(type="number",description="The first number"),
+            "b": FunctionPropertySchema(type="number",description="The second number"),
+        },
+        required=["a", "b"],
+    ),
 )
-async def get_weather(city: str) -> str:
-    """Get the weather for a given city."""
-    # Implementation here
-    return f"Weather for {city}: Sunny"
+
+@on_tools(DEFINITION)
+async def add(data: dict[str, Any]) -> str:
+    """Add two numbers"""
+    return str(data["a"] + data["b"])
+
 ```
 
 **Purpose**: Registers a function as an available tool that the agent can call.
@@ -213,7 +253,7 @@ async def get_weather(city: str) -> str:
 - Function docstring becomes the tool description
 - Registered tools are automatically available to the agent
 
-### 7.3.2 @on_event - Event Listener
+### 7.3.3 @on_event - Event Listener
 
 The `@on_event` decorator registers functions as event handlers.
 
@@ -228,7 +268,7 @@ def my_event_handler(event):
 
 **Purpose**: Registers a function to handle specific events during the processing pipeline.
 
-### 7.3.3 @on_precompletion - Pre-Completion Hook
+### 7.3.4 @on_precompletion - Pre-Completion Hook
 
 The `@on_precompletion` decorator registers functions to run before the completion request is sent to the LLM.
 
@@ -244,7 +284,7 @@ async def preprocess_request(event: PreCompletionEvent):
 
 **Purpose**: Runs before sending the request to the LLM, allowing modification of messages or other preprocessing.
 
-### 7.3.4 @on_completion - Post-Completion Hook
+### 7.3.5 @on_completion - Post-Completion Hook
 
 The `@on_completion` decorator registers functions to run after receiving the completion from the LLM.
 

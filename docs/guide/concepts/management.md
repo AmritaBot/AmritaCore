@@ -102,7 +102,7 @@ chat = ChatObject(
 )
 
 # Process the interaction
-await chat.call()
+await chat.begin()
 
 # Update context with the new state
 updated_context = chat.data

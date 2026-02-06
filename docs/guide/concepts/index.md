@@ -6,7 +6,7 @@
 
 The [AmritaConfig](../api-reference/classes/AmritaConfig.md) class serves as the central configuration object for AmritaCore. It combines three distinct configuration classes:
 
-- `FunctionConfi`: Defines behavioral aspects of the agent
+- `FunctionConfig`: Defines behavioral aspects of the agent
 - `LLMConfig`: Controls language model interactions
 - `CookieConfig`: Handles security aspects
 
@@ -147,10 +147,7 @@ The [ChatObject](../api-reference/classes/ChatObject.md) is the core class for m
 import asyncio
 from amrita_core import ChatObject
 
-async def msg_getter(chatobj: ChatObject) -> None:
-    async for message in chatobj.get_response_generator():
-        print(message if isinstance(message, str) else message.get_content(), end="")
-    print("\n")
+
 
 chat = ChatObject(
     context=memory_model,      # Memory context
@@ -159,11 +156,14 @@ chat = ChatObject(
     train=system_prompt        # System instructions
 )
 
+async def msg_getter(chatobj: ChatObject) -> None:
+    async for message in chatobj.get_response_generator():
+        print(message if isinstance(message, str) else message.get_content(), end="")
+    print("\n")
 
-# Get responses
-task = asyncio.create_task(msg_getter(chat))
-await chat.call()
-await task
+async with chat.begin():
+    await msg_getter(chat)
+
 ```
 
 ### 3.5.2 PresetManager Preset Manager

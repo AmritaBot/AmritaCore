@@ -97,7 +97,11 @@ async def basic_example():
     print("🤖 Assistant: ", end="")
 
     # Start the chat processing
-    await chat.call()
+    await chat.begin()
+    # Or like this, we prefer you to use the context manager:
+    # async with chat.begin():
+    #    async for message in chat.get_response_generator():
+    #        print(message if isinstance(message, str) else message.get_content(), end="")
 
     # Print the streamed response
     async for message in chat.get_response_generator():
@@ -125,7 +129,7 @@ async def basic_example():
     print("🤖 Assistant: ", end="")
 
     # Process the follow-up
-    await chat2.call()
+    await chat2.begin()
 
     async for message in chat2.get_response_generator():
         content = message if isinstance(message, str) else message.get_content()
@@ -173,8 +177,8 @@ async def minimal_example():
         train=train.model_dump(),
     )
 
-    # Run the chat
-    await chat.call()
+    chat.begin()
+    await chat
 
     # Collect response (just to show it works)
     response = await chat.full_response()
@@ -191,6 +195,7 @@ if __name__ == "__main__":
     asyncio.run(minimal_example())
 
     print("\n✨ All examples completed!")
+
 ```
 
 ## 2.3.2 Configuration Details

@@ -14,6 +14,7 @@ init()
 ```
 
 This function performs several key tasks:
+
 - Sets up internal logging
 - Initializes Jieba for text processing (if available)
 - Loads built-in modules
@@ -109,13 +110,26 @@ chat = ChatObject(
 )
 ```
 
-### 4.2.2 call() Executing Conversations
+### 4.2.2 begin() Executing Conversations
 
-The `call()` method executes the conversation and processes the input:
+#### Basic Usage
+
+The `begin()` method executes the conversation and processes the input:
 
 ```python
 # Execute the conversation
-await chat.call()
+await chat.begin()
+
+```
+
+#### Use as Context Manager(Recommended)
+
+```python
+
+# We prefer to use context manager as this:
+async with chat.begin():
+    ...
+
 ```
 
 ### 4.2.3 full_response() Obtaining Complete Response
@@ -139,6 +153,12 @@ async for message in chat.get_response_generator():
     print(content, end="")
 ```
 
+::: warning
+
+The `get_response_generator()` or `full_response()` is a one-time operation. That means that you can only call `full_response()` or `get_response_generator()` once, or it will raise a `RuntimeError`.
+
+:::
+
 ### 4.2.5 Conversation Lifecycle
 
 The typical conversation lifecycle includes:
@@ -155,17 +175,14 @@ The typical conversation lifecycle includes:
 context = MemoryModel()
 train = Message(content="You are a helpful assistant.", role="system")
 
-chat = ChatObject(
+async with ChatObject(
     context=context,
     session_id="session_123",
     user_input="Hello!",
     train=train.model_dump()
-)
-
-await chat.call()
-
-async for message in chat.get_response_generator():
-    print(message, end="")
+).begin() as chat:
+    async for message in chat.get_response_generator():
+        print(message, end="")
 
 # Update context for next interaction
 context = chat.data
@@ -183,7 +200,7 @@ from amrita_core.hook.on import on_event
 @on_event()
 def my_event_handler(event):
     print(f"Event received: {event}")
-    
+
 ```
 
 ### 4.3.2 @on_precompletion Pre-Completion Hooks
@@ -198,7 +215,7 @@ from amrita_core.hook.on import on_precompletion
 async def preprocess_request(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
     event.messages.append(Message(role="system", content="Be concise in your response"))
-    
+
 ```
 
 ### 4.3.3 @on_completion Post-Completion Hooks
@@ -213,7 +230,7 @@ from amrita_core.hook.on import on_completion
 async def postprocess_response(event: CompletionEvent):
     # Process the response before returning to user
     print(f"Response received: {event.response[:50]}...")
-    
+
 ```
 
 ### 4.3.4 Event Processing Best Practices
@@ -241,11 +258,11 @@ weather_func = FunctionDefinitionSchema(
         type="object",
         properties={
             "location": FunctionPropertySchema(
-                type="string", 
+                type="string",
                 description="The city and state, e.g. San Francisco, CA"
             ),
             "unit": FunctionPropertySchema(
-                type="string", 
+                type="string",
                 enum=["celsius", "fahrenheit"],
                 description="The unit of temperature"
             )
@@ -261,7 +278,7 @@ async def get_current_weather(data: dict) -> str:
     """
     location = data["location"]
     unit = data.get("unit", "celsius")  # Default to celsius if not provided
-    
+
     # Simulate weather lookup
     return f"The weather in {location} is sunny, temperature is 22 degrees {unit}."
 ```
@@ -280,11 +297,11 @@ weather_func = Function(
         "type": "object",
         "properties": {
             "location": {
-                "type": "string", 
+                "type": "string",
                 "description": "The city and state, e.g. San Francisco, CA"
             },
             "unit": {
-                "type": "string", 
+                "type": "string",
                 "enum": ["celsius", "fahrenheit"],
                 "description": "The unit of temperature"
             }
@@ -351,11 +368,11 @@ divide_func = FunctionDefinitionSchema(
         type="object",
         properties={
             "dividend": FunctionPropertySchema(
-                type="number", 
+                type="number",
                 description="The dividend in division"
             ),
             "divisor": FunctionPropertySchema(
-                type="number", 
+                type="number",
                 description="The divisor in division"
             )
         },
@@ -371,10 +388,10 @@ async def safe_divide(data: dict) -> str:
     try:
         dividend = data["dividend"]
         divisor = data["divisor"]
-        
+
         if divisor == 0:
             return "Error: Cannot divide by zero"
-            
+
         result = dividend / divisor
         return f"{dividend} divided by {divisor} equals {result}"
     except Exception as e:
@@ -385,7 +402,7 @@ async def safe_divide(data: dict) -> str:
 
 Some tools may need access to the event context or require more advanced processing. For this, the `custom_run` option can be enabled:
 
-```python
+````python
 from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import FunctionDefinitionSchema, FunctionParametersSchema, FunctionPropertySchema, ToolContext
 from amrita_core.logging import logger
@@ -413,15 +430,16 @@ async def process_message(ctx: ToolContext) -> str | None:
     """
     content = ctx.data["content"]
     logger.debug(f"[LLM-ProcessMessage] {content}")
-    
+
     # Send message directly to the chat object
     await ctx.event.chat_object.yield_response(f"{content}\n")
-    
+
     # Return processed result
     return f"Sent a message to user:\n\n```text\n{content}\n```\n"
-```
+````
 
 In custom run mode:
+
 - The function receives a [ToolContext](../api-reference/classes/ToolContext.md) object instead of raw arguments
 - The [ToolContext](../api-reference/classes/ToolContext.md) contains:
   - `ctx.data`: The arguments passed to the tool
@@ -429,8 +447,6 @@ In custom run mode:
   - `ctx.matcher`: The matcher associated with the event
 - Functions can be synchronous or asynchronous
 - Return type can be `str` or `None`
-
-
 
 ## 4.5 Memory Management
 

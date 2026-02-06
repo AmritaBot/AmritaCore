@@ -87,25 +87,12 @@ async def handle_user_input(
         train=train.model_dump(),
     )
 
-    async def callback():
-        nonlocal context
-        if chat is None:
-            return
+    async with chat.begin():
         print("💬 Assistant: ", end="")
         async for message in chat.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
         print("\n")  # New line
-
-    task = asyncio.create_task(callback())
-
-    try:
-        await chat.call()
-        await task
-        # Update context
-        context = chat.data
-    except Exception as e:
-        print(f"❌ An error occurred: {e!s}")
 
     return session_id, context, True
 

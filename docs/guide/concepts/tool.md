@@ -9,24 +9,33 @@ AmritaCore provides a comprehensive framework for integrating external tools and
 The `@on_tools` decorator registers functions as callable tools:
 
 ```python
-from amrita_core.tools.manager import on_tools
-from amrita_core.types import Function
+from typing import Any
 
-schema = FunctionDefinitionSchema(
-    name="get_time",
-    description="Get the current time in a given timezone",
-    parameters=...
+from amrita_core import on_tools
+from amrita_core.tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
 )
 
-@on_tools(
-    data=schema,
-    custom_run=True,
-    enable_if=lambda: get_config().function_config.agent_middle_message,
+DEFINITION = FunctionDefinitionSchema(
+    name="Add number",
+    description="Add two numbers",
+    parameters=FunctionParametersSchema(
+        type="object",
+        properties={
+            "a": FunctionPropertySchema(type="number",description="The first number"),
+            "b": FunctionPropertySchema(type="number",description="The second number"),
+        },
+        required=["a", "b"],
+    ),
 )
-async def get_weather(city: str) -> str:
-    """Get the weather for a given city."""
-    # Implementation here
-    return f"Weather for {city}: Sunny"
+
+@on_tools(DEFINITION)
+async def add(data: dict[str, Any]) -> str:
+    """Add two numbers"""
+    return str(data["a"] + data["b"])
+
 ```
 
 ## 3.4.3 FunctionDefinitionSchema Function Schema

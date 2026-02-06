@@ -17,6 +17,15 @@ AmritaCore officially supports Python versions from 3.10 up to 3.14. While it ma
 
 ### 2.1.3 Dependency Installation
 
+We recommend using a virtual environment for development by using `uv` , `pdm` etc.
+
+```bash
+uv init
+uv venv
+uv add amrita-core
+````
+
+
 Install AmritaCore using pip:
 
 ```bash
@@ -31,10 +40,6 @@ cd AmritaCore
 pip install -e .
 ```
 
-We recommend using a virtual environment for development by using `uv` , `pdm` etc.
+### 2.1.4 Code demo
 
-```bash
-uv init
-uv venv
-uv add amrita-core
-````
+You can view more demo at repo's path `/demo`.

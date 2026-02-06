@@ -218,7 +218,7 @@ class SecureConversationManager:
             train=session_data['train'].model_dump()
         )
         
-        await chat.call()
+        await chat.begin()
         response = await chat.full_response()
         
         # Update session context with new state

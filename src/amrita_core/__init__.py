@@ -13,7 +13,7 @@ from .libchat import (
 from .logging import debug_log, logger
 from .preset import PresetManager, PresetReport
 from .tools import mcp
-from .tools.manager import ToolsManager, on_tools
+from .tools.manager import ToolsManager, on_tools, simple_tool
 from .tools.models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
@@ -73,6 +73,7 @@ __all__ = [
     "on_precompletion",
     "on_tools",
     "set_config",
+    "simple_tool",
     "text_generator",
     "tools_caller",
 ]
