@@ -21,8 +21,8 @@ export default withMermaid({
     // https://vitepress.dev/reference/default-theme-config
     siteTitle: "Amrita Core Docs",
     nav: [
-      { text: "Main page", link: "/" },
-      // { text: "Start", link: "/amrita" },
+      { text: "Home", link: "/" },
+      { text: "Start", link: "/introduction" },
     ],
     logo: "/Amrita.png",
 
