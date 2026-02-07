@@ -3,14 +3,13 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - "*"
+      - "**"
     paths:
       - "**"
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
