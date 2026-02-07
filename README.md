@@ -1,5 +1,27 @@
 # AmritaCore
 
+<center><img src="./docs/public/Amrita.png" alt="Logo" width="200" height="200">
+<p>
+    <a href="https://img.shields.io/pypi/v/amrita-core">
+      <img src="https://img.shields.io/pypi/v/amrita-core?color=blue&style=flat-square" alt="PyPI Version">
+    </a>
+    <a href="https://www.python.org/">
+      <img src="https://img.shields.io/badge/python-3.10+-blue?logo=python&style=flat-square" alt="Python Version">
+    </a>
+    <a href="LICENSE">
+      <img src="https://img.shields.io/github/license/AmritaBot/AmritaCore?style=flat-square" alt="License">
+    </a>
+    <a href="https://discord.gg/byAD3sbjjj">
+      <img src="https://img.shields.io/badge/Discord-Proj.Amrita-blue?logo=discord&style=flat-square" alt="Discord">
+    </a>
+    <a href="https://qm.qq.com/q/9J23pPZN3a">
+      <img src="https://img.shields.io/badge/QQ%E7%BE%A4-1006893368-blue?style=flat-square" alt="QQ Group">
+    </a>
+  </p>
+
+</center>
+
+
 AmritaCore is the intelligent agent core module of Proj.Amrita, serving as the primary logical or control component of the project. It provides a flexible and extensible framework for implementing AI agents with advanced capabilities.
 
 ## 🚀 What is AmritaCore?
@@ -55,3 +77,10 @@ We welcome contributions! Please see our contribution guidelines for more inform
 ## 📄 License
 
 This project is licensed under the AGPL-3.0 License - see the [LICENSE](./LICENSE) file for details.
+
+## Other files
+
+- [CONTRIBUTING.md](./CONTRIBUTING.md) - Contribution guidelines
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) - Code of conduct
+- [ZH-CN.md](./readmes/ZH_CN.md)
+- [EN-US.md](./readmes/EN_US.md)

@@ -98,6 +98,6 @@ AmritaCore applies to various scenarios requiring agent capabilities:
 - Intelligent customer service systems
 - Personalized recommendation engines
 
-## Documentation Under Construction
+## Documentation
 
-This documentation is still under construction, for more details please refer to the source code and examples.
+Please view [doc link](https://amrita-core.suggar.top) for help.

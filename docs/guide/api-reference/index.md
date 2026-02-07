@@ -41,7 +41,7 @@ asyncio.run(main())
 
 - Must be called after `init()` and `set_config()`
 - Should be awaited as it's an async function
-- Only required when using MCP functionality
+- When MCP is enabled, it's required to call `load_amrita()`.
 
 ### 7.1.3 set_config() - Setting Configuration
 
