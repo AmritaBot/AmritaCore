@@ -11,7 +11,7 @@ hero:
   actions:
     - theme: brand
       text: 开始使用
-      link: /zh/guide_zhcn/introduction
+      link: /zh/guide/introduction
     - theme: alt
       text: GitHub
       link: https://github.com/AmritaBot/AmritaCore
