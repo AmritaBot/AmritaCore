@@ -200,7 +200,7 @@ export default withMermaid({
         siteTitle: "Amrita Core 文档",
         nav: [
           { text: "首页", link: "/zh/" },
-          { text: "开始", link: "/zh/guide_zhcn/introduction" },
+          { text: "开始", link: "/zh/guide/introduction" },
         ],
         logo: "/Amrita.png",
 
@@ -209,10 +209,10 @@ export default withMermaid({
             text: "介绍",
             collapsed: false,
             items: [
-              { text: "概述", link: "/zh/guide_zhcn/introduction/" },
+              { text: "概述", link: "/zh/guide/introduction/" },
               {
                 text: "主要特性",
-                link: "/zh/guide_zhcn/introduction/features",
+                link: "/zh/guide/introduction/features",
               },
             ],
           },
@@ -220,18 +220,18 @@ export default withMermaid({
             text: "快速开始",
             collapsed: false,
             items: [
-              { text: "索引", link: "/zh/guide_zhcn/getting-started/" },
+              { text: "索引", link: "/zh/guide/getting-started/" },
               {
                 text: "最小示例",
-                link: "/zh/guide_zhcn/getting-started/minimal-example",
+                link: "/zh/guide/getting-started/minimal-example",
               },
               {
                 text: "基础示例",
-                link: "/zh/guide_zhcn/getting-started/basic-example",
+                link: "/zh/guide/getting-started/basic-example",
               },
               {
                 text: "架构理解",
-                link: "/zh/guide_zhcn/getting-started/architecture",
+                link: "/zh/guide/getting-started/architecture",
               },
             ],
           },
@@ -239,10 +239,10 @@ export default withMermaid({
             text: "核心概念",
             collapsed: false,
             items: [
-              { text: "索引", link: "/zh/guide_zhcn/concepts/" },
-              { text: "事件系统", link: "/zh/guide_zhcn/concepts/event" },
-              { text: "工具系统", link: "/zh/guide_zhcn/concepts/tool" },
-              { text: "数据管理", link: "/zh/guide_zhcn/concepts/management" },
+              { text: "索引", link: "/zh/guide/concepts/" },
+              { text: "事件系统", link: "/zh/guide/concepts/event" },
+              { text: "工具系统", link: "/zh/guide/concepts/tool" },
+              { text: "数据管理", link: "/zh/guide/concepts/management" },
             ],
           },
           {
@@ -251,7 +251,7 @@ export default withMermaid({
             items: [
               {
                 text: "函数实现",
-                link: "/zh/guide_zhcn/function-implementation",
+                link: "/zh/guide/function-implementation",
               },
             ],
           },
@@ -261,7 +261,7 @@ export default withMermaid({
             items: [
               {
                 text: "扩展与集成",
-                link: "/zh/guide_zhcn/extensions-integration",
+                link: "/zh/guide/extensions-integration",
               },
             ],
           },
@@ -269,84 +269,84 @@ export default withMermaid({
             text: "安全机制",
             collapsed: false,
             items: [
-              { text: "安全机制", link: "/zh/guide_zhcn/security-mechanisms" },
+              { text: "安全机制", link: "/zh/guide/security-mechanisms" },
             ],
           },
           {
             text: "API 参考",
             collapsed: false,
             items: [
-              { text: "索引", link: "/zh/guide_zhcn/api-reference/" },
+              { text: "索引", link: "/zh/guide/api-reference/" },
               {
                 text: "AmritaConfig",
-                link: "/zh/guide_zhcn/api-reference/classes/AmritaConfig",
+                link: "/zh/guide/api-reference/classes/AmritaConfig",
               },
               {
                 text: "BaseModel",
-                link: "/zh/guide_zhcn/api-reference/classes/BaseModel",
+                link: "/zh/guide/api-reference/classes/BaseModel",
               },
               {
                 text: "ChatObject",
-                link: "/zh/guide_zhcn/api-reference/classes/ChatObject",
+                link: "/zh/guide/api-reference/classes/ChatObject",
               },
               {
                 text: "Function",
-                link: "/zh/guide_zhcn/api-reference/classes/Function",
+                link: "/zh/guide/api-reference/classes/Function",
               },
               {
                 text: "FunctionDefinitionSchema",
-                link: "/zh/guide_zhcn/api-reference/classes/FunctionDefinitionSchema",
+                link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
               },
               {
                 text: "MemoryModel",
-                link: "/zh/guide_zhcn/api-reference/classes/MemoryModel",
+                link: "/zh/guide/api-reference/classes/MemoryModel",
               },
               {
                 text: "Message",
-                link: "/zh/guide_zhcn/api-reference/classes/Message",
+                link: "/zh/guide/api-reference/classes/Message",
               },
               {
                 text: "ModelConfig",
-                link: "/zh/guide_zhcn/api-reference/classes/ModelConfig",
+                link: "/zh/guide/api-reference/classes/ModelConfig",
               },
               {
                 text: "ModelPreset",
-                link: "/zh/guide_zhcn/api-reference/classes/ModelPreset",
+                link: "/zh/guide/api-reference/classes/ModelPreset",
               },
               {
                 text: "TextContent",
-                link: "/zh/guide_zhcn/api-reference/classes/TextContent",
+                link: "/zh/guide/api-reference/classes/TextContent",
               },
               {
                 text: "ToolCall",
-                link: "/zh/guide_zhcn/api-reference/classes/ToolCall",
+                link: "/zh/guide/api-reference/classes/ToolCall",
               },
               {
                 text: "ToolContext",
-                link: "/zh/guide_zhcn/api-reference/classes/ToolContext",
+                link: "/zh/guide/api-reference/classes/ToolContext",
               },
               {
                 text: "ToolResult",
-                link: "/zh/guide_zhcn/api-reference/classes/ToolResult",
+                link: "/zh/guide/api-reference/classes/ToolResult",
               },
               {
                 text: "ToolsManager",
-                link: "/zh/guide_zhcn/api-reference/classes/ToolsManager",
+                link: "/zh/guide/api-reference/classes/ToolsManager",
               },
               {
                 text: "UniResponse",
-                link: "/zh/guide_zhcn/api-reference/classes/UniResponse",
+                link: "/zh/guide/api-reference/classes/UniResponse",
               },
               {
                 text: "UniResponseUsage",
-                link: "/zh/guide_zhcn/api-reference/classes/UniResponseUsage",
+                link: "/zh/guide/api-reference/classes/UniResponseUsage",
               },
             ],
           },
           {
             text: "附录",
             collapsed: false,
-            items: [{ text: "附录", link: "/zh/guide_zhcn/appendix" }],
+            items: [{ text: "附录", link: "/zh/guide/appendix" }],
           },
         ],
         footer: {

@@ -21,7 +21,6 @@
 
 </center>
 
-
 AmritaCore is the intelligent agent core module of Proj.Amrita, serving as the primary logical or control component of the project. It provides a flexible and extensible framework for implementing AI agents with advanced capabilities.
 
 ## 🚀 What is AmritaCore?
