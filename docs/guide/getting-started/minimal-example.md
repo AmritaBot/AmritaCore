@@ -11,11 +11,6 @@ from amrita_core.config import AmritaConfig
 from amrita_core.preset import PresetManager
 from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
 
-async def msg_getter(chatobj: ChatObject) -> None:
-    async for message in chatobj.get_response_generator():
-        print(message if isinstance(message, str) else message.get_content(), end="")
-    print("\n")
-
 async def minimal_example():
     # Initialize AmritaCore
     init()
@@ -52,7 +47,7 @@ async def minimal_example():
     )
 
     async with chat.begin():
-        await msg_getter(chat)
+        print(await chat.get_full_response())
 
 # Run the example
 if __name__ == "__main__":

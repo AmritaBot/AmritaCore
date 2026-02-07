@@ -300,7 +300,7 @@ User input → Direct summary output
     async def _limit_length(self):
         """Control memory length, remove old messages that exceed the limit, remove unsupported messages."""
         logger.debug("Starting memory length limitation..")
-        is_multimodal = get_config().llm.enable_multi_modal
+        is_multimodal = self.config.llm.enable_multi_modal
         data: Memory = self.memory
 
         # Process multimodal messages when needed

@@ -33,11 +33,12 @@ class OpenAIAdapter(ModelAdapter):
     ) -> AsyncGenerator[str | UniResponse[str, None], None]:
         """Call OpenAI API to get chat responses"""
         preset = self.preset
+        config = get_config()
         client = openai.AsyncOpenAI(
             base_url=preset.base_url,
             api_key=preset.api_key,
-            timeout=get_config().llm.llm_timeout,
-            max_retries=get_config().llm.max_retries,
+            timeout=config.llm.llm_timeout,
+            max_retries=config.llm.max_retries,
         )
         completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = (
             None
@@ -46,7 +47,7 @@ class OpenAIAdapter(ModelAdapter):
             completion = await client.chat.completions.create(
                 model=preset.model,
                 messages=messages,
-                max_tokens=get_config().llm.max_tokens,
+                max_tokens=config.llm.max_tokens,
                 stream=stream,
                 stream_options={"include_usage": True},
             )
@@ -54,7 +55,7 @@ class OpenAIAdapter(ModelAdapter):
             completion = await client.chat.completions.create(
                 model=preset.model,
                 messages=messages,
-                max_tokens=get_config().llm.max_tokens,
+                max_tokens=config.llm.max_tokens,
                 stream=False,
             )
         response: str = ""
@@ -112,7 +113,7 @@ class OpenAIAdapter(ModelAdapter):
             )
         else:
             choice = tool_choice
-
+        config = get_config()
         preset = self.preset
         base_url = preset.base_url
         key = preset.api_key
@@ -120,7 +121,7 @@ class OpenAIAdapter(ModelAdapter):
         client = openai.AsyncOpenAI(
             base_url=base_url,
             api_key=key,
-            timeout=get_config().llm.llm_timeout,
+            timeout=config.llm.llm_timeout,
         )
         completion: ChatCompletion = await client.chat.completions.create(
             model=model,

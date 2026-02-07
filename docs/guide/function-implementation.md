@@ -283,35 +283,7 @@ async def get_current_weather(data: dict) -> str:
     return f"The weather in {location} is sunny, temperature is 22 degrees {unit}."
 ```
 
-### 4.4.2 Tool Parameter Definition
-
-Defining parameters for tools using JSON schema:
-
-```python
-from amrita_core.types import Function
-
-weather_func = Function(
-    name="get_current_weather",
-    description="Get the current weather in a given location",
-    parameters={
-        "type": "object",
-        "properties": {
-            "location": {
-                "type": "string",
-                "description": "The city and state, e.g. San Francisco, CA"
-            },
-            "unit": {
-                "type": "string",
-                "enum": ["celsius", "fahrenheit"],
-                "description": "The unit of temperature"
-            }
-        },
-        "required": ["location"]
-    }
-)
-```
-
-### 4.4.3 Tool Execution Flow
+### 4.4.2 Tool Execution Flow
 
 The tool execution flow includes:
 
@@ -320,38 +292,7 @@ The tool execution flow includes:
 3. Tool execution
 4. Result incorporation into conversation
 
-### 4.4.4 @tools_caller Tool Callers
-
-Creating specialized tool callers:
-
-```python
-from amrita_core.libchat import tools_caller
-
-@tools_caller
-def custom_tool_caller(context, tools, tool_calls):
-    # Custom logic for handling tool calls
-    results = []
-    for call in tool_calls:
-        # Execute tool and collect result
-        result = execute_tool(call)
-        results.append(result)
-    return results
-```
-
-### 4.4.5 @call_completion Completion Calls
-
-Handling completion after tool execution:
-
-```python
-from amrita_core.libchat import call_completion
-
-@call_completion
-async def handle_completion_after_tools(context, final_messages):
-    # Process the final response after tools have been executed
-    return await get_final_response(context, final_messages)
-```
-
-### 4.4.5 Error Handling
+### 4.4.3 Error Handling
 
 Proper error handling in tool implementations:
 
@@ -398,7 +339,7 @@ async def safe_divide(data: dict) -> str:
         return f"Error occurred: {str(e)}"
 ```
 
-### 4.4.6 Custom Run Mode
+### 4.4.4 Custom Run Mode
 
 Some tools may need access to the event context or require more advanced processing. For this, the `custom_run` option can be enabled:
 

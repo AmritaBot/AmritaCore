@@ -16,7 +16,7 @@ def add(a: int, b: int) -> int:
     Args:
         a (int): First number
         b (int): Second number
-    
+
     Returns:
         int: Sum of a and b
     """
@@ -137,13 +137,13 @@ async def inject_context(event: PreCompletionEvent):
         role="system",
         content="Remember to be concise and helpful in your response."
     ))
-    
+
 
 @on_completion()
 async def log_response(event: CompletionEvent):
     """Log the response after processing"""
     print(f"Response received: {event.response[:100]}...")
-    
+
 ```
 
 ### 5.1.5 Protocol Adapters
@@ -173,7 +173,7 @@ class CustomAdapter(ModelAdapter):
             usage=None,
             tool_calls=None,
         )
-        
+
     @staticmethod
     def get_adapter_protocol() -> str | tuple[str, ...]:
         return "custom_protocol"  # Return the protocol name
@@ -230,83 +230,9 @@ Real-world MCP use cases:
 3. **API Integration**: Connecting to third-party APIs
 4. **IoT Devices**: Interfacing with physical devices
 
-## 5.3 Built-in Modules
+## 5.3 Custom Extension Development
 
-### 5.3.1 builtins.adapter Adapter Module
-
-The adapter module provides protocol adapters for different LLM providers:
-
-```python
-# Example of using a built-in adapter
-from amrita_core.builtins import adapter
-
-# Adapters are typically used internally by the framework
-# But can be extended for custom integrations
-from amrita_core.protocol import ModelAdapter
-from amrita_core.types import ModelPreset
-from collections.abc import AsyncGenerator, Iterable
-from amrita_core.types import UniResponse
-
-class MyCustomAdapter(ModelAdapter):
-
-    async def call_api(
-        self, messages: Iterable
-    ) -> AsyncGenerator[str | UniResponse[str, None], None]:
-        # Custom implementation
-        yield "response chunk"
-        yield UniResponse(
-            role="assistant",
-            content="Complete response",
-            usage=None,
-            tool_calls=None,
-        )
-        
-    @staticmethod
-    def get_adapter_protocol() -> str | tuple[str, ...]:
-        return "my_custom_protocol"
-```
-
-### 5.3.2 builtins.agent Agent Module
-
-The agent module contains core agent functionality:
-
-```python
-# Using built-in agent capabilities
-from amrita_core.builtins.agent import Agent
-
-# The agent module handles core agent behaviors like:
-# - Tool selection and execution
-# - Context management
-# - Response generation
-```
-
-### 5.3.3 builtins.tools Tool Module
-
-The built-in tools module provides standard tools:
-
-```python
-# Example of built-in tools (these are typically used automatically)
-from amrita_core.builtins.tools import *
-
-# Built-in tools might include:
-# - Calculator
-# - Web search
-# - Date/time utilities
-# - Unit conversion
-```
-
-### 5.3.4 Module Usage Guidelines
-
-When using built-in modules:
-
-1. Import what you need
-2. Extend rather than replace functionality when possible
-3. Follow the override pattern when replacing implementations
-4. Maintain compatibility with the overall architecture
-
-## 5.4 Custom Extension Development
-
-### 5.4.1 Creating Custom Tools
+### 5.3.1 Creating Custom Tools
 
 Develop custom tools for specific functionality:
 
@@ -380,7 +306,7 @@ async def get_company_info(data: dict) -> str:
     return json.dumps(result)
 ```
 
-### 5.4.2 Creating Custom Event Handlers
+### 5.3.2 Creating Custom Event Handlers
 
 Build custom event handlers for specialized processing:
 
@@ -405,10 +331,10 @@ async def security_check(event: PreCompletionEvent):
                     content="Content filtered for safety"
                 ))
 
-    
+
 ```
 
-### 5.4.3 Creating Custom Protocol Adapters
+### 5.3.3 Creating Custom Protocol Adapters
 
 Build adapters for different LLM providers:
 
@@ -446,10 +372,10 @@ class CustomLLMAdapter(ModelAdapter):
 
                 # Yield response chunks as they arrive (for streaming)
                 # For simplicity in this example, we'll yield the full response
-                
+
                 content = result['choices'][0]['message']['content']
                 yield content  # This yields the content chunk by chunk
-                
+
                 # Finally, yield the complete UniResponse
                 yield UniResponse(
                     role="assistant",
@@ -463,7 +389,7 @@ class CustomLLMAdapter(ModelAdapter):
         return "custom_llm_protocol"  # Return the protocol identifier
 ```
 
-### 5.4.4 Publishing and Sharing Extensions
+### 5.3.4 Publishing and Sharing Extensions
 
 To share your extensions:
 
@@ -472,9 +398,9 @@ To share your extensions:
 3. Publish to PyPI or host in a Git repository
 4. Provide examples and best practices
 
-## 5.5 Third-Party Integration
+## 5.4 Third-Party Integration
 
-### 5.5.1 Common LLM Provider Integration
+### 5.4.1 Common LLM Provider Integration
 
 Integrate with various LLM providers:
 
@@ -498,7 +424,7 @@ azure_preset = ModelPreset(
 )
 ```
 
-### 5.5.2 Database Connections
+### 5.4.2 Database Connections
 
 Connect to databases using tools:
 
@@ -540,7 +466,7 @@ async def query_database(data: dict) -> str:
         return f"Error executing query: {str(e)}"
 ```
 
-### 5.5.3 API Integration
+### 5.4.3 API Integration
 
 Integrate with external APIs:
 
@@ -583,7 +509,7 @@ async def get_weather_data(data: dict) -> str:
                 return f"Could not retrieve weather for {city}"
 ```
 
-### 5.5.4 Other Framework Integration
+### 5.4.3 Other Framework Integration
 
 Combine AmritaCore with other frameworks:
 
