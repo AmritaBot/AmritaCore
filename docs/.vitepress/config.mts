@@ -22,7 +22,7 @@ export default withMermaid({
     siteTitle: "Amrita Core Docs",
     nav: [
       { text: "Home", link: "/" },
-      { text: "Start", link: "/introduction" },
+      { text: "Start", link: "/guide/introduction" },
     ],
     logo: "/Amrita.png",
 
