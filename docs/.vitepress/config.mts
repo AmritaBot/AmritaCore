@@ -169,7 +169,7 @@ export default withMermaid({
           {
             text: "Builtin Functions",
             collapsed: false,
-            items: [{ text: "Indx", link: "/guide/builtins" }],
+            items: [{ text: "Index", link: "/guide/builtins" }],
           },
           {
             text: "Appendix",
