@@ -219,7 +219,7 @@ class SecureConversationManager:
         )
         
         async with chat.begin():
-            response = await chat.get_full_response()
+            response = await chat.full_response()
         
         # Update session context with new state
         session_data['context'] = chat.data

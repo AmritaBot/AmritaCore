@@ -48,7 +48,7 @@ async def minimal_example():
     )
 
     async with chat.begin():
-        print(await chat.get_full_response())
+        print(await chat.full_response())
 
 # 运行示例
 if __name__ == "__main__":
@@ -67,7 +67,7 @@ if __name__ == "__main__":
 6. 我们创建记忆上下文和系统消息
 7. 我们使用参数实例化 ChatObject
 8. 我们调用 `chat.begin()` 来执行交互
-9. 我们使用 `await chat.get_full_response()` 获取最终的完整响应
+9. 我们使用 `await chat.full_response()` 获取最终的完整响应
 10. 最后，我们获取完整响应
 
 ## 2.2.3 运行和调试
