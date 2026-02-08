@@ -355,6 +355,7 @@ export default withMermaid({
         },
         socialLinks: [
           { icon: "github", link: "https://github.com/AmritaBot/AmritaCore" },
+{icon:"discord",link:"https://discord.gg/byAD3sbjjj"},
         ],
       },
     },
