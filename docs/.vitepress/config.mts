@@ -100,7 +100,7 @@ export default withMermaid({
           },
           {
             text: "API Reference",
-            collapsed: false,
+            collapsed: true,
             items: [
               { text: "Index", link: "/guide/api-reference/" },
               {
@@ -165,6 +165,11 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/UniResponseUsage",
               },
             ],
+          },
+          {
+            text: "Builtin Functions",
+            collapsed: false,
+            items: [{ text: "Index", link: "/guide/builtins" }],
           },
           {
             text: "Appendix",
@@ -274,7 +279,7 @@ export default withMermaid({
           },
           {
             text: "API 参考",
-            collapsed: false,
+            collapsed: true,
             items: [
               { text: "索引", link: "/zh/guide/api-reference/" },
               {
@@ -344,6 +349,11 @@ export default withMermaid({
             ],
           },
           {
+            text: "内置能力",
+            collapsed: false,
+            items: [{ text: "索引", link: "/zh/guide/builtins" }],
+          },
+          {
             text: "附录",
             collapsed: false,
             items: [{ text: "附录", link: "/zh/guide/appendix" }],
@@ -355,7 +365,7 @@ export default withMermaid({
         },
         socialLinks: [
           { icon: "github", link: "https://github.com/AmritaBot/AmritaCore" },
-{icon:"discord",link:"https://discord.gg/byAD3sbjjj"},
+          { icon: "discord", link: "https://discord.gg/byAD3sbjjj" },
         ],
       },
     },

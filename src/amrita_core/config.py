@@ -134,7 +134,7 @@ __inited: bool = False
 
 
 def get_config() -> AmritaConfig:
-    """Get amrita config
+    """Get the global amrita config
 
     Raises:
         RuntimeError: Raise it if amrita core is not initialized.
@@ -150,7 +150,7 @@ def get_config() -> AmritaConfig:
 
 
 def set_config(config: AmritaConfig):
-    """Override the config.
+    """Override the global config.
 
     Args:
         config (AmritaConfig): Configuration object to set

@@ -7,7 +7,7 @@ from pydantic import ValidationError
 
 from amrita_core.preset import PresetManager
 
-from .config import get_config
+from .config import AmritaConfig, get_config
 from .logging import debug_log
 from .protocol import (
     AdapterManager,
@@ -58,7 +58,9 @@ def text_generator(
 
 
 async def get_tokens(
-    memory: CONTENT_LIST_TYPE, response: UniResponse[str, None]
+    memory: CONTENT_LIST_TYPE,
+    response: UniResponse[str, None],
+    config: AmritaConfig | None = None,
 ) -> UniResponseUsage[int]:
     """Calculate token counts for messages and response
 
@@ -76,10 +78,10 @@ async def get_tokens(
         and response.usage.prompt_tokens is not None
     ):
         return response.usage
-
+    config = config or get_config()
     it = hybrid_token_count(
         "".join(list(text_generator(memory))),
-        get_config().llm.tokens_count_mode,
+        config.llm.tokens_count_mode,
     )
 
     ot = hybrid_token_count(response.content)
@@ -114,6 +116,7 @@ def _validate_msg_list(
 async def _call_with_reflection(
     preset: ModelPreset,
     call_func: typing.Callable[..., typing.Awaitable[T]],
+    config: AmritaConfig,
     *args,
     **kwargs,
 ) -> T:
@@ -132,7 +135,7 @@ async def _call_with_reflection(
     debug_log(f"Protocol: {preset.protocol}")
     debug_log(f"API URL: {preset.base_url}")
     debug_log(f"Model: {preset.model}")
-    adapter = adapter_class(preset)
+    adapter = adapter_class(preset, config)
     return await call_func(adapter, *args, **kwargs)
 
 
@@ -141,7 +144,9 @@ async def tools_caller(
     tools: list,
     preset: ModelPreset | None = None,
     tool_choice: ToolChoice | None = None,
+    config: AmritaConfig | None = None,
 ) -> UniResponse[None, list[ToolCall] | None]:
+    config = config or get_config()
     async def _call_tools(
         adapter: ModelAdapter,
         messages: CONTENT_LIST_TYPE,
@@ -152,17 +157,19 @@ async def tools_caller(
 
     preset = preset or PresetManager().get_default_preset()
     return await _call_with_reflection(
-        preset, _call_tools, messages, tools, tool_choice
+        preset, _call_tools, config, messages, tools, tool_choice
     )
 
 
 async def call_completion(
     messages: CONTENT_LIST_TYPE,
     preset: ModelPreset | None = None,
+    config: AmritaConfig | None = None,
 ) -> AsyncGenerator[str | UniResponse[str, None], None]:
     """Get chat response"""
     messages = _validate_msg_list(messages)
     preset = preset or PresetManager().get_default_preset()
+    config = config or get_config()
 
     async def _call_api(adapter: ModelAdapter, messages: CONTENT_LIST_TYPE):
         async def inner():
@@ -172,7 +179,7 @@ async def call_completion(
         return inner
 
     # Call adapter to get chat response
-    response = await _call_with_reflection(preset, _call_api, messages)
+    response = await _call_with_reflection(preset, _call_api, config, messages)
 
     async for i in response():
         yield i

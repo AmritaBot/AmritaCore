@@ -4,9 +4,35 @@
 
 AmritaCore provides a comprehensive framework for integrating external tools and services. Tools can be registered and made available to the agent for use during conversations.
 
-## 3.4.2 @on_tools Decorator Registration
+## 3.4.2 @simple_tool Decorator Registration
 
-The `@on_tools` decorator registers functions as callable tools:
+The `@simple_tool` decorator registers functions as simple tools:
+
+```python
+from amrita_core import simple_tool
+
+@simple_tool
+def add(a: int, b: int) -> int:
+    """Adds two numbers
+    Args:
+        a (int): The first number
+        b (int): The second number
+    
+    Returns:
+        int: The sum of the two numbers
+    """
+
+```
+
+### Description
+
+The `@simple_tool` decorator registers functions as simple tools.
+
+Args in the function signature are considered arguments to the function.Their types are inferred from the type annotations, and their descriptions are inferred from the docstring which should be written as **Google's Python Docstring format**.
+
+## 3.4.3 @on_tools Decorator Registration
+
+The `@on_tools` decorator registers functions as callable tools and provides a more advanced usage:
 
 ```python
 from typing import Any
@@ -38,7 +64,7 @@ async def add(data: dict[str, Any]) -> str:
 
 ```
 
-## 3.4.3 FunctionDefinitionSchema Function Schema
+## 3.4.4 FunctionDefinitionSchema Function Schema
 
 The [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md) class defines the schema for function parameters:
 
@@ -52,7 +78,7 @@ schema = FunctionDefinitionSchema(
 )
 ```
 
-## 3.4.4 ToolsManager Tool Manager
+## 3.4.5 ToolsManager Tool Manager
 
 The [ToolsManager](../api-reference/classes/ToolsManager.md) class manages registered tools:
 
@@ -64,11 +90,11 @@ manager = ToolsManager()
 registered_tools = manager.get_tools()
 ```
 
-## 3.4.5 Dynamic Tool Discovery
+## 3.4.6 Dynamic Tool Discovery
 
 Tools are automatically discovered and registered when modules are imported:
 
 ```python
 # When you import modules containing @on_tools decorated functions
-from . import my_tools  # Tools are automatically registered
+from . import my_tools  # Tools are automatically registered; make sure they are only imported once.
 ```

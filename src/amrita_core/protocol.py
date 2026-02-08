@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import AsyncGenerator, Iterable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+from amrita_core.config import AmritaConfig, get_config
 
 from .logging import logger
 from .tools.models import ToolChoice, ToolFunctionSchema
@@ -14,6 +16,7 @@ class ModelAdapter:
     """Base class for model adapter"""
 
     preset: ModelPreset
+    config: AmritaConfig = field(default_factory=get_config)
     __override__: bool = False  # Whether to allow overriding existing adapters
 
     def __init_subclass__(cls) -> None:

@@ -7,7 +7,7 @@
 要使用 AmritaCore，您需要：
 
 - Python 3.10 或更高版本（最高到 3.14）
-- 足够的 RAM 来处理上下文内存（建议项目至少 1GB）
+- 足够的 RAM 来处理上下文记忆（建议项目至少 1GB）
 - 互联网连接以连接到 LLM API
 - 访问 LLM 提供商（OpenAI、Azure OpenAI 或兼容服务）
 

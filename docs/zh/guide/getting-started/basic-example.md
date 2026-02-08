@@ -29,16 +29,16 @@ async def basic_example():
     print("-" * 50)
 
     # 配置 AmritaCore
-    # FunctionConfig 定义代理的一般行为
+    # FunctionConfig 定义Agent的一般行为
     func = FunctionConfig(
         use_minimal_context=False,  # 使用完整上下文或最小上下文
         tool_calling_mode="agent",  # 工具调用方式
-        agent_thought_mode="reasoning",  # 代理解决问题的思考方式
+        agent_thought_mode="reasoning",  # Agent解决问题的思考方式
     )
 
     # LLMConfig 定义语言模型行为
     llm = LLMConfig(
-        enable_memory_abstract=True,  # 启用内存摘要功能
+        enable_memory_abstract=True,  # 启用记忆摘要功能
     )
 
     # 将配置合并为主配置
@@ -66,9 +66,10 @@ async def basic_example():
     # 注册模型预设
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
+    preset_manager.set_default_preset(preset.name)
     logger.info("✅ 注册模型预设。")
 
-    # 创建内存上下文以保存对话历史
+    # 创建记忆上下文以保存对话历史
     context = MemoryModel()
 
     # 定义系统指令（AI 应该如何行为）
@@ -177,11 +178,10 @@ async def minimal_example():
         train=train.model_dump(),
     )
 
-    chat.begin()
-    await chat
 
     # 收集响应（仅显示其工作）
-    response = await chat.full_response()
+    async with chat.begin():
+        response = await chat.full_response()
     print(f"💬 响应长度: {len(response)} 个字符")
     print("✅ 最小示例完成！")
 
@@ -204,16 +204,16 @@ if __name__ == "__main__":
 
 - `use_minimal_context=False`: 使用完整对话历史而不是仅最后一条消息
 - `tool_calling_mode="agent"`: 配置工具调用方式
-- `agent_thought_mode="reasoning"`: 使代理在响应前思考问题
-- `enable_memory_abstract=True`: 启用自动上下文摘要以管理令牌使用
+- `agent_thought_mode="reasoning"`: 使Agent在响应前思考问题
+- `enable_memory_abstract=True`: 启用自动上下文摘要以管理Token使用
 
 ## 2.3.3 常见问题排查
 
 **问题**: API 端点连接错误
 **解决方案**: 验证您的 API 端点和密钥是否正确，以及网络连接是否正常。
 
-**问题**: 高令牌使用率
-**解决方案**: 启用内存摘要 (`enable_memory_abstract=True`) 并考虑在简单查询时使用最小上下文模式。
+**问题**: 高Token使用率
+**解决方案**: 启用记忆摘要 (`enable_memory_abstract=True`) 并考虑在简单查询时使用最小上下文模式。
 
 **问题**: 响应缓慢
 **解决方案**: 检查您的网络连接和 API 提供商性能。考虑使用较小的模型以获得更快的响应。
