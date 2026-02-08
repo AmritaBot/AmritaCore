@@ -66,7 +66,7 @@ async def basic_example():
     # 注册模型预设
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preser.name)
+    preset_manager.set_default_preset(preset.name)
     logger.info("✅ 注册模型预设。")
 
     # 创建记忆上下文以保存对话历史

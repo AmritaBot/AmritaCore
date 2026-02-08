@@ -66,7 +66,7 @@ async def basic_example():
     # Register the model preset
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preser.name)
+    preset_manager.set_default_preset(preset.name)
     logger.info("✅ Registered model preset.")
 
     # Create a memory context to hold conversation history

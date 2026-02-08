@@ -178,7 +178,7 @@ preset_manager = PresetManager()
 # 添加预设
 preset = ModelPreset(...)
 preset_manager.add_preset(preset)
-preset_manager.set_default_preset(preser.name)
+preset_manager.set_default_preset(preset.name)
 
 # 获取可用预设
 presets = preset_manager.get_presets()

@@ -33,7 +33,7 @@ async def minimal_example():
     # Register the model preset
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preser.name)
+    preset_manager.set_default_preset(preset.name)
     
     # Create context and system message
     context = MemoryModel()

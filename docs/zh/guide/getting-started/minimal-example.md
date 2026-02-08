@@ -33,7 +33,7 @@ async def minimal_example():
     # 注册模型预设
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preser.name)
+    preset_manager.set_default_preset(preset.name)
 
     # 创建上下文和系统消息
     context = MemoryModel()
