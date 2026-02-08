@@ -59,6 +59,7 @@ async def basic_example():
     # Register the model preset
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
+    preset_manager.set_default_preset(preset.name)
     logger.info("✅ Registered model preset.")
 
     # Create a memory context to hold conversation history
@@ -89,17 +90,11 @@ async def basic_example():
     # Process the response and display it
     print("🤖 Assistant: ", end="")
 
-    # Start the chat processing
-    await chat.begin()
-    # Or like this, we prefer you to use the context manager:
-    # async with chat.begin():
-    #    async for message in chat.get_response_generator():
-    #        print(message if isinstance(message, str) else message.get_content(), end="")
-
     # Print the streamed response
-    async for message in chat.get_response_generator():
-        content = message if isinstance(message, str) else message.get_content()
-        print(content, end="")
+    async with chat.begin():
+        async for message in chat.get_response_generator():
+            content = message if isinstance(message, str) else message.get_content()
+            print(content, end="")
 
     print("\n")  # New line after response
 
@@ -169,12 +164,9 @@ async def minimal_example():
         user_input="What can you do?",
         train=train.model_dump(),
     )
-
-    chat.begin()
-    await chat
-
     # Collect response (just to show it works)
-    response = await chat.full_response()
+    async with chat.begin():
+        response = await chat.full_response()
     print(f"💬 Response length: {len(response)} characters")
     print("✅ Minimal example completed!")
 

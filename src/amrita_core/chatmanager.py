@@ -5,17 +5,19 @@ import copy
 from abc import ABC, abstractmethod
 from asyncio import Lock, Task
 from collections import defaultdict
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO, StringIO
-from typing import Any, TypedDict
+from typing import Any, TypeAlias, TypedDict
 from uuid import uuid4
 
 import pytz
 from pydantic import BaseModel, Field
 from pytz import utc
 from typing_extensions import Self
+
+from amrita_core.preset import PresetManager
 
 from .config import AmritaConfig, get_config
 from .hook.event import CompletionEvent, PreCompletionEvent
@@ -30,6 +32,7 @@ from .types import (
     Content,
     ImageContent,
     Message,
+    ModelPreset,
     SendMessageWrap,
     TextContent,
     ToolResult,
@@ -68,6 +71,9 @@ class MessageContent(ABC):
     This allows for various types of content to be yielded by the chat manager,
     not just strings. Subclasses should implement their own representation.
     """
+
+    def __str__(self) -> str:
+        return self.get_content()
 
     def __init__(self, content_type: str):
         self.type = content_type
@@ -134,6 +140,10 @@ class ImageMessage(MessageContent):
         return self.image
 
 
+RESPONSE_TYPE: TypeAlias = str | MessageContent
+RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
+
+
 class ChatObjectMeta(BaseModel):
     """Metadata model for chat object
 
@@ -182,15 +192,17 @@ You are a professional context summarizer, strictly following user instructions 
 User input → Direct summary output
 <</FORMATTING>>"""
 
-    def __init__(self, memory: Memory, train: dict[str, str]) -> None:
+    def __init__(
+        self, memory: Memory, train: dict[str, str], config: AmritaConfig | None = None
+    ) -> None:
         """Initialize context processor
 
         Args:
             memory: Memory model to process
             train: Training data (system prompts)
         """
-        self.memory = memory
-        self.config = get_config()
+        self.memory: Memory = memory
+        self.config = config or get_config()
         self._train = train
 
     async def __aenter__(self) -> Self:
@@ -426,19 +438,23 @@ class ChatObject:
     data: Memory  # (lateinit) Memory file
     user_input: USER_INPUT
     user_message: Message[USER_INPUT]  # (lateinit) User message
-    context_wrap: SendMessageWrap
+    context_wrap: SendMessageWrap  # (lateinit) Context message
     train: dict[str, str]  # System message
     last_call: datetime  # Last internal function call time
-    session_id: str
-    response: UniResponse[str, None]
-    response_queue: asyncio.Queue[Any]
-    overflow_queue: asyncio.Queue[Any]
+    session_id: str  # Session ID
+    response: UniResponse[str, None]  # (lateinit) Response
+    preset: ModelPreset  # preset used in this call
+    config: AmritaConfig  # config used in this call
+    _response_queue: asyncio.Queue[Any]
+    _overflow_queue: asyncio.Queue[Any]
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
     _err: BaseException | None = None
     _queue_done: bool = False
     _has_consumer: bool = False
+    _callback_fun: RESPONSE_CALLBACK_TYPE = None
+    _callback_lock: Lock
     __done_marker = object()
 
     def __init__(
@@ -447,6 +463,9 @@ class ChatObject:
         user_input: USER_INPUT,
         context: Memory,
         session_id: str,
+        callback: RESPONSE_CALLBACK_TYPE = None,
+        config: AmritaConfig | None = None,
+        preset: ModelPreset | None = None,
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
@@ -457,7 +476,10 @@ class ChatObject:
             user_input: Input from the user
             context: Memory context for the session
             session_id: Unique identifier for the session
-            run_blocking: Whether to run in blocking mode
+            callback: Callback function to be called when returning response
+            config: Config used for this call
+            queue_size: Maximum number of message chunks to be stored in the queue
+            overflow_queue_size: Maximum number of message chunks to be stored in the overflow queue
         """
         self.train = train
         self.data = context
@@ -466,13 +488,16 @@ class ChatObject:
         self.user_message = Message(role="user", content=user_input)
         self.timestamp = get_current_datetime_timestamp()
         self.time = datetime.now(utc)
-        self.config: AmritaConfig = get_config()
+        self.config: AmritaConfig = config or get_config()
         self.last_call = datetime.now(utc)
+        self.preset = preset or PresetManager().get_default_preset()
 
         # Initialize async queue for streaming responses
-        self.response_queue = asyncio.Queue(queue_size)
-        self.overflow_queue = asyncio.Queue(overflow_queue_size)
+        self._response_queue = asyncio.Queue(queue_size)
+        self._overflow_queue = asyncio.Queue(overflow_queue_size)
         self.stream_id = uuid4().hex
+        self._callback_fun = callback
+        self._callback_lock = Lock()
 
     def get_exception(self) -> BaseException | None:
         """
@@ -597,7 +622,7 @@ class ChatObject:
         logger.debug(self.train["content"])
 
         logger.debug("Starting applying memory limitations..")
-        async with MemoryLimiter(self.data, self.train) as lim:
+        async with MemoryLimiter(self.data, self.train, config=config) as lim:
             await lim.run_enforce()
             abs_usage = lim.usage
             self.data = lim.memory
@@ -637,21 +662,21 @@ class ChatObject:
             item: Item to put in the queue
         """
         try:
-            self.response_queue.put_nowait(item)
+            self._response_queue.put_nowait(item)
         except asyncio.QueueFull:
             try:
-                self.overflow_queue.put_nowait(item)
+                self._overflow_queue.put_nowait(item)
             except asyncio.QueueFull:
                 timeout = 5
                 while timeout > 0:
                     await asyncio.sleep(1)
                     timeout -= 1
                     try:
-                        self.response_queue.put_nowait(item)
+                        self._response_queue.put_nowait(item)
                         return
                     except asyncio.QueueFull:
                         try:
-                            self.overflow_queue.put_nowait(item)
+                            self._overflow_queue.put_nowait(item)
                             return
                         except asyncio.QueueFull:
                             continue
@@ -661,19 +686,39 @@ class ChatObject:
                     "Both primary and overflow queues are full after waiting"
                 )
 
-    async def yield_response(self, response: str | MessageContent):
+    async def yield_response(self, response: RESPONSE_TYPE) -> None:
         """Send chat model response to the queue allowing both str and MessageContent types.
 
         Args:
             response: Either a string or MessageContent object to be sent to the queue
         """
-        if not self.queue_closed():
-            await self._put_to_queue(response)
+        if self._callback_fun is not None:
+            async with self._callback_lock:
+                await self._callback_fun(response)
         else:
-            raise RuntimeError("Queue is closed.")
+            if not self.queue_closed():
+                await self._put_to_queue(response)
+            else:
+                raise RuntimeError("Queue is closed.")
+
+    def set_callback_func(self, func: RESPONSE_CALLBACK_TYPE) -> None:
+        """Set a callback function to be executed when a response is yielded.
+
+        Args:
+            func (RESPONSE_CALLBACK_TYPE): Function to be executed when a response is yielded
+
+        Raises:
+            RuntimeError: If a callback function is already set, raise it.
+        """
+        if not self._callback_fun:
+            self._callback_fun = func
+        else:
+            raise RuntimeError(
+                "The callback function of this chat object has already been set!"
+            )
 
     async def yield_response_iteration(
-        self, iterator: AsyncGenerator[str | MessageContent, None]
+        self, iterator: AsyncGenerator[RESPONSE_TYPE, None]
     ):
         """Send chat model response to the queue allowing both str and MessageContent types.
 
@@ -683,14 +728,14 @@ class ChatObject:
         async for chunk in iterator:
             await self.yield_response(chunk)
 
-    def get_response_generator(self) -> AsyncGenerator[str | MessageContent, None]:
+    def get_response_generator(self) -> AsyncGenerator[RESPONSE_TYPE, None]:
         """Return an async generator to iterate over responses from the queue.
 
         Yields:
             Either a string or MessageContent object from the response queue
         """
-        if self._has_consumer:
-            raise RuntimeError("Queue is already being consumed.")
+        if self._has_consumer or self._callback_fun is not None:
+            raise RuntimeError("Response is already being consumed.")
         self._has_consumer = True
         return self._response_generator()
 
@@ -708,7 +753,7 @@ class ChatObject:
                 builder.write(str(item.get_content()))
         return builder.getvalue()
 
-    async def _response_generator(self) -> AsyncGenerator[str | MessageContent, None]:
+    async def _response_generator(self) -> AsyncGenerator[RESPONSE_TYPE]:
         """Internal method to asynchronously yield items from the queue until done marker is reached.
 
         Yields:
@@ -717,25 +762,25 @@ class ChatObject:
         # Yield from primary queue first
         while True:
             # Check primary queue first
-            while not self.response_queue.empty():
-                item = await self.response_queue.get()
-                self.response_queue.task_done()
+            while not self._response_queue.empty():
+                item = await self._response_queue.get()
+                self._response_queue.task_done()
                 if item is self.__done_marker:
                     return
                 yield item
 
             # If primary queue is empty, check overflow queue
-            if not self.overflow_queue.empty():
-                item = await self.overflow_queue.get()
-                self.overflow_queue.task_done()
+            if not self._overflow_queue.empty():
+                item = await self._overflow_queue.get()
+                self._overflow_queue.task_done()
                 if item is self.__done_marker:
                     return
                 yield item
             else:
                 if (
                     self.queue_closed()
-                    and self.response_queue.empty()
-                    and self.overflow_queue.empty()
+                    and self._response_queue.empty()
+                    and self._overflow_queue.empty()
                 ):
                     break
                 # Otherwise, wait a bit before checking again
@@ -766,9 +811,9 @@ class ChatObject:
         chat_event = PreCompletionEvent(
             chat_object=self,
             user_input=self.user_input,
-            original_context=messages,  # 使用包含系统消息的完整消息列表
+            original_context=messages,  # Use the original context
         )
-        await MatcherManager.trigger_event(chat_event)
+        await MatcherManager.trigger_event(chat_event, self.config)
         self.data.messages = chat_event.get_context_messages().unwrap(
             exclude_system=True
         )
@@ -776,7 +821,9 @@ class ChatObject:
 
         logger.debug("Calling chat model..")
         response: UniResponse[str, None] | None = None
-        async for chunk in call_completion(send_messages):
+        async for chunk in call_completion(
+            send_messages, config=self.config, preset=self.preset
+        ):
             if isinstance(chunk, str):
                 await self.yield_response(StringMessageContent(chunk))
             elif isinstance(chunk, UniResponse):
@@ -788,7 +835,7 @@ class ChatObject:
         self.response = response
         logger.debug("Triggering chat events..")
         chat_event = CompletionEvent(self.user_input, messages, self, response.content)
-        await MatcherManager.trigger_event(chat_event)
+        await MatcherManager.trigger_event(chat_event, self.config)
         response.content = chat_event.model_response
         data.messages.append(
             Message[str](

@@ -105,7 +105,7 @@ chat = ChatObject(
 
 **构造函数参数**:
 
-- `context` ([MemoryModel](classes/MemoryModel.md)): 对话的内存上下文
+- `context` ([MemoryModel](classes/MemoryModel.md)): 对话的记忆上下文
 - `session_id` (str): 会话的唯一标识符
 - `user_input` (str): 用户的输入消息
 - `train` (dict): AI 的训练/提示数据
@@ -138,7 +138,7 @@ assistant_msg = Message(content="我很好，谢谢！", role="assistant")
 - `content` (str): 消息内容
 - `role` (str): 消息的角色（'system'、'user' 或 'assistant'）
 
-### 7.2.3 MemoryModel - 内存模型
+### 7.2.3 MemoryModel - 记忆模型
 
 [MemoryModel](classes/MemoryModel.md) 类存储对话历史和上下文。
 
@@ -195,7 +195,7 @@ from amrita_core import simple_tool
 def add(a: int, b: int) -> int:
     """添加数字
 
-    参数:
+    Args:
         a (int): 第一个数字
         b (int): 第二个数字
     """
@@ -212,7 +212,7 @@ def add(a: int, b: int) -> int:
 
 ### 7.3.2 @on_tools - 工具注册
 
-`@on_tools` 装饰器将函数注册为代理可调用的工具。
+`@on_tools` 装饰器将函数注册为Agent可调用的工具。
 
 ```python
 from typing import Any
@@ -244,13 +244,13 @@ async def add(data: dict[str, Any]) -> str:
 
 ```
 
-**用途**: 将函数注册为代理可以调用的可用工具。
+**用途**: 将函数注册为Agent可以调用的可用工具。
 
 **使用注意事项**:
 
 - 函数必须为参数提供适当的类型提示
 - 函数文档字符串成为工具描述
-- 注册的工具会自动对代理可用
+- 注册的工具会自动对Agent可用
 
 ### 7.3.3 @on_event - 事件监听器
 
@@ -341,4 +341,4 @@ class CustomConfig(BaseModel):
     param3: list[str] = []
 ```
 
-此 API 参考提供了核心 AmritaCore 接口、类和装饰器的全面概述。每个组件都设计为协同工作，以提供一个灵活且强大的 AI 代理构建框架。
+此 API 参考提供了核心 AmritaCore 接口、类和装饰器的全面概述。每个组件都设计为协同工作，以提供一个灵活且强大的 AI Agent构建框架。

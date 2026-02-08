@@ -17,17 +17,17 @@ user_msg = Message(content="您好，您好吗？", role="user")
 assistant_msg = Message(content="我很好，谢谢！", role="assistant")
 ```
 
-## 3.2.2 MemoryModel 内存模型
+## 3.2.2 MemoryModel 记忆模型
 
 [MemoryModel](../api-reference/classes/MemoryModel.md) 类存储对话历史和上下文：
 
 ```python
 from amrita_core.types import MemoryModel
 
-# 创建新内存上下文
+# 创建新记忆上下文
 memory = MemoryModel()
 
-# 将消息添加到内存
+# 将消息添加到记忆
 memory.messages.append(system_msg)
 memory.messages.append(user_msg)
 memory.messages.append(assistant_msg)

@@ -119,6 +119,9 @@ chat = ChatObject(
 ```python
 # 执行对话
 await chat.begin()
+...
+# 使用上下文管理器
+async with chat.begin() as chat:...
 
 ```
 
@@ -151,6 +154,17 @@ AmritaCore 支持流式响应以实现实时交互：
 async for message in chat.get_response_generator():
     content = message if isinstance(message, str) else message.get_content()
     print(content, end="")
+```
+
+## 4.2.5 回调函数风格处理
+
+AmritaCore 支持响应回调，用于防止队列溢出与延迟：
+
+```python
+async def callback(message):
+    print(message)
+chat.set_callback_func(callback)
+await chat.begin()
 ```
 
 ::: warning

@@ -33,6 +33,7 @@ async def minimal_example():
     # Register the model preset
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
+    preset_manager.set_default_preset(preser.name)
     
     # Create context and system message
     context = MemoryModel()
@@ -66,7 +67,7 @@ In this minimal example:
 6. We create a memory context and system message
 7. We instantiate a ChatObject with our parameters
 8. We call `chat.begin()` to execute the interaction
-9. We get the response by use generator or `await chat.get_full_response()` (just use full response this will lose metadata.)
+9. We get the response by using `await chat.get_full_response()`
 10. Finally, we get the full response
 
 ## 2.2.3 Running and Debugging

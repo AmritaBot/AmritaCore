@@ -153,6 +153,18 @@ async for message in chat.get_response_generator():
     print(content, end="")
 ```
 
+### 4.2.5 Response Callback
+
+AmritaCore supports response callbacks for real-time interaction:
+
+```python
+async def response_callback(message):
+    print(message)
+
+chat.set_callback_func(response_callback)
+await chat.begin()
+```
+
 ::: warning
 
 The `get_response_generator()` or `full_response()` is a one-time operation. That means that you can only call `full_response()` or `get_response_generator()` once, or it will raise a `RuntimeError`.

@@ -178,6 +178,7 @@ preset_manager = PresetManager()
 # Add a preset
 preset = ModelPreset(...)
 preset_manager.add_preset(preset)
+preset_manager.set_default_preset(preser.name)
 
 # Get available presets
 presets = preset_manager.get_presets()
@@ -194,7 +195,18 @@ async for chunk in chat.get_response_generator():
     print(chunk, end="")
 ```
 
-### 3.5.4 Memory Summary Mechanism
+### 3.5.4 Response Callback
+
+AmritaCore provides a callback mechanism for handling responses:
+
+```python
+async def callback(chunk):
+    print(chunk, end="")
+chat.set_callback_func(callback)
+await chat.begin()
+```
+
+### 3.5.5 Memory Summary Mechanism
 
 The memory summary mechanism automatically condenses conversation history to manage token usage:
 

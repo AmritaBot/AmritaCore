@@ -11,6 +11,7 @@ from typing import (
 from pydantic import BaseModel, Field
 from typing_extensions import Self
 
+from amrita_core.config import AmritaConfig
 from amrita_core.logging import debug_log, logger
 
 from .event import Event
@@ -125,12 +126,16 @@ class MatcherManager:
         - *args: Variable arguments passed to the dependency injection system.
         """
         event: Event | None = None
+        config: AmritaConfig | None = None
         for i in args:
             if isinstance(i, Event):
                 event = i
-                break
+            elif isinstance(i, AmritaConfig):
+                config = i
         if not event:
             raise RuntimeError("No event found in args")
+        elif not config:
+            raise RuntimeError("No config found in args")
         event_type = event.get_event_type()  # Get event type
         priority_tmp = 0
         debug_log(f"Running matchers for event: {event_type}!")

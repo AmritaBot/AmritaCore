@@ -6,7 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 from amrita_core.chatmanager import MessageWithMetadata
-from amrita_core.config import get_config
+from amrita_core.config import AmritaConfig, get_config
 from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
 from amrita_core.hook.exception import MatcherException as ProcEXC
 from amrita_core.hook.on import on_completion, on_precompletion
@@ -65,7 +65,7 @@ async def _(ctx: ToolContext) -> str | None:
 
 
 @prehook.handle()
-async def agent_core(event: PreCompletionEvent) -> None:
+async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
     agent_last_step: str = ""
 
     async def _append_reasoning(
@@ -131,6 +131,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
             reasoning_msg,
             [REASONING_TOOL.model_dump(), *tools_ctx],
             tool_choice=REASONING_TOOL,
+            preset=event.chat_object.preset,
         )
         await _append_reasoning(msg, response)
 
@@ -149,7 +150,6 @@ async def agent_core(event: PreCompletionEvent) -> None:
         logger.info(
             f"Starting round {call_count} tool call, current message count: {len(msg_list)}"
         )
-        config = get_config()
         if config.function_config.tool_calling_mode == "agent" and (
             (
                 call_count == 1
@@ -185,6 +185,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
                 if (config.llm.require_tools and not suggested_stop)
                 else "auto"
             ),
+            preset=event.chat_object.preset,
         )
 
         if tool_calls := response_msg.tool_calls:
@@ -332,8 +333,6 @@ async def agent_core(event: PreCompletionEvent) -> None:
 
             if config.function_config.tool_calling_mode == "agent":
                 await run_tools(msg_list, call_count, original_msg)
-
-    config = get_config()
     chat_object = event.chat_object
     if config.function_config.tool_calling_mode == "none":
         return
@@ -397,8 +396,7 @@ async def agent_core(event: PreCompletionEvent) -> None:
 
 
 @posthook.handle()
-async def cookie(event: CompletionEvent):
-    config = get_config()
+async def cookie(event: CompletionEvent, config: AmritaConfig):
     response = event.get_model_response()
     if config.cookie.enable_cookie:
         if cookie := config.cookie.cookie:

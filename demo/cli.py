@@ -132,6 +132,7 @@ async def main():
 
     preset_manager = PresetManager()
     preset_manager.add_preset(preset)
+    preset_manager.set_default_preset(preset.name)
     logger.info("Registered preset.")
 
     # Initialize session

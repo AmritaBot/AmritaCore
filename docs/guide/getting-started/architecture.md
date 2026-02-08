@@ -45,15 +45,6 @@ graph TB
 
 ```mermaid
 sequenceDiagram
-    participant User as User
-    participant CO as ChatObject
-    participant Config as Configuration
-    participant Events as Events System
-    participant Tools as Tools Manager
-    participant Agent as Agent Core
-    participant LLM as LLM Provider
-    participant Memory as Memory Model
-
     User->>CO: Send input message
     CO->>Config: Check configuration
     CO->>Events: Trigger input events

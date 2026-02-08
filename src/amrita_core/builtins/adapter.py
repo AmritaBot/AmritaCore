@@ -15,7 +15,6 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 )
 from typing_extensions import override
 
-from amrita_core.config import get_config
 from amrita_core.logging import debug_log
 from amrita_core.protocol import ModelAdapter
 from amrita_core.tools.models import ToolChoice, ToolFunctionSchema
@@ -33,7 +32,7 @@ class OpenAIAdapter(ModelAdapter):
     ) -> AsyncGenerator[str | UniResponse[str, None], None]:
         """Call OpenAI API to get chat responses"""
         preset = self.preset
-        config = get_config()
+        config = self.config
         client = openai.AsyncOpenAI(
             base_url=preset.base_url,
             api_key=preset.api_key,
@@ -113,7 +112,7 @@ class OpenAIAdapter(ModelAdapter):
             )
         else:
             choice = tool_choice
-        config = get_config()
+        config = self.config
         preset = self.preset
         base_url = preset.base_url
         key = preset.api_key

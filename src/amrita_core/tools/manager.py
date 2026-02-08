@@ -142,7 +142,7 @@ class ToolsManager:
 
 def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]:
     """
-    Parse Google-style docstring to extract function description and parameter descriptions.
+    Parse Google-style docstring to extract function description and parameter descriptions.Yes, just like this function's doc.
 
     Args:
         docstring: The docstring to parse
@@ -159,17 +159,17 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
     # Find the index where Args section starts
     args_start_idx = -1
     for i, line in enumerate(lines):
-        if line.lower().startswith("args:"):
+        if line.lower().startswith("args:") or line.lower().startswith("参数:"):
             args_start_idx = i
             break
 
     # Extract function description (everything before Args section)
     if args_start_idx != -1:
-        func_desc_lines = lines[:args_start_idx]
-        func_desc = " ".join(func_desc_lines).strip()
+        func_desc_lines: list[str] = lines[:args_start_idx]
+        func_desc: str = " ".join(func_desc_lines).strip()
 
         # Extract Args section
-        args_lines = lines[args_start_idx + 1 :]
+        args_lines: list[str] = lines[args_start_idx + 1 :]
     else:
         # No Args section found
         func_desc = " ".join(lines).strip()

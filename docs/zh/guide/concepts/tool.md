@@ -2,11 +2,35 @@
 
 ## 3.4.1 工具集成框架
 
-AmritaCore 提供了一个全面的框架来集成外部工具和服务。工具可以被注册并提供给代理在对话期间使用。
+AmritaCore 提供了一个全面的框架来集成外部工具和服务。工具可以被注册并提供给Agent在对话期间使用。
 
-## 3.4.2 @on_tools 装饰器注册
+## 3.4.2 @simple_tool 函数注册
 
-`@on_tools` 装饰器将函数注册为可调用工具：
+`@simple_tool` 函数可以以较为简单的方式注册工具：
+
+```python
+from amrita_core import simple_tool
+
+@simple_tool
+def my_tool(arg1: str, arg2: int) -> str:
+    """My tool description
+
+    Args:
+        arg1 (str): Argument 1 description
+        arg2 (int): Argument 2 description
+    """
+    return "Tool output"
+```
+
+### 说明
+
+`@simple_tool` 函数注册了工具，并定义了工具参数和返回值类型。
+
+它将自动从工具的文档字符串中提取参数描述，遵循谷歌的Python英文注释范式，类型由类型注解自动推断，但此装饰器只支持**基本类型**，其他类型参数都将fallback为str。
+
+## 3.4.3 @on_tools 装饰器注册
+
+`@on_tools` 装饰器是一种更高级的将函数注册为可调用工具的方法：
 
 ```python
 from typing import Any
@@ -38,7 +62,7 @@ async def add(data: dict[str, Any]) -> str:
 
 ```
 
-## 3.4.3 FunctionDefinitionSchema 函数模式
+## 3.4.4 FunctionDefinitionSchema 函数模式
 
 [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md) 类定义函数参数的模式：
 
@@ -52,7 +76,7 @@ schema = FunctionDefinitionSchema(
 )
 ```
 
-## 3.4.4 ToolsManager 工具管理器
+## 3.4.5 ToolsManager 工具管理器
 
 [ToolsManager](../api-reference/classes/ToolsManager.md) 类管理已注册的工具：
 
@@ -64,7 +88,7 @@ manager = ToolsManager()
 registered_tools = manager.get_tools()
 ```
 
-## 3.4.5 动态工具发现
+## 3.4.6 动态工具发现
 
 工具在导入模块时自动发现和注册：
 

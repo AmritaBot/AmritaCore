@@ -13,11 +13,11 @@ from amrita_core import simple_tool
 def add(a: int, b: int) -> int:
     """相加两个数字
 
-    参数:
+    Args:
         a (int): 第一个数字
         b (int): 第二个数字
 
-    返回:
+    Returns:
         int: a 与 b 的和
     """
     return a + b

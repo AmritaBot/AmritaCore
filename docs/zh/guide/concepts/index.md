@@ -6,7 +6,7 @@
 
 [AmritaConfig](../api-reference/classes/AmritaConfig.md) 类作为 AmritaCore 的中央配置对象。它结合了三个不同的配置类：
 
-- `FunctionConfig`: 定义代理的行为方面
+- `FunctionConfig`: 定义Agent的行为方面
 - `LLMConfig`: 控制语言模型交互
 - `CookieConfig`: 处理安全方面
 
@@ -27,7 +27,7 @@ set_config(config)
 
 ### 3.1.2 FunctionConfig 功能配置
 
-[FunctionConfig](../api-reference/classes/FunctionConfig.md) 类控制代理的功能行为：
+[FunctionConfig](../api-reference/classes/FunctionConfig.md) 类控制Agent的功能行为：
 
 #### 3.1.2.1 use_minimal_context 上下文模式
 
@@ -39,7 +39,7 @@ from amrita_core.config import FunctionConfig
 # 使用完整上下文（默认）
 func_config_full = FunctionConfig(use_minimal_context=False)
 
-# 使用最小上下文（更节省令牌）
+# 使用最小上下文（更节省Token）
 func_config_minimal = FunctionConfig(use_minimal_context=True)
 ```
 
@@ -47,21 +47,21 @@ func_config_minimal = FunctionConfig(use_minimal_context=True)
 
 `tool_calling_mode` 属性指定工具如何被调用：
 
-- `"agent"`: 代理自主决定何时使用工具
+- `"agent"`: Agent自主决定何时使用工具
 - `"rag"`: 工具主要用于检索增强生成，只在一次对话中调用一次。
 - `"none"`: 工具被禁用
 
 ```python
-# 代理决定何时使用工具
+# Agent决定何时使用工具
 func_config_agent = FunctionConfig(tool_calling_mode="agent")
 
 # 主要用于RAG目的
 func_config_rag = FunctionConfig(tool_calling_mode="rag")
 ```
 
-#### 3.1.2.3 agent_thought_mode 代理思维模式
+#### 3.1.2.3 agent_thought_mode Agent思维模式
 
-`agent_thought_mode` 属性控制代理如何处理信息：
+`agent_thought_mode` 属性控制Agent如何处理信息：
 
 - `"reasoning"`: 在每次用户消息开始时进行推理
 - `"chat"`: 直接执行任务而不进行明确推理
@@ -92,9 +92,9 @@ func_config_mcp = FunctionConfig(
 
 [LLMConfig](../api-reference/classes/LLMConfig.md) 类控制与语言模型的交互：
 
-#### 3.1.3.1 enable_memory_abstract 内存抽象
+#### 3.1.3.1 enable_memory_abstract 记忆抽象
 
-`enable_memory_abstract` 属性启用对话历史的自动摘要以管理令牌使用：
+`enable_memory_abstract` 属性启用对话历史的自动摘要以管理Token使用：
 
 ```python
 llm_config = LLMConfig(
@@ -105,15 +105,15 @@ llm_config = LLMConfig(
 
 #### 3.1.3.2 其他模型参数
 
-其他参数控制令牌使用、超时和重试行为：
+其他参数控制Token使用、超时和重试行为：
 
 ```python
 llm_config = LLMConfig(
-    max_tokens=100,                   # 响应中的最大令牌数
+    max_tokens=100,                   # 响应中的最大Token数
     llm_timeout=60,                   # 请求超时（秒）
     auto_retry=True,                  # 自动重试失败的请求
     max_retries=3,                    # 最大重试次数
-    memory_length_limit=50            # 内存上下文中的最大消息数
+    memory_length_limit=50            # 记忆上下文中的最大消息数
 )
 ```
 
@@ -132,8 +132,8 @@ security_config = CookieConfig(
 
 ### 3.1.5 配置最佳实践
 
-- 对简单查询使用最小上下文以节省令牌
-- 对长对话启用内存抽象
+- 对简单查询使用最小上下文以节省Token
+- 对长对话启用记忆抽象
 - 根据您的 LLM 提供商调整超时和重试设置
 - 在生产环境中保持安全功能启用
 
@@ -150,7 +150,7 @@ from amrita_core import ChatObject
 
 
 chat = ChatObject(
-    context=memory_model,      # 内存上下文
+    context=memory_model,      # 记忆上下文
     session_id="session_123",  # 唯一会话标识符
     user_input="Hello!",       # 用户输入
     train=system_prompt        # 系统指令
@@ -178,6 +178,7 @@ preset_manager = PresetManager()
 # 添加预设
 preset = ModelPreset(...)
 preset_manager.add_preset(preset)
+preset_manager.set_default_preset(preser.name)
 
 # 获取可用预设
 presets = preset_manager.get_presets()
@@ -194,9 +195,21 @@ async for chunk in chat.get_response_generator():
     print(chunk, end="")
 ```
 
-### 3.5.4 内存摘要机制
+### 3.5.4 回调式响应
 
-内存摘要机制自动压缩对话历史以管理令牌使用：
+AmritaCore 支持回调式响应：
+
+```python
+async def callback(chunk):
+    print(chunk, end="")
+
+chat.set_callback_func(callback)
+await chat.begin()
+```
+
+### 3.5.5 记忆摘要机制
+
+记忆摘要机制自动压缩对话历史以管理Token使用：
 
 ```python
 # 通过 LLMConfig 配置
