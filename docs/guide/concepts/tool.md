@@ -96,5 +96,5 @@ Tools are automatically discovered and registered when modules are imported:
 
 ```python
 # When you import modules containing @on_tools decorated functions
-from . import my_tools  # Tools are automatically registered, make sure they will just be imported in one time.
+from . import my_tools  # Tools are automatically registered; make sure they are only imported once.
 ```
