@@ -40,8 +40,8 @@ class ModelConfig(BaseModel):
         default=50,
         description="TopK (Some model adapters may not support this parameter)",
     )
-    top_p: float = Field(default=0.95, description="TopP")
-    temperature: float = Field(default=0.7, description="Temperature")
+    top_p: float = Field(default=0.8, description="TopP")
+    temperature: float = Field(default=0.6, description="Temperature")
     stream: bool = Field(
         default=False,
         description="Whether to enable streaming response (output by character)",
