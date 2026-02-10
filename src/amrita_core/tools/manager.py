@@ -4,7 +4,7 @@ import typing
 from asyncio import iscoroutinefunction
 from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Any, ClassVar, get_args, get_origin, get_type_hints, overload
+from typing import Any, get_args, get_origin, get_type_hints, overload
 
 from typing_extensions import Self
 
@@ -21,17 +21,18 @@ from .models import (
 T = typing.TypeVar("T")
 
 
-class ToolsManager:
-    _instance = None
-    _models: ClassVar[dict[str, ToolData]] = {}
-    _disabled_tools: ClassVar[set[str]] = (
-        set()
-    )  # Disabled tools, has_tool and get_tool will not return disabled tools
+class MultiToolsManager:
+    _models: dict[str, ToolData]
+    _disabled_tools: set[
+        str
+    ]  # Disabled tools, has_tool and get_tool will not return disabled tools
+    _inited = False
 
-    def __new__(cls) -> Self:
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    def __init__(self):
+        if not self._inited:
+            self._models = {}
+            self._disabled_tools = set()
+            self._inited = True
 
     def has_tool(self, name: str) -> bool:
         return False if name in self._disabled_tools else name in self._models
@@ -138,6 +139,21 @@ class ToolsManager:
 
     def get_disabled_tools(self) -> list[str]:
         return list(self._disabled_tools)
+
+
+class ToolsManager(MultiToolsManager):
+    _instance = None
+    _initialized = False
+
+    def __new__(cls) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        if not self.__class__._initialized:
+            super().__init__()
+            self.__class__._initialized = True
 
 
 def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]:

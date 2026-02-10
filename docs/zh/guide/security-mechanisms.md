@@ -163,20 +163,71 @@ def detect_sensitive_information(text: str):
 
 ## 6.3 会话隔离
 
-### 6.3.1 会话ID管理
+### 6.3.1 会话管理器 (SessionsManager)
+
+AmritaCore 通过 SessionsManager 类实现了一个强大的会话隔离机制，该类是一个单例类，用于管理不同会话的工具、配置和预设，确保各个会话之间的状态相互独立。
+
+SessionsManager 的主要功能包括：
+
+1. **会话生命周期管理**
+   - `new_session()`: 创建一个新会话并返回其唯一ID
+   - `init_session(session_id)`: 初始化指定会话的相关资源
+   - `drop_session(session_id)`: 删除指定会话及其相关资源
+
+2. **会话资源访问**
+   - `get_session_data(session_id)`: 获取包含工具、配置、预设等的完整会话数据对象
+   - 通过返回的 SessionData 对象访问会话资源：
+     - `session_data.tools`: 获取会话的工具管理器
+     - `session_data.config`: 获取会话的配置对象
+     - `session_data.presets`: 获取会话的预设管理器
+
+3. **会话状态查询**
+   - `get_registered_sessions()`: 获取所有已注册的会话ID
+   - `get_session_data(session_id, default)`: 安全获取会话数据（如果会话不存在则返回默认值）
+
+以下是使用 SessionsManager 的示例：
+
+```python
+from amrita_core.sessions import SessionsManager
+
+# 获取会话管理器实例
+session_manager = SessionsManager()
+
+# 创建新会话
+session_id = session_manager.new_session()
+
+# 获取会话数据
+session_data = session_manager.get_session_data(session_id)
+config = session_data.config
+tools_manager = session_data.tools
+presets_manager = session_data.presets
+
+# 设置会话特定配置
+from amrita_core.config import AmritaConfig
+new_config = AmritaConfig()
+session_data.config = new_config
+
+# 删除会话
+session_manager.drop_session(session_id)
+```
+
+### 6.3.2 会话ID管理
 
 正确的会话管理对于维持不同用户或对话之间的隔离至关重要：
 
 ```python
 import uuid
 from amrita_core.types import MemoryModel
+from amrita_core.sessions import SessionsManager
 
 def create_secure_session() -> tuple[str, MemoryModel]:
     """
-    创建一个新的安全会话，具有唯一的ID和记忆上下文
+    使用 SessionsManager 创建一个新的安全会话，具有唯一的ID和记忆上下文
     """
-    session_id = f"session_{uuid.uuid4().hex[:16]}"
-    context = MemoryModel()
+    session_manager = SessionsManager()
+    session_id = session_manager.new_session()
+    session_data = session_manager.get_session_data(session_id)
+    context = session_data.memory  # 使用会话数据中的记忆实例
     
     return session_id, context
 
@@ -184,71 +235,48 @@ def create_secure_session() -> tuple[str, MemoryModel]:
 session_id, context = create_secure_session()
 ```
 
-### 6.3.2 数据隔离保证
+### 6.3.3 数据隔离保证
 
-通过正确分离对话上下文来确保数据隔离：
+通过 SessionsManager 正确分离对话上下文来确保数据隔离：
 
 ```python
 from amrita_core import ChatObject
 from amrita_core.types import Message
+from amrita_core.sessions import SessionsManager
 
 class SecureConversationManager:
     def __init__(self):
-        self.sessions = {}
+        self.session_manager = SessionsManager()
     
     async def process_user_input(self, session_id: str, user_input: str):
         """
         在安全、隔离的会话中处理用户输入
         """
-        if session_id not in self.sessions:
+        # 验证会话是否存在
+        try:
+            session_data = self.session_manager.get_session_data(session_id)
+        except KeyError:
             # 如果会话不存在则创建新会话
-            context = MemoryModel()
-            train = Message(content="您是一个有用的助手。", role="system")
-            self.sessions[session_id] = {
-                'context': context,
-                'train': train
-            }
+            session_id = self.session_manager.new_session()
+            session_data = self.session_manager.get_session_data(session_id)
         
-        session_data = self.sessions[session_id]
+        # 从会话数据获取配置
+        config = session_data.config
         
+        # 使用会话特定的配置
         chat = ChatObject(
-            context=session_data['context'],
+            context=session_data.memory,  # 使用会话特定的记忆
             session_id=session_id,
             user_input=user_input,
-            train=session_data['train'].model_dump()
+            config=config
         )
         
-        await chat.begin()
-        response = await chat.full_response()
-        
-        # 使用新状态更新会话上下文
-        session_data['context'] = chat.data
+        async with chat.begin():
+            response = await chat.full_response()
         
         return response
 ```
 
-### 6.3.3 跨会话保护
-
-防止跨会话污染：
-
-```python
-from amrita_core.hook.event import PreCompletionEvent
-from amrita_core.hook.on import on_precompletion
-
-@on_precompletion()
-async def session_isolation_check(event: PreCompletionEvent, session_id: str = None):
-    """
-    确保会话特定数据不会在会话间泄漏
-    """
-    # 验证没有会话特定标识符不当地出现
-    if session_id:
-        for msg in event.messages:
-            if session_id in msg.content and msg.role != "system":
-                # 这可能表明潜在的泄漏或注入
-                print(f"警告: 会话ID出现在非系统消息中: {msg.content}")
-    
-    
-```
 
 ## 6.4 访问控制
 

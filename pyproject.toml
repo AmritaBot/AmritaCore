@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "0.3.0"
+version = "0.4.0"
 description = "Agent core of Project Amrita"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
@@ -25,6 +25,7 @@ dev-dependencies = [
     "mcp>=1.21.1",
     "py-spy>=0.4.1",
     "pyright>=1.1.407",
+    "pytest-asyncio>=1.3.0",
 ]
 package= true
 

@@ -24,6 +24,7 @@ from .hook.event import CompletionEvent, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
 from .logging import logger
+from .sessions import SessionsManager
 from .tokenizer import hybrid_token_count
 from .types import (
     CONTENT_LIST_TYPE,
@@ -425,7 +426,7 @@ User input → Direct summary output
 
 
 class ChatObject:
-    """Chat processing object
+    """Chat processing object - The minimal unit of chat processing.
 
     This class is responsible for processing a single chat session, including message receiving,
     context management, model calling, and response sending.
@@ -461,11 +462,12 @@ class ChatObject:
         self,
         train: dict[str, str],
         user_input: USER_INPUT,
-        context: Memory,
+        context: Memory | None,
         session_id: str,
         callback: RESPONSE_CALLBACK_TYPE = None,
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
+        auto_create_session: bool = False,
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
@@ -478,19 +480,31 @@ class ChatObject:
             session_id: Unique identifier for the session
             callback: Callback function to be called when returning response
             config: Config used for this call
+            preset: Preset used for this call
+            auto_create_session: Whether to automatically create a session if it does not exist
             queue_size: Maximum number of message chunks to be stored in the queue
             overflow_queue_size: Maximum number of message chunks to be stored in the overflow queue
         """
+        sm = SessionsManager()
+        if auto_create_session and not sm.is_session_registered(session_id):
+            sm.init_session(session_id)
+        session = sm.get_session_data(session_id, None)
         self.train = train
-        self.data = context
+        self.data = context or sm.get_session_data(session_id).memory
         self.session_id = session_id
         self.user_input = user_input
         self.user_message = Message(role="user", content=user_input)
         self.timestamp = get_current_datetime_timestamp()
         self.time = datetime.now(utc)
-        self.config: AmritaConfig = config or get_config()
+        self.config: AmritaConfig = config or (
+            session.config if session else get_config()
+        )
         self.last_call = datetime.now(utc)
-        self.preset = preset or PresetManager().get_default_preset()
+        self.preset = preset or (
+            session.presets.get_default_preset()
+            if session
+            else PresetManager().get_default_preset()
+        )
 
         # Initialize async queue for streaming responses
         self._response_queue = asyncio.Queue(queue_size)
@@ -638,6 +652,7 @@ class ChatObject:
             response.usage.completion_tokens += abs_usage.completion_tokens
             response.usage.prompt_tokens += abs_usage.prompt_tokens
             response.usage.total_tokens += abs_usage.total_tokens
+        self.response = response
 
         logger.debug("Chat processing completed, preparing to send response")
         await self.set_queue_done()
@@ -877,8 +892,6 @@ class ChatObject:
 
 @dataclass
 class ChatManager:
-    custom_menu: list[dict[str, str]] = field(default_factory=list)
-    running_messages_poke: dict[str, Any] = field(default_factory=dict)
     running_chat_object: defaultdict[str, list[ChatObject]] = field(
         default_factory=lambda: defaultdict(list)
     )

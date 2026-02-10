@@ -15,10 +15,17 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 )
 from typing_extensions import override
 
+from amrita_core.config import AmritaConfig
 from amrita_core.logging import debug_log
 from amrita_core.protocol import ModelAdapter
 from amrita_core.tools.models import ToolChoice, ToolFunctionSchema
-from amrita_core.types import ToolCall, UniResponse, UniResponseUsage
+from amrita_core.types import (
+    ModelConfig,
+    ModelPreset,
+    ToolCall,
+    UniResponse,
+    UniResponseUsage,
+)
 
 
 class OpenAIAdapter(ModelAdapter):
@@ -31,8 +38,9 @@ class OpenAIAdapter(ModelAdapter):
         self, messages: Iterable[ChatCompletionMessageParam]
     ) -> AsyncGenerator[str | UniResponse[str, None], None]:
         """Call OpenAI API to get chat responses"""
-        preset = self.preset
-        config = self.config
+        preset: ModelPreset = self.preset
+        preset_config: ModelConfig = preset.config
+        config: AmritaConfig = self.config
         client = openai.AsyncOpenAI(
             base_url=preset.base_url,
             api_key=preset.api_key,
@@ -47,6 +55,8 @@ class OpenAIAdapter(ModelAdapter):
                 model=preset.model,
                 messages=messages,
                 max_tokens=config.llm.max_tokens,
+                top_p=preset_config.top_p,
+                temperature=preset_config.temperature,
                 stream=stream,
                 stream_options={"include_usage": True},
             )
@@ -55,6 +65,8 @@ class OpenAIAdapter(ModelAdapter):
                 model=preset.model,
                 messages=messages,
                 max_tokens=config.llm.max_tokens,
+                top_p=preset_config.top_p,
+                temperature=preset_config.temperature,
                 stream=False,
             )
         response: str = ""
@@ -112,11 +124,12 @@ class OpenAIAdapter(ModelAdapter):
             )
         else:
             choice = tool_choice
-        config = self.config
-        preset = self.preset
-        base_url = preset.base_url
-        key = preset.api_key
-        model = preset.model
+        config: AmritaConfig = self.config
+        preset: ModelPreset = self.preset
+        preset_config: ModelConfig = preset.config
+        base_url: str = preset.base_url
+        key: str = preset.api_key
+        model: str = preset.model
         client = openai.AsyncOpenAI(
             base_url=base_url,
             api_key=key,
@@ -128,6 +141,8 @@ class OpenAIAdapter(ModelAdapter):
             stream=False,
             tool_choice=choice,
             tools=tools,
+            top_p=preset_config.top_p,
+            temperature=preset_config.temperature,
         )
         msg = completion.choices[0].message
         return UniResponse(

@@ -36,16 +36,15 @@ class BaseModel(B_Model):
 class ModelConfig(BaseModel):
     """Model configuration"""
 
-    top_k: int = Field(default=50, description="TopK")
-    top_p: float = Field(default=0.95, description="TopP")
-    temperature: float = Field(default=0.7, description="Temperature")
+    top_k: int = Field(
+        default=50,
+        description="TopK (Some model adapters may not support this parameter)",
+    )
+    top_p: float = Field(default=0.8, description="TopP")
+    temperature: float = Field(default=0.6, description="Temperature")
     stream: bool = Field(
         default=False,
         description="Whether to enable streaming response (output by character)",
-    )
-    thought_chain_model: bool = Field(
-        default=False,
-        description="Whether to enable thought chain model optimization (enhance complex problem solving)",
     )
     multimodal: bool = Field(
         default=False,
@@ -224,7 +223,8 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
         if isinstance(query, ToolResult) or query.role != "user":
             raise ValueError("Invalid query message, expecting user message!")
         self.user_query = query
-        self.memory.pop()
+        if not user_query:
+            self.memory.pop()
 
     @classmethod
     def validate_messages(cls, messages: CONTENT_LIST_TYPE) -> SendMessageWrap:
@@ -240,7 +240,10 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
                 raise ValueError("Invalid messages, expecting system message!")
         else:
             memory = messages[1:]
-        return cls(train, memory)
+        return cls(
+            train,
+            memory,
+        )
 
     def __len__(self) -> int:
         return len(self.memory) + 2 + len(self.end_messages)

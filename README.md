@@ -46,22 +46,7 @@ The mission of AmritaCore is to democratize the development of intelligent agent
 6. **Tool Integration Framework**: Robust system for integrating external tools and services
 7. **Advanced Memory Management**: Sophisticated context handling with automatic summarization and token optimization
 
-## 📖 Documentation Structure
-
-This repository contains documentation organized as follows:
-
-- **Level 1: Project Introduction** - Overview of AmritaCore, its purpose, and key characteristics
-- **Level 2: Quick Start** - Getting started guides, installation, and minimal examples
-- **Level 3: Core Concepts** - Configuration systems, data types, event systems, and tool systems
-- **Level 4: Implementation Guide** - Detailed functional implementations and usage patterns
-- **Level 5: Extensions & Integration** - How to extend and integrate with other systems
-- **Level 6: Security Mechanisms** - Security features and best practices
-- **Level 7: Application Scenarios** - Use cases and practical examples
-- **Level 8: Best Practices & FAQs** - Troubleshooting and optimization tips
-- **Level 9: API Reference** - Complete API documentation
-- **Level 10: Appendices** - Glossary, resources, and changelogs
-
-Documentation is currently under construction. For quick start, please refer to the examples in the `demo/` folder.
+## 📖 Documentation
 
 Please view [Docs](https://amrita-core.suggar.top) for more information.
 

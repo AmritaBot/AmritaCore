@@ -97,17 +97,10 @@ async def basic_example():
     # 处理响应并显示
     print("🤖 助手: ", end="")
 
-    # 开始聊天处理
-    await chat.begin()
-    # 或者像这样，我们建议您使用上下文管理器:
-    # async with chat.begin():
-    #    async for message in chat.get_response_generator():
-    #        print(message if isinstance(message, str) else message.get_content(), end="")
-
-    # 打印流式响应
-    async for message in chat.get_response_generator():
-        content = message if isinstance(message, str) else message.get_content()
-        print(content, end="")
+    async with chat.begin():
+        async for message in chat.get_response_generator():
+            content = message if isinstance(message, str) else message.get_content()
+            print(content, end="")
 
     print("\n")  # 响应后换行
 

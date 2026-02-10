@@ -12,6 +12,7 @@ from .libchat import (
 )
 from .logging import debug_log, logger
 from .preset import PresetManager, PresetReport
+from .sessions import SessionsManager
 from .tools import mcp
 from .tools.manager import ToolsManager, on_tools, simple_tool
 from .tools.models import (
@@ -52,6 +53,7 @@ __all__ = [
     "PreCompletionEvent",
     "PresetManager",
     "PresetReport",
+    "SessionsManager",
     "TextContent",
     "ToolCall",
     "ToolContext",
@@ -91,6 +93,12 @@ def init():
         __all__ += [builtins.__name__]
 
         jieba.initialize()
+
+
+def load_session(session_id: str):
+    logger.info("Loading session %s......", session_id)
+    sm = SessionsManager()
+    sm.init_session(session_id)
 
 
 async def load_amrita():

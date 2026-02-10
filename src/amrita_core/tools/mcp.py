@@ -15,7 +15,7 @@ from zipp import Path
 
 from amrita_core.logging import logger
 
-from .manager import ToolsManager
+from .manager import MultiToolsManager, ToolsManager
 from .models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
@@ -139,7 +139,7 @@ class MCPClient:
             self.mcp_client = None
 
 
-class ClientManager:
+class MultiClientManager:
     clients: list[MCPClient]
     script_to_clients: dict[str, MCPClient]
     name_to_clients: dict[str, MCPClient]  # Map from FunctionName to MCPClient
@@ -149,20 +149,21 @@ class ClientManager:
     reversed_remappings: dict[
         str, str
     ]  # Reverse mapping (remapped_name->original_name)
-    _instance = None
+    tools_manager: MultiToolsManager = ToolsManager()
     _lock: Lock
     _is_initialized = False  # Whether ToolsMapping is ready
+    _initted = False
 
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-            cls.clients = []
-            cls.name_to_clients = {}
-            cls.tools_remapping = {}
-            cls.reversed_remappings = {}
-            cls.script_to_clients = {}
-            cls._lock = Lock()
-        return cls._instance
+    def __init__(self, tools_manager: MultiToolsManager | None = None) -> None:
+        if not self._initted:
+            self._initted = True
+            self.tools_manager = tools_manager or self.tools_manager
+            self.clients = []
+            self.name_to_clients = {}
+            self.tools_remapping = {}
+            self.reversed_remappings = {}
+            self.script_to_clients = {}
+            self._lock = Lock()
 
     def get_client_by_script(self, server_script: MCP_SERVER_SCRIPT_TYPE) -> MCPClient:
         """Get MCP Client (without operating stored MCP Server)
@@ -219,17 +220,16 @@ class ClientManager:
             raise ValueError("Please provide MCP Server script or MCP Client")
         return self
 
-    @staticmethod
-    async def update_tools(client: MCPClient):
+    async def update_tools(self, client: MCPClient):
         tools = client.get_tools()
-        async with ClientManager._lock:
+        async with self._lock:
             for tool in tools:
                 name = tool.function.name
-                ToolsManager().remove_tool(name)
-                ClientManager.name_to_clients.pop(name, None)
-                if remap := ClientManager.tools_remapping.pop(name, None):
-                    ClientManager.reversed_remappings.pop(remap, None)
-        await ClientManager()._load_this(client)
+                self.tools_manager.remove_tool(name)
+                self.name_to_clients.pop(name, None)
+                if remap := self.tools_remapping.pop(name, None):
+                    self.reversed_remappings.pop(remap, None)
+        await self._load_this(client)
 
     async def initialize_scripts_all(
         self, scripts: Iterable[MCP_SERVER_SCRIPT_TYPE]
@@ -259,6 +259,7 @@ class ClientManager:
             tools_remapping_tmp = {}
             reversed_remappings_tmp = {}
             name_to_clients_tmp = {}
+            tm = self.tools_manager
             async with client as c:
                 tools = deepcopy(c.get_tools())
                 for tool in tools:
@@ -271,7 +272,7 @@ class ClientManager:
                         )
                     name_to_clients_tmp[tool.function.name] = client
                     origin_name = tool.function.name
-                    if ToolsManager().has_tool(tool.function.name):
+                    if tm.has_tool(tool.function.name):
                         remapped_name = (
                             f"referred_{random.randint(1, 100)}_{tool.function.name}"
                         )
@@ -282,7 +283,7 @@ class ClientManager:
                         reversed_remappings_tmp[remapped_name] = origin_name
                         tool.function.name = remapped_name
 
-                    ToolsManager().register_tool(
+                    tm.register_tool(
                         ToolData(
                             data=tool,
                             func=self._tools_wrapper(origin_name),
@@ -320,7 +321,7 @@ class ClientManager:
 
     async def unregister_client(self, script_name: str | Path, lock: bool = True):
         """Unregister an MCP Server"""
-        tools_manager = ToolsManager()
+        tools_manager = self.tools_manager
         async with self._lock if lock else nullcontext():
             script_name = str(script_name)
             if script_name in self.script_to_clients:
@@ -336,3 +337,18 @@ class ClientManager:
                     if client.server_script == script_name:
                         self.clients.pop(idx)
                         break
+
+
+class ClientManager(MultiClientManager):
+    _instance = None
+    _initialized = False
+
+    def __new__(cls) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        if not self.__class__._initialized:
+            super().__init__()
+            self.__class__._initialized = True

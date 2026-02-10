@@ -107,3 +107,7 @@ await chat.begin()
 # 使用新状态更新上下文
 updated_context = chat.data
 ```
+
+## 3.2.8 会话隔离
+
+此处请见[安全控制](../security-mechanisms.md)第6.4章。

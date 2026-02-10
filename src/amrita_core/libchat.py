@@ -31,6 +31,15 @@ T = typing.TypeVar("T")
 def text_generator(
     memory: CONTENT_LIST_TYPE, split_role: bool = False
 ) -> Generator[str, None, str]:
+    """Generator that yields text content from a list of messages.
+
+    Args:
+        memory: List of message objects containing content
+        split_role: Whether to prepend role-specific prefixes to content
+
+    Yields:
+        Individual text strings from the message content
+    """
     memory_l = [(i.model_dump() if hasattr(i, "model_dump") else i) for i in memory]
     role_map = {
         "assistant": "<BOT's response>",
@@ -67,6 +76,7 @@ async def get_tokens(
     Args:
         memory: Message history list
         response: Model response
+        config: Optional configuration to use (uses default if not provided)
 
     Returns:
         Object containing token usage information
@@ -93,6 +103,17 @@ async def get_tokens(
 def _validate_msg_list(
     messages: CONTENT_LIST_TYPE,
 ) -> CONTENT_LIST_TYPE:
+    """Validate a list of message dictionaries and convert them to Message objects.
+
+    Args:
+        messages: List of message dictionaries or Message objects
+
+    Returns:
+        List of validated Message objects
+
+    Raises:
+        ValueError: If a message dictionary is invalid
+    """
     validated_messages = []
     for msg in messages:
         if isinstance(msg, dict):
@@ -120,7 +141,18 @@ async def _call_with_reflection(
     *args,
     **kwargs,
 ) -> T:
-    """Call the specified function with the list of presets"""
+    """Internal helper to call an adapter function with reflection and logging.
+
+    Args:
+        preset: Model preset to use for the call
+        call_func: Async function to call on the adapter
+        config: Configuration to pass to the adapter
+        *args: Arguments to pass to the call function
+        **kwargs: Keyword arguments to pass to the call function
+
+    Returns:
+        Result of the call function
+    """
     adapter_class = AdapterManager().safe_get_adapter(preset.protocol)
     if adapter_class:
         debug_log(
@@ -146,7 +178,20 @@ async def tools_caller(
     tool_choice: ToolChoice | None = None,
     config: AmritaConfig | None = None,
 ) -> UniResponse[None, list[ToolCall] | None]:
+    """Call tools using the specified model preset.
+
+    Args:
+        messages: List of messages to send to the model
+        tools: List of available tools
+        preset: Model preset to use (uses default if not provided)
+        tool_choice: How to select tools (uses default if not provided)
+        config: Configuration to use (uses default if not provided)
+
+    Returns:
+        Response containing tool calls or None
+    """
     config = config or get_config()
+
     async def _call_tools(
         adapter: ModelAdapter,
         messages: CONTENT_LIST_TYPE,
@@ -166,7 +211,16 @@ async def call_completion(
     preset: ModelPreset | None = None,
     config: AmritaConfig | None = None,
 ) -> AsyncGenerator[str | UniResponse[str, None], None]:
-    """Get chat response"""
+    """Get chat response from the model.
+
+    Args:
+        messages: List of messages to send to the model
+        preset: Model preset to use (uses default if not provided)
+        config: Configuration to use (uses default if not provided)
+
+    Yields:
+        Individual response parts as strings or UniResponse objects
+    """
     messages = _validate_msg_list(messages)
     preset = preset or PresetManager().get_default_preset()
     config = config or get_config()
@@ -188,6 +242,17 @@ async def call_completion(
 async def get_last_response(
     generator: AsyncGenerator[str | UniResponse[str, None], None],
 ) -> UniResponse[str, None]:
+    """Extract the last UniResponse from a response generator.
+
+    Args:
+        generator: Async generator yielding response parts
+
+    Returns:
+        The last UniResponse object from the generator
+
+    Raises:
+        RuntimeError: If no response is found in the generator
+    """
     ls: list[UniResponse[str, None]] = [
         i async for i in generator if isinstance(i, UniResponse)
     ]

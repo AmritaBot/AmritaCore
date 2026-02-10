@@ -66,6 +66,39 @@ Before participating in the project, please read our [Code of Conduct](./CODE_OF
 - Update documentation (if needed)
 - If the PR resolves an issue, reference it in the PR (e.g. `Fixes #123`)
 
+## Testing Requirements
+
+### Unit Tests for Functional Changes
+
+When contributing code that introduces new functionality or modifies existing functionality, you are required to include corresponding unit tests:
+
+- **New Features**: All new features must include comprehensive unit tests covering both basic functionality and edge cases
+- **Bug Fixes**: Each bug fix must include regression tests that reproduce the reported issue and verify the fix
+- **Breaking Changes**: Breaking changes must include tests demonstrating the new behavior and verifying that the change works as intended
+
+### Test Quality Standards
+
+- Write tests that are clear, focused, and easy to understand
+- Use descriptive test names that explain what is being tested
+- Include both positive and negative test cases where applicable
+- Test error conditions and boundary values
+- Follow the existing test patterns in the codebase
+
+### Running Tests
+
+Before submitting your PR, ensure all tests pass:
+
+```bash
+# Run all tests
+python -m pytest tests/
+
+# Run tests with coverage
+python -m pytest tests/ --cov=amrita_core
+
+# Run specific test file
+python -m pytest tests/test_specific_module.py
+```
+
 ## Development Process
 
 ### Code Style
@@ -84,7 +117,7 @@ Before participating in the project, please read our [Code of Conduct](./CODE_OF
 
 ## Project Structure
 
-```
+```text
 AmritaCore/
 ├── src/
 │   └── amrita_core/          # Core source code
@@ -103,7 +136,7 @@ AmritaCore/
 │       └── utils.py          # Utility functions
 ├── demo/                     # Example code
 ├── docs/                     # Documentation
-│   └── guide_zhcn/          # Chinese documentation
+│   └── zh/                   # Chinese documentation
 ├── tests/                    # Test code
 └── pyproject.toml           # Project configuration
 ```
@@ -134,7 +167,7 @@ AmritaCore/
 
 - Discord: [Discord Server](https://discord.gg/byAD3sbjjj)
 - QQ Group: 1006893368
-- Email: admin@suggar.top
+- Email: [admin@suggar.top](mailto:admin@suggar.top)
 
 ## Acknowledgments
 

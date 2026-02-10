@@ -38,20 +38,19 @@ class PresetReport(BaseModel):
     time_used: float
 
 
-class PresetManager:
+class MultiPresetManager:
     """
-    PresetManager is a singleton class that manages presets.
+    MultiPresetManager is a class that manages presets.
     """
 
     _default_preset: ModelPreset | None = None
     _presets: dict[str, ModelPreset]
-    _instance = None
+    _inited = False
 
-    def __new__(cls) -> Self:
-        if cls._instance is None:
-            cls._presets = {}
-            cls._instance = super().__new__(cls)
-        return cls._instance
+    def __init__(self) -> None:
+        if not self._inited:
+            self._presets = {}
+            self._inited = True
 
     def set_default_preset(self, preset: ModelPreset | str) -> None:
         """
@@ -164,3 +163,22 @@ class PresetManager:
         debug_log(f"Starting to test all presets ({len(presets)} total)...")
         for preset in presets:
             yield await self.test_single_preset(preset)
+
+
+class PresetManager(MultiPresetManager):
+    """
+    PresetManager is a singleton class that manages presets.
+    """
+
+    _instance = None
+    _initialized = False
+
+    def __new__(cls) -> Self:
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        if not self.__class__._initialized:
+            super().__init__()
+            self.__class__._initialized = True
