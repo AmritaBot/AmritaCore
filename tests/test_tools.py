@@ -2,7 +2,15 @@ import asyncio
 
 import pytest
 
-from amrita_core.tools.manager import MultiToolsManager
+from amrita_core.tools.manager import (
+    MultiToolsManager,
+)
+from amrita_core.tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    ToolData,
+    ToolFunctionSchema,
+)
 
 
 class TestMultiToolsManager:
@@ -21,15 +29,67 @@ class TestMultiToolsManager:
         assert manager._disabled_tools == set()
 
     def test_register_and_get_tools(self):
-        """Test register and get tools functionality"""
+        """Test register, disable, remove, and get tools functionality"""
         manager = MultiToolsManager()
 
         # Initially there should be no tools
         all_tools = manager.get_tools()
         assert len(all_tools) == 0
 
-        # Check if tools exist after registration would go here
-        # But we can't test builtin tools because they don't exist as imported
+        async def dummy(data: dict) -> str: ...
+
+        defin = FunctionDefinitionSchema(
+            name=dummy.__name__,
+            description="",
+            parameters=FunctionParametersSchema(type="object", properties={}),
+        )
+        tool = ToolFunctionSchema(function=defin)
+        data = ToolData(data=tool, func=dummy)
+        tool_name = "dummy"
+        manager.register_tool(data)
+
+        # (1) After registration: has_tool / get_tool reflect it
+        assert manager.has_tool(tool_name) is True
+        assert manager.get_tool(tool_name) is data
+
+        # get_tools should include the registered tool and it should not be disabled
+        all_tools = manager.get_tools()
+        assert len(all_tools) == 1
+        # Depending on implementation, get_tools might return a dict or iterable of names/models.
+        # These assertions are intentionally loose: they only require that the tool is visible.
+        assert tool_name in str(all_tools)
+        assert tool_name not in manager._disabled_tools
+        assert manager._models[tool_name] is data
+
+        # (2) disable_tool hides it from lookups but keeps the underlying model
+        manager.disable_tool(tool_name)
+
+        # Tool should no longer be reported as available
+        assert manager.has_tool(tool_name) is False
+        # get_tool should respect disablement (assuming default=None behavior)
+        assert manager.get_tool(tool_name, default=None) is None
+
+        # Underlying model should still be present, and tool should be marked as disabled
+        assert tool_name in manager._models
+        assert manager._models[tool_name] is data
+        assert tool_name in manager._disabled_tools
+
+        # get_tools should not include the disabled tool
+        all_tools_after_disable = manager.get_tools()
+        assert tool_name not in str(all_tools_after_disable)
+
+        # (3) remove_tool deletes it entirely
+        manager.remove_tool(tool_name)
+
+        # Tool should be gone from internal registries
+        assert tool_name not in manager._models
+        assert tool_name not in manager._disabled_tools
+
+        # Public API should also reflect removal
+        assert manager.has_tool(tool_name) is False
+        assert manager.get_tool(tool_name, default=None) is None
+        all_tools_after_remove = manager.get_tools()
+        assert tool_name not in str(all_tools_after_remove)
 
     def test_has_and_get_tool(self):
         """Test has and get tool functionality"""
