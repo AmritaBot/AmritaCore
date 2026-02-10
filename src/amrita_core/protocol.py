@@ -1,14 +1,33 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
+from typing import Any
 
 from amrita_core.config import AmritaConfig, get_config
 
 from .logging import logger
 from .tools.models import ToolChoice, ToolFunctionSchema
 from .types import ModelPreset, ToolCall, UniResponse
+
+
+class ResponseWrapper(
+    ABC
+):  # It will be used in next generation (planned on AmritaCore 1.x)
+    """Base class for response wrapper"""
+
+    @abstractmethod
+    def __str__(self) -> str:
+        """Get response content"""
+
+    @abstractmethod
+    def get_type(self) -> str:
+        """Get the type of the response"""
+
+    @abstractmethod
+    def get_content(self) -> Any:
+        """Get the content of the response"""
 
 
 @dataclass

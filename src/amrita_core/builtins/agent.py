@@ -397,6 +397,12 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
         logger.warning(
             f"ERROR\n{e!s}\n!Failed to call Tools! Continuing with old data..."
         )
+        await chat_object.yield_response(
+            MessageWithMetadata(
+                content=f"Agent run failed:{e!s}",
+                metadata={"type": "error", "error": e},
+            )
+        )
         event._context_messages = chat_list_backup
 
 
