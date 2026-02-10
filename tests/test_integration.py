@@ -229,7 +229,7 @@ async def test_full_workflow():
 
 
 @pytest.mark.asyncio
-async def test_concurrent_sessions_and_objects(self):
+async def test_concurrent_sessions_and_objects():
     """Test concurrent sessions and objects"""
     # Initialize
     init()

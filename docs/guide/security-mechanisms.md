@@ -170,18 +170,20 @@ AmritaCore implements a powerful session isolation mechanism through the Session
 The main functions of SessionsManager include:
 
 1. **Session Lifecycle Management**
-   - `new_session(config)`: Creates a new session and returns its unique ID
+   - `new_session()`: Creates a new session and returns its unique ID
    - `init_session(session_id)`: Initializes resources for the specified session
    - `drop_session(session_id)`: Deletes the specified session and its associated resources
 
 2. **Session Resource Access**
-   - `get_session_tools(session_id)`: Gets the tool manager for the session
-   - `get_session_config(session_id)`: Gets the configuration object for the session
-   - `get_session_presets(session_id)`: Gets the preset manager for the session
+   - `get_session_data(session_id)`: Gets the complete session data object containing tools, config, presets, etc.
+   - Access session resources through the returned SessionData object:
+     - `session_data.tools`: Gets the tool manager for the session
+     - `session_data.config`: Gets the configuration object for the session
+     - `session_data.presets`: Gets the preset manager for the session
 
 3. **Session Status Query**
    - `get_registered_sessions()`: Gets all registered session IDs
-   - `get_session_config_safe(session_id)`: Safely gets session configuration (returns None if session does not exist)
+   - `get_session_data(session_id, default)`: Safely gets session data (returns default if session does not exist)
 
 Here is an example of using SessionsManager:
 
@@ -194,19 +196,16 @@ session_manager = SessionsManager()
 # Create new session
 session_id = session_manager.new_session()
 
-# Get session configuration
-config = session_manager.get_session_config(session_id)
-
-# Get session tool manager
-tools_manager = session_manager.get_session_tools(session_id)
-
-# Get session preset manager
-presets_manager = session_manager.get_session_presets(session_id)
+# Get session data
+session_data = session_manager.get_session_data(session_id)
+config = session_data.config
+tools_manager = session_data.tools
+presets_manager = session_data.presets
 
 # Set session-specific configuration
 from amrita_core.config import AmritaConfig
 new_config = AmritaConfig()
-session_manager.set_session_config(session_id, new_config)
+session_data.config = new_config
 
 # Delete session
 session_manager.drop_session(session_id)
@@ -227,7 +226,8 @@ def create_secure_session() -> tuple[str, MemoryModel]:
     """
     session_manager = SessionsManager()
     session_id = session_manager.new_session()
-    context = MemoryModel()
+    session_data = session_manager.get_session_data(session_id)
+    context = session_data.memory  # Use the memory instance from session data
     
     return session_id, context
 
@@ -253,16 +253,19 @@ class SecureConversationManager:
         Process user input in a secure, isolated session
         """
         # Verify if session exists
-        if session_id not in self.session_manager.get_registered_sessions():
+        try:
+            session_data = self.session_manager.get_session_data(session_id)
+        except KeyError:
             # Create new session if it doesn't exist
             session_id = self.session_manager.new_session()
+            session_data = self.session_manager.get_session_data(session_id)
         
-        # Get configuration from session manager
-        config = self.session_manager.get_session_config(session_id)
+        # Get configuration from session data
+        config = session_data.config
         
         # Use session-specific configuration
         chat = ChatObject(
-            context=None,  # Session manager handles context
+            context=session_data.memory,  # Use session-specific memory
             session_id=session_id,
             user_input=user_input,
             config=config

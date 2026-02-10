@@ -426,7 +426,7 @@ User input → Direct summary output
 
 
 class ChatObject:
-    """Chat processing object
+    """Chat processing object - The minimal unit of chat processing.
 
     This class is responsible for processing a single chat session, including message receiving,
     context management, model calling, and response sending.

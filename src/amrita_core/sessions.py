@@ -19,6 +19,17 @@ T = TypeVar("T")
 
 @dataclass
 class SessionData:
+    """Container for all session-specific data.
+
+    Attributes:
+        session_id: Unique identifier for the session
+        memory: Memory model storing conversation history
+        tools: Manager for tools available in the session
+        presets: Manager for model presets in the session
+        mcp: Client manager for MCP (Model Context Protocol) connections
+        config: Configuration settings for the session
+    """
+
     session_id: str
     memory: MemoryModel
     tools: MultiToolsManager
@@ -46,15 +57,22 @@ class SessionsManager:
         return cls._instance
 
     def is_session_registered(self, session_id: str) -> bool:
-        """Check if a session is registered"""
+        """Check if a session is registered.
+
+        Args:
+            session_id: The unique identifier for the session
+
+        Returns:
+            True if the session is registered, False otherwise
+        """
         return session_id in self._session2DataMap
 
     def get_registered_sessions(self) -> dict[str, SessionData]:
         """
-        Get the registered sessions.
+        Get all registered sessions.
 
         Returns:
-            dict[str, SessionData]: A copy of the registered session IDs to prevent external modification
+            dict[str, SessionData]: A copy of the registered sessions mapping to prevent external modification
         """
         return self._session2DataMap.copy()
 
@@ -79,7 +97,6 @@ class SessionsManager:
         Set the session data for a given session ID
 
         Args:
-            session_id (str): The unique identifier for the session
             data (SessionData): The session data to set
         """
         self._session2DataMap[data.session_id] = data
@@ -91,6 +108,18 @@ class SessionsManager:
     def get_session_data(
         self, session_id: str, default: T = __marker
     ) -> SessionData | T:
+        """Get the session data for a given session ID.
+
+        Args:
+            session_id: The unique identifier for the session
+            default: Default value to return if session is not found (optional)
+
+        Returns:
+            SessionData if session exists, or default value if provided
+
+        Raises:
+            KeyError: If session is not found and no default is provided
+        """
         if session_id in self._session2DataMap:
             return self._session2DataMap[session_id]
         elif default is not self.__marker:
@@ -99,11 +128,21 @@ class SessionsManager:
             raise KeyError(f"Session {session_id} not found")
 
     def new_session(self) -> str:
+        """Create a new session with a unique ID and initialize its resources.
+
+        Returns:
+            str: The unique identifier for the newly created session
+        """
         session_id = uuid.uuid4().hex
         self.init_session(session_id)
         return session_id
 
     def drop_session(self, session_id: str) -> None:
+        """Remove a session and clean up its associated resources.
+
+        Args:
+            session_id: The unique identifier for the session to remove
+        """
         self._session2DataMap.pop(session_id, None)
         from .chatmanager import chat_manager
 
