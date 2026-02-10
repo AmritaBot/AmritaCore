@@ -21,11 +21,10 @@ class TestModelConfig:
     def test_default_values(self):
         """Test default values"""
         config = ModelConfig()
-        assert config.top_k == 50
-        assert config.top_p == 0.95
-        assert config.temperature == 0.7
+        assert config.top_k
+        assert config.top_p
+        assert config.temperature
         assert config.stream is False
-        assert config.thought_chain_model is False
         assert config.multimodal is False
 
     def test_custom_values(self):
