@@ -84,7 +84,7 @@ Before participating in the project, please read our [Code of Conduct](./CODE_OF
 
 ## Project Structure
 
-```
+```text
 AmritaCore/
 ├── src/
 │   └── amrita_core/          # Core source code
@@ -103,7 +103,7 @@ AmritaCore/
 │       └── utils.py          # Utility functions
 ├── demo/                     # Example code
 ├── docs/                     # Documentation
-│   └── guide_zhcn/          # Chinese documentation
+│   └── zh/                   # Chinese documentation
 ├── tests/                    # Test code
 └── pyproject.toml           # Project configuration
 ```
@@ -134,7 +134,7 @@ AmritaCore/
 
 - Discord: [Discord Server](https://discord.gg/byAD3sbjjj)
 - QQ Group: 1006893368
-- Email: admin@suggar.top
+- Email: [admin@suggar.top](mailto:admin@suggar.top)
 
 ## Acknowledgments
 

@@ -14,6 +14,7 @@ from amrita_core.libchat import (
     tools_caller,
 )
 from amrita_core.logging import debug_log, logger
+from amrita_core.sessions import SessionsManager
 from amrita_core.tools.manager import ToolsManager, on_tools
 from amrita_core.tools.models import ToolContext
 from amrita_core.types import CONTENT_LIST_TYPE as SEND_MESSAGES
@@ -67,6 +68,9 @@ async def _(ctx: ToolContext) -> str | None:
 @prehook.handle()
 async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
     agent_last_step: str = ""
+    session_id = event.chat_object.session_id
+    session = SessionsManager().get_session_data(session_id)
+    tools_manager = session.tools if session else ToolsManager()
 
     async def _append_reasoning(
         msg: SEND_MESSAGES, response: UniResponse[None, list[ToolCall] | None]
@@ -233,7 +237,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
                             stop_running()
                         case _:
                             if (
-                                tool_data := ToolsManager().get_tool(function_name)
+                                tool_data := tools_manager.get_tool(function_name)
                             ) is not None:
                                 if not tool_data.custom_run:
                                     msg_list.append(
@@ -333,6 +337,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
 
             if config.function_config.tool_calling_mode == "agent":
                 await run_tools(msg_list, call_count, original_msg)
+
     chat_object = event.chat_object
     if config.function_config.tool_calling_mode == "none":
         return
@@ -351,7 +356,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
         tools.append(STOP_TOOL.model_dump())
         if config.function_config.agent_thought_mode.startswith("reasoning"):
             tools.append(REASONING_TOOL.model_dump())
-    tools.extend(ToolsManager().tools_meta_dict().values())
+    tools.extend(tools_manager.tools_meta_dict().values())
     logger.debug(
         "Tool list:"
         + "".join(

@@ -147,6 +147,7 @@ async def tools_caller(
     config: AmritaConfig | None = None,
 ) -> UniResponse[None, list[ToolCall] | None]:
     config = config or get_config()
+
     async def _call_tools(
         adapter: ModelAdapter,
         messages: CONTENT_LIST_TYPE,

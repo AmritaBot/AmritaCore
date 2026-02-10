@@ -115,13 +115,10 @@ async def basic_example():
     )
 
     print("🤖 Assistant: ", end="")
-
-    # Process the follow-up
-    await chat2.begin()
-
-    async for message in chat2.get_response_generator():
-        content = message if isinstance(message, str) else message.get_content()
-        print(content, end="")
+    async with chat2.begin():
+        async for message in chat2.get_response_generator():
+            content = message if isinstance(message, str) else message.get_content()
+            print(content, end="")
 
     print("\n")  # New line after response
 

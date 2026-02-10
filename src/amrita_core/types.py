@@ -224,7 +224,8 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
         if isinstance(query, ToolResult) or query.role != "user":
             raise ValueError("Invalid query message, expecting user message!")
         self.user_query = query
-        self.memory.pop()
+        if not user_query:
+            self.memory.pop()
 
     @classmethod
     def validate_messages(cls, messages: CONTENT_LIST_TYPE) -> SendMessageWrap:
@@ -240,7 +241,10 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
                 raise ValueError("Invalid messages, expecting system message!")
         else:
             memory = messages[1:]
-        return cls(train, memory)
+        return cls(
+            train,
+            memory,
+        )
 
     def __len__(self) -> int:
         return len(self.memory) + 2 + len(self.end_messages)

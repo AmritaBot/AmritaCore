@@ -102,8 +102,13 @@ chat = ChatObject(
 )
 
 # Process the interaction
-await chat.begin()
+async with chat.begin():
+    ...
 
 # Update context with the new state
 updated_context = chat.data
 ```
+
+## 3.2.8 Session Isolation
+
+Please see [Security Controls](../security-mechanisms.md) Chapter 6.3 for session isolation.

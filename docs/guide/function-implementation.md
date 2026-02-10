@@ -117,7 +117,7 @@ chat = ChatObject(
 The `begin()` method executes the conversation and processes the input:
 
 ```python
-# Execute the conversation
+# Execute the conversation (this is recommended when you are using callback function)
 await chat.begin()
 
 ```
