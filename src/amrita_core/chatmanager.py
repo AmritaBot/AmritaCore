@@ -652,6 +652,7 @@ class ChatObject:
             response.usage.completion_tokens += abs_usage.completion_tokens
             response.usage.prompt_tokens += abs_usage.prompt_tokens
             response.usage.total_tokens += abs_usage.total_tokens
+        self.response = response
 
         logger.debug("Chat processing completed, preparing to send response")
         await self.set_queue_done()
