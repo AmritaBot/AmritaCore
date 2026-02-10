@@ -69,7 +69,7 @@ async def _(ctx: ToolContext) -> str | None:
 async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
     agent_last_step: str = ""
     session_id = event.chat_object.session_id
-    session = SessionsManager().get_session_data(session_id)
+    session = SessionsManager().get_session_data(session_id, None)
     tools_manager = session.tools if session else ToolsManager()
 
     async def _append_reasoning(
