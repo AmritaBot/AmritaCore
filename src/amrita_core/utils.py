@@ -18,21 +18,15 @@ def remove_think_tag(text: str) -> str:
 
     start_tag = "<think>"
     end_tag = "</think>"
-
-    # Find the position of the first start tag
     start_idx = text.find(start_tag)
     if start_idx == -1:
-        return text  # No start tag found, return original text
-
-    # Find the position of the end tag after the start tag
+        return text
     end_idx = text.find(end_tag, start_idx + len(start_tag))
     if end_idx == -1:
-        return text  # No corresponding end tag found, return original text
+        return text
 
-    # Calculate the end position of the end tag
     end_of_end_tag = end_idx + len(end_tag)
 
-    # Concatenate text after removing the tag
     text_new = text[:start_idx] + text[end_of_end_tag:]
     while text_new.startswith("\n"):
         text_new = text_new[1:]

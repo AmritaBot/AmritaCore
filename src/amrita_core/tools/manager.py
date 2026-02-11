@@ -169,43 +169,27 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
     if not docstring:
         return "(no description provided for this tool)", {}
 
-    # Clean up the docstring
     lines = [line.strip() for line in docstring.split("\n") if line.strip()]
-
-    # Find the index where Args section starts
     args_start_idx = -1
     for i, line in enumerate(lines):
         if line.lower().startswith("args:") or line.lower().startswith("参数:"):
             args_start_idx = i
             break
-
-    # Extract function description (everything before Args section)
     if args_start_idx != -1:
         func_desc_lines: list[str] = lines[:args_start_idx]
         func_desc: str = " ".join(func_desc_lines).strip()
-
-        # Extract Args section
         args_lines: list[str] = lines[args_start_idx + 1 :]
     else:
-        # No Args section found
         func_desc = " ".join(lines).strip()
         args_lines = []
 
-    # Process Args section
     param_descriptions = {}
-
-    # Pattern to match parameter descriptions in the format:
-    # param_name (type): description
-    # or
-    # param_name: description
     param_pattern = r"^([a-zA-Z_][a-zA-Z0-9_]*)\s*(?:\(([^)]+)\))?\s*:\s*(.*)"
 
     for line in args_lines:
-        # Look for parameter pattern at the beginning of the line or after whitespace
         match = re.match(param_pattern, line)
         if match:
             param_name = match.group(1)
-            # param_type = match.group(2)  # We don't need the type since it's in the annotation
             param_desc = match.group(3).strip()
 
             if param_desc:
@@ -242,31 +226,19 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
     ```
     """
     signature: inspect.Signature = inspect.signature(func)
-
-    # Parse Google-style docstring to get function and parameter descriptions
     func_desc, param_descriptions = _parse_google_docstring(func.__doc__)
-
-    # Get the type hints for the function
     type_hints: dict[str, Any] = get_type_hints(
         func, globalns=globals(), localns=locals()
     )
-
-    # Prepare parameters schema
     properties = {}
     required = []
 
     for param_name, param in signature.parameters.items():
-        # Skip 'self' parameter for methods
         if param_name == "self":
             continue
-
-        # Determine parameter type from type hints
         param_type = type_hints.get(param_name)
-
-        # If parameter has no type hint, default to string
         json_type: JSON_OBJECT_TYPE = "string"
         if param_type:
-            # Map Python types to JSON schema types
             if hasattr(param_type, "__origin__"):
                 origin = get_origin(param_type)
                 if origin is not None:
@@ -277,10 +249,8 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
                     elif origin is typing.Union:
                         args = get_args(param_type)
                         if type(None) in args:
-                            # Handle Optional types - don't add to required
                             pass
                         else:
-                            # For Union types, use the first non-None type if available
                             non_none_types = [
                                 arg for arg in args if arg is not type(None)
                             ]
@@ -291,11 +261,7 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
                     json_type = _python_type_to_json_type(param_type)
             else:
                 json_type = _python_type_to_json_type(param_type)
-
-        # Get parameter description from parsed docstring if available
         param_desc = param_descriptions.get(param_name, f"Parameter {param_name}")
-
-        # Check if parameter is required (no default value)
         is_required = param.default == inspect.Parameter.empty
         if is_required:
             required.append(param_name)
@@ -311,7 +277,6 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
         name=func.__name__, description=func_desc, parameters=parameters_schema
     )
 
-    # Create a wrapper function that accepts a dictionary of parameters
     @on_tools(function_def, strict=True)
     @wraps(func)
     async def tool_wrapper(params: dict[str, Any]) -> str:
@@ -345,7 +310,6 @@ def _python_type_to_json_type(python_type: type[Any]) -> JSON_OBJECT_TYPE:
     elif python_type is dict:
         return "object"
     else:
-        # Default to string for unrecognized types
         return "string"
 
 
