@@ -171,13 +171,13 @@ class TestMemoryLimiter:
 
         # Set a small memory limit
         config = AmritaConfig()
-        config.llm.memory_lenth_limit = 5  # Limit to max 5 messages
+        config.llm.memory_length_limit = 5  # Limit to max 5 messages
 
         async with MemoryLimiter(memory, train, config) as lim:
             await lim._limit_length()
 
             # Verify message count is limited to the configured limit
-            assert len(lim.memory.messages) <= config.llm.memory_lenth_limit
+            assert len(lim.memory.messages) <= config.llm.memory_length_limit
 
 
 class TestChatManager:
