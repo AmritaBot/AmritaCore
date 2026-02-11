@@ -78,7 +78,7 @@ class LLMConfig(BaseModel):
         default=False,
         description="Whether to force at least one tool to be used per call",
     )
-    memory_lenth_limit: int = Field(
+    memory_length_limit: int = Field(
         default=50, description="Maximum number of messages in memory context"
     )
     max_tokens: int = Field(

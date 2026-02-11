@@ -341,7 +341,7 @@ User input → Direct summary output
         while len(data.messages) >= 2:
             if data.messages[0].role == "tool":
                 data.messages.pop(0)
-            elif len(data.messages) > self.config.llm.memory_lenth_limit:
+            elif len(data.messages) > self.config.llm.memory_length_limit:
                 self._drop_message()
             else:
                 break
