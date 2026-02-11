@@ -101,27 +101,13 @@ When reporting issues:
 5. Specify your environment (OS, Python version, AmritaCore version)
 6. Include any relevant error messages
 
-### 8.3.3 License Information (AGPL-3.0)
+### 8.3.3 License Information (MIT)
 
-AmritaCore is released under the GNU Affero General Public License v3.0.
+AmritaCore is released under the MIT license
 
-**Permissions**:
+**Allowed Usage**:
 
-- Commercial use
-- Modification
-- Distribution
-- Patent use
-
-**Conditions**:
-
-- Disclose source
-- Same license
-- Network use is distribution
-
-**Limitations**:
-
-- Liability
-- Warranty
+You are free to use AmritaCore for personal and commercial purposes under the MIT license.
 
 For the full license text, see the `LICENSE` file in the repository.
 

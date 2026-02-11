@@ -60,7 +60,11 @@ We welcome contributions! Please see our contribution guidelines for more inform
 
 ## 📄 License
 
-This project is licensed under the AGPL-3.0 License - see the [LICENSE](./LICENSE) file for details.
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+
+**Significants**
+
+All versions of AmritaCore are released under the MIT License (Although the past versions are released under the AGPLv3 License, when this readme is created, we will release all versions under the MIT License).
 
 ## Other files
 

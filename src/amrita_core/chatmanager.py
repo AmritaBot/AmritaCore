@@ -572,13 +572,7 @@ class ChatObject:
         return self
 
     async def _entry(self) -> None:
-        """Call chat object to process messages
-
-        Args:
-            event: Message event
-            matcher: Matcher
-            bot: Bot instance
-        """
+        """Call chat object to process messages"""
         if not self._is_running and not self._is_done:
             self.stream_id = uuid4().hex
             logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
