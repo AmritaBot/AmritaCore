@@ -54,17 +54,11 @@ AI 系统保留和访问先前交互信息的机制。AmritaCore 的记忆系统
 
 ### 9.2.2 官方网站
 
-- **网站**：[https://amrita-core.suggar.top](https://amrita-core.suggar.top)（假设）
+- **网站**：[https://amrita-core.suggar.top](https://amrita-core.suggar.top)（即此页面）
 - **文档**：全面的指南和教程
 - **社区论坛**：与其他用户和开发人员联系
 
-### 9.2.3 相关项目 (Proj.Amrita)
-
-- **AmritaBot**：使用 AmritaCore 的主要聊天机器人项目
-- **AmritaUI**：基于 Amrita 应用程序的用户界面组件
-- **AmritaTools**：用于常见任务的预构建工具集合
-
-### 9.2.4 贡献指南
+### 9.2.3 贡献指南
 
 欢迎对 AmritaCore 做出贡献。以下是您可以贡献的方法：
 
@@ -81,6 +75,8 @@ AI 系统保留和访问先前交互信息的机制。AmritaCore 的记忆系统
 - 为所有函数参数和返回值使用类型提示
 - 保持函数集中和简洁
 - 编写有意义的提交消息
+
+更多信息请参考项目仓库的 `CONTRIBUTING.md` 文件。
 
 ## 9.3 社区和支持
 

@@ -54,17 +54,11 @@ Model Context Protocol - a standard for connecting tools and data sources to AI 
 
 ### 8.2.2 Official Website
 
-- **Website**: [https://amrita-core.suggar.top](amrita-core.suggar.top) (hypothetical)
+- **Website**: [https://amrita-core.suggar.top](https://amrita-core.suggar.top) (Yes, it's this site!)
 - **Documentation**: Comprehensive guides and tutorials
 - **Community Forum**: Connect with other users and developers
 
-### 8.2.3 Related Projects (Proj.Amrita)
-
-- **AmritaBot**: The main chatbot project utilizing AmritaCore
-- **AmritaUI**: User interface components for Amrita-based applications
-- **AmritaTools**: Collection of pre-built tools for common tasks
-
-### 8.2.4 Contribution Guidelines
+### 8.2.3 Contribution Guidelines
 
 Contributions to AmritaCore are welcome. Here's how you can contribute:
 
@@ -81,6 +75,8 @@ Contributions to AmritaCore are welcome. Here's how you can contribute:
 - Use type hints for all function parameters and return values
 - Keep functions focused and concise
 - Write meaningful commit messages
+
+For more details, refer to the project's CONTRIBUTING.md file for more details.
 
 ## 8.3 Community and Support
 
