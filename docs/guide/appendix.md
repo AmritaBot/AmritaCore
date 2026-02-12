@@ -54,7 +54,7 @@ Model Context Protocol - a standard for connecting tools and data sources to AI 
 
 ### 8.2.2 Official Website
 
-- **Website**: [https://amrita-core.suggar.top](amrita-core.suggar.top) (Yes, it's this site!)
+- **Website**: [https://amrita-core.suggar.top](https://amrita-core.suggar.top) (Yes, it's this site!)
 - **Documentation**: Comprehensive guides and tutorials
 - **Community Forum**: Connect with other users and developers
 
