@@ -5,7 +5,6 @@ from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from typing import Any
 
-from amrita_core.chatmanager import MessageWithMetadata
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
 from amrita_core.hook.exception import MatcherException as ProcEXC
@@ -14,6 +13,7 @@ from amrita_core.libchat import (
     tools_caller,
 )
 from amrita_core.logging import debug_log, logger
+from amrita_core.protocol import MessageWithMetadata
 from amrita_core.sessions import SessionsManager
 from amrita_core.tools.manager import ToolsManager, on_tools
 from amrita_core.tools.models import ToolContext

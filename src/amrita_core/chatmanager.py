@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import asyncio
 import copy
-from abc import ABC, abstractmethod
 from asyncio import Lock, Task
 from collections import defaultdict
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
-from io import BytesIO, StringIO
-from typing import Any, TypeAlias, TypedDict
+from io import StringIO
+from typing import TYPE_CHECKING, Any, TypeAlias
 from uuid import uuid4
 
 import pytz
@@ -18,12 +17,14 @@ from pytz import utc
 from typing_extensions import Self
 
 from amrita_core.preset import PresetManager
+from amrita_core.sessions import SessionData
 
 from .config import AmritaConfig, get_config
 from .hook.event import CompletionEvent, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
 from .logging import logger
+from .protocol import MessageContent, StringMessageContent
 from .sessions import SessionsManager
 from .tokenizer import hybrid_token_count
 from .types import (
@@ -43,6 +44,9 @@ from .types import (
 from .types import (
     MemoryModel as Memory,
 )
+
+if TYPE_CHECKING:
+    from .sessions import SessionData
 
 # Global lock for thread-safe operations in the chat manager
 LOCK = Lock()
@@ -64,81 +68,6 @@ def get_current_datetime_timestamp(utc_time: None | datetime = None):
     formatted_weekday = now.strftime("%A")
     formatted_time = now.strftime("%H:%M:%S")
     return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
-
-
-class MessageContent(ABC):
-    """Abstract base class for different types of message content
-
-    This allows for various types of content to be yielded by the chat manager,
-    not just strings. Subclasses should implement their own representation.
-    """
-
-    def __str__(self) -> str:
-        return self.get_content()
-
-    def __init__(self, content_type: str):
-        self.type = content_type
-
-    @abstractmethod
-    def get_content(self):
-        """Return the actual content of the message"""
-        raise NotImplementedError("Subclasses must implement get_content method")
-
-
-class StringMessageContent(MessageContent):
-    """String type message content implementation"""
-
-    def __init__(self, text: str):
-        super().__init__("string")
-        self.text = text
-
-    def get_content(self):
-        return self.text
-
-
-class RawMessageContent(MessageContent):
-    """Raw message content implementation"""
-
-    def __init__(self, raw_data: Any):
-        super().__init__("raw")
-        self.raw_data = raw_data
-
-    def get_content(self):
-        return self.raw_data
-
-
-class MessageMetadata(TypedDict):
-    content: str
-    metadata: dict[str, Any]
-
-
-class MessageWithMetadata(MessageContent):
-    """Message with additional metadata"""
-
-    def __init__(self, content: Any, metadata: dict):
-        super().__init__("metadata")
-        self.content = content
-        self.metadata = metadata
-
-    def get_content(self) -> Any:
-        return self.content
-
-    def get_metadata(self) -> dict:
-        return self.metadata
-
-    def get_full_content(self) -> MessageMetadata:
-        return MessageMetadata(content=self.content, metadata=self.metadata)
-
-
-class ImageMessage(MessageContent):
-    """Image message"""
-
-    def __init__(self, image: str | BytesIO):
-        super().__init__("image")
-        self.image: str | BytesIO = image
-
-    def get_content(self) -> BytesIO | str:
-        return self.image
 
 
 RESPONSE_TYPE: TypeAlias = str | MessageContent
@@ -446,6 +375,7 @@ class ChatObject:
     response: UniResponse[str, None]  # (lateinit) Response
     preset: ModelPreset  # preset used in this call
     config: AmritaConfig  # config used in this call
+    session: SessionData | None  # (lateinit) Session data
     _response_queue: asyncio.Queue[Any]
     _overflow_queue: asyncio.Queue[Any]
     _is_running: bool = False  # Whether it is running
@@ -454,6 +384,8 @@ class ChatObject:
     _err: BaseException | None = None
     _queue_done: bool = False
     _has_consumer: bool = False
+    _hook_kwargs: dict[str, Any]
+    _hook_args: tuple[Any, ...]
     _callback_fun: RESPONSE_CALLBACK_TYPE = None
     _callback_lock: Lock
     __done_marker = object()
@@ -468,6 +400,8 @@ class ChatObject:
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
         auto_create_session: bool = False,
+        hook_args: tuple[Any, ...] = (),
+        hook_kwargs: dict[str, Any] | None = None,
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
@@ -482,13 +416,16 @@ class ChatObject:
             config: Config used for this call
             preset: Preset used for this call
             auto_create_session: Whether to automatically create a session if it does not exist
+            hook_args: Arguments could be passed to the Matcher function
+            hook_kwargs: Keyword arguments could be passed to the Matcher function
             queue_size: Maximum number of message chunks to be stored in the queue
             overflow_queue_size: Maximum number of message chunks to be stored in the overflow queue
         """
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
             sm.init_session(session_id)
-        session = sm.get_session_data(session_id, None)
+        session: SessionData | None = sm.get_session_data(session_id, None)
+        self.session = session
         self.train = train
         self.data = context or sm.get_session_data(session_id).memory
         self.session_id = session_id
@@ -505,6 +442,9 @@ class ChatObject:
             if session
             else PresetManager().get_default_preset()
         )
+        # Hook args
+        self._hook_args = hook_args
+        self._hook_kwargs = hook_kwargs or {}
 
         # Initialize async queue for streaming responses
         self._response_queue = asyncio.Queue(queue_size)
@@ -822,7 +762,15 @@ class ChatObject:
             user_input=self.user_input,
             original_context=messages,  # Use the original context
         )
-        await MatcherManager.trigger_event(chat_event, self.config)
+        await MatcherManager.trigger_event(
+            chat_event,
+            self.config,
+            self,
+            self.preset,
+            *self._hook_args,
+            session=self.session,
+            **self._hook_kwargs,
+        )
         self.data.messages = chat_event.get_context_messages().unwrap(
             exclude_system=True
         )
@@ -844,7 +792,15 @@ class ChatObject:
         self.response = response
         logger.debug("Triggering chat events..")
         chat_event = CompletionEvent(self.user_input, messages, self, response.content)
-        await MatcherManager.trigger_event(chat_event, self.config)
+        await MatcherManager.trigger_event(
+            chat_event,
+            self.config,
+            self,
+            self.preset,
+            session=self.session,
+            *self._hook_args,
+            **self._hook_kwargs,
+        )
         response.content = chat_event.model_response
         data.messages.append(
             Message[str](

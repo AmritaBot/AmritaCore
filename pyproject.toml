@@ -1,11 +1,14 @@
 [project]
 name = "amrita_core"
-version = "0.4.0.post1"
+version = "0.4.1"
 description = "Agent core of Project Amrita"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
+    "aiofiles>=25.1.0",
+    "aiohttp>=3.13.3",
     "fastmcp>=2.14.4",
+    "filetype>=1.2.0",
     "jieba>=0.42.1",
     "loguru>=0.7.3",
     "openai>=2.16.0",
