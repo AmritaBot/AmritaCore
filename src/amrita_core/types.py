@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 import typing
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Generic, Literal
@@ -163,16 +163,11 @@ CT_MAP: dict[str, type[Content]] = {
     "text": TextContent,
 }
 
-USER_INPUT = list[TextContent | ImageContent] | str
+USER_INPUT = Sequence[Content] | str | None
 
-_T = typing.TypeVar(
-    "_T",
-    str,
-    None,
-    list[TextContent],
-    list[TextContent | ImageContent],
-    USER_INPUT,
-)
+_T = typing.TypeVar("_T", bound=USER_INPUT)
+
+# Yes,but we followed the same naming convention as OpenAI
 
 
 class Message(BaseModel, Generic[_T]):

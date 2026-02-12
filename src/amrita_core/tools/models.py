@@ -44,7 +44,7 @@ def on_none(value: Any | None) -> bool:
     return value is None
 
 
-def cast_mcp_properties_to_openai(
+def cast_mcp_properties_to_amrita(
     property: dict[str, MCP_OBJECT_TYPE],
 ) -> dict[str, FunctionPropertySchema]:
     """

@@ -17,7 +17,11 @@ from typing_extensions import override
 
 from amrita_core.config import AmritaConfig
 from amrita_core.logging import debug_log
-from amrita_core.protocol import ModelAdapter
+from amrita_core.protocol import (
+    COMPLETION_RETURNING,
+    ModelAdapter,
+    StringMessageContent,
+)
 from amrita_core.tools.models import ToolChoice, ToolFunctionSchema
 from amrita_core.types import (
     ModelConfig,
@@ -36,7 +40,7 @@ class OpenAIAdapter(ModelAdapter):
     @override
     async def call_api(
         self, messages: Iterable[ChatCompletionMessageParam]
-    ) -> AsyncGenerator[str | UniResponse[str, None], None]:
+    ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
         """Call OpenAI API to get chat responses"""
         preset: ModelPreset = self.preset
         preset_config: ModelConfig = preset.config
@@ -81,7 +85,7 @@ class OpenAIAdapter(ModelAdapter):
                         )
                     if chunk.choices[0].delta.content is not None:
                         response += chunk.choices[0].delta.content
-                        yield chunk.choices[0].delta.content
+                        yield StringMessageContent(response)
                         debug_log(chunk.choices[0].delta.content)
                 except IndexError:
                     break
@@ -93,7 +97,7 @@ class OpenAIAdapter(ModelAdapter):
                     if completion.choices[0].message.content is not None
                     else ""
                 )
-                yield response
+                yield StringMessageContent(response)
                 if completion.usage:
                     uni_usage = UniResponseUsage.model_validate(
                         completion.usage, from_attributes=True

@@ -10,7 +10,9 @@ from amrita_core.preset import PresetManager
 from .config import AmritaConfig, get_config
 from .logging import debug_log
 from .protocol import (
+    COMPLETION_RETURNING,
     AdapterManager,
+    MessageContent,
     ModelAdapter,
 )
 from .tokenizer import hybrid_token_count
@@ -210,7 +212,7 @@ async def call_completion(
     messages: CONTENT_LIST_TYPE,
     preset: ModelPreset | None = None,
     config: AmritaConfig | None = None,
-) -> AsyncGenerator[str | UniResponse[str, None], None]:
+) -> AsyncGenerator[COMPLETION_RETURNING, None]:
     """Get chat response from the model.
 
     Args:
@@ -240,7 +242,7 @@ async def call_completion(
 
 
 async def get_last_response(
-    generator: AsyncGenerator[str | UniResponse[str, None], None],
+    generator: AsyncGenerator[str | MessageContent | UniResponse[str, None], None],
 ) -> UniResponse[str, None]:
     """Extract the last UniResponse from a response generator.
 

@@ -22,7 +22,7 @@ from .models import (
     MCPToolSchema,
     ToolData,
     ToolFunctionSchema,
-    cast_mcp_properties_to_openai,
+    cast_mcp_properties_to_amrita,
 )
 
 MCP_SERVER_SCRIPT_TYPE = ClientTransportT
@@ -97,7 +97,7 @@ class MCPClient:
                 for i in await self.mcp_client.list_tools()
             ]
             logger.info(f"Available tools: {[tool.name for tool in self.tools]}")
-            self._cast_tool_to_openai()
+            self._cast_tool_to_amrita()
 
     def _format_tools_for_openai(self):
         """Convert MCP tool format to OpenAI tool format"""
@@ -111,7 +111,7 @@ class MCPClient:
                     parameters=FunctionParametersSchema(
                         type="object",
                         required=tool.inputSchema.required,
-                        properties=cast_mcp_properties_to_openai(
+                        properties=cast_mcp_properties_to_amrita(
                             property=tool.inputSchema.properties
                         ),
                     ),
@@ -121,7 +121,7 @@ class MCPClient:
         ]
         return openai_tools
 
-    def _cast_tool_to_openai(self) -> None:
+    def _cast_tool_to_amrita(self) -> None:
         self.openai_tools = self._format_tools_for_openai()
 
     def get_tools(self) -> list[ToolFunctionSchema]:
