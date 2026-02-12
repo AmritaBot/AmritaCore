@@ -401,7 +401,7 @@ class ChatObject:
         preset: ModelPreset | None = None,
         auto_create_session: bool = False,
         hook_args: tuple[Any, ...] = (),
-        hook_kwargs: dict[str, Any] = {},
+        hook_kwargs: dict[str, Any] | None = None,
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
@@ -444,7 +444,7 @@ class ChatObject:
         )
         # Hook args
         self._hook_args = hook_args
-        self._hook_kwargs = hook_kwargs
+        self._hook_kwargs = hook_kwargs or {}
 
         # Initialize async queue for streaming responses
         self._response_queue = asyncio.Queue(queue_size)

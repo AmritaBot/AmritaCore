@@ -106,9 +106,7 @@ class ImageMessage(MessageContent):
         super().__init__("image")
         self.image: str | BytesIO | bytes = image
 
-    async def get_image(
-        self, headers: dict[str, None] | None = None
-    ) -> BytesIO | bytes:
+    async def get_image(self, headers: dict[str, Any] | None = None) -> BytesIO | bytes:
         if isinstance(self.image, str):
             self.image = await self.curl_image(headers)
         return self.image
@@ -123,7 +121,8 @@ class ImageMessage(MessageContent):
                 async with session.get(self.image) as response:
                     if response.status != 200:
                         raise ValueError(f"Failed to download image from {self.image}")
-                    obj = await response.read()
+                    bt = await response.read()
+                    obj = base64.b64encode(bt)
                     return obj
         raise ValueError("Image must be a URL to use this method")
 
@@ -135,7 +134,7 @@ class ImageMessage(MessageContent):
         image_type = get_image_format(self.image)
         if not image_type:
             return "[Unsupported image format]"
-        return f"![](data:image/{image_type};base64,{base64.b64encode(self.image).decode()})"
+        return f"![](data:image/{image_type};base64,{self.image.decode('utf-8')})"
 
     async def save_to(self, path: Path, headers: dict | None = None):
         async with aiofiles.open(path, "wb") as f:
