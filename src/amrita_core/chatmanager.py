@@ -23,7 +23,7 @@ from .config import AmritaConfig, get_config
 from .hook.event import CompletionEvent, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
-from .logging import logger
+from .logging import debug_log, logger
 from .protocol import MessageContent, StringMessageContent
 from .sessions import SessionsManager
 from .tokenizer import hybrid_token_count
@@ -576,8 +576,7 @@ class ChatObject:
                 else ""
             )
         )
-        logger.debug(self.train["content"])
-
+        debug_log(self.train["content"])
         logger.debug("Starting applying memory limitations..")
         async with MemoryLimiter(self.data, self.train, config=config) as lim:
             await lim.run_enforce()
