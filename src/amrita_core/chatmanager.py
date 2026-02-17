@@ -565,11 +565,16 @@ class ChatObject:
                 else ""
             )
             + "Please participate in the discussion in your own character identity. Try not to use similar phrases when responding to different topics. User's messages are contained within user inputs."
-            + "Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of previous conversations is in the <SUMMARY> tags."
+            + "Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of previous conversations is in the <SUMMARY> tags (if provided)."
             + "\n</SCHEMA>\n"
             + "<SYSTEM_INSTRUCTIONS>\n"
+            + self.train["content"]
             + "\n</SYSTEM_INSTRUCTIONS>"
-            + f"\n<SUMMARY>\n{data.abstract if config.llm.enable_memory_abstract else ''}\n</SUMMARY>"
+            + (
+                f"\n<SUMMARY>\n{data.abstract} \n</SUMMARY>"
+                if config.llm.enable_memory_abstract
+                else ""
+            )
         )
         logger.debug(self.train["content"])
 
