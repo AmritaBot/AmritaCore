@@ -388,6 +388,7 @@ class ChatObject:
     _hook_args: tuple[Any, ...]
     _callback_fun: RESPONSE_CALLBACK_TYPE = None
     _callback_lock: Lock
+    _raised_exc: tuple[type[BaseException], ...]
     __done_marker = object()
 
     def __init__(
@@ -402,6 +403,7 @@ class ChatObject:
         auto_create_session: bool = False,
         hook_args: tuple[Any, ...] = (),
         hook_kwargs: dict[str, Any] | None = None,
+        exception_ignored: tuple[type[BaseException], ...] = (),
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
@@ -418,12 +420,14 @@ class ChatObject:
             auto_create_session: Whether to automatically create a session if it does not exist
             hook_args: Arguments could be passed to the Matcher function
             hook_kwargs: Keyword arguments could be passed to the Matcher function
+            exception_ignored: These exceptions will be raised again if they are raised in the Matcher function.
             queue_size: Maximum number of message chunks to be stored in the queue
             overflow_queue_size: Maximum number of message chunks to be stored in the overflow queue
         """
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
             sm.init_session(session_id)
+        self._raised_exc = exception_ignored
         session: SessionData | None = sm.get_session_data(session_id, None)
         self.session = session
         self.train = train
@@ -769,6 +773,7 @@ class ChatObject:
             self.preset,
             *self._hook_args,
             session=self.session,
+            exception_ignored=self._raised_exc,
             **self._hook_kwargs,
         )
         self.data.messages = chat_event.get_context_messages().unwrap(
@@ -797,8 +802,9 @@ class ChatObject:
             self.config,
             self,
             self.preset,
-            session=self.session,
             *self._hook_args,
+            session=self.session,
+            exception_ignored=self._raised_exc,
             **self._hook_kwargs,
         )
         response.content = chat_event.model_response

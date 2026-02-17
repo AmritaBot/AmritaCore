@@ -93,13 +93,13 @@ class Matcher:
 
     def stop_process(self):
         """
-        Stop the event flow within the current chat plugin and immediately stop the current handler.
+        Stop the current matcher then break the matcher loop.
         """
         raise BlockException()
 
     def cancel_matcher(self):
         """
-        Stop event processing within the current chat plugin and cancel.
+        Stop the matcher then cancel the matcher loop.
         """
         raise CancelException()
 
@@ -116,17 +116,19 @@ class MatcherManager:
     """
 
     @staticmethod
-    async def trigger_event(*args, **kwargs) -> None:
+    async def trigger_event(
+        event: Event | None = None, config: AmritaConfig | None = None, *args, **kwargs
+    ) -> None:
         """
         Trigger a specific type of event and call all registered event handlers for that type.
 
         Parameters:
         - event: Event object containing event-related data.
-        - **kwargs: Keyword arguments passed to the dependency injection system.
+        - config: Configuration object.
+        - exception_ignored: Tuple of exceptions to ignore (they won't be catching when occurs).
         - *args: Variable arguments passed to the dependency injection system.
+        - **kwargs: Keyword arguments passed to the dependency injection system.
         """
-        event: Event | None = None
-        config: AmritaConfig | None = None
         for i in args:
             if isinstance(i, Event):
                 event = i
@@ -136,6 +138,9 @@ class MatcherManager:
             raise RuntimeError("No event found in args")
         elif not config:
             raise RuntimeError("No config found in args")
+        exception_ignored: tuple[type[BaseException], ...] = kwargs.pop(
+            "exception_ignored", ()
+        )
         event_type = event.get_event_type()  # Get event type
         priority_tmp = 0
         debug_log(f"Running matchers for event: {event_type}!")
@@ -203,6 +208,8 @@ class MatcherManager:
                 except BlockException:
                     break
                 except Exception as e:
+                    if exception_ignored and isinstance(e, exception_ignored):
+                        raise
                     logger.opt(exception=e, colors=True).error(
                         f"An error occurred while running '{handler.__name__}'({file_name}:{line_number}) "
                     )
