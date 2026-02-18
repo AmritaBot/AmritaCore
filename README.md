@@ -45,6 +45,7 @@ The mission of AmritaCore is to democratize the development of intelligent agent
 5. **Event-Driven Architecture**: Comprehensive event system for flexible and reactive agent behavior
 6. **Tool Integration Framework**: Robust system for integrating external tools and services
 7. **Advanced Memory Management**: Sophisticated context handling with automatic summarization and token optimization
+8. **High-Performance**: Lightweight and efficient, with high performance.
 
 ## 📖 Documentation
 
