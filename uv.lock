@@ -121,7 +121,7 @@ wheels = [
 
 [[package]]
 name = "amrita-core"
-version = "0.4.2.1"
+version = "0.4.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
