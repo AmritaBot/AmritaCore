@@ -33,8 +33,8 @@ from .tools import (
     STOP_TOOL,
 )
 
-prehook = on_precompletion(block=False, priority=2)
-posthook = on_completion(block=False, priority=1)
+prehook = on_precompletion(block=False, priority=10)
+posthook = on_completion(block=False, priority=10)
 
 
 BUILTIN_TOOLS_NAME = {
