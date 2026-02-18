@@ -20,7 +20,6 @@ from amrita_core.logging import debug_log
 from amrita_core.protocol import (
     COMPLETION_RETURNING,
     ModelAdapter,
-    StringMessageContent,
 )
 from amrita_core.tools.models import ToolChoice, ToolFunctionSchema
 from amrita_core.types import (
@@ -83,10 +82,10 @@ class OpenAIAdapter(ModelAdapter):
                         uni_usage = UniResponseUsage.model_validate(
                             chunk.usage, from_attributes=True
                         )
-                    if chunk.choices[0].delta.content is not None:
-                        response += chunk.choices[0].delta.content
-                        yield StringMessageContent(response)
-                        debug_log(chunk.choices[0].delta.content)
+                    if (chunk := chunk.choices[0].delta.content) is not None:
+                        response += chunk
+                        yield chunk
+                        debug_log(chunk)
                 except IndexError:
                     break
         else:
@@ -97,7 +96,7 @@ class OpenAIAdapter(ModelAdapter):
                     if completion.choices[0].message.content is not None
                     else ""
                 )
-                yield StringMessageContent(response)
+                yield response
                 if completion.usage:
                     uni_usage = UniResponseUsage.model_validate(
                         completion.usage, from_attributes=True
