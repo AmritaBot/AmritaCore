@@ -156,7 +156,7 @@ class MatcherManager:
                 line_number = frame.f_lineno
                 file_name = frame.f_code.co_filename
                 handler = matcher.function
-                session_args = [matcher.matcher, *args]
+                session_args = (matcher.matcher, event, config, *args)
                 session_kwargs = {**deepcopy(kwargs)}
 
                 args_types = {k: v.annotation for k, v in signature.parameters.items()}
