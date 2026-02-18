@@ -24,7 +24,7 @@ from .hook.event import CompletionEvent, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
 from .logging import debug_log, logger
-from .protocol import MessageContent, StringMessageContent
+from .protocol import MessageContent
 from .sessions import SessionsManager
 from .tokenizer import hybrid_token_count
 from .types import (
@@ -790,11 +790,9 @@ class ChatObject:
         async for chunk in call_completion(
             send_messages, config=self.config, preset=self.preset
         ):
-            if isinstance(chunk, str):
-                await self.yield_response(StringMessageContent(chunk))
-            elif isinstance(chunk, UniResponse):
+            if isinstance(chunk, UniResponse):
                 response = chunk
-            elif isinstance(chunk, MessageContent):
+            elif isinstance(chunk, MessageContent | str):
                 await self.yield_response(chunk)
         if response is None:
             raise RuntimeError("No final response from chat adapter.")
