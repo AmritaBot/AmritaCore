@@ -6,9 +6,6 @@ on:
       - "**"
     paths:
       - "**"
-  pull_request:
-    branches:
-      - "**"
 
 permissions:
   checks: write
@@ -54,15 +51,6 @@ jobs:
           name: Python Unit Tests
           path: test-results.xml
           reporter: java-junit
-          fail-on-error: false
-      
-      - name: Publish Coverage Report  
-        uses: dorny/test-reporter@v1
-        if: always() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
-        with:
-          name: Code Coverage
-          path: coverage.xml
-          reporter: java-jacoco
           fail-on-error: false
 
       - name: Check code format
