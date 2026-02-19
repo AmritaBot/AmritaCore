@@ -3,6 +3,7 @@ from functools import lru_cache
 from typing import Literal
 
 import jieba
+from typing_extensions import final
 
 
 @lru_cache(maxsize=2048)
@@ -25,6 +26,7 @@ def hybrid_token_count(
     return Tokenizer(mode=mode, truncate_mode=truncate_mode).count_tokens(text=text)
 
 
+@final
 class Tokenizer:
     """General purpose text tokenizer"""
 

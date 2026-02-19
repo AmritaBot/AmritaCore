@@ -1,4 +1,6 @@
 # ref: https://github.com/NoneBot/NoneBot2/blob/main/nonebot/log.py
+from __future__ import annotations
+
 import inspect
 import logging
 import os
@@ -10,7 +12,7 @@ import loguru
 if TYPE_CHECKING:
     from loguru import Logger, Record
 
-logger: "Logger" = loguru.logger
+logger: Logger = loguru.logger
 
 debug: bool = False
 
@@ -42,7 +44,7 @@ class LoguruHandler(logging.Handler):
         )
 
 
-def default_filter(record: "Record"):
+def default_filter(record: Record):
     """Default filter for logging, change level from Environment"""
     log_level = os.environ.get("LOG_LEVEL", "INFO")
     levelno = logger.level(log_level).no if isinstance(log_level, str) else log_level
@@ -66,6 +68,13 @@ logger_id = logger.add(
     format=default_format,
 )
 """Default log handler id"""
+
+
+def replace_logger_handler(lg: Logger, l_id: int) -> None:
+    """Replace default log handler with given handler id"""
+    global logger, logger_id
+    logger = lg
+    logger_id = l_id
 
 
 __autodoc__ = {"logger_id": False}

@@ -152,18 +152,16 @@ class MultiClientManager:
     tools_manager: MultiToolsManager = ToolsManager()
     _lock: Lock
     _is_initialized = False  # Whether ToolsMapping is ready
-    _initted = False
 
     def __init__(self, tools_manager: MultiToolsManager | None = None) -> None:
-        if not self._initted:
-            self._initted = True
-            self.tools_manager = tools_manager or self.tools_manager
-            self.clients = []
-            self.name_to_clients = {}
-            self.tools_remapping = {}
-            self.reversed_remappings = {}
-            self.script_to_clients = {}
-            self._lock = Lock()
+        self._initted = True
+        self.tools_manager = tools_manager or self.tools_manager
+        self.clients = []
+        self.name_to_clients = {}
+        self.tools_remapping = {}
+        self.reversed_remappings = {}
+        self.script_to_clients = {}
+        self._lock = Lock()
 
     def get_client_by_script(self, server_script: MCP_SERVER_SCRIPT_TYPE) -> MCPClient:
         """Get MCP Client (without operating stored MCP Server)

@@ -3,18 +3,21 @@ from __future__ import annotations
 import json
 import time
 import typing
+from abc import ABC
 from collections.abc import Iterable, Sequence
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, Generic, Literal
 
 from pydantic import BaseModel as B_Model
-from pydantic import Field
+from pydantic import Field, model_validator
 
 # Pydantic models
 
 T = typing.TypeVar("T", None, str, None | typing.Literal[""])
+StringSub_T = typing.TypeVar("StringSub_T", bound=str)
 T_INT = typing.TypeVar("T_INT", int, None)
+ANY_T = typing.TypeVar("ANY_T", covariant=True)
 
 
 class BaseModel(B_Model):
@@ -145,15 +148,21 @@ class ImageUrl(BaseModel):
     url: str = Field(..., description="Image URL")
 
 
-class Content(BaseModel): ...
+class Content(
+    ABC,
+    BaseModel,
+    Generic[StringSub_T],
+    extra="allow",
+):
+    type: StringSub_T
 
 
-class ImageContent(Content):
+class ImageContent(Content[Literal["image_url"]]):
     type: Literal["image_url"] = "image_url"
     image_url: ImageUrl = Field(..., description="Image URL")
 
 
-class TextContent(Content):
+class TextContent(Content[Literal["text"]]):
     type: Literal["text"] = "text"
     text: str = Field(..., description="Text content")
 
@@ -163,11 +172,49 @@ CT_MAP: dict[str, type[Content]] = {
     "text": TextContent,
 }
 
+
+def register_content(cls: type[Content]):
+    """Register a Content subclass to CT_MAP based on its type field."""
+    for field_name, field_info in cls.model_fields.items():
+        if field_name == "type":
+            type_value = None
+
+            # Check if the field has a default value
+            if not field_info.is_required():
+                if field_info.default is not None:
+                    type_value = field_info.default
+                elif field_info.default_factory is not None:
+                    type_value = field_info.default_factory()  # pyright: ignore[reportCallIssue]
+            if type_value is None:
+                annotation = field_info.annotation
+                assert annotation is not None
+                if (
+                    hasattr(annotation, "__origin__")
+                    and annotation.__origin__ is Literal
+                ):
+                    # Get the literal value(s) from the annotation
+                    literal_args = annotation.__args__
+                    if literal_args:
+                        type_value = literal_args[0]  # Take the first literal value
+                    else:
+                        raise TypeError(
+                            f"Cannot determine type value for {cls.__name__}"
+                        )
+                else:
+                    raise ValueError(
+                        f"Type field in {cls.__name__} must be a Literal type"
+                    )
+
+            # Register to CT_MAP
+            CT_MAP[str(type_value)] = cls
+            break
+
+
 USER_INPUT = Sequence[Content] | str | None
 
 _T = typing.TypeVar("_T", bound=USER_INPUT)
 
-# Yes,but we followed the same naming convention as OpenAI
+# Yes,but we followed the same naming convention as OpenAI, because it's widely used and easy to understand.
 
 
 class Message(BaseModel, Generic[_T]):
@@ -176,6 +223,31 @@ class Message(BaseModel, Generic[_T]):
     tool_calls: list[ToolCall] | None = Field(
         default=None, description="Tool calls", exclude_if=lambda x: x is None
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_content(cls, data: Any) -> Any:
+        """Validate and properly deserialize content based on its structure."""
+        if isinstance(data, dict) and "content" in data:
+            content = data["content"]
+            if isinstance(content, list):
+                validated_content = []
+                for item in content:
+                    if isinstance(item, dict):
+                        if "type" not in item:
+                            raise ValueError("Content item is missing 'type' field")
+                        content_type = item["type"]
+                        if content_type in CT_MAP:
+                            validated_item = CT_MAP[content_type].model_validate(item)
+                            validated_content.append(validated_item)
+                        else:
+                            raise ValueError(
+                                f"Unknown content type: `{content_type}`, please register it by calling `register_content` first."
+                            )
+                    else:
+                        validated_content.append(item)
+                data["content"] = validated_content
+        return data
 
 
 class ToolResult(BaseModel):
@@ -270,3 +342,7 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
 
     def extend(self, messages: CONTENT_LIST_TYPE) -> None:
         self.end_messages.extend(messages)
+
+
+register_content(TextContent)
+register_content(ImageContent)
