@@ -37,6 +37,10 @@ The ChatObject class is the primary interface for conversations with the AI.
 - `callback` (RESPONSE_CALLBACK_TYPE): Optional callback function for direct response handling (useful for web scenarios)
 - `config` (AmritaConfig): configuration settings for the chat that overrides the global configuration.
 - `preset` (ModelPreset): model preset for the chat.
+- `auto_create_session` (bool): Whether to automatically create a session if it does not exist (default: False)
+- `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
+- `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
+- `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
 - `queue_size` (int): Size of the primary response queue (default: 25)
 - `overflow_queue_size` (int): Size of the overflow queue (default: 45)
 
@@ -79,6 +83,17 @@ chat_without_callback = ChatObject(
     train=train.model_dump()
 )
 chat_without_callback.set_callback_func(callback_handler)
+
+# Example with custom event parameters
+chat_with_event_params = ChatObject(
+    context=context,
+    session_id="session_123",
+    user_input="Hello!",
+    train=train.model_dump(),
+    hook_args=("custom_arg1", "custom_arg2"),
+    hook_kwargs={"custom_key": "custom_value"},
+    exception_ignored=(ValueError, TypeError)
+)
 ```
 
 ## Description
@@ -94,3 +109,7 @@ The new callback mechanism is designed to prevent queue overflow in scenarios wh
 3. The callback function is executed asynchronously with proper locking for thread safety
 
 When no callback is provided, the traditional queue-based streaming mechanism is used with both primary and overflow queues to handle temporary consumer lag.
+
+### Event Parameter Injection
+
+The `hook_args`, `hook_kwargs`, and `exception_ignored` parameters enable custom parameter injection into event handlers. When events like `PreCompletionEvent` or `CompletionEvent` are triggered, these parameters are passed to the registered event handlers, allowing them to access additional context information and customize their behavior based on the specific chat session requirements.

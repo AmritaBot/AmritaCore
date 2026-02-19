@@ -66,3 +66,46 @@ Multiple types of event hooks are available:
 - `@on_completion`: After receiving response from LLM
 - `@on_event`: For custom events
 - `@on_tools`: For tool-related events
+
+## 3.3.7 Custom Parameter Injection
+
+The `ChatObject` class supports injecting custom parameters through constructor arguments, which are passed to event handlers when events are triggered:
+
+```python
+from amrita_core.chatmanager import ChatObject
+
+# Pass custom parameters when creating ChatObject
+chat_obj = ChatObject(
+    train={"system": "You are a helpful assistant"},
+    user_input="Hello",
+    context=None,
+    session_id="session_123",
+    hook_args=("custom_arg1", "custom_arg2"),
+    hook_kwargs={"custom_key": "custom_value"}
+)
+
+# Receive these parameters in event handlers
+@on_precompletion()
+async def handle_pre_completion(event: PreCompletionEvent, *args, **kwargs):
+    # args will contain ("custom_arg1", "custom_arg2")
+    # kwargs will contain {"custom_key": "custom_value"}
+    print(f"Custom args: {args}")
+    print(f"Custom kwargs: {kwargs}")
+    
+# You can also specify exception types to ignore
+chat_obj = ChatObject(
+    train={"system": "You are a helpful assistant"},
+    user_input="Hello",
+    context=None,
+    session_id="session_123",
+    exception_ignored=(ValueError, TypeError)
+)
+```
+
+### Parameter Description:
+
+- `hook_args`: Positional arguments tuple passed to event handlers
+- `hook_kwargs`: Keyword arguments dictionary passed to event handlers  
+- `exception_ignored`: Tuple of exception types that should be ignored and raised again in event handlers
+
+These parameters enable event handlers to access additional context information, enhancing the flexibility and extensibility of the event system.

@@ -66,3 +66,46 @@ def my_custom_handler(event):
 - `@on_completion`: 在从 LLM 接收响应之后
 - `@on_event`: 用于自定义事件
 - `@on_tools`: 用于工具相关事件
+
+## 3.3.7 自定义参数注入
+
+`ChatObject` 类支持通过构造函数参数注入自定义参数，这些参数会在事件触发时传递给事件处理器：
+
+```python
+from amrita_core.chatmanager import ChatObject
+
+# 创建 ChatObject 时传入自定义参数
+chat_obj = ChatObject(
+    train={"system": "你是一个有用的助手"},
+    user_input="你好",
+    context=None,
+    session_id="session_123",
+    hook_args=("custom_arg1", "custom_arg2"),
+    hook_kwargs={"custom_key": "custom_value"}
+)
+
+# 在事件处理器中接收这些参数
+@on_precompletion()
+async def handle_pre_completion(event: PreCompletionEvent, *args, **kwargs):
+    # args 将包含 ("custom_arg1", "custom_arg2")
+    # kwargs 将包含 {"custom_key": "custom_value"}
+    print(f"Custom args: {args}")
+    print(f"Custom kwargs: {kwargs}")
+    
+# 也可以指定异常忽略列表
+chat_obj = ChatObject(
+    train={"system": "你是一个有用的助手"},
+    user_input="你好",
+    context=None,
+    session_id="session_123",
+    exception_ignored=(ValueError, TypeError)
+)
+```
+
+### 参数说明：
+
+- `hook_args`: 传递给事件处理器的位置参数元组
+- `hook_kwargs`: 传递给事件处理器的关键字参数字典
+- `exception_ignored`: 指定在事件处理器中应该被忽略并重新抛出的异常类型
+
+这些参数使得事件处理器能够访问额外的上下文信息，增强了事件系统的灵活性和可扩展性。
