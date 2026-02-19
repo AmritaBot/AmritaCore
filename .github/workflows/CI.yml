@@ -10,6 +10,11 @@ on:
     branches:
       - "**"
 
+permissions:
+  checks: write
+  contents: read
+  pull-requests: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -53,7 +58,7 @@ jobs:
       
       - name: Publish Coverage Report  
         uses: dorny/test-reporter@v1
-        if: success() || failure()
+        if: always() && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository)
         with:
           name: Code Coverage
           path: coverage.xml
