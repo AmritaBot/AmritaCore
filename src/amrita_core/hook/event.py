@@ -36,7 +36,7 @@ class Event:
         # Initialize event type as none
         self._event_type = EventTypeEnum.Nil
         # Validate and store messages using SendMessageWrap
-        self._context_messages = self.original_context
+        self._context_messages: SendMessageWrap = self.original_context
 
     @property
     def event_type(self) -> EventTypeEnum:
@@ -45,6 +45,12 @@ class Event:
     @property
     def message(self) -> SendMessageWrap:
         return self._context_messages
+
+    @message.setter
+    def message(self, value: SendMessageWrap):
+        if not isinstance(value, SendMessageWrap):
+            raise TypeError("message must be of type SendMessageWrap")
+        self._context_messages = value
 
     def get_context_messages(self) -> SendMessageWrap:
         return self._context_messages

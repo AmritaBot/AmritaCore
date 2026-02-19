@@ -26,13 +26,10 @@ class MultiToolsManager:
     _disabled_tools: set[
         str
     ]  # Disabled tools, has_tool and get_tool will not return disabled tools
-    _inited = False
 
     def __init__(self):
-        if not self._inited:
-            self._models = {}
-            self._disabled_tools = set()
-            self._inited = True
+        self._models = {}
+        self._disabled_tools = set()
 
     def has_tool(self, name: str) -> bool:
         return False if name in self._disabled_tools else name in self._models

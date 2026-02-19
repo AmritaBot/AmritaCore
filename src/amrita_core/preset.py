@@ -45,12 +45,9 @@ class MultiPresetManager:
 
     _default_preset: ModelPreset | None = None
     _presets: dict[str, ModelPreset]
-    _inited = False
 
     def __init__(self) -> None:
-        if not self._inited:
-            self._presets = {}
-            self._inited = True
+        self._presets = {}
 
     def set_default_preset(self, preset: ModelPreset | str) -> None:
         """

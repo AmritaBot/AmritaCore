@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "0.4.3.2"
+version = "0.4.4"
 description = "Agent core of Project Amrita"
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
@@ -61,6 +61,7 @@ ignore = [
 ]
 [tool.ruff.lint.per-file-ignores]
 "demo/*.py" = ["ASYNC250"]
+"tests/*.py" = ["ASYNC250","PERF401"]
 
 [tool.pyright]
 typeCheckingMode = "standard"

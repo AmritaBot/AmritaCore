@@ -389,7 +389,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
                 ]
             ),
         )
-        event._context_messages.extend(msg_list[current_length:])
+        event.message.extend(msg_list[current_length:])
 
     except Exception as e:
         if isinstance(e, ProcEXC):

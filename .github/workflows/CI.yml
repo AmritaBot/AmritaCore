@@ -7,6 +7,11 @@ on:
     paths:
       - "**"
 
+permissions:
+  checks: write
+  contents: read
+  pull-requests: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -29,16 +34,29 @@ jobs:
         run: |
           PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
           echo "PYTHON_BIN=$PYTHON_BIN" >> $GITHUB_ENV
+      
       - name: Run Pyright
         uses: jakebailey/pyright-action@v2
         with:
           python-path: ${{ env.PYTHON_BIN }}
           pylance-version: latest-release
-      - name: Run Unit Tests
-        run: uv run pytest tests/ -v --cov=src/amrita_core --cov-report=xml --cov-report=term
+      
+      - name: Run Unit Tests with JUnit XML output
+        run: uv run pytest tests/ --cov=src/amrita_core --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml -v
+      
+      - name: Publish Test Report
+        uses: dorny/test-reporter@v1
+        if: success() || failure()
+        with:
+          name: Python Unit Tests
+          path: test-results.xml
+          reporter: java-junit
+          fail-on-error: false
+
       - name: Check code format
         uses: astral-sh/ruff-action@v3
         with:
           args: check . --exit-non-zero-on-fix
+      
       - name: Build package
         run: uv build
