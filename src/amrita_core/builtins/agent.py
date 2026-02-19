@@ -141,9 +141,9 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
 
     async def run_tools(
         msg_list: list,
-        call_count: int = 1,
+        call_count: int,
         original_msg: str = "",
-    ):
+    ) -> bool:
         suggested_stop: bool = False
 
         def stop_running():
@@ -162,25 +162,6 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
             or config.function_config.agent_thought_mode == "reasoning-required"
         ):
             await append_reasoning_msg(msg_list, original_msg, tools_ctx=tools)
-
-        if call_count > config.function_config.agent_tool_call_limit:
-            await chat_object.yield_response(
-                MessageWithMetadata(
-                    content="[AmritaAgent] Too many tool calls! Workflow terminated!\n",
-                    metadata={
-                        "type": "system",
-                        "message": "[AmritaAgent] Too many tool calls! Workflow terminated!\n",
-                    },
-                )
-            )
-            msg_list.append(
-                Message(
-                    role="user",
-                    content="Too much tools called,please call later or follow user's instruction."
-                    + "Now please continue to completion.",
-                )
-            )
-            return
         response_msg = await tools_caller(
             msg_list,
             tools,
@@ -334,9 +315,8 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
                                 },
                             )
                         )
-
-            if config.function_config.tool_calling_mode == "agent":
-                await run_tools(msg_list, call_count, original_msg)
+            return True
+        return False
 
     chat_object = event.chat_object
     if config.function_config.tool_calling_mode == "none":
@@ -377,18 +357,40 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
         )
 
     try:
-        await run_tools(
-            msg_list,
-            original_msg=event.original_context
-            if isinstance(event.original_context, str)
-            else "".join(
-                [
-                    i.content
-                    for i in event.original_context
-                    if isinstance(i, TextContent)
-                ]
-            ),
-        )
+        for i in range(1, config.function_config.agent_tool_call_limit + 1):
+            if not (
+                await run_tools(
+                    msg_list,
+                    i,
+                    original_msg=event.original_context
+                    if isinstance(event.original_context, str)
+                    else "".join(
+                        [
+                            i.content
+                            for i in event.original_context
+                            if isinstance(i, TextContent)
+                        ]
+                    ),
+                )
+            ):
+                break
+        else:
+            await chat_object.yield_response(
+                MessageWithMetadata(
+                    content="[AmritaAgent] Too many tool calls! Workflow terminated!\n",
+                    metadata={
+                        "type": "system",
+                        "message": "[AmritaAgent] Too many tool calls! Workflow terminated!\n",
+                    },
+                )
+            )
+            msg_list.append(
+                Message(
+                    role="user",
+                    content="Too much tools called,please call later or follow user's instruction."
+                    + "Now please continue to completion.",
+                )
+            )
         event.message.extend(msg_list[current_length:])
 
     except Exception as e:
@@ -417,6 +419,7 @@ async def cookie(event: CompletionEvent, config: AmritaConfig):
                         "Some error occurred, please try again later.",
                         metadata={
                             "type": "error",
+                            "extra_type": "cookie",
                             "content": "Some error occurred, please try again later.",
                         },
                     )

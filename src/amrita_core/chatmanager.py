@@ -8,6 +8,7 @@ from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from io import StringIO
+from types import TracebackType
 from typing import TYPE_CHECKING, Any, TypeAlias
 from uuid import uuid4
 
@@ -160,19 +161,30 @@ User input → Direct summary output
         index = int(len(self.memory.messages) * proportion) - len(dropped_part)
         if index < 0:
             index = 0
-        idx: int | None = None
         if index:
-            for idx, element in enumerate(self.memory.messages):
+            idx = 0
+            while idx < len(self.memory.messages):
+                element = self.memory.messages[idx]
                 dropped_part.append(element)
-                if (
-                    getattr(element, "tool_calls", None) is not None
-                ):  # Remove along with tool calls (system(tool_call),tool_call)
-                    continue
-                elif idx >= index:
+                if getattr(element, "tool_calls", None) is not None:
+                    # This is an assistant message that initiated tool calls
+                    # Include all subsequent consecutive tool messages
+                    next_idx = idx + 1
+                    while next_idx < len(self.memory.messages):
+                        next_element = self.memory.messages[next_idx]
+                        # Check if this is a tool message (role == 'tool')
+                        if getattr(next_element, "role", None) == "tool":
+                            dropped_part.append(next_element)
+                            next_idx += 1
+                        else:
+                            break
+                    # Update idx to the position after the last processed tool message
+                    idx = next_idx
+                else:
+                    idx += 1
+                if idx >= index:
                     break
-        self.memory.messages = self.memory.messages[
-            (idx if idx is not None else index) :  # Remove some messages
-        ]
+            self.memory.messages = self.memory.messages[idx:]
         if dropped_part:
             msg_list: CONTENT_LIST_TYPE = [
                 Message[str](role="system", content=self._abstract_instruction),
@@ -210,11 +222,12 @@ User input → Direct summary output
         removed and added to the dropped messages list.
         """
         data = self.memory
-        if len(data.messages) < 2:
+        if len(data.messages) <= 1:
             return
         self._dropped_messages.append(data.messages.pop(0))
         if data.messages[0].role == "tool":
-            self._dropped_messages.append(data.messages.pop(0))
+            while data.messages and data.messages[0].role == "tool":
+                self._dropped_messages.append(data.messages.pop(0))
 
     async def run_enforce(self):
         """Execute memory limitation processing
@@ -267,7 +280,7 @@ User input → Direct summary output
 
         # Enforce memory length limit
         initial_count = len(data.messages)
-        while len(data.messages) >= 2:
+        while len(data.messages) > 1:
             if data.messages[0].role == "tool":
                 data.messages.pop(0)
             elif len(data.messages) > self.config.llm.memory_length_limit:
@@ -321,7 +334,7 @@ User input → Direct summary output
 
         initial_count = len(data.messages)
         while tk_tmp > self.config.llm.session_tokens_windows:
-            if len(data.messages) >= 2:
+            if len(data.messages) > 1:
                 self._drop_message()
             else:
                 break
@@ -337,7 +350,12 @@ User input → Direct summary output
         )
         logger.debug(f"Final token count: {tk_tmp}")
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         """Async context manager exit, handle rollback in case of exceptions
 
         In case of exceptions, restore messages to the state before processing,
@@ -348,6 +366,7 @@ User input → Direct summary output
             exc_val: Exception value
             exc_tb: Exception traceback
         """
+        del exc_val, exc_tb
         if exc_type is not None:
             print("An exception occurred, rolling back messages...")
             self.memory.messages = self._copied_messages.messages
@@ -509,7 +528,12 @@ class ChatObject:
             raise RuntimeError("ChatObject already has a consumer")
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ):
         del exc_tb  # This is unused
         if exc_type is not None:
             self._err = exc_val
