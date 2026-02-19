@@ -495,6 +495,9 @@ class ChatObject:
             self._task.cancel()
 
     def __await__(self):
+        """
+        Await for task completion
+        """
         if not hasattr(self, "_task"):
             raise RuntimeError("ChatObject not running")
         return self._task.__await__()
@@ -507,9 +510,13 @@ class ChatObject:
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
+        del exc_tb  # This is unused
+        if exc_type is not None:
+            self._err = exc_val
         self.terminate()
 
     def begin(self) -> Self:
+        """Start chat object task"""
         if not hasattr(self, "_task"):
             logger.debug("Starting chat object task...")
             self._task = asyncio.create_task(self._entry())

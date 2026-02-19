@@ -40,7 +40,7 @@ The ChatObject class is the primary interface for conversations with the AI.
 - `auto_create_session` (bool): Whether to automatically create a session if it does not exist (default: False)
 - `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
 - `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
-- `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored (not re-raised) in event handlers (default: empty tuple)
+- `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
 - `queue_size` (int): Size of the primary response queue (default: 25)
 - `overflow_queue_size` (int): Size of the overflow queue (default: 45)
 

@@ -106,6 +106,6 @@ chat_obj = ChatObject(
 
 - `hook_args`: Positional arguments tuple passed to event handlers
 - `hook_kwargs`: Keyword arguments dictionary passed to event handlers  
-- `exception_ignored`: Tuple of exception types that should be ignored (not re-raised) in event handlers
+- `exception_ignored`: Tuple of exception types that should be ignored and raised again in event handlers
 
 These parameters enable event handlers to access additional context information, enhancing the flexibility and extensibility of the event system.
