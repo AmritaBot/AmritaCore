@@ -1,5 +1,6 @@
 from typing import Literal
 
+import pytest
 from pydantic import Field
 
 from src.amrita_core.types import (
@@ -16,6 +17,15 @@ def test_register_content_existing_classes():
     # Clear CT_MAP first to test registration
     original_map = CT_MAP.copy()
     CT_MAP.clear()
+    # Test bad content
+
+    class BadContent(Content[str]):
+        type: str  # not Literal, no default
+
+    with pytest.raises(
+        ValueError, match="Type field in BadContent must be a Literal type"
+    ):
+        register_content(BadContent)
 
     try:
         # Register existing classes

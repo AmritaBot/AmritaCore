@@ -30,7 +30,6 @@ class TestMultiToolsManager:
         manager = MultiToolsManager()
         assert manager._models == {}
         assert manager._disabled_tools == set()
-        assert manager._inited is True
 
     def test_has_tool(self, manager: MultiToolsManager):
         assert not manager.has_tool("nonexistent_tool")

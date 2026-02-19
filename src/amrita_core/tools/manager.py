@@ -30,7 +30,6 @@ class MultiToolsManager:
     def __init__(self):
         self._models = {}
         self._disabled_tools = set()
-        self._inited = True
 
     def has_tool(self, name: str) -> bool:
         return False if name in self._disabled_tools else name in self._models
