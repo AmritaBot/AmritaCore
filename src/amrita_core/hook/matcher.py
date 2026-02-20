@@ -14,7 +14,7 @@ from typing_extensions import Self
 from amrita_core.config import AmritaConfig
 from amrita_core.logging import debug_log, logger
 
-from .event import Event
+from .event import BaseEvent
 from .exception import BlockException, CancelException, PassException
 
 ChatException: TypeAlias = BlockException | CancelException | PassException
@@ -117,7 +117,10 @@ class MatcherManager:
 
     @staticmethod
     async def trigger_event(
-        event: Event | None = None, config: AmritaConfig | None = None, *args, **kwargs
+        event: BaseEvent | None = None,
+        config: AmritaConfig | None = None,
+        *args,
+        **kwargs,
     ) -> None:
         """
         Trigger a specific type of event and call all registered event handlers for that type.
@@ -130,7 +133,7 @@ class MatcherManager:
         - **kwargs: Keyword arguments passed to the dependency injection system.
         """
         for i in args:
-            if isinstance(i, Event):
+            if isinstance(i, BaseEvent):
                 event = i
             elif isinstance(i, AmritaConfig):
                 config = i

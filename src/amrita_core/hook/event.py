@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING
+
+from typing_extensions import override
 
 from amrita_core.types import USER_INPUT, SendMessageWrap
 
@@ -22,12 +25,25 @@ class EventTypeEnum(str, Enum):
     Nil = "Nil"
     BEFORE_COMPLETION = "BEFORE_COMPLETION"
 
-    def validate(self, name: str) -> bool:
-        return name in self
+    @classmethod
+    def validate(cls, name: str) -> bool:
+        return name in cls.__members__
+
+
+class BaseEvent(ABC):
+    """All events must inherit from this class"""
+
+    @abstractmethod
+    def get_event_type(self) -> str:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def event_type(self) -> EventTypeEnum | str: ...
 
 
 @dataclass
-class Event:
+class Event(BaseEvent):
     user_input: USER_INPUT
     original_context: SendMessageWrap
     chat_object: "ChatObject"
@@ -55,9 +71,6 @@ class Event:
     def get_context_messages(self) -> SendMessageWrap:
         return self._context_messages
 
-    def get_event_type(self) -> str:
-        raise NotImplementedError
-
     def get_user_input(self) -> USER_INPUT:
         return self.user_input
 
@@ -72,9 +85,11 @@ class CompletionEvent(Event):
         self._event_type = EventTypeEnum.COMPLETION
 
     @property
+    @override
     def event_type(self):
         return EventTypeEnum.COMPLETION
 
+    @override
     def get_event_type(self) -> str:
         return EventTypeEnum.COMPLETION
 
@@ -89,8 +104,10 @@ class PreCompletionEvent(Event):
         self._event_type = EventTypeEnum.BEFORE_COMPLETION
 
     @property
+    @override
     def event_type(self) -> EventTypeEnum:
         return self._event_type
 
+    @override
     def get_event_type(self) -> str:
         return self._event_type

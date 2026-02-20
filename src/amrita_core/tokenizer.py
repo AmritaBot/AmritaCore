@@ -13,7 +13,7 @@ def hybrid_token_count(
     truncate_mode: Literal["head", "tail", "middle"] = "head",
 ) -> int:
     """
-    Calculate token count for mixed Chinese-English text, supporting word, subword, and character modes
+    Calculate token count for mixed Chinese-English text, supporting word, subword, and character modes (This is just a simple implementation, and you can use other tokenization methods if you need more accurate results)
 
     Args:
         text: Input text
