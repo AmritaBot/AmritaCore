@@ -188,13 +188,15 @@ class File(BaseModel):
 
     @model_validator(mode="after")
     def validate_file(self):
-        if self.file_id is not None and any([self.file_data, self.filename, self.type]):
-            raise ValueError("File id should be used alone")
-        elif (
-            all([self.filename, self.file_data, self.type]) and self.file_id is not None
-        ):
-            raise ValueError("File data shouldn't be used with file id")
+        has_id = self.file_id is not None
+        has_inline = all([self.filename, self.file_data, self.type])
 
+        if has_id and has_inline:
+            raise ValueError("File id should be used alone")
+        if not has_id and not has_inline:
+            raise ValueError(
+                "Either file_id or filename+file_data+type must be provided"
+            )
         return self
 
 
