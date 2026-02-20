@@ -146,6 +146,11 @@ class UniResponse(
 
 class ImageUrl(BaseModel):
     url: str = Field(..., description="Image URL")
+    detail: Literal["high", "low", "auto"] | None = Field(
+        default=None,
+        description="Image detail level",
+        exclude_if=lambda x: x is None,
+    )
 
 
 class Content(
@@ -167,10 +172,38 @@ class TextContent(Content[Literal["text"]]):
     text: str = Field(..., description="Text content")
 
 
-CT_MAP: dict[str, type[Content]] = {
-    "image_url": ImageContent,
-    "text": TextContent,
-}
+class File(BaseModel):
+    file_id: str | None = Field(
+        default=None, description="File ID", exclude_if=lambda x: x is None
+    )
+    filename: str | None = Field(
+        default=None, description="File name", exclude_if=lambda x: x is None
+    )
+    file_data: str | None = Field(
+        default=None, description="File data", exclude_if=lambda x: x is None
+    )
+    type: str | None = Field(
+        default=None, description="File type", exclude_if=lambda x: x is None
+    )
+
+    @model_validator(mode="after")
+    def validate_file(self):
+        if self.file_id is not None and any([self.file_data, self.filename, self.type]):
+            raise ValueError("File id should be used alone")
+        elif (
+            all([self.filename, self.file_data, self.type]) and self.file_id is not None
+        ):
+            raise ValueError("File data shouldn't be used with file id")
+
+        return self
+
+
+class FileContent(Content[Literal["file"]]):
+    type: Literal["file"] = "file"
+    file: File = Field(..., description="File content")
+
+
+CT_MAP: dict[str, type[Content]] = {}
 
 
 def register_content(cls: type[Content]):
@@ -346,3 +379,4 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
 
 register_content(TextContent)
 register_content(ImageContent)
+register_content(FileContent)
