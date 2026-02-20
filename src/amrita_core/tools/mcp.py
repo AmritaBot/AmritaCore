@@ -8,7 +8,7 @@ from typing import Any, overload
 
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
-from fastmcp.client.transports import ClientTransportT
+from fastmcp.client.transports.base import ClientTransportT
 from mcp.types import TextContent
 from typing_extensions import Self
 from zipp import Path
