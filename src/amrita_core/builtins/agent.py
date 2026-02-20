@@ -139,11 +139,24 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
         )
         await _append_reasoning(msg, response)
 
-    async def run_tools(
+    async def continue_by_run(
         msg_list: list,
         call_count: int,
         original_msg: str = "",
     ) -> bool:
+        """One term for function calling.
+
+        Args:
+            msg_list (list): Context
+            call_count (int): Called times.
+            original_msg (str, optional): Original message (Used for reasoning). Defaults to "".
+
+        Raises:
+            RuntimeError: Raised on response error.
+
+        Returns:
+            bool: Should continue to call next round.
+        """
         suggested_stop: bool = False
 
         def stop_running():
@@ -359,7 +372,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
     try:
         for i in range(1, config.function_config.agent_tool_call_limit + 1):
             if not (
-                await run_tools(
+                await continue_by_run(
                     msg_list,
                     i,
                     original_msg=event.original_context
@@ -381,6 +394,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
                     metadata={
                         "type": "system",
                         "message": "[AmritaAgent] Too many tool calls! Workflow terminated!\n",
+                        "extra_type": "tool_call_limit",
                     },
                 )
             )
@@ -388,7 +402,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
                 Message(
                     role="user",
                     content="Too much tools called,please call later or follow user's instruction."
-                    + "Now please continue to completion.",
+                    + "Now please continue to completion and NOT to call tools.",
                 )
             )
         event.message.extend(msg_list[current_length:])
