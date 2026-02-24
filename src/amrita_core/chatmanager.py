@@ -149,6 +149,28 @@ User input → Direct summary output
         )
         return self
 
+    @classmethod
+    def set_abstract_instruction(cls, instruction: str):
+        """Set abstract instruction
+
+        Args:
+            instruction: Abstract instruction
+        """
+        if not isinstance(instruction, str):
+            raise TypeError("Instruction must be a string")
+        elif not instruction:
+            raise ValueError("Instruction cannot be empty")
+        cls._abstract_instruction = instruction
+
+    @classmethod
+    def get_abstract_instruction(cls) -> str:
+        """Get abstract instruction
+
+        Returns:
+            Abstract instruction
+        """
+        return cls._abstract_instruction
+
     async def _make_abstract(self):
         """Generate context summary
 
