@@ -61,7 +61,11 @@ class Continue(BaseException): ...
 async def _(ctx: ToolContext) -> str | None:
     msg: str = ctx.data["content"]
     logger.debug(f"[LLM-ProcessMessage] {msg}")
-    await ctx.event.chat_object.yield_response(f"{msg}\n")
+    await ctx.event.chat_object.yield_response(
+        MessageWithMetadata(
+            content=msg, metadata={"type": "middle_message", "content": msg}
+        )
+    )
     return f"Sent a message to user:\n\n```text\n{msg}\n```\n"
 
 

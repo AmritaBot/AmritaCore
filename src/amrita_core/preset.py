@@ -4,7 +4,7 @@ import typing
 
 from typing_extensions import Self
 
-from .logging import debug_log
+from .logging import debug_log, logger
 from .protocol import AdapterManager
 from .tokenizer import hybrid_token_count
 from .types import BaseModel, Message, ModelPreset, TextContent, UniResponse
@@ -64,6 +64,7 @@ class MultiPresetManager:
         Get the default preset.
         """
         if self._default_preset is None:
+            logger.warning("No default preset set, fall back to a random preset")
             self._default_preset = random.choice(list(self._presets.values()))
         return self._default_preset
 
