@@ -53,6 +53,10 @@ class ModelConfig(BaseModel):
         default=False,
         description="Whether to support multimodal input (e.g. image recognition)",
     )
+    cot_model: bool = Field(
+        default=False,
+        description="Whether to remove the `<think>` tag in the response",
+    )
 
 
 class ModelPreset(BaseModel):
@@ -115,9 +119,9 @@ T_TOOL = typing.TypeVar("T_TOOL", list[ToolCall], None, list[ToolCall] | None)
 
 
 class UniResponseUsage(BaseModel, Generic[T_INT]):
-    prompt_tokens: T_INT
-    completion_tokens: T_INT
-    total_tokens: T_INT
+    prompt_tokens: T_INT = None
+    completion_tokens: T_INT = None
+    total_tokens: T_INT = None
 
 
 class UniResponse(

@@ -1,6 +1,10 @@
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterable, Sequence
+from io import StringIO
+from typing import Any
 
+import anthropic
 import openai
+from anthropic.types import TextBlock
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
@@ -13,6 +17,7 @@ from openai.types.chat.chat_completion_named_tool_choice_param import (
 from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
+from pydantic import BaseModel
 from typing_extensions import override
 
 from amrita_core.config import AmritaConfig
@@ -31,6 +36,72 @@ from amrita_core.types import (
 )
 
 
+def model_dump(obj: Iterable[BaseModel | dict]) -> Sequence[Any]:
+    return [obj.model_dump() if isinstance(obj, BaseModel) else obj for obj in obj]
+
+
+class AnthropicAdapter(ModelAdapter):
+    """Anthropic Protocol Adapter"""
+
+    @override
+    async def call_api(
+        self, messages: Iterable, *args, **kwargs
+    ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
+        """Call Anthropic API to get chat responses"""
+        preset: ModelPreset = self.preset
+        preset_config: ModelConfig = preset.config
+        config: AmritaConfig = self.config
+        client = anthropic.AsyncAnthropic(
+            api_key=preset.api_key,
+            base_url=preset.base_url,
+            timeout=config.llm.llm_timeout,
+            max_retries=config.llm.max_retries,
+        )
+        stream = preset_config.stream
+        messages = model_dump(messages)
+        text_resp = StringIO()
+        if stream:
+            async with client.messages.stream(
+                model=preset.model,
+                messages=messages,
+                max_tokens=config.llm.max_tokens,
+                top_p=preset_config.top_p,
+                temperature=preset_config.temperature,
+            ) as resp:
+                async for chunk in resp.text_stream:
+                    text_resp.write(chunk)
+                    yield chunk
+                last_rsp = await resp.get_final_message()
+                last_rsp_usage = last_rsp.usage
+            usage: UniResponseUsage[int] = UniResponseUsage(
+                prompt_tokens=last_rsp_usage.input_tokens,
+                completion_tokens=last_rsp_usage.output_tokens,
+                total_tokens=last_rsp_usage.input_tokens + last_rsp_usage.output_tokens,
+            )
+        else:
+            last_rsp = await client.messages.create(
+                model=preset.model,
+                messages=messages,
+                max_tokens=config.llm.max_tokens,
+                top_p=preset_config.top_p,
+                temperature=preset_config.temperature,
+            )
+            for ct in last_rsp.content:
+                if isinstance(ct, TextBlock):
+                    text_resp.write(ct.text)
+            usage: UniResponseUsage[int] = UniResponseUsage(
+                prompt_tokens=last_rsp.usage.input_tokens,
+                completion_tokens=last_rsp.usage.output_tokens,
+                total_tokens=last_rsp.usage.input_tokens + last_rsp.usage.output_tokens,
+            )
+        yield UniResponse(content=text_resp.getvalue(), usage=usage, tool_calls=None)
+
+    # TODO: call_tools method
+    @staticmethod
+    def get_adapter_protocol() -> str | tuple[str, ...]:
+        return ("anthropic", "claude")
+
+
 class OpenAIAdapter(ModelAdapter):
     """OpenAI Protocol Adapter"""
 
@@ -38,7 +109,7 @@ class OpenAIAdapter(ModelAdapter):
 
     @override
     async def call_api(
-        self, messages: Iterable[ChatCompletionMessageParam]
+        self, messages: Iterable[ChatCompletionMessageParam], *args, **kwargs
     ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
         """Call OpenAI API to get chat responses"""
         preset: ModelPreset = self.preset
@@ -103,13 +174,12 @@ class OpenAIAdapter(ModelAdapter):
                     )
             else:
                 raise RuntimeError("Received unexpected response type")
-        uni_response = UniResponse(
+        yield UniResponse(
             role="assistant",
             content=response,
             usage=uni_usage,
             tool_calls=None,
         )
-        yield uni_response
 
     @override
     async def call_tools(

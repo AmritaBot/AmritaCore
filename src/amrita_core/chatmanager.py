@@ -12,13 +12,13 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, TypeAlias
 from uuid import uuid4
 
-import pytz
 from pydantic import BaseModel, Field
 from pytz import utc
 from typing_extensions import Self
 
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
+from amrita_core.utils import get_current_datetime_timestamp
 
 from .config import AmritaConfig, get_config
 from .hook.event import CompletionEvent, PreCompletionEvent
@@ -51,25 +51,6 @@ if TYPE_CHECKING:
 
 # Global lock for thread-safe operations in the chat manager
 LOCK = Lock()
-
-
-def get_current_datetime_timestamp(utc_time: None | datetime = None):
-    """Get current time and format as date, weekday and time string in Asia/Shanghai timezone
-
-    Args:
-        utc_time: Optional datetime object in UTC. If None, current time will be used
-
-    Returns:
-        Formatted timestamp string in the format "[YYYY-MM-DD Weekday HH:MM:SS]"
-    """
-    utc_time = utc_time or datetime.now(pytz.utc)
-    asia_shanghai = pytz.timezone("Asia/Shanghai")
-    now = utc_time.astimezone(asia_shanghai)
-    formatted_date = now.strftime("%Y-%m-%d")
-    formatted_weekday = now.strftime("%A")
-    formatted_time = now.strftime("%H:%M:%S")
-    return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
-
 
 RESPONSE_TYPE: TypeAlias = str | MessageContent
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
@@ -417,8 +398,8 @@ class ChatObject:
     preset: ModelPreset  # preset used in this call
     config: AmritaConfig  # config used in this call
     session: SessionData | None  # (lateinit) Session data
-    _response_queue: asyncio.Queue[Any]
-    _overflow_queue: asyncio.Queue[Any]
+    _response_queue: asyncio.Queue[RESPONSE_TYPE]
+    _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]

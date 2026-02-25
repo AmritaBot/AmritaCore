@@ -4,7 +4,6 @@ from datetime import datetime
 import pytz
 
 from amrita_core.utils import (
-    format_datetime_timestamp,
     get_current_datetime_timestamp,
     remove_think_tag,
     split_list,
@@ -18,15 +17,6 @@ def test_remove_think_tag():
 
     text_without_tags = "Hello world"
     assert remove_think_tag(text_without_tags) == text_without_tags
-
-
-def test_format_datetime_timestamp():
-    timestamp = 1672531200.0  # 2023-01-01 00:00:00 UTC
-    result = format_datetime_timestamp(timestamp)
-    assert "[2023-01-01" in result
-    assert "Sunday" in result
-    assert "00:00:00" in result or "AM" in result
-
 
 def test_split_list():
     lst = [1, 2, 3, 4, 5, 6]
