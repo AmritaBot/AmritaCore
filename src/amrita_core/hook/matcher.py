@@ -1,18 +1,22 @@
 from __future__ import annotations
 
+import asyncio
 import inspect
 import warnings
 from collections import defaultdict
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Iterable
 from copy import deepcopy
-from types import FrameType
+from types import FrameType, MappingProxyType
 from typing import (
     Any,
     ClassVar,
+    Generic,
     TypeAlias,
+    TypeVar,
 )
 
 from deprecated.sphinx import deprecated
+from exceptiongroup import ExceptionGroup
 from pydantic import BaseModel, Field
 from typing_extensions import Self
 
@@ -131,6 +135,75 @@ class Matcher:
         raise PassException()
 
 
+T = TypeVar("T")
+
+
+class DependsFactory(Generic[T]):
+    """
+    Dependency factory class.
+    """
+
+    _depency_func: Callable[..., T | Awaitable[T]]
+
+    def __init__(self, depency: Callable[..., T | Awaitable[T]]):
+        self._depency_func = depency
+
+    async def resolve(self, *args, **kwargs) -> T | None:
+        """
+        Resolve dependencies for a function.
+
+        Args:
+            *args: Positional arguments for dependency injection
+            **kwargs: Keyword arguments for dependency injection
+
+        Returns:
+            T: The resolved dependency
+        """
+        success, args, kwargs, dkw = MatcherFactory._resolve_dependencies(
+            inspect.signature(self._depency_func),
+            session_args=args,
+            session_kwargs=kwargs,
+        )
+        if dkw:
+            raise RuntimeError(
+                "As a resolver function, using `Depends` in dependency injection factory is disallowed."
+            )
+        if not success:
+            return None
+        rs: T | Awaitable[T] = self._depency_func(*args, **kwargs)
+        if isinstance(rs, Awaitable):
+            rs = await rs
+        return rs
+
+
+def Depends(dependency: Callable[..., T | Awaitable[T]]) -> Any:
+    """
+    Dependency injection decorator.
+
+    Args:
+        dependency: The dependency function to inject
+
+    Returns:
+        DependsFactory: A factory for dependency injection
+
+    Example:
+        ```python
+        async def get_example_dependency(...) -> Any | None:
+            ...
+
+        @on_precompletion()
+        async def a_function_with_dependencies(
+            event: PreCompletionEvent,
+            dep: ExampleDependency = Depends(get_example_dependency),
+        ):
+            ...
+        ```
+
+        If DependendsFactory's return is None, this function won't be called.
+    """
+    return DependsFactory[T](dependency)
+
+
 class MatcherFactory:
     """
     Event handling factory class.
@@ -139,9 +212,9 @@ class MatcherFactory:
     @staticmethod
     def _resolve_dependencies(
         signature: inspect.Signature,
-        session_args: tuple,
+        session_args: Iterable[Any],
         session_kwargs: dict[str, Any],
-    ) -> tuple[bool, tuple, dict[str, Any]]:
+    ) -> tuple[bool, tuple, dict[str, Any], dict[str, DependsFactory]]:
         """
         Resolve dependencies for a function based on its signature and available arguments.
 
@@ -155,6 +228,7 @@ class MatcherFactory:
                 - bool: Whether dependency resolution was successful
                 - tuple: Resolved positional arguments
                 - dict: Resolved keyword arguments
+                - dict: kwargs should be resolved by dependency injection
         """
         args_types = {k: v.annotation for k, v in signature.parameters.items()}
         filtered_args_types = {
@@ -163,7 +237,7 @@ class MatcherFactory:
 
         # Check if all parameters are typed
         if args_types != filtered_args_types:
-            return False, (), {}
+            return False, (), {}, {}
 
         new_args = []
         used_indices = set()
@@ -178,24 +252,88 @@ class MatcherFactory:
                     found = True
                     break
             if not found:
-                return False, (), {}
+                return False, (), {}, {}
 
         # Get keyword argument type annotations
-        kwparams = signature.parameters
-        f_kwargs = {
+        kwparams: MappingProxyType[str, inspect.Parameter] = signature.parameters
+        f_kwargs: dict[str, Any] = {
             param_name: session_kwargs[param.annotation]
             for param_name, param in kwparams.items()
             if param.annotation in session_kwargs
         }
+        d_kwargs: dict[str, DependsFactory] = {
+            k: v.default
+            for k, v in kwparams.items()
+            if isinstance(v.default, DependsFactory)
+        }
 
         # Verify all required positional arguments are resolved
         if len(new_args) != len(list(filtered_args_types)):
-            return False, (), {}
+            return False, (), {}, {}
 
-        return True, tuple(new_args), f_kwargs
+        return True, tuple(new_args), f_kwargs, d_kwargs
 
     @staticmethod
+    async def _do_runtime_resolve(
+        runtime_args: dict[int, DependsFactory],
+        runtime_kwargs: dict[str, DependsFactory],
+        args2update: list[Any],
+        kwargs2update: dict[str, Any],
+        session_args: list[Any],
+        session_kwargs: dict[str, Any],
+        exception_ignored: tuple[type[BaseException], ...],
+    ) -> bool:
+        """Do a runtime resolve of dependencies.
+
+        Args:
+            runtime_args (dict[int, DependsFactory]): This is a dict of args dependencies (usually be passed in `trigger_event`) to resolve.
+            runtime_kwargs (dict[str, DependsFactory]): This is a dict of kwargs dependencies to resolve.
+            args2update (list[Any]): This is a list of args to update.
+            kwargs2update (dict[str, Any]): This is a dict of kwargs to update.
+            session_args (list[Any]): This is a list of args that can be used from the session .
+            session_kwargs (dict[str, Any]): This is a dict of kwargs that can be used from the session.
+            exception_ignored (tuple[type[BaseException], ...]): These exception will be raised again if occurred.
+
+        Raises:
+            result: if these exception
+
+        Returns:
+            result (bool): Return True if all injections are resolved, otherwise returns False
+        """
+        resolve_tasks = []
+        if not runtime_args and not runtime_kwargs:
+            return True
+        session_args = deepcopy(session_args)
+        session_kwargs = deepcopy(session_kwargs)
+        for idx, factory in runtime_args.items():
+            task = factory.resolve(*session_args, **session_kwargs)
+            resolve_tasks.append((idx, None, task))
+        for key, factory in runtime_kwargs.items():
+            task = factory.resolve(*session_args, **session_kwargs)
+            resolve_tasks.append((None, key, task))
+        resolved_results: list[Any | BaseException] = await asyncio.gather(
+            *[task for _, _, task in resolve_tasks], return_exceptions=True
+        )
+        excs = []
+        for (idx, key, _), result in zip(resolve_tasks, resolved_results):
+            if isinstance(result, Exception):
+                if isinstance(result, exception_ignored):
+                    raise result
+                excs.append(result)
+            elif result is None:
+                return False
+            else:
+                if idx is not None:
+                    args2update[idx] = result
+                elif key is not None:
+                    kwargs2update[key] = result
+        if excs:
+            ExceptionGroup("Some exceptions had occurred.", excs)
+        return True
+
+    @classmethod
     async def _simple_run(
+        cls,
         matcher_list: list[FunctionData],
         event: BaseEvent,
         config: AmritaConfig,
@@ -222,14 +360,32 @@ class MatcherFactory:
             line_number = frame.f_lineno
             file_name = frame.f_code.co_filename
             handler = func.function
-            session_args = (func.matcher, event, config, *extra_args)
-            session_kwargs = {**deepcopy(extra_kwargs)}
+            session_args = [func.matcher, event, config, *extra_args]
+            session_kwargs: dict[str, Any] = deepcopy(extra_kwargs)
+            runtime_args: dict[int, DependsFactory] = {  # index -> DependsFactory
+                k: v
+                for k, v in enumerate(session_args)
+                if isinstance(v, DependsFactory)
+            }
+            runtime_kwargs = {
+                k: v for k, v in session_kwargs.items() if isinstance(v, DependsFactory)
+            }
+            # These args/kwargs will be generated by Depends
+            if runtime_args or runtime_kwargs:
+                if not await cls._do_runtime_resolve(
+                    runtime_args,
+                    runtime_kwargs,
+                    session_args,
+                    session_kwargs,
+                    session_args,
+                    session_kwargs,
+                    exception_ignored,
+                ):
+                    raise RuntimeError("Runtime arguments cannot be resolved")
 
-            # Use the new resolve_dependencies helper function
-            success, new_args, f_kwargs = MatcherFactory._resolve_dependencies(
+            success, new_args, f_kwargs, d_kw = MatcherFactory._resolve_dependencies(
                 signature, session_args, session_kwargs
             )
-
             if not success:
                 failed_args = list(
                     {
@@ -243,6 +399,17 @@ class MatcherFactory:
                         f"Matcher {func.function.__name__} (File: {file_name}: Line {frame.f_lineno!s}) has untyped parameters!"
                         + f"(Args:{''.join(i + ',' for i in failed_args)}).Skipping......"
                     )
+                continue
+            # Do kwargs dependency injection
+            if d_kw and not await cls._do_runtime_resolve(
+                {},
+                d_kw,
+                [],
+                f_kwargs,
+                session_args,
+                session_kwargs,
+                exception_ignored,
+            ):
                 continue
 
             # Call the handler
