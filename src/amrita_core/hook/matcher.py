@@ -486,4 +486,4 @@ class MatcherFactory:
             )
 
 
-MatcherManger = MatcherFactory
+MatcherManager = MatcherFactory
