@@ -307,6 +307,8 @@ async def postprocess_response(event: CompletionEvent):
 AmritaCore provides several predefined types for consistency:
 
 - [BaseModel](classes/BaseModel.md): Base class for all data models
+- [Depends](classes/Depends.md): Dependency injection decorator for declaring event handler dependencies
+- [DependsFactory](classes/DependsFactory.md): Dependency factory class for wrapping and resolving dependency functions
 - [Function](classes/Function.md): Represents a callable function in the tool system
 - [FunctionDefinitionSchema](classes/FunctionDefinitionSchema.md): Schema for function parameters
 - [MemoryModel](classes/MemoryModel.md): Stores conversation history
