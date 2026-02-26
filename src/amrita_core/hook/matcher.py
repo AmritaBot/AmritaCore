@@ -13,6 +13,7 @@ from typing import (
     Generic,
     TypeAlias,
     TypeVar,
+    overload,
 )
 
 from deprecated.sphinx import deprecated
@@ -240,35 +241,50 @@ class MatcherFactory:
             return False, (), {}, {}
 
         new_args = []
-        used_indices = set()
-        for param_type in filtered_args_types.values():
+        used_indices: set[int] = set()
+        param_names_resolved: set[str] = set()
+        required_params: dict[str, inspect.Parameter] = {
+            name: param
+            for name, param in signature.parameters.items()
+            if param.default == inspect.Parameter.empty
+        }
+        for name, param in required_params.items():
+            param_type: type[Any] = param.annotation
             found = False
-            for i, arg in enumerate(session_args):
-                if i in used_indices:
-                    continue
-                if isinstance(arg, param_type):
-                    new_args.append(arg)
-                    used_indices.add(i)
-                    found = True
-                    break
+            if name in session_kwargs:
+                param_names_resolved.add(name)
+                found = True
+            else:
+                # Look for positional argument match
+                for i, arg in enumerate(session_args):
+                    if i in used_indices:
+                        continue
+                    if isinstance(arg, param_type):
+                        new_args.append(arg)
+                        used_indices.add(i)
+                        param_names_resolved.add(name)
+                        found = True
+                        break
             if not found:
                 return False, (), {}, {}
 
-        # Get keyword argument type annotations
+        # Get keyword arguments from session_kwargs that match function signature
         kwparams: MappingProxyType[str, inspect.Parameter] = signature.parameters
         f_kwargs: dict[str, Any] = {
-            param_name: session_kwargs[param.annotation]
-            for param_name, param in kwparams.items()
-            if param.annotation in session_kwargs
+            param_name: session_kwargs[param_name]
+            for param_name in kwparams.keys()
+            if param_name in session_kwargs
         }
+
+        # Get default dependencies from function signature
         d_kwargs: dict[str, DependsFactory] = {
             k: v.default
             for k, v in kwparams.items()
             if isinstance(v.default, DependsFactory)
         }
 
-        # Verify all required positional arguments are resolved
-        if len(new_args) != len(list(filtered_args_types)):
+        # Verify all required parameters are resolved
+        if len(param_names_resolved) != len(required_params):
             return False, (), {}, {}
 
         return True, tuple(new_args), f_kwargs, d_kwargs
@@ -315,8 +331,10 @@ class MatcherFactory:
             *[task for _, _, task in resolve_tasks], return_exceptions=True
         )
         excs = []
+        args_tmp: dict[int, Any] = {}
+        kwargs_tmp: dict[str, Any] = {}
         for (idx, key, _), result in zip(resolve_tasks, resolved_results):
-            if isinstance(result, Exception):
+            if isinstance(result, BaseException):
                 if isinstance(result, exception_ignored):
                     raise result
                 excs.append(result)
@@ -324,11 +342,16 @@ class MatcherFactory:
                 return False
             else:
                 if idx is not None:
-                    args2update[idx] = result
+                    args_tmp[idx] = result
                 elif key is not None:
-                    kwargs2update[key] = result
+                    kwargs_tmp[key] = result
         if excs:
-            ExceptionGroup("Some exceptions had occurred.", excs)
+            raise ExceptionGroup("Some exceptions had occurred.", excs)
+        del resolved_results
+        for k, v in args_tmp.items():
+            args2update[k] = v
+        del args_tmp
+        kwargs2update.update(kwargs_tmp)
         return True
 
     @classmethod
@@ -422,10 +445,11 @@ class MatcherFactory:
                     f"Matcher '{handler.__name__}'(~{file_name}:{line_number}) was skipped"
                 )
                 continue
-            except CancelException | BlockException:
-                logger.info("Cancelled Matcher processing")
-                return False
+
             except Exception as e:
+                if isinstance(e, CancelException | BlockException):
+                    logger.info("Cancelled Matcher processing")
+                    return False
                 if exception_ignored and isinstance(e, exception_ignored):
                     raise
                 logger.opt(exception=e, colors=True).error(
@@ -438,23 +462,81 @@ class MatcherFactory:
                     return False
         return True
 
+    @overload
     @classmethod
     async def trigger_event(
         cls,
-        event: BaseEvent | None = None,
-        config: AmritaConfig | None = None,
-        *args,
+        event: BaseEvent,
+        config: AmritaConfig,
+        /,
+        exception_ignored: tuple[type[Exception], ...] = (),
+    ) -> None: ...
+
+    @overload
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        config: AmritaConfig,
+        **kwargs: Any,
+    ) -> None: ...
+
+    @overload
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        config: AmritaConfig,
+        *args: Any,
+    ) -> None: ...
+    @overload
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        config: AmritaConfig,
+        *args: Any,
+        exception_ignored: tuple[type[Exception], ...] = (),
+    ) -> None: ...
+    @overload
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        config: AmritaConfig,
+        *args: Any,
+        exception_ignored: tuple[type[Exception], ...] = (),
+        **kwargs: Any,
+    ) -> None: ...
+    @overload
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        config: AmritaConfig,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None: ...
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        config: AmritaConfig,
+        *args: Any,
+        exception_ignored: tuple[type[Exception], ...] = (),
         **kwargs,
     ) -> None:
-        """
-        Trigger a specific type of event and call all registered event handlers for that type.
+        """Trigger a specific type of event and call all registered event handlers for that type.
 
-        Parameters:
-        - event: Event object containing event-related data.
-        - config: Configuration object.
-        - exception_ignored: Tuple of exceptions to ignore (they won't be catching when occurs).
-        - *args: Variable arguments passed to the dependency injection system.
-        - **kwargs: Keyword arguments passed to the dependency injection system.
+        Args:
+            event (BaseEvent): Event which will be used for DI system
+            config (AmritaConfig): Configh which will be used for DI
+            *args (Any): Positional arguments for DI
+            exception_ignored (tuple[type[Exception], ...], optional): Exceptions that will be raised again if occurred. Defaults to tuple().
+            **kwargs (Any): Keyword arguments for DI
+
+        Raises:
+            RuntimeError: If event or config is None, it will raise RuntimeError.
         """
         for i in args:
             if isinstance(i, BaseEvent):
@@ -465,9 +547,8 @@ class MatcherFactory:
             raise RuntimeError("No event found in args")
         elif not config:
             raise RuntimeError("No config found in args")
-        exception_ignored: tuple[type[BaseException], ...] = kwargs.pop(
-            "exception_ignored", ()
-        )
+
+        session_kwargs = kwargs
         event_type: EventTypeEnum | str = event.get_event_type()  # Get event type
         handlers = EventRegistry().get_handlers(event_type)
         priorities: list[int] = sorted(handlers.keys(), reverse=False)
@@ -477,7 +558,12 @@ class MatcherFactory:
             for priority in priorities:
                 logger.info(f"Running matchers for priority {priority}......")
                 if not await cls._simple_run(
-                    handlers[priority], event, config, exception_ignored, args, kwargs
+                    handlers[priority],
+                    event,
+                    config,
+                    exception_ignored,
+                    args,
+                    session_kwargs,
                 ):
                     break
         else:
