@@ -49,10 +49,10 @@ class BaseEvent(ABC):
 @dataclass
 class FallbackContext(BaseEvent):
     preset: ModelPreset
-    exc_info: BaseEvent
+    exc_info: BaseException
     config: "AmritaConfig"
     context: SendMessageWrap
-    round: int
+    term: int
 
     def __post_init__(self):
         self._event_type = EventTypeEnum.PRESET_FALLBACK
@@ -65,6 +65,7 @@ class FallbackContext(BaseEvent):
         return self._event_type
 
     def fail(self, reason: Any | None = None) -> Never:
+        """Mark the event as failed"""
         raise FallbackFailed(reason)
 
 

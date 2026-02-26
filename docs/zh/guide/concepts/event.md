@@ -16,6 +16,8 @@ from amrita_core.hook.on import on_precompletion
 async def handle_pre_completion(event: PreCompletionEvent):
     # 在发送到 LLM 之前修改消息
     event.messages.append(Message(role="system", content="始终乐于助人"))
+    # 动态修改预设
+    event.chat_object.preset = get_new_preset()
 
 ```
 
@@ -34,9 +36,45 @@ async def handle_completion(event: CompletionEvent):
 
 ```
 
-## 3.3.4 MatcherManager 事件匹配器
+## 3.3.4 FallbackContext 预设回退事件
 
-[MatcherManager](../api-reference/classes/MatcherManager.md) 处理将事件匹配到适当的处理器：
+[FallbackContext](../api-reference/classes/FallbackContext.md) 在 LLM 请求失败且需要回退机制时触发。此事件允许您通过切换到替代模型预设或实现自定义重试逻辑来优雅地处理失败。
+
+```python
+from amrita_core.hook.event import FallbackContext
+from amrita_core.hook.on import on_preset_fallback
+
+@on_preset_fallback()
+async def handle_fallback(event: FallbackContext):
+    # 处理 LLM 请求失败
+    print(f"LLM 请求失败，错误信息: {event.exc_info}")
+    print(f"当前预设: {event.preset.name}")
+
+    # 切换到不同的预设进行重试
+    # 系统将自动使用 event.preset 进行下一次尝试
+    if event.term == 1:  # 第一次重试
+        event.preset = get_alternative_preset()  # 您的自定义函数获取替代预设
+    elif event.term == 2:  # 第二次重试
+        event.preset = get_safe_preset()  # 您的自定义函数获取安全/更便宜的预设
+    else:
+        # 如果没有更多回退选项，标记为失败
+        event.fail("没有更多可用的回退预设")
+
+```
+
+`FallbackContext` 提供以下属性：
+
+- `preset`: 当前使用的 [ModelPreset](../api-reference/classes/ModelPreset.md)
+- `exc_info`: 导致失败的异常信息
+- `config`: 当前的 [AmritaConfig](../api-reference/classes/AmritaConfig.md)
+- `context`: 包含消息上下文的 [SendMessageWrap](../api-reference/classes/SendMessageWrap.md)
+- `term`: 当前重试尝试次数（从 1 开始）
+
+您可以修改 `event.preset` 来切换到不同的模型预设进行下一次重试尝试。如果没有合适的回退选项，调用 `event.fail(reason)` 来终止重试过程。
+
+## 3.3.5 MatcherManager 事件匹配器
+
+[MatcherManager](../api-reference/classes/MatcherManager.md) 负责将事件匹配到相应的处理器：
 
 ```python
 from amrita_core.hook.matcher import MatcherManager
@@ -45,9 +83,9 @@ from amrita_core.hook.matcher import MatcherManager
 matcher = MatcherManager()
 ```
 
-## 3.3.5 事件注册和触发
+## 3.3.6 事件注册与触发
 
-事件使用装饰器注册，并在处理流水线期间自动触发：
+事件使用装饰器注册，并在处理流水线中自动触发：
 
 ```python
 from amrita_core.hook.on import on_event
@@ -58,16 +96,16 @@ def my_custom_handler(event):
     pass
 ```
 
-## 3.3.6 事件钩子（Event Hooks）
+## 3.3.7 事件钩子（Event Hooks）
 
 有多种类型的事件钩子可用：
 
 - `@on_precompletion`: 在发送请求到 LLM 之前
 - `@on_completion`: 在从 LLM 接收响应之后
+- `@on_preset_fallback`: 在 LLM 尝试失败时的预设回退处理
 - `@on_event`: 用于自定义事件
-- `@on_tools`: 用于工具相关事件
 
-## 3.3.7 自定义参数注入
+## 3.3.8 自定义参数注入
 
 `ChatObject` 类支持通过构造函数参数注入自定义参数，这些参数会在事件触发时传递给事件处理器：
 
@@ -110,7 +148,7 @@ chat_obj = ChatObject(
 
 这些参数使得事件处理器能够访问额外的上下文信息，增强了事件系统的灵活性和可扩展性。
 
-## 3.3.8 依赖注入系统 (Depends)
+## 3.3.9 依赖注入系统 (Depends)
 
 AmritaCore 提供了强大的依赖注入系统，允许事件处理器声明它们所需的依赖项，系统会自动解析并注入这些依赖。
 

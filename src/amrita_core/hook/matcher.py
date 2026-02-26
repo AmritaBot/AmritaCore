@@ -445,12 +445,13 @@ class MatcherFactory:
                     f"Matcher '{handler.__name__}'(~{file_name}:{line_number}) was skipped"
                 )
                 continue
-
             except Exception as e:
                 if isinstance(e, CancelException | BlockException):
                     logger.info("Cancelled Matcher processing")
                     return False
-                if exception_ignored and isinstance(e, exception_ignored):
+                elif isinstance(e, ChatException):
+                    raise
+                elif exception_ignored and isinstance(e, exception_ignored):
                     raise
                 logger.opt(exception=e, colors=True).error(
                     f"An error occurred while running '{handler.__name__}'({file_name}:{line_number}) "
@@ -469,7 +470,7 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         /,
-        exception_ignored: tuple[type[BaseException], ...] = (),
+        exception_ignored: tuple[type[Exception], ...] = (),
     ) -> None: ...
 
     @overload
@@ -496,7 +497,7 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         *args: Any,
-        exception_ignored: tuple[type[BaseException], ...] = (),
+        exception_ignored: tuple[type[Exception], ...] = (),
     ) -> None: ...
     @overload
     @classmethod
@@ -505,7 +506,16 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         *args: Any,
-        exception_ignored: tuple[type[BaseException], ...] = (),
+        exception_ignored: tuple[type[Exception], ...] = (),
+        **kwargs: Any,
+    ) -> None: ...
+    @overload
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        config: AmritaConfig,
+        *args: Any,
         **kwargs: Any,
     ) -> None: ...
     @classmethod
@@ -514,7 +524,7 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         *args: Any,
-        exception_ignored: tuple[type[BaseException], ...] = (),
+        exception_ignored: tuple[type[Exception], ...] = (),
         **kwargs,
     ) -> None:
         """Trigger a specific type of event and call all registered event handlers for that type.

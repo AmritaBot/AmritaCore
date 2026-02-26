@@ -132,6 +132,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/FunctionDefinitionSchema",
               },
               {
+                text: "FallbackContext",
+                link: "/guide/api-reference/classes/FallbackContext",
+              },
+              {
                 text: "MemoryModel",
                 link: "/guide/api-reference/classes/MemoryModel",
               },
@@ -320,6 +324,10 @@ export default withMermaid({
               {
                 text: "FunctionDefinitionSchema",
                 link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
+              },
+              {
+                text: "FallbackContext",
+                link: "/zh/guide/api-reference/classes/FallbackContext",
               },
               {
                 text: "MemoryModel",

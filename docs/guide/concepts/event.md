@@ -16,6 +16,8 @@ from amrita_core.hook.on import on_precompletion
 async def handle_pre_completion(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
     event.messages.append(Message(role="system", content="Always be helpful"))
+    # Change preset
+    event.chat_object.preset = get_preset()
 
 ```
 
@@ -34,7 +36,43 @@ async def handle_completion(event: CompletionEvent):
 
 ```
 
-## 3.3.4 MatcherManager Event Matcher
+## 3.3.4 FallbackContext Preset Fallback Event
+
+The [FallbackContext](../api-reference/classes/FallbackContext.md) is triggered when an LLM request fails and a fallback mechanism is needed. This event allows you to handle failures gracefully by switching to alternative model presets or implementing custom retry logic.
+
+```python
+from amrita_core.hook.event import FallbackContext
+from amrita_core.hook.on import on_preset_fallback
+
+@on_preset_fallback()
+async def handle_fallback(event: FallbackContext):
+    # Handle LLM request failure
+    print(f"LLM request failed with error: {event.exc_info}")
+    print(f"Current preset: {event.preset.name}")
+
+    # Switch to a different preset for retry
+    # The system will automatically use event.preset for the next attempt
+    if event.term == 1:  # First retry
+        event.preset = get_alternative_preset()  # Your custom function to get alternative preset
+    elif event.term == 2:  # Second retry
+        event.preset = get_safe_preset()  # Your custom function to get a safe/cheaper preset
+    else:
+        # Mark as failed if no more fallbacks available
+        event.fail("No more fallback presets available")
+
+```
+
+The `FallbackContext` provides the following properties:
+
+- `preset`: The current [ModelPreset](../api-reference/classes/ModelPreset.md) being used
+- `exc_info`: The exception that caused the failure
+- `config`: The current [AmritaConfig](../api-reference/classes/AmritaConfig.md)
+- `context`: The [SendMessageWrap](../api-reference/classes/SendMessageWrap.md) containing the message context
+- `term`: The current retry attempt number (starting from 1)
+
+You can modify the `event.preset` to switch to a different model preset for the next retry attempt. If no suitable fallback is available, call `event.fail(reason)` to terminate the retry process.
+
+## 3.3.5 MatcherManager Event Matcher
 
 The [MatcherManager](../api-reference/classes/MatcherManager.md) handles matching events to appropriate handlers:
 
@@ -45,7 +83,7 @@ from amrita_core.hook.matcher import MatcherManager
 matcher = MatcherManager()
 ```
 
-## 3.3.5 Event Registration and Triggering
+## 3.3.6 Event Registration and Triggering
 
 Events are registered using decorators and automatically triggered during the processing pipeline:
 
@@ -58,16 +96,16 @@ def my_custom_handler(event):
     pass
 ```
 
-## 3.3.6 Event Hooks (Event Hooks)
+## 3.3.7 Event Hooks (Event Hooks)
 
 Multiple types of event hooks are available:
 
 - `@on_precompletion`: Before sending request to LLM
 - `@on_completion`: After receiving response from LLM
+- `@on_preset_fallback`: When an LLM request fails
 - `@on_event`: For custom events
-- `@on_tools`: For tool-related events
 
-## 3.3.7 Custom Parameter Injection
+## 3.3.8 Custom Parameter Injection
 
 The `ChatObject` class supports injecting custom parameters through constructor arguments, which are passed to event handlers when events are triggered:
 
@@ -110,7 +148,7 @@ chat_obj = ChatObject(
 
 These parameters enable event handlers to access additional context information, enhancing the flexibility and extensibility of the event system.
 
-## 3.3.8 Dependency Injection System (Depends)
+## 3.3.9 Dependency Injection System (Depends)
 
 AmritaCore provides a powerful dependency injection system that allows event handlers to declare their required dependencies, and the system automatically resolves and injects these dependencies.
 

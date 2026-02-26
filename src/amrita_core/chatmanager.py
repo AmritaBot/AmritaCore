@@ -16,12 +16,13 @@ from pydantic import BaseModel, Field
 from pytz import utc
 from typing_extensions import Self
 
+from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
 from amrita_core.utils import get_current_datetime_timestamp
 
 from .config import AmritaConfig, get_config
-from .hook.event import CompletionEvent, PreCompletionEvent
+from .hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
 from .logging import debug_log, logger
@@ -818,16 +819,31 @@ class ChatObject:
             exclude_system=True
         )
         send_messages = chat_event.get_context_messages().unwrap()
-
         logger.debug("Calling chat model..")
         response: UniResponse[str, None] | None = None
-        async for chunk in call_completion(
-            send_messages, config=self.config, preset=self.preset
-        ):
-            if isinstance(chunk, UniResponse):
-                response = chunk
-            elif isinstance(chunk, MessageContent | str):
-                await self.yield_response(chunk)
+        used_preset: set[str] = set()
+        for i in range(1, self.config.llm.max_fallbacks + 1):
+            try:
+                used_preset.add(self.preset.name)
+                async for chunk in call_completion(
+                    send_messages, config=self.config, preset=self.preset
+                ):
+                    if isinstance(chunk, UniResponse):
+                        response = chunk
+                    elif isinstance(chunk, MessageContent | str):
+                        await self.yield_response(chunk)
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Because of `{e!s}`, LLM request failed, retrying ({i}/{self.config.llm.max_retries})..."
+                )
+                ctx = FallbackContext(self.preset, e, self.config, self.context_wrap, i)
+                await MatcherManager.trigger_event(ctx, ctx.config, (FallbackFailed,))
+                if ctx.preset is self.preset:
+                    ctx.fail("No preset fallback available, exiting!")
+                self.preset = ctx.preset
+        else:
+            raise FallbackFailed("Max preset fallbacks retries exceeded.")
         if response is None:
             raise RuntimeError("No final response from chat adapter.")
         self.response = response
