@@ -112,25 +112,30 @@ def my_custom_handler(event):
 ```python
 from amrita_core.chatmanager import ChatObject
 
+class MyClass:
+    ...
+
+class MyObject:
+    ...
+
+
 # 创建 ChatObject 时传入自定义参数
 chat_obj = ChatObject(
     train={"system": "你是一个有用的助手"},
     user_input="你好",
     context=None,
     session_id="session_123",
-    hook_args=("custom_arg1", "custom_arg2"),
+    hook_args=(MyClass(), MyObject()),
     hook_kwargs={"custom_key": "custom_value"}
 )
 
 # 在事件处理器中接收这些参数
 @on_precompletion()
-async def handle_pre_completion(event: PreCompletionEvent, *args, **kwargs):
-    # args 将包含 ("custom_arg1", "custom_arg2")
-    # kwargs 将包含 {"custom_key": "custom_value"}
-    print(f"Custom args: {args}")
-    print(f"Custom kwargs: {kwargs}")
+async def handle_pre_completion(event: PreCompletionEvent, arg1: MyClass, arg2: MyObject, custom_key: str):
+    ...
 
-# 也可以指定异常忽略列表
+
+# 也可以指定异常忽略列表(忽略的异常触发时，会被重新抛出)
 chat_obj = ChatObject(
     train={"system": "你是一个有用的助手"},
     user_input="你好",
@@ -147,6 +152,10 @@ chat_obj = ChatObject(
 - `exception_ignored`: 指定在事件处理器中应该被忽略并重新抛出的异常类型
 
 这些参数使得事件处理器能够访问额外的上下文信息，增强了事件系统的灵活性和可扩展性。
+
+::: warning
+函数签名内不能使用`*args`或`**kwargs`，它们可能会使得AmritaCore无法正常解析函数签名，从而直接跳过此`Matcher`。
+:::
 
 ## 3.3.9 依赖注入系统 (Depends)
 
@@ -199,7 +208,7 @@ AmritaCore 的依赖注入系统支持**并发解析**多个依赖项，显著�
 from amrita_core.hook.matcher import Depends
 
 # 在运行时创建依赖
-runtime_dependency = Depends(get_current_timestamp)
+runtime_dependency = Depends(get_current_timestamp) # 我们先假定这个`get_current_timestamp`函数返回类型为`MyTimestamp`的对象
 
 chat_obj = ChatObject(
     train={"system": "你是一个有用的助手"},
@@ -211,7 +220,7 @@ chat_obj = ChatObject(
 @on_precompletion()
 async def handle_runtime_deps(
     event: PreCompletionEvent,
-    timestamp,  # 从 hook_args 注入
+    timestamp: MyTimestamp,  # 从 hook_args 注入
     logger_dep  # 从 hook_kwargs 注入
 ):
     logger_dep.info(f"处理时间: {timestamp}")
@@ -231,6 +240,26 @@ async def handle_runtime_deps(
    - 如果依赖函数在 `exception_ignored` 列表中抛出异常，会直接重新抛出
 4. **上下文隔离**: 每个依赖解析都在独立的上下文中进行，避免竞态条件
 
+:::tip
+如果存在一个参数，它只能通过位置参数传递，那么您需要确保该参数（函数签名内）拥有**类型注解**，否则此Matcher会被忽略。
+
+e.g.
+
+```python
+chatobj = ChatObject(
+    ...
+    ,hook_args=(MyObject(),)
+)
+...
+@on_precompletion()
+async def handle_with_dependencies(arg1,):... # 此handler会被忽略，因为arg1没有类型注解，并且关键词参数内也不存在此参数。
+
+@on_precompletion()
+async def handle_with_dependencies(arg1:MyObject):... # 正确，它声明了arg1的类型注解，并且的确存在一个MyObject类型的位置参数
+
+
+:::
+
 ### 最佳实践
 
 - **异步依赖**: 依赖函数可以是异步的，系统会自动 `await` 结果
@@ -239,3 +268,4 @@ async def handle_runtime_deps(
 - **错误处理**: 在依赖函数中适当处理错误，返回 `None` 表示依赖不可用
 
 这个依赖注入系统使得事件处理器可以专注于业务逻辑，而不需要关心依赖的获取和管理，同时保持高性能和类型安全。
+```

@@ -11,8 +11,11 @@ graph TB
         B[Configuration]
         C[Events System]
         D[Tools Manager]
-        E[Memory Model]
         F[Agent Core]
+    end
+
+    subgraph "Session Context"
+        E[Memory Model]
     end
 
     UserInput[User Input] --> A
@@ -28,10 +31,12 @@ graph TB
     ResponseStream --> UserOutput[User Output]
     F --> E
 
-    LLM[LLM Provider] <---> F
+    LLM[LLM Provider] <---> Adapter[Adapter Layer]
+    Adapter <---> F
 
     style AmritaCore fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
     style F fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style Session_Context fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
 ```
 
 ### Session and Global Data Container Architecture
@@ -56,6 +61,7 @@ graph TB
         Mem[Memory Model<br/>Conversation History]
         Tools[Tools Manager<br/>Current Session Tools]
         Conf[Configuration<br/>Current Session Config]
+        MCP[MCP Client<br/>Session-specific Clients]
     end
 
     G_Tools -.-> Tools
@@ -71,14 +77,16 @@ graph TB
 
 ## 2.4.2 Core Component Relationships
 
-- **ChatObject**: The main interaction point that manages a single conversation
-- **Configuration**: Controls how the core behaves (context usage, tool calling, etc.)
-- **Events System**: Allows for hooks into the processing pipeline
-- **Tools Manager**: Extends the agent's capabilities with external functions
-- **Memory Model**: Maintains conversation context and history
-- **Agent Core**: The central processing unit coordinating all components
-- **SessionsManager**: Manages multiple isolated sessions, each as an independent conversation context
-- **Session (Conversation Context)**: Stores all relevant information for a specific user or specific conversation, including memory model, tools, configurations, etc.
+- **ChatObject**: The main interaction point that manages a single conversation and serves as the Agent Core execution unit
+- **Configuration**: Controls how the core behaves (context usage, tool calling, security settings, etc.) through `AmritaConfig`
+- **Events System**: Allows for hooks into the processing pipeline using decorators like `@on_precompletion` and `@on_completion`, with runtime dependency injection support
+- **Tools Manager**: Extends the agent's capabilities with external functions through `MultiToolsManager`, supporting dynamic tool registration
+- **Memory Model**: Maintains conversation context and history, stored within each Session's `SessionData`
+- **Agent Core**: The central processing logic implemented within `ChatObject`, coordinating all components during the agent loop
+- **SessionsManager**: Manages multiple isolated sessions using singleton pattern, each session containing independent `SessionData`
+- **Session (Conversation Context)**: Stores all relevant information for a specific user or specific conversation, including memory model, tools, configurations, MCP clients, and presets
+- **Adapter Layer**: Abstracts LLM provider communication through adapter pattern, enabling vendor-independent integration
+- **MCP Client**: Provides Model Context Protocol client support for external service integration
 
 ## 2.4.3 Agent Loop and Session Isolation Mechanism
 
@@ -90,6 +98,7 @@ sequenceDiagram
     participant S1 as Session 1<br/>(Conversation Context 1)
     participant S2 as Session 2<br/>(Conversation Context 2)
     participant Agent as Agent Core
+    participant Adapter as Adapter Layer
     participant LLM as LLM Provider
 
     Note over User1,LLM: Agent Loop Begins
@@ -116,21 +125,26 @@ sequenceDiagram
         Agent->>S2: Update Session 2 Memory Model
     end
 
-    Agent->>LLM: Send request (from Session 1)
-    LLM-->>Agent: Return response
+    Agent->>Adapter: Send request (from Session 1)
+    Adapter->>LLM: Forward to LLM Provider
+    LLM-->>Adapter: Return response
+    Adapter-->>Agent: Return processed response
     Agent-->>S1: Update Session 1 State
     S1-->>User1: Stream response
 
-    Agent->>LLM: Send request (from Session 2)
-    LLM-->>Agent: Return response
+    Agent->>Adapter: Send request (from Session 2)
+    Adapter->>LLM: Forward to LLM Provider
+    LLM-->>Adapter: Return response
+    Adapter-->>Agent: Return processed response
     Agent-->>S2: Update Session 2 State
     S2-->>User2: Stream response
 
     Note over User1,LLM: Each conversation context maintains independent history and state
 ```
 
-1. **Session as Conversation Context**: Each Session represents an independent conversation context, storing all relevant information for a specific user or specific conversation
-2. **Global Data Container**: SessionsManager manages all active conversation contexts, providing global resource sharing
-3. **Agent Loop**: Inside each conversation context, the Agent Core executes the complete processing loop
-4. **Context Isolation**: Data between different conversation contexts is completely isolated, ensuring conversation histories don't mix
-5. **Global Resource Sharing**: Each conversation context can access resources from the Global container, but maintains its own independent state
+1. **Session as Conversation Context**: Each Session represents an independent conversation context, storing all relevant information for a specific user or specific conversation within its `SessionData`
+2. **Global Data Container**: SessionsManager manages all active conversation contexts, providing global resource sharing while maintaining session isolation
+3. **Agent Loop**: Inside each conversation context, the Agent Core (implemented in ChatObject) executes the complete processing loop including event handling, tool calling, and memory management
+4. **Context Isolation**: Data between different conversation contexts is completely isolated through separate `SessionData` instances, ensuring conversation histories don't mix
+5. **Global Resource Sharing**: Each conversation context can access resources from the Global container (global tools, presets, configuration), but maintains its own independent state including session-specific tools, memory, and MCP clients
+6. **Adapter Abstraction**: The Adapter Layer provides vendor-independent LLM integration, allowing the same agent logic to work with different LLM providers without code changes

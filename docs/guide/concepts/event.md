@@ -16,8 +16,8 @@ from amrita_core.hook.on import on_precompletion
 async def handle_pre_completion(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
     event.messages.append(Message(role="system", content="Always be helpful"))
-    # Change preset
-    event.chat_object.preset = get_preset()
+    # Dynamically modify preset
+    event.chat_object.preset = get_new_preset()
 
 ```
 
@@ -112,25 +112,30 @@ The `ChatObject` class supports injecting custom parameters through constructor 
 ```python
 from amrita_core.chatmanager import ChatObject
 
+class MyClass:
+    ...
+
+class MyObject:
+    ...
+
+
 # Pass custom parameters when creating ChatObject
 chat_obj = ChatObject(
     train={"system": "You are a helpful assistant"},
     user_input="Hello",
     context=None,
     session_id="session_123",
-    hook_args=("custom_arg1", "custom_arg2"),
+    hook_args=(MyClass(), MyObject()),
     hook_kwargs={"custom_key": "custom_value"}
 )
 
 # Receive these parameters in event handlers
 @on_precompletion()
-async def handle_pre_completion(event: PreCompletionEvent, *args, **kwargs):
-    # args will contain ("custom_arg1", "custom_arg2")
-    # kwargs will contain {"custom_key": "custom_value"}
-    print(f"Custom args: {args}")
-    print(f"Custom kwargs: {kwargs}")
+async def handle_pre_completion(event: PreCompletionEvent, arg1: MyClass, arg2: MyObject, custom_key: str):
+    ...
 
-# You can also specify exception types to ignore
+
+# You can also specify exception types to ignore (ignored exceptions will be re-raised)
 chat_obj = ChatObject(
     train={"system": "You are a helpful assistant"},
     user_input="Hello",
@@ -144,9 +149,13 @@ chat_obj = ChatObject(
 
 - `hook_args`: Positional arguments tuple passed to event handlers
 - `hook_kwargs`: Keyword arguments dictionary passed to event handlers
-- `exception_ignored`: Tuple of exception types that should be ignored and raised again in event handlers
+- `exception_ignored`: Tuple of exception types that should be ignored and re-raised in event handlers
 
 These parameters enable event handlers to access additional context information, enhancing the flexibility and extensibility of the event system.
+
+::: warning
+Function signatures cannot use `*args` or `**kwargs`, as they may prevent AmritaCore from properly parsing the function signature, causing the `Matcher` to be skipped.
+:::
 
 ## 3.3.9 Dependency Injection System (Depends)
 
@@ -199,7 +208,7 @@ In addition to declaring dependencies in function signatures, you can also pass 
 from amrita_core.hook.matcher import Depends
 
 # Create dependency at runtime
-runtime_dependency = Depends(get_current_timestamp)
+runtime_dependency = Depends(get_current_timestamp) # Let's assume this `get_current_timestamp` function returns an object of type `MyTimestamp`
 
 chat_obj = ChatObject(
     train={"system": "You are a helpful assistant"},
@@ -211,7 +220,7 @@ chat_obj = ChatObject(
 @on_precompletion()
 async def handle_runtime_deps(
     event: PreCompletionEvent,
-    timestamp,  # Injected from hook_args
+    timestamp: MyTimestamp,  # Injected from hook_args
     logger_dep  # Injected from hook_kwargs
 ):
     logger_dep.info(f"Processing time: {timestamp}")
@@ -230,6 +239,26 @@ async def handle_runtime_deps(
    - If a dependency function returns `None`, the entire event handler is skipped
    - If a dependency function throws an exception in the `exception_ignored` list, it's directly re-raised
 4. **Context Isolation**: Each dependency resolution occurs in an isolated context, avoiding race conditions
+
+:::tip
+If there is a parameter that can only be passed as a positional argument, you need to ensure that the parameter has **type annotations** in the function signature, otherwise this Matcher will be ignored.
+
+e.g.
+
+```python
+chatobj = ChatObject(
+    ...
+    ,hook_args=(MyObject(),)
+)
+...
+@on_precompletion()
+async def handle_with_dependencies(arg1,):... # This handler will be ignored because arg1 has no type annotation, and there is no such parameter in keyword arguments.
+
+@on_precompletion()
+async def handle_with_dependencies(arg1:MyObject):... # Correct, it declares the type annotation for arg1, and there is indeed a MyObject type positional parameter
+
+
+:::
 
 ### Best Practices
 

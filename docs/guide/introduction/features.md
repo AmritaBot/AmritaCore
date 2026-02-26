@@ -4,11 +4,11 @@
 
 1. **Stream-based Design**: All message outputs are asynchronous stream-based designs supporting real-time responses
 2. **Cookie Security Detection**: Built-in cookie security detection functionality to protect session security
-3. **Provider Independent Mechanism**: Data types and conversation management are independent of specific vendors, offering high portability
+3. **Provider Independent Mechanism**: Data types and conversation management are independent of specific vendors, abstracted as a 'model adapter' interface, offering high portability
 4. **MCP Client Support**: Extension mechanisms integrate MCP clients, enhancing system expansion capabilities
-5. **Event-Driven Architecture**: Comprehensive event system for flexible and reactive agent behavior
+5. **Event-Driven Architecture**: Comprehensive event system with runtime dependency injection mechanism for flexible and reactive agent behavior
 6. **Tool Integration Framework**: Robust system for integrating external tools and services
-7. **Advanced Memory Management**: Sophisticated context handling with automatic summarization and token optimization
+7. **Advanced Memory Management**: Sophisticated context handling with automatic context compression and token optimization
 
 ## 1.2.2 Architectural Advantages
 
