@@ -16,7 +16,7 @@ from pydantic import Field, model_validator
 
 T = typing.TypeVar("T", None, str, None | typing.Literal[""])
 StringSub_T = typing.TypeVar("StringSub_T", bound=str)
-T_INT = typing.TypeVar("T_INT", int, None)
+T_INT = typing.TypeVar("T_INT", int, None, int | None)
 ANY_T = typing.TypeVar("ANY_T", covariant=True)
 
 
@@ -119,9 +119,9 @@ T_TOOL = typing.TypeVar("T_TOOL", list[ToolCall], None, list[ToolCall] | None)
 
 
 class UniResponseUsage(BaseModel, Generic[T_INT]):
-    prompt_tokens: T_INT = None
-    completion_tokens: T_INT = None
-    total_tokens: T_INT = None
+    prompt_tokens: T_INT
+    completion_tokens: T_INT
+    total_tokens: T_INT
 
 
 class UniResponse(
