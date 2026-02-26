@@ -18,6 +18,7 @@ def test_remove_think_tag():
     text_without_tags = "Hello world"
     assert remove_think_tag(text_without_tags) == text_without_tags
 
+
 def test_split_list():
     lst = [1, 2, 3, 4, 5, 6]
     assert split_list(lst, 2) == [[1, 2], [3, 4], [5, 6]]

@@ -32,6 +32,7 @@ class EventTypeEnum(str, Enum):
     def validate(cls, name: str) -> bool:
         return name in cls.__members__
 
+
 @dataclass
 class BaseEvent(ABC):
     """All events must inherit from this class"""

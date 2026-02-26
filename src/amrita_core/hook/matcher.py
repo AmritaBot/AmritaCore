@@ -469,7 +469,7 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         /,
-        exception_ignored: tuple[type[Exception], ...] = (),
+        exception_ignored: tuple[type[BaseException], ...] = (),
     ) -> None: ...
 
     @overload
@@ -496,7 +496,7 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         *args: Any,
-        exception_ignored: tuple[type[Exception], ...] = (),
+        exception_ignored: tuple[type[BaseException], ...] = (),
     ) -> None: ...
     @overload
     @classmethod
@@ -505,7 +505,7 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         *args: Any,
-        exception_ignored: tuple[type[Exception], ...] = (),
+        exception_ignored: tuple[type[BaseException], ...] = (),
         **kwargs: Any,
     ) -> None: ...
     @classmethod
@@ -514,7 +514,7 @@ class MatcherFactory:
         event: BaseEvent,
         config: AmritaConfig,
         *args: Any,
-        exception_ignored: tuple[type[Exception], ...] = (),
+        exception_ignored: tuple[type[BaseException], ...] = (),
         **kwargs,
     ) -> None:
         """Trigger a specific type of event and call all registered event handlers for that type.
