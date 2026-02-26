@@ -116,6 +116,14 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ChatObject",
               },
               {
+                text: "Depends",
+                link: "/guide/api-reference/classes/Depends",
+              },
+              {
+                text: "DependsFactory",
+                link: "/guide/api-reference/classes/DependsFactory",
+              },
+              {
                 text: "Function",
                 link: "/guide/api-reference/classes/Function",
               },
@@ -124,10 +132,17 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/FunctionDefinitionSchema",
               },
               {
+                text: "FallbackContext",
+                link: "/guide/api-reference/classes/FallbackContext",
+              },
+              {
                 text: "MemoryModel",
                 link: "/guide/api-reference/classes/MemoryModel",
               },
-              { text: "Message", link: "/guide/api-reference/classes/Message" },
+              {
+                text: "Message",
+                link: "/guide/api-reference/classes/Message",
+              },
               {
                 text: "ModelConfig",
                 link: "/guide/api-reference/classes/ModelConfig",
@@ -295,12 +310,24 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/ChatObject",
               },
               {
+                text: "Depends",
+                link: "/zh/guide/api-reference/classes/Depends",
+              },
+              {
+                text: "DependsFactory",
+                link: "/zh/guide/api-reference/classes/DependsFactory",
+              },
+              {
                 text: "Function",
                 link: "/zh/guide/api-reference/classes/Function",
               },
               {
                 text: "FunctionDefinitionSchema",
                 link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
+              },
+              {
+                text: "FallbackContext",
+                link: "/zh/guide/api-reference/classes/FallbackContext",
               },
               {
                 text: "MemoryModel",

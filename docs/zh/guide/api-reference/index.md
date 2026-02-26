@@ -306,6 +306,8 @@ async def postprocess_response(event: CompletionEvent):
 AmritaCore 提供了几个预定义类型以确保一致性:
 
 - [BaseModel](classes/BaseModel.md): 所有数据模型的基类
+- [Depends](classes/Depends.md): 依赖注入装饰器，用于声明事件处理器依赖
+- [DependsFactory](classes/DependsFactory.md): 依赖工厂类，用于包装和解析依赖函数
 - [Function](classes/Function.md): 在工具系统中表示一个可调用函数
 - [FunctionDefinitionSchema](classes/FunctionDefinitionSchema.md): 函数参数的模式
 - [MemoryModel](classes/MemoryModel.md): 存储对话历史

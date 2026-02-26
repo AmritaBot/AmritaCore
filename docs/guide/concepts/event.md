@@ -16,7 +16,9 @@ from amrita_core.hook.on import on_precompletion
 async def handle_pre_completion(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
     event.messages.append(Message(role="system", content="Always be helpful"))
-    
+    # Change preset
+    event.chat_object.preset = get_preset()
+
 ```
 
 ## 3.3.3 CompletionEvent Completion Event
@@ -31,10 +33,46 @@ from amrita_core.hook.on import on_completion
 async def handle_completion(event: CompletionEvent):
     # Process the response before returning to user
     print(f"Received response: {event.response}")
-    
+
 ```
 
-## 3.3.4 MatcherManager Event Matcher
+## 3.3.4 FallbackContext Preset Fallback Event
+
+The [FallbackContext](../api-reference/classes/FallbackContext.md) is triggered when an LLM request fails and a fallback mechanism is needed. This event allows you to handle failures gracefully by switching to alternative model presets or implementing custom retry logic.
+
+```python
+from amrita_core.hook.event import FallbackContext
+from amrita_core.hook.on import on_preset_fallback
+
+@on_preset_fallback()
+async def handle_fallback(event: FallbackContext):
+    # Handle LLM request failure
+    print(f"LLM request failed with error: {event.exc_info}")
+    print(f"Current preset: {event.preset.name}")
+
+    # Switch to a different preset for retry
+    # The system will automatically use event.preset for the next attempt
+    if event.term == 1:  # First retry
+        event.preset = get_alternative_preset()  # Your custom function to get alternative preset
+    elif event.term == 2:  # Second retry
+        event.preset = get_safe_preset()  # Your custom function to get a safe/cheaper preset
+    else:
+        # Mark as failed if no more fallbacks available
+        event.fail("No more fallback presets available")
+
+```
+
+The `FallbackContext` provides the following properties:
+
+- `preset`: The current [ModelPreset](../api-reference/classes/ModelPreset.md) being used
+- `exc_info`: The exception that caused the failure
+- `config`: The current [AmritaConfig](../api-reference/classes/AmritaConfig.md)
+- `context`: The [SendMessageWrap](../api-reference/classes/SendMessageWrap.md) containing the message context
+- `term`: The current retry attempt number (starting from 1)
+
+You can modify the `event.preset` to switch to a different model preset for the next retry attempt. If no suitable fallback is available, call `event.fail(reason)` to terminate the retry process.
+
+## 3.3.5 MatcherManager Event Matcher
 
 The [MatcherManager](../api-reference/classes/MatcherManager.md) handles matching events to appropriate handlers:
 
@@ -45,7 +83,7 @@ from amrita_core.hook.matcher import MatcherManager
 matcher = MatcherManager()
 ```
 
-## 3.3.5 Event Registration and Triggering
+## 3.3.6 Event Registration and Triggering
 
 Events are registered using decorators and automatically triggered during the processing pipeline:
 
@@ -58,16 +96,16 @@ def my_custom_handler(event):
     pass
 ```
 
-## 3.3.6 Event Hooks (Event Hooks)
+## 3.3.7 Event Hooks (Event Hooks)
 
 Multiple types of event hooks are available:
 
 - `@on_precompletion`: Before sending request to LLM
 - `@on_completion`: After receiving response from LLM
+- `@on_preset_fallback`: When an LLM request fails
 - `@on_event`: For custom events
-- `@on_tools`: For tool-related events
 
-## 3.3.7 Custom Parameter Injection
+## 3.3.8 Custom Parameter Injection
 
 The `ChatObject` class supports injecting custom parameters through constructor arguments, which are passed to event handlers when events are triggered:
 
@@ -91,7 +129,7 @@ async def handle_pre_completion(event: PreCompletionEvent, *args, **kwargs):
     # kwargs will contain {"custom_key": "custom_value"}
     print(f"Custom args: {args}")
     print(f"Custom kwargs: {kwargs}")
-    
+
 # You can also specify exception types to ignore
 chat_obj = ChatObject(
     train={"system": "You are a helpful assistant"},
@@ -102,10 +140,102 @@ chat_obj = ChatObject(
 )
 ```
 
-### Parameter Description:
+### Parameter Description
 
 - `hook_args`: Positional arguments tuple passed to event handlers
-- `hook_kwargs`: Keyword arguments dictionary passed to event handlers  
+- `hook_kwargs`: Keyword arguments dictionary passed to event handlers
 - `exception_ignored`: Tuple of exception types that should be ignored and raised again in event handlers
 
 These parameters enable event handlers to access additional context information, enhancing the flexibility and extensibility of the event system.
+
+## 3.3.9 Dependency Injection System (Depends)
+
+AmritaCore provides a powerful dependency injection system that allows event handlers to declare their required dependencies, and the system automatically resolves and injects these dependencies.
+
+### Depends Decorator
+
+Use the `Depends` decorator to declare dependencies:
+
+```python
+from amrita_core.hook.matcher import Depends
+
+async def get_database_connection():
+    # Return database connection
+    return database_connection
+
+async def get_user_session(session_id: str):
+    # Get user session based on session_id
+    return user_session
+
+@on_precompletion()
+async def handle_with_dependencies(
+    event: PreCompletionEvent,
+    db_conn = Depends(get_database_connection),
+    user_session = Depends(get_user_session)
+):
+    # The system will automatically call get_database_connection() and get_user_session()
+    # and inject the results into the handler parameters
+    user_data = await db_conn.get_user(user_session.user_id)
+    event.messages.append(Message(
+        role="system",
+        content=f"User info: {user_data.name}"
+    ))
+```
+
+### Concurrent Dependency Resolution
+
+AmritaCore's dependency injection system supports **concurrent resolution** of multiple dependencies, significantly improving performance:
+
+- All `Depends` declared dependencies are **executed concurrently**
+- `DependsFactory` instances in positional arguments are resolved concurrently and updated at corresponding index positions
+- `DependsFactory` instances in keyword arguments are resolved concurrently and updated at corresponding key positions
+- If any dependency resolution fails (returns `None`), the entire event handler will be skipped
+
+### Runtime Dependency Injection
+
+In addition to declaring dependencies in function signatures, you can also pass `DependsFactory` instances at runtime through `hook_args` and `hook_kwargs`:
+
+```python
+from amrita_core.hook.matcher import Depends
+
+# Create dependency at runtime
+runtime_dependency = Depends(get_current_timestamp)
+
+chat_obj = ChatObject(
+    train={"system": "You are a helpful assistant"},
+    user_input="What time is it now?",
+    hook_args=(runtime_dependency,),
+    hook_kwargs={"logger_dep": Depends(get_logger)}
+)
+
+@on_precompletion()
+async def handle_runtime_deps(
+    event: PreCompletionEvent,
+    timestamp,  # Injected from hook_args
+    logger_dep  # Injected from hook_kwargs
+):
+    logger_dep.info(f"Processing time: {timestamp}")
+    event.messages.append(Message(
+        role="system",
+        content=f"Current time: {timestamp}"
+    ))
+```
+
+### Dependency Resolution Rules
+
+1. **Type Matching**: The dependency resolver automatically matches available dependencies based on parameter types
+2. **Concurrent Execution**: All dependency resolution tasks are executed concurrently, avoiding serial bottlenecks
+3. **Error Handling**:
+   - If a dependency function throws an exception not in the `exception_ignored` list, it's collected into an `ExceptionGroup`
+   - If a dependency function returns `None`, the entire event handler is skipped
+   - If a dependency function throws an exception in the `exception_ignored` list, it's directly re-raised
+4. **Context Isolation**: Each dependency resolution occurs in an isolated context, avoiding race conditions
+
+### Best Practices
+
+- **Async Dependencies**: Dependency functions can be async, and the system will automatically `await` the results
+- **Cached Dependencies**: For expensive dependency computations, consider implementing caching within the dependency function
+- **Type Annotations**: Add complete type annotations to dependency functions to ensure type safety
+- **Error Handling**: Appropriately handle errors in dependency functions, returning `None` to indicate dependency unavailability
+
+This dependency injection system allows event handlers to focus on business logic without worrying about dependency acquisition and management, while maintaining high performance and type safety.

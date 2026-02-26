@@ -84,7 +84,7 @@ class MessageWithMetadata(MessageContent):
         self.content = content
         self.metadata = metadata
 
-    def get_content(self) -> Any:
+    def get_content(self) -> str:
         return self.content
 
     def get_metadata(self) -> dict:
@@ -164,7 +164,7 @@ class ModelAdapter:
 
     @abstractmethod
     async def call_api(
-        self, messages: Iterable
+        self, messages: Iterable, **kwargs
     ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
         yield ""
 

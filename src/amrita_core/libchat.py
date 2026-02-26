@@ -236,9 +236,18 @@ async def call_completion(
 
     # Call adapter to get chat response
     response = await _call_with_reflection(preset, _call_api, config, messages)
-
-    async for i in response():
-        yield i
+    is_thinking = False
+    async for resp in response():
+        if preset.config.cot_model:
+            if isinstance(resp, str):
+                if "<think>" in resp:
+                    is_thinking = True
+                    continue
+                elif "</think>" in resp:
+                    is_thinking = False
+                    continue
+        if not is_thinking:
+            yield resp
 
 
 async def get_last_response(

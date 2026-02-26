@@ -12,16 +12,17 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, TypeAlias
 from uuid import uuid4
 
-import pytz
 from pydantic import BaseModel, Field
 from pytz import utc
 from typing_extensions import Self
 
+from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
+from amrita_core.utils import get_current_datetime_timestamp
 
 from .config import AmritaConfig, get_config
-from .hook.event import CompletionEvent, PreCompletionEvent
+from .hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
 from .logging import debug_log, logger
@@ -51,25 +52,6 @@ if TYPE_CHECKING:
 
 # Global lock for thread-safe operations in the chat manager
 LOCK = Lock()
-
-
-def get_current_datetime_timestamp(utc_time: None | datetime = None):
-    """Get current time and format as date, weekday and time string in Asia/Shanghai timezone
-
-    Args:
-        utc_time: Optional datetime object in UTC. If None, current time will be used
-
-    Returns:
-        Formatted timestamp string in the format "[YYYY-MM-DD Weekday HH:MM:SS]"
-    """
-    utc_time = utc_time or datetime.now(pytz.utc)
-    asia_shanghai = pytz.timezone("Asia/Shanghai")
-    now = utc_time.astimezone(asia_shanghai)
-    formatted_date = now.strftime("%Y-%m-%d")
-    formatted_weekday = now.strftime("%A")
-    formatted_time = now.strftime("%H:%M:%S")
-    return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
-
 
 RESPONSE_TYPE: TypeAlias = str | MessageContent
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
@@ -417,8 +399,8 @@ class ChatObject:
     preset: ModelPreset  # preset used in this call
     config: AmritaConfig  # config used in this call
     session: SessionData | None  # (lateinit) Session data
-    _response_queue: asyncio.Queue[Any]
-    _overflow_queue: asyncio.Queue[Any]
+    _response_queue: asyncio.Queue[RESPONSE_TYPE]
+    _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
@@ -837,16 +819,31 @@ class ChatObject:
             exclude_system=True
         )
         send_messages = chat_event.get_context_messages().unwrap()
-
         logger.debug("Calling chat model..")
         response: UniResponse[str, None] | None = None
-        async for chunk in call_completion(
-            send_messages, config=self.config, preset=self.preset
-        ):
-            if isinstance(chunk, UniResponse):
-                response = chunk
-            elif isinstance(chunk, MessageContent | str):
-                await self.yield_response(chunk)
+        used_preset: set[str] = set()
+        for i in range(1, self.config.llm.max_fallbacks + 1):
+            try:
+                used_preset.add(self.preset.name)
+                async for chunk in call_completion(
+                    send_messages, config=self.config, preset=self.preset
+                ):
+                    if isinstance(chunk, UniResponse):
+                        response = chunk
+                    elif isinstance(chunk, MessageContent | str):
+                        await self.yield_response(chunk)
+                break
+            except Exception as e:
+                logger.warning(
+                    f"Because of `{e!s}`, LLM request failed, retrying ({i}/{self.config.llm.max_retries})..."
+                )
+                ctx = FallbackContext(self.preset, e, self.config, self.context_wrap, i)
+                await MatcherManager.trigger_event(ctx, ctx.config, (FallbackFailed,))
+                if ctx.preset is self.preset:
+                    ctx.fail("No preset fallback available, exiting!")
+                self.preset = ctx.preset
+        else:
+            raise FallbackFailed("Max preset fallbacks retries exceeded.")
         if response is None:
             raise RuntimeError("No final response from chat adapter.")
         self.response = response

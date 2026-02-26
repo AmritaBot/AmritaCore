@@ -102,6 +102,9 @@ class LLMConfig(BaseModel):
         default=True, description="Automatically retry on request failure"
     )
     max_retries: int = Field(default=3, description="Maximum number of retries")
+    max_fallbacks: int = Field(
+        default=5, description="Maximum number of preset fallbacks"
+    )
     enable_memory_abstract: bool = Field(
         default=True,
         description="Whether to enable context memory summarization (will delete context and insert a summary into system instruction)",

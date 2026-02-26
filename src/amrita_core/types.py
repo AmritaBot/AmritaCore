@@ -16,7 +16,7 @@ from pydantic import Field, model_validator
 
 T = typing.TypeVar("T", None, str, None | typing.Literal[""])
 StringSub_T = typing.TypeVar("StringSub_T", bound=str)
-T_INT = typing.TypeVar("T_INT", int, None)
+T_INT = typing.TypeVar("T_INT", int, None, int | None)
 ANY_T = typing.TypeVar("ANY_T", covariant=True)
 
 
@@ -52,6 +52,10 @@ class ModelConfig(BaseModel):
     multimodal: bool = Field(
         default=False,
         description="Whether to support multimodal input (e.g. image recognition)",
+    )
+    cot_model: bool = Field(
+        default=False,
+        description="Whether to remove the `<think>` tag in the response",
     )
 
 

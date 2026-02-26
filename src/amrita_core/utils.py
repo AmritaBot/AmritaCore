@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import TypeVar
 
 import pytz
+
+T = TypeVar("T")
 
 
 def remove_think_tag(text: str) -> str:
@@ -33,16 +35,7 @@ def remove_think_tag(text: str) -> str:
     return text_new
 
 
-def format_datetime_timestamp(time: float) -> str:
-    """Format timestamp to date, weekday and time string"""
-    now = datetime.fromtimestamp(time)
-    formatted_date = now.strftime("%Y-%m-%d")
-    formatted_weekday = now.strftime("%A")
-    formatted_time = now.strftime("%I:%M:%S %p")
-    return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
-
-
-def split_list(lst: list, threshold: int) -> list[Any]:
+def split_list(lst: list[T], threshold: int) -> list[list[T]]:
     """Split list into multiple sublists, each sublist length does not exceed threshold"""
     if len(lst) <= threshold:
         return [lst]

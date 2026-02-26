@@ -3,14 +3,16 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from typing_extensions import override
+from typing_extensions import Never, override
 
-from amrita_core.types import USER_INPUT, SendMessageWrap
+from amrita_core.hook.exception import FallbackFailed
+from amrita_core.types import USER_INPUT, ModelPreset, SendMessageWrap
 
 if TYPE_CHECKING:
     from amrita_core.chatmanager import ChatObject
+    from amrita_core.config import AmritaConfig
 
 
 class EventTypeEnum(str, Enum):
@@ -24,22 +26,47 @@ class EventTypeEnum(str, Enum):
     COMPLETION = "COMPLETION"
     Nil = "Nil"
     BEFORE_COMPLETION = "BEFORE_COMPLETION"
+    PRESET_FALLBACK = "PRESET_FALLBACK"
 
     @classmethod
     def validate(cls, name: str) -> bool:
         return name in cls.__members__
 
 
+@dataclass
 class BaseEvent(ABC):
     """All events must inherit from this class"""
 
     @abstractmethod
-    def get_event_type(self) -> str:
+    def get_event_type(self) -> EventTypeEnum | str:
         raise NotImplementedError
 
     @property
     @abstractmethod
     def event_type(self) -> EventTypeEnum | str: ...
+
+
+@dataclass
+class FallbackContext(BaseEvent):
+    preset: ModelPreset
+    exc_info: BaseException
+    config: "AmritaConfig"
+    context: SendMessageWrap
+    term: int
+
+    def __post_init__(self):
+        self._event_type = EventTypeEnum.PRESET_FALLBACK
+
+    @property
+    def event_type(self) -> EventTypeEnum:
+        return self._event_type
+
+    def get_event_type(self) -> EventTypeEnum:
+        return self._event_type
+
+    def fail(self, reason: Any | None = None) -> Never:
+        """Mark the event as failed"""
+        raise FallbackFailed(reason)
 
 
 @dataclass
