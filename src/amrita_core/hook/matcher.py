@@ -508,15 +508,6 @@ class MatcherFactory:
         exception_ignored: tuple[type[Exception], ...] = (),
         **kwargs: Any,
     ) -> None: ...
-    @overload
-    @classmethod
-    async def trigger_event(
-        cls,
-        event: BaseEvent,
-        config: AmritaConfig,
-        *args: Any,
-        **kwargs: Any,
-    ) -> None: ...
     @classmethod
     async def trigger_event(
         cls,
