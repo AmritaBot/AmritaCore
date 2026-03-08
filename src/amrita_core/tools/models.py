@@ -3,13 +3,14 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Generic, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
-from ..hook.event import Event
-from ..hook.matcher import Matcher
+if TYPE_CHECKING:
+    from amrita_core.agent.context import StrategyContext
+
 
 T = TypeVar("T", str, int, float, bool, list, dict)  # JSON type
 JOT_T = TypeVar(
@@ -331,8 +332,7 @@ ToolChoice = Literal["none", "auto", "required"] | ToolFunctionSchema
 @dataclass
 class ToolContext:
     data: dict[str, Any] = field()
-    event: Event = field()
-    matcher: Matcher = field()
+    ctx: "StrategyContext" = field()
 
 
 class ToolData(BaseModel):
