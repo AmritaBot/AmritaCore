@@ -16,10 +16,9 @@ from typing import (
     overload,
 )
 
-from deprecated.sphinx import deprecated
 from exceptiongroup import ExceptionGroup
 from pydantic import BaseModel, Field
-from typing_extensions import Self
+from typing_extensions import Self, deprecated
 
 from amrita_core.config import AmritaConfig
 from amrita_core.hook.event import EventTypeEnum
@@ -61,7 +60,10 @@ class EventRegistry:
     def get_handlers(self, event_type: str) -> defaultdict[int, list[FunctionData]]:
         return self._event_handlers[event_type]
 
-    @deprecated(reason="Use `get_all()` instead.", version="0.6.0")
+    @deprecated(
+        "Use `get_all()` instead. Will be removed in v0.6.0",
+        category=DeprecationWarning,
+    )
     def _all(self) -> defaultdict[str, defaultdict[int, list[FunctionData]]]:
         return self.get_all()
 
@@ -118,7 +120,10 @@ class Matcher:
         """
         raise CancelException()
 
-    @deprecated(reason="Use `stop_process()` instead.", version="0.6.0")
+    @deprecated(
+        "Use `stop_process()` instead. Will be removed at 0.6.0",
+        category=DeprecationWarning,
+    )
     def cancel_matcher(self):
         """
         Stop the matcher then cancel the matcher loop.
@@ -231,14 +236,19 @@ class MatcherFactory:
                 - dict: Resolved keyword arguments
                 - dict: kwargs should be resolved by dependency injection
         """
-        args_types = {k: v.annotation for k, v in signature.parameters.items()}
-        filtered_args_types = {
-            k: v for k, v in args_types.items() if v is not inspect._empty
-        }
-
-        # Check if all parameters are typed
-        if args_types != filtered_args_types:
-            return False, (), {}, {}
+        params: MappingProxyType[str, inspect.Parameter] = signature.parameters
+        filtered_args_types = {}
+        f_kwargs: dict[str, Any] = {}
+        d_kwargs: dict[str, DependsFactory] = {}
+        for k, v in params.items():
+            if v.annotation is not inspect._empty:
+                filtered_args_types[k] = v.annotation
+            else:
+                return False, (), {}, {}
+            if k in session_kwargs:
+                f_kwargs[k] = session_kwargs[k]
+            if isinstance(v.default, DependsFactory):
+                d_kwargs[k] = v.default
 
         new_args = []
         used_indices: set[int] = set()
@@ -267,21 +277,6 @@ class MatcherFactory:
                         break
             if not found:
                 return False, (), {}, {}
-
-        # Get keyword arguments from session_kwargs that match function signature
-        kwparams: MappingProxyType[str, inspect.Parameter] = signature.parameters
-        f_kwargs: dict[str, Any] = {
-            param_name: session_kwargs[param_name]
-            for param_name in kwparams.keys()
-            if param_name in session_kwargs
-        }
-
-        # Get default dependencies from function signature
-        d_kwargs: dict[str, DependsFactory] = {
-            k: v.default
-            for k, v in kwparams.items()
-            if isinstance(v.default, DependsFactory)
-        }
 
         # Verify all required parameters are resolved
         if len(param_names_resolved) != len(required_params):
