@@ -19,6 +19,7 @@ from typing_extensions import Self
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
 from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.consts import ABSTRACT_INSTRUCTION
 from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
@@ -58,28 +59,6 @@ LOCK = Lock()
 
 RESPONSE_TYPE: TypeAlias = str | MessageContent
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
-
-ABSTRACT_INSTRUCTION = """<SYS>
-You are a professional context summarizer, strictly following user instructions to perform summarization tasks.
-</SYS>
-
-<INSTRUCTIONS>
-1. Directly summarize the user-provided content
-2. Maintain core information and key details from the original
-3. Do not generate any additional content, explanations, or comments
-4. Summaries should be concise, accurate, complete
-</INSTRUCTIONS>
-
-<RULE>
-- Only summarize the text provided by the user
-- Do not add any explanations, comments, or supplementary information
-- Do not alter the main meaning of the original
-- Maintain an objective and neutral tone
-</RULE>
-
-<FORMATTING>
-User input → Direct summary output
-</FORMATTING>"""
 
 
 class ChatObjectMeta(BaseModel):
