@@ -5,6 +5,7 @@ from typing import Any, Literal
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
+from amrita_core.builtins.consts import BUILTIN_TOOLS_NAME
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.exception import MatcherException as ProcEXC
@@ -32,19 +33,6 @@ from .tools import (
 )
 
 posthook = on_completion(block=False, priority=10)
-
-
-BUILTIN_TOOLS_NAME = {
-    STOP_TOOL.function.name,
-    REASONING_TOOL.function.name,
-    PROCESS_MESSAGE.function.name,
-}
-
-AGENT_PROCESS_TOOLS = (
-    REASONING_TOOL,
-    STOP_TOOL,
-    PROCESS_MESSAGE,
-)
 
 
 class Continue(BaseException): ...
@@ -372,3 +360,6 @@ async def cookie(event: CompletionEvent, config: AmritaConfig):
                     )
                 )
                 await event.chat_object.set_queue_done()
+
+
+__all__ = ["PROCESS_MESSAGE"]

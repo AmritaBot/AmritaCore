@@ -144,12 +144,10 @@ class AgentStrategy(ABC):
                 + "Now please continue to completion and NOT to call ANY tools.",
             )
         )
-    async def on_exception(self,exc:BaseException) -> None:
+
+    async def on_exception(self, exc: BaseException) -> None:
         self.ctx.original_context.append(
-            Message(
-                role="user",
-                content=f"An exception occurred: {exc}"
-            )
+            Message(role="user", content=f"An exception occurred: {exc}")
         )
 
     @classmethod

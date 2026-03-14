@@ -670,4 +670,3 @@ class TestMatcherIntegration:
         # All dependencies should be resolved, but order may vary due to concurrency
         assert len(resolution_order) == 3
         assert set(resolution_order) == {"dep1", "dep2", "dep3"}
-

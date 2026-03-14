@@ -1,5 +1,5 @@
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta
-from .config import get_config, set_config
+from .config import AmritaConfig, get_config, set_config
 from .hook.event import CompletionEvent, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .hook.on import on_completion, on_event, on_precompletion
@@ -108,3 +108,9 @@ async def load_amrita():
         logger.info("Loading MCP clients......")
         clients = list(config.function_config.agent_mcp_server_scripts)
         await mcp.ClientManager().initialize_scripts_all(clients)
+
+
+async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
+    set_config(AmritaConfig())
+    init()
+    await load_amrita()

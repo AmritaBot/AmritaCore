@@ -421,7 +421,7 @@ class ChatObject:
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
         auto_create_session: bool = False,
-        /,
+        *,
         agent_strategy: type[AgentStrategy] = AmritaAgentStrategy,
         hook_args: tuple[Any, ...] = (),
         hook_kwargs: dict[str, Any] | None = None,
@@ -429,22 +429,23 @@ class ChatObject:
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
-        """Initialize chat object
+        """Initialize a chat object
 
         Args:
-            train: Training data (system prompts)
-            user_input: Input from the user
-            context: Memory context for the session
-            session_id: Unique identifier for the session
-            callback: Callback function to be called when returning response
-            config: Config used for this call
-            preset: Preset used for this call
-            auto_create_session: Whether to automatically create a session if it does not exist
-            hook_args: Arguments could be passed to the Matcher function
-            hook_kwargs: Keyword arguments could be passed to the Matcher function
-            exception_ignored: These exceptions will be raised again if they are raised in the Matcher function.
-            queue_size: Maximum number of message chunks to be stored in the queue
-            overflow_queue_size: Maximum number of message chunks to be stored in the overflow queue
+            train (dict[str, str] | Message[str]): Training data (system prompts)
+            user_input (USER_INPUT): Input from the user
+            context (Memory | None): Memory context for the session
+            session_id (str): Unique identifier for the session
+            callback (RESPONSE_CALLBACK_TYPE, optional): Callback function to be called when returning response. Defaults to None.
+            config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
+            preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
+            auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
+            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
+            hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
+            hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
+            exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
+            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.
+            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 45.
         """
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
@@ -822,9 +823,7 @@ class ChatObject:
                     break
             else:
                 await strategy.on_limited()
-            self.context_wrap.extend(
-                strategy.ctx.original_context.end_messages
-            )
+            self.context_wrap.extend(strategy.ctx.original_context.end_messages)
 
         except Exception as e:
             if isinstance(e, self._raised_exc):
