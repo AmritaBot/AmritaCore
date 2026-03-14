@@ -83,6 +83,43 @@ print(config.function_config.use_minimal_context)
 - Throws RuntimeError if AmritaCore is not initialized
 - Safe to call after initialization
 
+### 7.1.5 create_agent() - Agent Creation
+
+The `create_agent()` function creates an agent with minimal parameters by automatically creating a temporary preset.
+
+```python
+from amrita_core import create_agent
+
+# Simple usage with just url and key
+agent = create_agent("https://api.example.com", "your-api-key")
+
+# With custom model configuration
+agent = create_agent(
+    "https://api.example.com",
+    "your-api-key",
+    model_config={"model": "gpt-4", "temperature": 0.7}
+)
+```
+
+**Purpose**: Simplifies agent creation by only requiring essential parameters like URL and API key, automatically creating a temporary preset for immediate use.
+
+**Parameters**:
+
+- `url` (str): The API endpoint URL
+- `key` (str): The API key for authentication
+- `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, optional): Optional model configuration. Defaults to None.
+- `config` ([AmritaConfig](classes/AmritaConfig.md) | None, optional): Configuration for the agent. Defaults to global config.
+- `**kwargs`: Additional keyword arguments to pass to AgentRuntime
+
+**Returns**: [AgentRuntime](#agentruntime) - Configured agent runtime instance
+
+**Usage Notes**:
+
+- This is the recommended way to quickly create an agent for basic use cases
+- The function automatically handles initialization, configuration, and preset creation
+- For advanced use cases requiring fine-grained control, consider using [ChatObject](classes/ChatObject.md) directly
+- The created agent can be reused for multiple interactions using the `get_chatobject()` method
+
 ## 7.2 Classes and Interfaces Documentation
 
 ### 7.2.1 ChatObject - Conversation Object

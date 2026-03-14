@@ -60,13 +60,6 @@ class EventRegistry:
     def get_handlers(self, event_type: str) -> defaultdict[int, list[FunctionData]]:
         return self._event_handlers[event_type]
 
-    @deprecated(
-        "Use `get_all()` instead. Will be removed in v0.6.0",
-        category=DeprecationWarning,
-    )
-    def _all(self) -> defaultdict[str, defaultdict[int, list[FunctionData]]]:
-        return self.get_all()
-
     def get_all(self) -> defaultdict[str, defaultdict[int, list[FunctionData]]]:
         return self._event_handlers
 

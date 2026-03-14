@@ -2,51 +2,24 @@
 
 ## 2.2.1 5-Minute Quick Start
 
-Here's a minimal example to get you started with AmritaCore:
+Here's a minimal example to get you started with AmritaCore using the simplified `create_agent` function:
 
 ```python
 import asyncio
-from amrita_core import ChatObject, init, load_amrita
-from amrita_core.config import AmritaConfig
-from amrita_core.preset import PresetManager
-from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
+from amrita_core import create_agent
 
 async def minimal_example():
-    # Initialize AmritaCore
-    init()
-    
-    # Set minimal configuration
-    from amrita_core.config import set_config
-    set_config(AmritaConfig())
-    
-    # Load AmritaCore components
-    await load_amrita()
-    
-    # Create model preset
-    preset = ModelPreset(
-        model="gpt-3.5-turbo",
-        base_url="YOUR_API_ENDPOINT",  # Replace with your API endpoint
-        api_key="YOUR_API_KEY",        # Replace with your API key
-        config=ModelConfig(stream=True)
+    # Create an agent with minimal parameters
+    agent = create_agent(
+        url="YOUR_API_ENDPOINT",  # Replace with your API endpoint
+        key="YOUR_API_KEY",       # Replace with your API key
+        model_config={"model": "gpt-3.5-turbo", "stream": True}
     )
     
-    # Register the model preset
-    preset_manager = PresetManager()
-    preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preset.name)
+    # Get a chat object for the interaction
+    chat = agent.get_chatobject("Hello, what can you do?")
     
-    # Create context and system message
-    context = MemoryModel()
-    train = Message(content="You are a helpful assistant.", role="system")
-    
-    # Create and run a chat interaction
-    chat = ChatObject(
-        context=context,
-        session_id="minimal_session",
-        user_input="Hello, what can you do?",
-        train=train.model_dump(),
-    )
-
+    # Execute the interaction and get the response
     async with chat.begin():
         print(await chat.full_response())
 
@@ -59,16 +32,22 @@ if __name__ == "__main__":
 
 In this minimal example:
 
-1. We initialize AmritaCore with `init()` which prepares internal components
-2. We set a minimal configuration using `AmritaConfig()`
-3. We load the core components with `load_amrita()`
-4. We create a model preset defining which LLM to use
-5. We register the preset with the PresetManager
-6. We create a memory context and system message
-7. We instantiate a ChatObject with our parameters
-8. We call `chat.begin()` to execute the interaction
-9. We get the response by using `await chat.full_response()`
-10. Finally, we get the full response
+1. We use `create_agent()` to create an agent with just the essential parameters (URL and API key)
+2. The `create_agent` function automatically handles initialization, configuration, and preset creation
+3. We call `agent.get_chatobject()` to get a `ChatObject` instance for our specific interaction
+4. We execute the interaction using `chat.begin()` and get the full response
+
+### Understanding ChatObject
+
+`ChatObject` is the fine-grained standard interface in AmritaCore that provides complete control over individual chat interactions. While `create_agent` offers a high-level, simplified API for common use cases, `ChatObject` gives you access to all the underlying functionality including:
+
+- Direct control over session management
+- Custom context and memory handling
+- Advanced configuration options
+- Full access to the event system and hooks
+- Detailed control over streaming behavior
+
+For most basic use cases, `create_agent` is sufficient and much simpler to use. However, when you need fine-grained control or want to implement custom behavior, you can work directly with `ChatObject`.
 
 ## 2.2.3 Running and Debugging
 

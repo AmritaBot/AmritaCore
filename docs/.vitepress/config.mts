@@ -66,6 +66,7 @@ export default withMermaid({
               { text: "Event System", link: "/guide/concepts/event" },
               { text: "Tool System", link: "/guide/concepts/tool" },
               { text: "Data Management", link: "/guide/concepts/management" },
+              { text: "Agent Strategy", link: "/guide/concepts/agent-strategy" },
             ],
           },
           {
@@ -106,6 +107,18 @@ export default withMermaid({
               {
                 text: "AmritaConfig",
                 link: "/guide/api-reference/classes/AmritaConfig",
+              },
+              {
+                text: "AgentRuntime",
+                link: "/guide/api-reference/classes/AgentRuntime",
+              },
+              {
+                text: "AgentStrategy",
+                link: "/guide/api-reference/classes/AgentStrategy",
+              },
+              {
+                text: "AmritaAgentStrategy",
+                link: "/guide/api-reference/classes/AmritaAgentStrategy",
               },
               {
                 text: "BaseModel",
@@ -150,6 +163,10 @@ export default withMermaid({
               {
                 text: "ModelPreset",
                 link: "/guide/api-reference/classes/ModelPreset",
+              },
+              {
+                text: "StrategyContext",
+                link: "/guide/api-reference/classes/StrategyContext",
               },
               {
                 text: "TextContent",
@@ -263,6 +280,7 @@ export default withMermaid({
               { text: "事件系统", link: "/zh/guide/concepts/event" },
               { text: "工具系统", link: "/zh/guide/concepts/tool" },
               { text: "数据管理", link: "/zh/guide/concepts/management" },
+              { text: "Agent 策略", link: "/zh/guide/concepts/agent-strategy" },
             ],
           },
           {
@@ -302,6 +320,18 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/AmritaConfig",
               },
               {
+                text: "AgentRuntime",
+                link: "/zh/guide/api-reference/classes/AgentRuntime",
+              },
+              {
+                text: "AgentStrategy",
+                link: "/zh/guide/api-reference/classes/AgentStrategy",
+              },
+              {
+                text: "AmritaAgentStrategy",
+                link: "/zh/guide/api-reference/classes/AmritaAgentStrategy",
+              },
+              {
                 text: "BaseModel",
                 link: "/zh/guide/api-reference/classes/BaseModel",
               },
@@ -318,16 +348,16 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/DependsFactory",
               },
               {
+                text: "FallbackContext",
+                link: "/zh/guide/api-reference/classes/FallbackContext",
+              },
+              {
                 text: "Function",
                 link: "/zh/guide/api-reference/classes/Function",
               },
               {
                 text: "FunctionDefinitionSchema",
                 link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
-              },
-              {
-                text: "FallbackContext",
-                link: "/zh/guide/api-reference/classes/FallbackContext",
               },
               {
                 text: "MemoryModel",
@@ -344,6 +374,10 @@ export default withMermaid({
               {
                 text: "ModelPreset",
                 link: "/zh/guide/api-reference/classes/ModelPreset",
+              },
+              {
+                text: "StrategyContext",
+                link: "/zh/guide/api-reference/classes/StrategyContext",
               },
               {
                 text: "TextContent",

@@ -104,8 +104,6 @@ async def main():
     # Set configuration
     func = FunctionConfig(
         use_minimal_context=False,
-        tool_calling_mode="agent",
-        agent_thought_mode="reasoning",
         # agent_mcp_client_enable=True,
         # agent_mcp_server_scripts=[],
     )

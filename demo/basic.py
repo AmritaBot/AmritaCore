@@ -25,8 +25,6 @@ async def basic_example():
     # FunctionConfig defines general behavior of the agent
     func = FunctionConfig(
         use_minimal_context=False,  # Use full context or minimal context
-        tool_calling_mode="agent",  # How tools are called
-        agent_thought_mode="reasoning",  # How agent thinks through problems
     )
 
     # LLMConfig defines language model behavior

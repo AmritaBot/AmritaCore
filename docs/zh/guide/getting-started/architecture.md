@@ -6,37 +6,48 @@
 
 ```mermaid
 graph TB
-    subgraph "AmritaCore"
+    subgraph "入口层"
+        H[Agent运行时]
+        Factory["create_agent()"]
+    end
+
+    subgraph "核心执行层"
         A[ChatObject]
+        F[Agent核心]
+        G[Agent策略]
+    end
+
+    subgraph "支撑系统"
         B[配置]
         C[事件系统]
         D[工具管理器]
-        F[Agent核心]
-    end
-
-    subgraph "Session上下文"
         E[记忆模型]
     end
 
-    用户输入 --> A
-    A --> B
-    A --> C
+    subgraph "外部集成"
+        Adapter[适配器层]
+        LLM[LLM提供商]
+        MCP[MCP客户端]
+    end
+
+    用户输入 --> Factory
+    Factory --> H
+    H --> A
     A --> F
+    F --> G
+    G --> F
+    F --> Adapter
+    Adapter --> LLM
+    F --> MCP
+
     B --> F
     C --> F
     D --> F
     E --> F
-    F --> 响应流[响应流]
 
+    F --> 响应流[响应流]
     响应流 --> 用户输出
     F --> E
-
-    LLM[LLM 提供商] <---> 适配器[适配器层]
-    适配器 <---> F
-
-    style AmritaCore fill:#e1f5fe,stroke:#0277bd,stroke-width:2px
-    style F fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-    style Session_Container fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
 ```
 
 ### Session 与 Global 数据容器架构
@@ -52,99 +63,124 @@ graph TB
     end
 
     subgraph "SessionsManager"
-        S1[Session 1<br/>对话上下文]
-        S2[Session 2<br/>对话上下文]
-        SN[Session N<br/>对话上下文]
+        S1[Session 1]
+        S2[Session 2]
+        SN[Session N]
     end
 
-    subgraph "单个 Session 结构"
-        Mem[记忆模型<br/>对话历史]
-        Tools[工具管理器<br/>当前会话工具]
-        Conf[配置<br/>当前会话配置]
-        MCP[MCP客户端<br/>会话专属客户端]
+    subgraph "Session 结构"
+        Mem[记忆模型]
+        Tools[工具管理器]
+        Conf[配置]
+        Strat[Agent策略]
+        MCP_Client[MCP客户端]
     end
 
-    G_Tools -.-> Tools
-    G_Presets -.-> S1
-    G_Config -.-> Conf
+    G_Tools --> Tools
+    G_Presets --> S1
+    G_Config --> Conf
 
-    style Global_Container fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style Session_Container fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style S1 fill:#bbdefb,stroke:#1565c0,stroke-width:1px
-    style S2 fill:#bbdefb,stroke:#1565c0,stroke-width:1px
-    style SN fill:#bbdefb,stroke:#1565c0,stroke-width:1px
+    S1 --> Mem
+    S1 --> Tools
+    S1 --> Conf
+    S1 --> Strat
+    S1 --> MCP_Client
+```
+
+### 基于策略的执行流程
+
+```mermaid
+graph LR
+    subgraph "策略类型"
+        AgentMode[agent]
+        RAGMode[rag]
+        WorkflowMode[workflow]
+        MixedMode[agent-mixed]
+    end
+
+    subgraph "执行方法"
+        SingleExecute["single_execute()"]
+        RunMethod["run()"]
+    end
+
+    AgentMode --> SingleExecute
+    MixedMode --> SingleExecute
+    RAGMode --> RunMethod
+    WorkflowMode --> RunMethod
+
+    SingleExecute --> AgentLoop[Agent Loop]
+    RunMethod --> AgentLoop
 ```
 
 ## 2.4.2 核心组件关系
 
-- **ChatObject**: 管理单个对话的主要交互点，同时也是Agent核心的执行单元
-- **配置**: 通过 `AmritaConfig` 控制核心行为（上下文使用、工具调用、安全设置等）
-- **事件系统**: 允许通过装饰器（如 `@on_precompletion` 和 `@on_completion`）挂钩到处理流水线，支持运行时依赖注入
-- **工具管理器**: 通过 `MultiToolsManager` 使用外部函数扩展Agent功能，支持动态工具注册
-- **记忆模型**: 维护对话上下文和历史记录，存储在每个Session的 `SessionData` 中
-- **Agent核心**: 在 `ChatObject` 内部实现的中央处理逻辑，在Agent循环期间协调所有组件
-- **SessionsManager**: 使用单例模式管理多个隔离的会话，每个会话包含独立的 `SessionData`
-- **Session（对话上下文）**: 保存特定用户或特定对话的所有相关信息，包括记忆模型、工具、配置、MCP客户端和预设
-- **适配器层**: 通过适配器模式抽象LLM提供商通信，实现厂商无关集成
-- **MCP客户端**: 提供模型上下文协议客户端支持，用于外部服务集成
+- **入口层**: 为用户提供简化的交互接口
+  - `create_agent()`: 工厂函数，使用最少参数创建 `AgentRuntime`
+  - `AgentRuntime`: 高级包装器，封装复杂性并提供可重用的agent操作
+
+- **核心执行层**: 处理主要的处理逻辑
+  - `ChatObject`: 管理单个对话的主要交互点，协调所有组件
+  - `Agent核心`: `ChatObject` 内部的中央处理逻辑，执行完整的agent循环
+  - `Agent策略`: 定义执行模式的抽象基类，支持四种策略类别
+
+- **支撑系统**: 提供基本服务和数据管理
+  - `配置`: 通过 `AmritaConfig` 控制系统行为
+  - `事件系统`: 通过装饰器和依赖注入在处理流水线中启用钩子
+  - `工具管理器`: 通过动态注册使用外部函数扩展功能
+  - `记忆模型`: 在会话数据中维护对话上下文和历史
+
+- **外部集成**: 处理与外部系统的通信
+  - `适配器层`: 抽象LLM提供商通信，实现厂商无关集成
+  - `MCP客户端`: 提供模型上下文协议支持，用于外部服务集成
+
+- **数据容器**: 管理数据隔离和共享
+  - `Global 全局容器`: 存储所有会话可访问的共享资源
+  - `Session 上下文`: 维护具有独立状态的隔离对话上下文
 
 ## 2.4.3 Agent 循环与 Session 隔离机制
 
 ```mermaid
 sequenceDiagram
-    participant User1 as 用户1
-    participant User2 as 用户2
-    participant SM as SessionsManager
-    participant S1 as Session 1<br/>(对话上下文1)
-    participant S2 as Session 2<br/>(对话上下文2)
-    participant Agent as Agent核心
-    participant Adapter as 适配器层
-    participant LLM as LLM 提供商
+    participant User as 用户
+    participant Entry as 入口层
+    participant Core as 核心执行
+    participant Support as 支撑系统
+    participant External as 外部集成
 
-    Note over User1,LLM: Agent 循环开始
-    User1->>SM: 请求创建 Session 1
-    User2->>SM: 请求创建 Session 2
-    SM-->>User1: 返回 Session ID 1
-    SM-->>User2: 返回 Session ID 2
+    User->>Entry: create_agent(url, key, ...)
+    Entry->>Entry: 创建 AgentRuntime
+    Entry-->>User: 返回 AgentRuntime
 
-    Note over User1,User2: 每个用户在各自的对话上下文中交互
-
-    User1->>S1: 发送消息到 Session 1
-    S1->>S1: 初始化 ChatObject
-    S1->>Agent: 启动 Agent 循环处理请求
-
-    User2->>S2: 发送消息到 Session 2
-    S2->>S2: 初始化 ChatObject
-    S2->>Agent: 启动 Agent 循环处理请求
-
-    par 并行处理两个对话上下文
-        Agent->>S1: 在 Session 1 上下文中处理
-        Agent->>S2: 在 Session 2 上下文中处理
-
-        Agent->>S1: 更新 Session 1 记忆模型
-        Agent->>S2: 更新 Session 2 记忆模型
-    end
-
-    Agent->>Adapter: 发送请求 (来自 Session 1)
-    Adapter->>LLM: 转发到 LLM 提供商
-    LLM-->>Adapter: 返回响应
-    Adapter-->>Agent: 返回处理后的响应
-    Agent-->>S1: 更新 Session 1 状态
-    S1-->>User1: 流式传输响应
-
-    Agent->>Adapter: 发送请求 (来自 Session 2)
-    Adapter->>LLM: 转发到 LLM 提供商
-    LLM-->>Adapter: 返回响应
-    Adapter-->>Agent: 返回处理后的响应
-    Agent-->>S2: 更新 Session 2 状态
-    S2-->>User2: 流式传输响应
-
-    Note over User1,LLM: 每个对话上下文保持独立的历史和状态
+    User->>Entry: get_chatobject("输入")
+    Entry->>Core: 创建 ChatObject
+    Core->>Core: 初始化 Agent 策略
+    Core->>Support: 加载配置、工具、记忆
+    Core->>External: 通过适配器发送请求
+    External->>External: 使用 LLM/MCP 处理
+    External-->>Core: 返回响应
+    Core->>Support: 更新记忆，处理事件
+    Core-->>User: 流式传输响应
 ```
 
-1. **Session 作为对话上下文**: 每个 Session 代表一个独立的对话上下文，在其 `SessionData` 中存储特定用户或特定对话的所有相关信息
-2. **Global 数据容器**: SessionsManager 管理所有活动的对话上下文，提供全局资源共享的同时保持会话隔离
-3. **Agent 循环**: 在每个对话上下文内部，Agent 核心（在 ChatObject 中实现）执行完整的处理循环，包括事件处理、工具调用和记忆管理
-4. **上下文隔离**: 通过独立的 `SessionData` 实例实现不同对话上下文之间的数据完全隔离，确保对话历史不混淆
-5. **全局资源共享**: 每个对话上下文可以访问 Global 容器中的资源（全局工具、预设、配置），但拥有各自独立的状态，包括会话专属的工具、记忆和 MCP 客户端
-6. **适配器抽象**: 适配器层提供厂商无关的 LLM 集成，允许相同的 Agent 逻辑与不同的 LLM 提供商配合工作而无需代码更改
+### 基于策略的执行模式
+
+1. **分层架构**: 系统遵循清晰的分层结构，具有明确的层次：
+   - 入口层: 简化的用户界面
+   - 核心执行层: 主要处理逻辑
+   - 支撑系统: 基本服务
+   - 外部集成: 第三方通信
+   - 数据容器: 状态管理
+
+2. **策略模式实现**: 四种执行策略提供灵活的行为：
+   - **'agent'**: 使用 `single_execute()` 进行迭代式工具调用，逐步执行
+   - **'rag'**: 使用 `run()` 进行检索增强生成，使用最小上下文
+   - **'workflow'**: 使用 `run()` 对工具调用和上下文管理进行完全手动控制
+   - **'agent-mixed'**: 使用 `single_execute()` 进行动态模式处理，可在RAG和Agent模式之间切换
+
+3. **会话隔离**: 每个对话通过独立的会话上下文保持完全隔离，同时在需要时共享全局资源。
+
+4. **事件驱动设计**: 系统使用装饰器和事件处理器允许在不修改核心逻辑的情况下扩展行为。
+
+5. **厂商无关性**: 适配器层确保相同的agent逻辑可以与不同的LLM提供商配合工作而无需代码更改。
+
+6. **模板支持**: Jinja2模板基于上下文、记忆和配置启用动态提示构建。
