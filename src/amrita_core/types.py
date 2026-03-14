@@ -383,6 +383,7 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
         self.end_messages.extend(messages)
 
 
+# Register content types
 register_content(TextContent)
 register_content(ImageContent)
 register_content(FileContent)

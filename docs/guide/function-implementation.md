@@ -488,12 +488,12 @@ logger.debug("Processing message: %s", user_input)
 logger.error("Failed to process request: %s", error)
 ```
 
-### 4.6.2 @debug_log Debug Logging
+### 4.6.2 debug_log Debug Logging
 
-The `@debug_log` decorator is deprecated in favor of the standard logger:
+The `debug_log` decorator is deprecated in favor of the standard logger:
 
 ```python
-# Use logger instead of @debug_log
+# Use logger instead of debug_log
 from amrita_core.logging import logger
 
 def my_function(param):

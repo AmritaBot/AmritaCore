@@ -41,7 +41,7 @@ def model_dump(obj: Iterable[BaseModel | dict]) -> Sequence[Any]:
 
 
 class AnthropicAdapter(ModelAdapter):
-    """Anthropic Protocol Adapter"""
+    """Anthropic Protocol Adapter (Experimental)"""
 
     @override
     async def call_api(

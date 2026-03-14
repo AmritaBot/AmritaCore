@@ -2,51 +2,24 @@
 
 ## 2.2.1 5分钟快速入门
 
-这是一个最小示例，帮助您开始使用 AmritaCore：
+这是一个使用简化的 `create_agent` 函数的最小示例，帮助您开始使用 AmritaCore：
 
 ```python
 import asyncio
-from amrita_core import ChatObject, init, load_amrita
-from amrita_core.config import AmritaConfig
-from amrita_core.preset import PresetManager
-from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
+from amrita_core import create_agent
 
 async def minimal_example():
-    # 初始化 AmritaCore
-    init()
-
-    # 设置最小配置
-    from amrita_core.config import set_config
-    set_config(AmritaConfig())
-
-    # 加载 AmritaCore 组件
-    await load_amrita()
-
-    # 创建模型预设
-    preset = ModelPreset(
-        model="gpt-3.5-turbo",
-        base_url="YOUR_API_ENDPOINT",  # 替换为您的 API 端点
-        api_key="YOUR_API_KEY",        # 替换为您的 API 密钥
-        config=ModelConfig(stream=True)
+    # 使用最少参数创建一个 agent
+    agent = create_agent(
+        url="YOUR_API_ENDPOINT",  # 替换为您的 API 端点
+        key="YOUR_API_KEY",       # 替换为您的 API 密钥
+        model_config={"model": "gpt-3.5-turbo", "stream": True}
     )
-
-    # 注册模型预设
-    preset_manager = PresetManager()
-    preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preset.name)
-
-    # 创建上下文和系统消息
-    context = MemoryModel()
-    train = Message(content="您是一个有用的助手。", role="system")
-
-    # 创建并运行聊天交互
-    chat = ChatObject(
-        context=context,
-        session_id="minimal_session",
-        user_input="你好，你能做什么？",
-        train=train.model_dump(),
-    )
-
+    
+    # 获取用于交互的聊天对象
+    chat = agent.get_chatobject("你好，你能做什么？")
+    
+    # 执行交互并获取响应
     async with chat.begin():
         print(await chat.full_response())
 
@@ -59,16 +32,22 @@ if __name__ == "__main__":
 
 在这个最小示例中：
 
-1. 我们使用 `init()` 初始化 AmritaCore，它准备内部组件
-2. 我们使用 `AmritaConfig()` 设置最小配置
-3. 我们使用 `load_amrita()` 加载核心组件
-4. 我们创建一个模型预设，定义要使用哪个 LLM
-5. 我们使用 PresetManager 注册预设
-6. 我们创建记忆上下文和系统消息
-7. 我们使用参数实例化 ChatObject
-8. 我们调用 `chat.begin()` 来执行交互
-9. 我们使用 `await chat.full_response()` 获取最终的完整响应
-10. 最后，我们获取完整响应
+1. 我们使用 `create_agent()` 仅用必要的参数（URL 和 API 密钥）创建一个 agent
+2. `create_agent` 函数自动处理初始化、配置和预设创建
+3. 我们调用 `agent.get_chatobject()` 获取特定交互的 `ChatObject` 实例
+4. 我们使用 `chat.begin()` 执行交互并获取完整响应
+
+### 理解 ChatObject
+
+`ChatObject` 是 AmritaCore 中的细颗粒度标准接口，为单个聊天交互提供完全控制。虽然 `create_agent` 为常见用例提供了高级、简化的 API，但 `ChatObject` 让您可以访问所有底层功能，包括：
+
+- 直接控制会话管理
+- 自定义上下文和记忆处理
+- 高级配置选项
+- 完全访问事件系统和钩子
+- 详细控制流式行为
+
+对于大多数基本用例，`create_agent` 已经足够且使用起来简单得多。但是，当您需要细颗粒度控制或想要实现自定义行为时，可以直接使用 `ChatObject`。
 
 ## 2.2.3 运行和调试
 

@@ -34,42 +34,47 @@ class CookieConfig(BaseModel):
 
 class FunctionConfig(BaseModel):
     use_minimal_context: bool = Field(
-        default=True,
+        default=False,
         description="Whether to use minimal context, i.e. system prompt + user's last message (disabling this option will use all context from the message list, which may consume a large amount of Tokens during Agent workflow execution; enabling this option may effectively reduce token usage)",
     )
 
-    tool_calling_mode: Literal["agent", "rag", "none"] = Field(
-        default="agent",
-        description="Tool calling mode, i.e. whether to use Agent or RAG to call tools",
-    )
     agent_tool_call_limit: int = Field(
-        default=10, description="Tool call limit in agent mode"
+        default=10, description="Tool call limit in calling tools."
     )
-    agent_tool_call_notice: Literal["hide", "notify"] = Field(
-        default="hide",
-        description="Method of showing tool call status in agent mode, hide to conceal, notify to inform",
-    )
-    agent_thought_mode: Literal[
-        "reasoning", "chat", "reasoning-required", "reasoning-optional"
-    ] = Field(
-        default="chat",
-        description="Thinking mode in agent mode, reasoning mode will first perform reasoning process, then execute tasks; "
-        "reasoning-required requires task analysis for each Tool Calling; "
-        "reasoning-optional does not require reasoning but allows it; "
-        "chat mode executes tasks directly",
-    )
-    agent_reasoning_hide: bool = Field(
-        default=False, description="Whether to hide the thought process in agent mode"
-    )
+
     agent_middle_message: bool = Field(
         default=True,
-        description="Whether to allow Agent to send intermediate messages to users in agent mode",
+        description="Whether to allow Agent to send intermediate messages to users in tools calling",
     )
     agent_mcp_client_enable: bool = Field(
         default=False, description="Whether to enable MCP client"
     )
     agent_mcp_server_scripts: list[str] = Field(
         default=[], description="List of MCP server scripts"
+    )
+
+
+class BuiltinAgentConfig(BaseModel):
+    tool_calling_mode: Literal["agent", "rag", "none"] = Field(
+        default="agent",
+        description="Tool calling mode for amrita's built-in agent strategy",
+    )
+    agent_tool_call_notice: Literal["hide", "notify"] = Field(
+        default="hide",
+        description="Method of showing tool call status in built-in agent strategy, hide to conceal, notify to inform",
+    )
+    agent_thought_mode: Literal[
+        "reasoning", "chat", "reasoning-required", "reasoning-optional"
+    ] = Field(
+        default="chat",
+        description="Thinking mode in built-in agent strategy, reasoning mode will first perform reasoning process, then execute tasks; "
+        "reasoning-required requires task analysis for each Tool Calling; "
+        "reasoning-optional does not require reasoning but allows it; "
+        "chat mode executes tasks directly",
+    )
+    agent_reasoning_hide: bool = Field(
+        default=False,
+        description="Whether to hide the thought process in built-in agent strategy",
     )
 
 
@@ -110,7 +115,7 @@ class LLMConfig(BaseModel):
         description="Whether to enable context memory summarization (will delete context and insert a summary into system instruction)",
     )
     memory_abstract_proportion: float = Field(
-        default=15e-2, description="Context summarization proportion (0.15=15%)"
+        default=50e-2, description="Context summarization proportion (0.5=50%)"
     )
     enable_multi_modal: bool = Field(
         default=True,
@@ -129,6 +134,10 @@ class AmritaConfig(BaseModel):
     )
     cookie: CookieConfig = Field(
         default_factory=CookieConfig, description="Cookie configuration"
+    )
+    builtin: BuiltinAgentConfig = Field(
+        default_factory=BuiltinAgentConfig,
+        description="Built-in agent configuration",
     )
 
 

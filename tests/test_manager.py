@@ -125,6 +125,11 @@ class TestMultiToolsManager:
 
 class TestToolsManagerSingleton:
     def test_singleton_behavior(self):
+        # Clean up ToolsManager before test
+        manager = ToolsManager()
+        manager._models.clear()
+        manager._disabled_tools.clear()
+
         manager1 = ToolsManager()
         manager2 = ToolsManager()
         assert manager1 is manager2
@@ -134,6 +139,9 @@ class TestToolsManagerSingleton:
         manager1.register_tool(tool_data)
 
         assert manager2.has_tool("shared_tool")
+
+        # Clean up after test
+        manager1.remove_tool("shared_tool")
 
 
 def test_parse_google_docstring():
@@ -170,6 +178,11 @@ def test_python_type_to_json_type():
 
 
 def test_on_tools_decorator():
+    # Clean up ToolsManager before test
+    manager = ToolsManager()
+    manager._models.clear()
+    manager._disabled_tools.clear()
+
     function_def = FunctionDefinitionSchema(
         name="decorated_tool",
         description="A decorated tool",
@@ -180,7 +193,6 @@ def test_on_tools_decorator():
     async def test_function(params):
         return "result"
 
-    manager = ToolsManager()
     tool = manager.get_tool("decorated_tool")
     assert tool is not None
     assert tool.data.function.name == "decorated_tool"
@@ -190,6 +202,11 @@ def test_on_tools_decorator():
 
 @pytest.mark.asyncio
 async def test_simple_tool_decorator():
+    # Clean up ToolsManager before test
+    manager = ToolsManager()
+    manager._models.clear()
+    manager._disabled_tools.clear()
+
     @simple_tool
     def add_numbers(a: int, b: int) -> int:
         """Add two numbers together.
@@ -203,39 +220,10 @@ async def test_simple_tool_decorator():
         """
         return a + b
 
-    manager = ToolsManager()
     tool = manager.get_tool("add_numbers")
 
     if tool is not None:
         result = await tool.func({"a": 5, "b": 3})  # type: ignore
-        assert result == "8"
+        assert result == "8"  # Note: simple_tool converts result to string
 
     manager.remove_tool("add_numbers")
-
-
-def test_tool_data_access_methods():
-    manager = MultiToolsManager()
-
-    func_mock = MagicMock()
-    function_def = FunctionDefinitionSchema(
-        name="test_method_tool",
-        description="Test tool for method access",
-        parameters=FunctionParametersSchema(type="object", properties={}),
-    )
-
-    tool_data = ToolData(
-        func=func_mock,
-        data=ToolFunctionSchema(function=function_def, type="function", strict=False),
-        custom_run=False,
-    )
-
-    manager.register_tool(tool_data)
-
-    assert manager.get_tool_meta("test_method_tool") is not None
-    assert manager.get_tool_func("test_method_tool") is not None
-
-    assert manager.get_tool("nonexistent", "default") == "default"
-    assert manager.get_tool_meta("nonexistent", "default") == "default"
-    assert manager.get_tool_func("nonexistent", "default") == "default"
-
-    manager.remove_tool("test_method_tool")

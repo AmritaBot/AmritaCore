@@ -82,6 +82,43 @@ print(config.function_config.use_minimal_context)
 - 如果 AmritaCore 未初始化则抛出 RuntimeError
 - 在初始化后调用是安全的
 
+### 7.1.5 create_agent() - Agent 创建
+
+`create_agent()` 函数通过自动创建临时预设，使用最少参数创建一个 agent。
+
+```python
+from amrita_core import create_agent
+
+# 仅使用 url 和 key 的简单用法
+agent = create_agent("https://api.example.com", "your-api-key")
+
+# 使用自定义模型配置
+agent = create_agent(
+    "https://api.example.com",
+    "your-api-key",
+    model_config={"model": "gpt-4", "temperature": 0.7}
+)
+```
+
+**用途**: 通过仅需要 URL 和 API 密钥等基本参数来简化 agent 创建，自动创建临时预设以供立即使用。
+
+**参数**:
+
+- `url` (str): API 端点 URL
+- `key` (str): 用于身份验证的 API 密钥
+- `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, 可选): 可选的模型配置。默认为 None。
+- `config` ([AmritaConfig](classes/AmritaConfig.md) | None, 可选): agent 的配置。默认为全局配置。
+- `**kwargs`: 传递给 AgentRuntime 的其他关键字参数
+
+**返回**: [AgentRuntime](#agentruntime) - 配置好的 agent 运行时实例
+
+**使用注意事项**:
+
+- 这是快速创建 agent 进行基本用例的推荐方式
+- 该函数自动处理初始化、配置和预设创建
+- 对于需要细颗粒度控制的高级用例，请考虑直接使用 [ChatObject](classes/ChatObject.md)
+- 创建的 agent 可以通过 `get_chatobject()` 方法重复用于多次交互
+
 ## 7.2 类和接口文档
 
 ### 7.2.1 ChatObject - 对话对象

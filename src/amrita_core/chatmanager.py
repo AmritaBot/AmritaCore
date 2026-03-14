@@ -12,10 +12,15 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, TypeAlias
 from uuid import uuid4
 
+from jinja2 import Template
 from pydantic import BaseModel, Field
 from pytz import utc
 from typing_extensions import Self
 
+from amrita_core.agent.context import StrategyContext
+from amrita_core.agent.strategy import AgentStrategy
+from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.consts import ABSTRACT_INSTRUCTION, DEFAULT_TEMPLATE
 from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
@@ -26,7 +31,7 @@ from .hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .libchat import call_completion, get_last_response, get_tokens, text_generator
 from .logging import debug_log, logger
-from .protocol import MessageContent
+from .protocol import MessageContent, MessageWithMetadata
 from .sessions import SessionsManager
 from .tokenizer import hybrid_token_count
 from .types import (
@@ -80,33 +85,17 @@ class MemoryLimiter:
 
     config: AmritaConfig  # Configuration object
     usage: UniResponseUsage | None = None  # Token usage, initially None
-    _train: dict[str, str]  # Training data (system prompts)
+    _train: Message[str]  # Training data (system prompts)
     _dropped_messages: list[Message[str] | ToolResult]  # List of removed messages
     _copied_messages: Memory  # Original message copies (for rollback on exceptions)
-    _abstract_instruction = """<<SYS>>
-You are a professional context summarizer, strictly following user instructions to perform summarization tasks.
-<</SYS>>
-
-<<INSTRUCTIONS>>
-1. Directly summarize the user-provided content
-2. Maintain core information and key details from the original
-3. Do not generate any additional content, explanations, or comments
-4. Summaries should be concise, accurate, complete
-<</INSTRUCTIONS>>
-
-<<RULE>>
-- Only summarize the text provided by the user
-- Do not add any explanations, comments, or supplementary information
-- Do not alter the main meaning of the original
-- Maintain an objective and neutral tone
-<</RULE>>
-
-<<FORMATTING>>
-User input → Direct summary output
-<</FORMATTING>>"""
+    _abstract_instruction = ABSTRACT_INSTRUCTION
 
     def __init__(
-        self, memory: Memory, train: dict[str, str], config: AmritaConfig | None = None
+        self,
+        memory: Memory,
+        train: dict[str, str] | Message[str],
+        config: AmritaConfig | None = None,
+        abstract_instruction: str | None = None,
     ) -> None:
         """Initialize context processor
 
@@ -116,7 +105,10 @@ User input → Direct summary output
         """
         self.memory: Memory = memory
         self.config = config or get_config()
-        self._train = train
+        self._train = (
+            train if isinstance(train, Message) else Message[str].model_validate(train)
+        )
+        self._abstract_instruction = abstract_instruction or self._abstract_instruction
 
     async def __aenter__(self) -> Self:
         """Async context manager entry, initialize processing state
@@ -152,6 +144,11 @@ User input → Direct summary output
             Abstract instruction
         """
         return cls._abstract_instruction
+
+    @classmethod
+    def reset_abstract_instruction(cls):
+        """Reset abstract instruction"""
+        cls._abstract_instruction = ABSTRACT_INSTRUCTION
 
     async def _make_abstract(self):
         """Generate context summary
@@ -328,7 +325,7 @@ User input → Direct summary output
         if not self.config.llm.enable_tokens_limit:
             logger.debug("Token limitation disabled, skipping processing")
             return
-        prompt_length = hybrid_token_count(train["content"])
+        prompt_length = hybrid_token_count(train.content)
         if prompt_length > self.config.llm.session_tokens_windows:
             print(
                 f"Prompt size too large! It's {prompt_length}>{self.config.llm.session_tokens_windows}! Please adjusts the prompt or settings!"
@@ -392,13 +389,15 @@ class ChatObject:
     user_input: USER_INPUT
     user_message: Message[USER_INPUT]  # (lateinit) User message
     context_wrap: SendMessageWrap  # (lateinit) Context message
-    train: dict[str, str]  # System message
+    train: Message[str]  # System message
     last_call: datetime  # Last internal function call time
     session_id: str  # Session ID
     response: UniResponse[str, None]  # (lateinit) Response
     preset: ModelPreset  # preset used in this call
     config: AmritaConfig  # config used in this call
     session: SessionData | None  # (lateinit) Session data
+    strategy: type[AgentStrategy]
+    template: Template
     _response_queue: asyncio.Queue[RESPONSE_TYPE]
     _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
     _is_running: bool = False  # Whether it is running
@@ -416,7 +415,7 @@ class ChatObject:
 
     def __init__(
         self,
-        train: dict[str, str],
+        train: dict[str, str] | Message[str],
         user_input: USER_INPUT,
         context: Memory | None,
         session_id: str,
@@ -424,28 +423,33 @@ class ChatObject:
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
         auto_create_session: bool = False,
+        *,
+        train_template: Template = DEFAULT_TEMPLATE,
+        agent_strategy: type[AgentStrategy] = AmritaAgentStrategy,
         hook_args: tuple[Any, ...] = (),
         hook_kwargs: dict[str, Any] | None = None,
         exception_ignored: tuple[type[BaseException], ...] = (),
         queue_size: int = 25,
         overflow_queue_size: int = 45,
     ) -> None:
-        """Initialize chat object
+        """Initialize a chat object
 
         Args:
-            train: Training data (system prompts)
-            user_input: Input from the user
-            context: Memory context for the session
-            session_id: Unique identifier for the session
-            callback: Callback function to be called when returning response
-            config: Config used for this call
-            preset: Preset used for this call
-            auto_create_session: Whether to automatically create a session if it does not exist
-            hook_args: Arguments could be passed to the Matcher function
-            hook_kwargs: Keyword arguments could be passed to the Matcher function
-            exception_ignored: These exceptions will be raised again if they are raised in the Matcher function.
-            queue_size: Maximum number of message chunks to be stored in the queue
-            overflow_queue_size: Maximum number of message chunks to be stored in the overflow queue
+            train (dict[str, str] | Message[str]): Training data (system prompts)
+            user_input (USER_INPUT): Input from the user
+            context (Memory | None): Memory context for the session
+            session_id (str): Unique identifier for the session
+            callback (RESPONSE_CALLBACK_TYPE, optional): Callback function to be called when returning response. Defaults to None.
+            config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
+            preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
+            auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
+            train_template (Template, optional): Jinja2 template used to format system message.
+            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
+            hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
+            hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
+            exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
+            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.
+            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 45.
         """
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
@@ -453,9 +457,12 @@ class ChatObject:
         self._raised_exc = exception_ignored
         session: SessionData | None = sm.get_session_data(session_id, None)
         self.session = session
-        self.train = train
+        self.train = (
+            train if isinstance(train, Message) else Message[str].model_validate(train)
+        )
         self.data = context or sm.get_session_data(session_id).memory
         self.session_id = session_id
+        # data
         self.user_input = user_input
         self.user_message = Message(role="user", content=user_input)
         self.timestamp = get_current_datetime_timestamp()
@@ -463,12 +470,15 @@ class ChatObject:
         self.config: AmritaConfig = config or (
             session.config if session else get_config()
         )
+        self.strategy = agent_strategy
+        # other
         self.last_call = datetime.now(utc)
         self.preset = preset or (
             session.presets.get_default_preset()
             if session
             else PresetManager().get_default_preset()
         )
+        self.template = train_template
         # Hook args
         self._hook_args = hook_args
         self._hook_kwargs = hook_kwargs or {}
@@ -591,27 +601,11 @@ class ChatObject:
         logger.debug(
             f"Added user message to memory, current message count: {len(data.messages)}"
         )
-
-        self.train["content"] = (
-            "<SCHEMA>\n"
-            + (
-                f"<HIDDEN>{config.cookie.cookie}</HIDDEN>\n"
-                if config.cookie.enable_cookie
-                else ""
-            )
-            + "Please participate in the discussion in your own character identity. Try not to use similar phrases when responding to different topics. User's messages are contained within user inputs."
-            + "Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of previous conversations is in the <SUMMARY> tags (if provided)."
-            + "\n</SCHEMA>\n"
-            + "<SYSTEM_INSTRUCTIONS>\n"
-            + self.train["content"]
-            + "\n</SYSTEM_INSTRUCTIONS>"
-            + (
-                f"\n<SUMMARY>\n{data.abstract} \n</SUMMARY>"
-                if config.llm.enable_memory_abstract
-                else ""
-            )
+        # train,memory,self(ChatObject),config will be given to Jinja2
+        self.train.content = await self.template.render_async(
+            train=self.train, memory=self.data, self=self, config=config
         )
-        debug_log(self.train["content"])
+        debug_log(self.train.content)
         logger.debug("Starting applying memory limitations..")
         async with MemoryLimiter(self.data, self.train, config=config) as lim:
             await lim.run_enforce()
@@ -778,6 +772,63 @@ class ChatObject:
                 # Otherwise, wait a bit before checking again
                 await asyncio.sleep(0.01)
 
+    async def _run_strategy(self) -> None:
+        """Run workflow of strategy given."""
+
+        match self.strategy.get_category():
+            case "agent-mixed" | "agent":
+                context = (
+                    SendMessageWrap.validate_messages([self.train, self.user_message])
+                    if self.config.function_config.use_minimal_context
+                    else self.context_wrap.copy()
+                )
+                ctx = StrategyContext(self.user_input, context, self)
+                await self._run_agent(ctx)
+
+            case "rag":
+                context = SendMessageWrap.validate_messages(
+                    [self.train, self.user_message]
+                )
+            case "workflow":
+                context = self.context_wrap.copy()
+            case _:
+                raise RuntimeError("Invalid agent strategy")
+        ctx = StrategyContext(self.user_input, context, self)
+        st = self.strategy(ctx)
+        try:
+            await st.run()
+        except Exception as e:
+            if isinstance(e, self._raised_exc):
+                raise
+            await st.on_exception(e)
+        self.context_wrap.extend(ctx.original_context.end_messages)
+
+    async def _run_agent(self, ctx: StrategyContext) -> None:
+        strategy = self.strategy(ctx)
+        backup = self.context_wrap.copy()
+        try:
+            for _ in range(1, self.config.function_config.agent_tool_call_limit + 1):
+                if not (await strategy.single_execute()):
+                    break
+            else:
+                await strategy.on_limited()
+            self.context_wrap.extend(strategy.ctx.original_context.end_messages)
+
+        except Exception as e:
+            if isinstance(e, self._raised_exc):
+                raise
+            logger.warning(
+                f"ERROR\n{e!s}\n!Failed to call Tools! Continuing with old data..."
+            )
+            await self.yield_response(
+                MessageWithMetadata(
+                    content=f"Agent run failed:{e!s}",
+                    metadata={"type": "error", "error": e},
+                )
+            )
+            await strategy.on_exception(e)
+            self.context_wrap = backup
+
     async def _process_chat(
         self,
         send_messages: CONTENT_LIST_TYPE,
@@ -803,7 +854,7 @@ class ChatObject:
         chat_event = PreCompletionEvent(
             chat_object=self,
             user_input=self.user_input,
-            original_context=messages,  # Use the original context
+            original_context=messages,
         )
         await MatcherManager.trigger_event(
             chat_event,
@@ -815,6 +866,7 @@ class ChatObject:
             exception_ignored=self._raised_exc,
             **self._hook_kwargs,
         )
+        await self._run_strategy()
         self.data.messages = chat_event.get_context_messages().unwrap(
             exclude_system=True
         )

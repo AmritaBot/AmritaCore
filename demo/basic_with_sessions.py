@@ -28,8 +28,6 @@ async def basic_with_sessions_example():
     # Configure AmritaCore with security features
     func = FunctionConfig(
         use_minimal_context=False,
-        tool_calling_mode="agent",
-        agent_thought_mode="reasoning",
     )
 
     llm = LLMConfig(

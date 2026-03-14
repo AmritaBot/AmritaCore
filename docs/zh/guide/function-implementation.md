@@ -490,12 +490,12 @@ logger.debug("处理消息: %s", user_input)
 logger.error("处理请求失败: %s", error)
 ```
 
-### 4.6.2 @debug_log 调试日志
+### 4.6.2 debug_log 调试日志
 
-`@debug_log` 装饰器已弃用，推荐使用标准日志记录器：
+`debug_log` 装饰器已弃用，推荐使用标准日志记录器：
 
 ```python
-# 使用 logger 而不是 @debug_log
+# 使用 logger 而不是 debug_log
 from amrita_core.logging import logger
 
 def my_function(param):

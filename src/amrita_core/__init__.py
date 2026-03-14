@@ -1,6 +1,8 @@
+from .agent.functions import AgentRuntime, create_agent
+from .agent.strategy import AgentStrategy
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta
-from .config import get_config, set_config
-from .hook.event import CompletionEvent, PreCompletionEvent
+from .config import AmritaConfig, get_config, set_config
+from .hook.event import BaseEvent, CompletionEvent, EventTypeEnum, PreCompletionEvent
 from .hook.matcher import MatcherManager
 from .hook.on import on_completion, on_event, on_precompletion
 from .libchat import (
@@ -37,11 +39,15 @@ from .types import (
 )
 
 __all__ = [
+    "AgentRuntime",
+    "AgentStrategy",
+    "BaseEvent",
     "BaseModel",
     "ChatManager",
     "ChatObject",
     "ChatObjectMeta",
     "CompletionEvent",
+    "EventTypeEnum",
     "Function",
     "FunctionDefinitionSchema",
     "FunctionParametersSchema",
@@ -64,6 +70,7 @@ __all__ = [
     "UniResponse",
     "UniResponseUsage",
     "call_completion",
+    "create_agent",
     "debug_log",
     "get_config",
     "get_last_response",
@@ -108,3 +115,9 @@ async def load_amrita():
         logger.info("Loading MCP clients......")
         clients = list(config.function_config.agent_mcp_server_scripts)
         await mcp.ClientManager().initialize_scripts_all(clients)
+
+
+async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
+    set_config(config)
+    init()
+    await load_amrita()
