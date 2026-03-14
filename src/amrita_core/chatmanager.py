@@ -12,6 +12,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, TypeAlias
 from uuid import uuid4
 
+from jinja2 import Template
 from pydantic import BaseModel, Field
 from pytz import utc
 from typing_extensions import Self
@@ -19,7 +20,7 @@ from typing_extensions import Self
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
 from amrita_core.builtins.agent import AmritaAgentStrategy
-from amrita_core.consts import ABSTRACT_INSTRUCTION
+from amrita_core.consts import ABSTRACT_INSTRUCTION, DEFAULT_TEMPLATE
 from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
@@ -396,6 +397,7 @@ class ChatObject:
     config: AmritaConfig  # config used in this call
     session: SessionData | None  # (lateinit) Session data
     strategy: type[AgentStrategy]
+    template: Template
     _response_queue: asyncio.Queue[RESPONSE_TYPE]
     _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
     _is_running: bool = False  # Whether it is running
@@ -422,6 +424,7 @@ class ChatObject:
         preset: ModelPreset | None = None,
         auto_create_session: bool = False,
         *,
+        train_template: Template = DEFAULT_TEMPLATE,
         agent_strategy: type[AgentStrategy] = AmritaAgentStrategy,
         hook_args: tuple[Any, ...] = (),
         hook_kwargs: dict[str, Any] | None = None,
@@ -440,6 +443,7 @@ class ChatObject:
             config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
             preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
+            train_template (Template, optional): Jinja2 template used to format system message.
             agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
@@ -474,6 +478,7 @@ class ChatObject:
             if session
             else PresetManager().get_default_preset()
         )
+        self.template = train_template
         # Hook args
         self._hook_args = hook_args
         self._hook_kwargs = hook_kwargs or {}
@@ -596,25 +601,9 @@ class ChatObject:
         logger.debug(
             f"Added user message to memory, current message count: {len(data.messages)}"
         )
-
-        self.train.content = (
-            "<SCHEMA>\n"
-            + (
-                f"<HIDDEN>{config.cookie.cookie}</HIDDEN>\n"
-                if config.cookie.enable_cookie
-                else ""
-            )
-            + "Please participate in the discussion in your own character identity. Try not to use similar phrases when responding to different topics. User's messages are contained within user inputs."
-            + "Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of previous conversations is in the <SUMMARY> tags (if provided)."
-            + "\n</SCHEMA>\n"
-            + "<SYSTEM_INSTRUCTIONS>\n"
-            + self.train.content
-            + "\n</SYSTEM_INSTRUCTIONS>"
-            + (
-                f"\n<SUMMARY>\n{data.abstract}\n</SUMMARY>"
-                if config.llm.enable_memory_abstract
-                else ""
-            )
+        # train,memory,self(ChatObject),config will be given to Jinja2
+        self.train.content = await self.template.render_async(
+            train=self.train, memory=self.data, self=self, config=config
         )
         debug_log(self.train.content)
         logger.debug("Starting applying memory limitations..")

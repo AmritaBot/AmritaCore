@@ -1,9 +1,14 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING
 from uuid import uuid4
+
+from jinja2 import Template
 
 from amrita_core.builtins.agent import AmritaAgentStrategy
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import get_config
+from amrita_core.consts import DEFAULT_TEMPLATE
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.types import USER_INPUT, MemoryModel, Message, ModelConfig, ModelPreset
 
@@ -24,21 +29,23 @@ class AgentRuntime:
     within the same context.
     """
 
-    strategy: "type[AgentStrategy]"
+    strategy: type[AgentStrategy]
     session_id: str
     session: SessionData | None = None
     preset: ModelPreset
-    config: "AmritaConfig"
-    train: "Message[str]"
+    config: AmritaConfig
+    train: Message[str]
     context: MemoryModel
+    template: Template
 
     def __init__(
         self,
-        config: "AmritaConfig",
+        config: AmritaConfig,
         preset: ModelPreset,
-        strategy: "type[AgentStrategy]" = AmritaAgentStrategy,
-        session: "SessionData | str | None" = None,
-        train: "dict[str, str] | Message[str] | None" = None,
+        strategy: type[AgentStrategy] = AmritaAgentStrategy,
+        template: Template | str = DEFAULT_TEMPLATE,
+        session: SessionData | str | None = None,
+        train: dict[str, str] | Message[str] | None = None,
         no_session: bool = False,
     ):
         """
@@ -48,6 +55,7 @@ class AgentRuntime:
             config (AmritaConfig): Amrita configuration object containing global configuration settings.
             preset (ModelPreset): Model preset configuration defining basic model parameters and settings.
             strategy (type[AgentStrategy], optional): Agent strategy class, defaults to AmritaAgentStrategy.
+            template (Template | str, optional): Train template to render system role message.
             session (SessionData | str | None, optional): Session data or session ID string for restoring
                 existing sessions. If None, a new session will be created.
             train (dict[str, str] | Message[str] | None, optional): Training data (system prompts),
@@ -55,6 +63,7 @@ class AgentRuntime:
             no_session (bool, optional): Whether to disable session functionality. If True, session
                 management will be disabled but a temporary session ID will still be assigned.
         """
+
         if no_session:
             # Assign a temporary session ID even when session functionality is disabled
             self.session_id = (
@@ -77,6 +86,7 @@ class AgentRuntime:
             if self.session and not self.no_session
             else MemoryModel()
         )
+        self.template = Template(template) if isinstance(template, str) else template
         self.strategy = strategy
         self.preset = preset
         self.config = config
@@ -88,7 +98,7 @@ class AgentRuntime:
     def no_session(self) -> bool:
         return self.session is None
 
-    def set_strategy(self, strategy: "type[AgentStrategy]") -> None:
+    def set_strategy(self, strategy: type[AgentStrategy]) -> None:
         """
         Set the agent strategy to be used for execution.
 
@@ -109,6 +119,7 @@ class AgentRuntime:
             config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
             preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
+            train_template (Template, optional): Jinja2 template used to format system message.
             agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
@@ -126,6 +137,7 @@ class AgentRuntime:
             config=self.config,
             preset=self.preset,
             agent_strategy=self.strategy,
+            train_template=self.template,
             auto_create_session=not self.no_session,
             **kwargs,
         )
@@ -136,7 +148,7 @@ def create_agent(
     key: str,
     *,
     model_config: ModelConfig | dict | None = None,
-    config: "AmritaConfig | None" = None,
+    config: AmritaConfig | None = None,
     **kwargs,
 ) -> AgentRuntime:
     """
@@ -155,7 +167,7 @@ def create_agent(
     Returns:
         AgentRuntime: Configured agent runtime instance
 
-    Example:
+    Examples:
         ```python
         # Simple usage with just url and key
         agent = create_agent("https://api.example.com", "your-api-key")

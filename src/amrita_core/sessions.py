@@ -5,6 +5,7 @@ import uuid
 from dataclasses import dataclass
 from typing import TypeVar, overload
 
+from jinja2 import Template
 from typing_extensions import Self
 
 from amrita_core.config import AmritaConfig

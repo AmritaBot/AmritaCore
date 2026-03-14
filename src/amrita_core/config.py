@@ -115,7 +115,7 @@ class LLMConfig(BaseModel):
         description="Whether to enable context memory summarization (will delete context and insert a summary into system instruction)",
     )
     memory_abstract_proportion: float = Field(
-        default=15e-2, description="Context summarization proportion (0.15=15%)"
+        default=50e-2, description="Context summarization proportion (0.5=50%)"
     )
     enable_multi_modal: bool = Field(
         default=True,
