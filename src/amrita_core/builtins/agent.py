@@ -71,6 +71,7 @@ class AmritaAgentStrategy(AgentStrategy):
     def __init__(self, ctx: StrategyContext) -> None:
         super().__init__(ctx)
         config = self.chat_object.config
+        self.tools = []
         if config.builtin.tool_calling_mode == "agent":
             self.tools.append(STOP_TOOL.model_dump())
             if config.builtin.agent_thought_mode.startswith("reasoning"):

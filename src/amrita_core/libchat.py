@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator, Sequence
 
 from pydantic import ValidationError
 
@@ -19,6 +19,7 @@ from .tokenizer import hybrid_token_count
 from .tools.models import ToolChoice
 from .types import (
     CONTENT_LIST_TYPE,
+    CONTENT_LIST_TYPE_ITEM,
     Message,
     ModelPreset,
     ToolCall,
@@ -103,15 +104,15 @@ async def get_tokens(
 
 
 def _validate_msg_list(
-    messages: CONTENT_LIST_TYPE,
+    messages: Sequence[typing.Any],
 ) -> CONTENT_LIST_TYPE:
     """Validate a list of message dictionaries and convert them to Message objects.
 
     Args:
-        messages: List of message dictionaries or Message objects
+        messages (Sequence[Any]): List of message dictionaries or Message objects
 
     Returns:
-        List of validated Message objects
+        CONTENT_LIST_TYPE: List of validated Message objects
 
     Raises:
         ValueError: If a message dictionary is invalid
@@ -131,8 +132,12 @@ def _validate_msg_list(
             except ValidationError as e:
                 raise ValueError(f"Invalid message format: {e}")
             validated_messages.append(validated_msg)
-        else:
+        elif isinstance(msg, CONTENT_LIST_TYPE_ITEM):
             validated_messages.append(msg)
+        else:
+            raise TypeError(
+                f"Invalid message type: {type(msg)}, this is not assignable to CONTENT_LIST_TYPE_ITEM"
+            )
     return validated_messages
 
 

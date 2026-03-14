@@ -1,0 +1,1859 @@
+diff --git a/CONTRIBUTING.md b/CONTRIBUTING.md
+index ed9d40b..170ae0d 100644
+--- a/CONTRIBUTING.md
++++ b/CONTRIBUTING.md
+@@ -6,6 +6,20 @@ Thank you for your interest in contributing to AmritaCore! This guide will help
+ 
+ Before participating in the project, please read our [Code of Conduct](./CODE_OF_CONDUCT.md) and abide by its provisions.
+ 
++## AIGC Content Licensing Policy
++
++We welcome the use of AI-generated content as a tool to enhance development efficiency, while maintaining high standards for code quality and integrity:
++
++1. **AI as a Tool**: The use of AI for code generation is recognized as a technological advancement and valuable productivity tool.
++
++2. **Core Business Logic**: All core business logic code must be written manually by developers and undergo thorough code review. AI-generated core business logic will not be accepted.
++
++3. **Documentation**: AI-generated documentation is permitted, but must strictly conform to the project's API definitions and specifications.
++
++4. **Tests**: Test cases may be generated using LLMs, but must provide complete coverage of the corresponding code lines, logical branches, and edge cases.
++
++5. **Review Requirement**: All AI-generated content, regardless of type, must be reviewed and validated by human contributors before submission.
++
+ ## Setting Up the Development Environment
+ 
+ 1. Fork the repository to your account
+diff --git a/docs/guide/function-implementation.md b/docs/guide/function-implementation.md
+index 4d86c50..5cde46b 100644
+--- a/docs/guide/function-implementation.md
++++ b/docs/guide/function-implementation.md
+@@ -488,12 +488,12 @@ logger.debug("Processing message: %s", user_input)
+ logger.error("Failed to process request: %s", error)
+ ```
+ 
+-### 4.6.2 @debug_log Debug Logging
++### 4.6.2 debug_log Debug Logging
+ 
+-The `@debug_log` decorator is deprecated in favor of the standard logger:
++The `debug_log` decorator is deprecated in favor of the standard logger:
+ 
+ ```python
+-# Use logger instead of @debug_log
++# Use logger instead of debug_log
+ from amrita_core.logging import logger
+ 
+ def my_function(param):
+diff --git a/docs/zh/guide/function-implementation.md b/docs/zh/guide/function-implementation.md
+index 67004b4..1cb6322 100644
+--- a/docs/zh/guide/function-implementation.md
++++ b/docs/zh/guide/function-implementation.md
+@@ -490,12 +490,12 @@ logger.debug("处理消息: %s", user_input)
+ logger.error("处理请求失败: %s", error)
+ ```
+ 
+-### 4.6.2 @debug_log 调试日志
++### 4.6.2 debug_log 调试日志
+ 
+-`@debug_log` 装饰器已弃用，推荐使用标准日志记录器：
++`debug_log` 装饰器已弃用，推荐使用标准日志记录器：
+ 
+ ```python
+-# 使用 logger 而不是 @debug_log
++# 使用 logger 而不是 debug_log
+ from amrita_core.logging import logger
+ 
+ def my_function(param):
+diff --git a/pyproject.toml b/pyproject.toml
+index a18fcf7..5d3eb0e 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -1,6 +1,6 @@
+ [project]
+ name = "amrita_core"
+-version = "0.5.0"
++version = "0.5.1.dev1"
+ description = "Agent core of Project Amrita"
+ readme = "README.md"
+ requires-python = ">=3.10,<3.14"
+@@ -8,10 +8,10 @@ dependencies = [
+     "aiofiles>=25.1.0",
+     "aiohttp>=3.13.3",
+     "anthropic>=0.84.0",
+-    "deprecated>=1.3.1",
+     "fastmcp>=2.14.4",
+     "filetype>=1.2.0",
+     "jieba>=0.42.1",
++    "jinja2>=3.1.6",
+     "loguru>=0.7.3",
+     "openai>=2.16.0",
+     "pydantic>=2.12.5",
+diff --git a/src/amrita_core/__init__.py b/src/amrita_core/__init__.py
+index 284f50d..11e892f 100644
+--- a/src/amrita_core/__init__.py
++++ b/src/amrita_core/__init__.py
+@@ -1,5 +1,5 @@
+ from .chatmanager import ChatManager, ChatObject, ChatObjectMeta
+-from .config import get_config, set_config
++from .config import AmritaConfig, get_config, set_config
+ from .hook.event import CompletionEvent, PreCompletionEvent
+ from .hook.matcher import MatcherManager
+ from .hook.on import on_completion, on_event, on_precompletion
+@@ -108,3 +108,9 @@ async def load_amrita():
+         logger.info("Loading MCP clients......")
+         clients = list(config.function_config.agent_mcp_server_scripts)
+         await mcp.ClientManager().initialize_scripts_all(clients)
++
++
++async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
++    set_config(AmritaConfig())
++    init()
++    await load_amrita()
+diff --git a/src/amrita_core/agent/context.py b/src/amrita_core/agent/context.py
+new file mode 100644
+index 0000000..2765269
+--- /dev/null
++++ b/src/amrita_core/agent/context.py
+@@ -0,0 +1,30 @@
++from dataclasses import dataclass
++from typing import TYPE_CHECKING
++
++from amrita_core.types import USER_INPUT, SendMessageWrap
++
++if TYPE_CHECKING:
++    from amrita_core.chatmanager import ChatObject
++
++
++@dataclass
++class StrategyContext:
++    user_input: USER_INPUT
++    original_context: SendMessageWrap
++    chat_object: "ChatObject"
++
++    @property
++    def message(self) -> SendMessageWrap:
++        return self.original_context
++
++    @message.setter
++    def message(self, value: SendMessageWrap):
++        if not isinstance(value, SendMessageWrap):
++            raise TypeError("message must be of type SendMessageWrap")
++        self.original_context = value
++
++    def get_original_context(self) -> SendMessageWrap:
++        return self.original_context
++
++    def get_user_input(self) -> USER_INPUT:
++        return self.user_input
+diff --git a/src/amrita_core/agent/functions.py b/src/amrita_core/agent/functions.py
+new file mode 100644
+index 0000000..d01b266
+--- /dev/null
++++ b/src/amrita_core/agent/functions.py
+@@ -0,0 +1,197 @@
++from __future__ import annotations
++
++from typing import TYPE_CHECKING
++from uuid import uuid4
++
++from jinja2 import Template
++
++from amrita_core.builtins.agent import AmritaAgentStrategy
++from amrita_core.chatmanager import ChatObject
++from amrita_core.config import get_config
++from amrita_core.consts import DEFAULT_TEMPLATE
++from amrita_core.sessions import SessionData, SessionsManager
++from amrita_core.types import USER_INPUT, MemoryModel, Message, ModelConfig, ModelPreset
++
++if TYPE_CHECKING:
++    from amrita_core.config import AmritaConfig
++
++    from .strategy import AgentStrategy
++
++
++class AgentRuntime:
++    """
++    AgentRuntime is a high-level wrapper around ChatObject that provides a reusable
++    agent operation interface.
++
++    This class encapsulates the complexity of ChatObject and provides a simplified
++    API for agent interactions. It maintains session state, configuration, and
++    strategy settings, making it a reusable object for multiple agent operations
++    within the same context.
++    """
++
++    strategy: type[AgentStrategy]
++    session_id: str
++    session: SessionData | None = None
++    preset: ModelPreset
++    config: AmritaConfig
++    train: Message[str]
++    context: MemoryModel
++    template: Template
++
++    def __init__(
++        self,
++        config: AmritaConfig,
++        preset: ModelPreset,
++        strategy: type[AgentStrategy] = AmritaAgentStrategy,
++        template: Template | str = DEFAULT_TEMPLATE,
++        session: SessionData | str | None = None,
++        train: dict[str, str] | Message[str] | None = None,
++        no_session: bool = False,
++    ):
++        """
++        Initialize an AgentRuntime instance.
++
++        Args:
++            config (AmritaConfig): Amrita configuration object containing global configuration settings.
++            preset (ModelPreset): Model preset configuration defining basic model parameters and settings.
++            strategy (type[AgentStrategy], optional): Agent strategy class, defaults to AmritaAgentStrategy.
++            template (Template | str, optional): Train template to render system role message.
++            session (SessionData | str | None, optional): Session data or session ID string for restoring
++                existing sessions. If None, a new session will be created.
++            train (dict[str, str] | Message[str] | None, optional): Training data (system prompts),
++                can be in dictionary format or as a Message object.
++            no_session (bool, optional): Whether to disable session functionality. If True, session
++                management will be disabled but a temporary session ID will still be assigned.
++        """
++
++        if no_session:
++            # Assign a temporary session ID even when session functionality is disabled
++            self.session_id = (
++                uuid4().hex
++            )  # Actually we still need to assign a session id
++        else:
++            # Handle session initialization logic: determine session ID based on provided session parameter and initialize session
++            if not session:
++                session_id = SessionsManager().new_session()
++
++            elif isinstance(session, str):
++                session_id = session
++            else:
++                session_id = session.session_id
++            SessionsManager().init_session(session_id)
++            self.session = SessionsManager().get_session_data(session_id)
++            self.session_id = session_id
++        self.context = (
++            self.session.memory
++            if self.session and not self.no_session
++            else MemoryModel()
++        )
++        self.template = Template(template) if isinstance(template, str) else template
++        self.strategy = strategy
++        self.preset = preset
++        self.config = config
++        self.train = (
++            train if isinstance(train, Message) else Message[str].model_validate(train)
++        )
++
++    @property
++    def no_session(self) -> bool:
++        return self.session is None
++
++    def set_strategy(self, strategy: type[AgentStrategy]) -> None:
++        """
++        Set the agent strategy to be used for execution.
++
++        Args:
++            strategy (type[AgentStrategy]): The agent strategy to be used for execution.
++        """
++        self.strategy = strategy
++
++    def get_chatobject(self, input: USER_INPUT, **kwargs) -> ChatObject:
++        """Get a chat object
++
++        Args:
++            train (dict[str, str] | Message[str]): Training data (system prompts)
++            user_input (USER_INPUT): Input from the user
++            context (Memory | None): Memory context for the session
++            session_id (str): Unique identifier for the session
++            callback (RESPONSE_CALLBACK_TYPE, optional): Callback function to be called when returning response. Defaults to None.
++            config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
++            preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
++            auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
++            train_template (Template, optional): Jinja2 template used to format system message.
++            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
++            hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
++            hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
++            exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().\n            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.
++            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 45.
++
++        Returns:
++            ChatObject: A chat object
++        """
++        return ChatObject(
++            train=self.train,
++            user_input=input,
++            context=self.context,
++            session_id=self.session_id,
++            config=self.config,
++            preset=self.preset,
++            agent_strategy=self.strategy,
++            train_template=self.template,
++            auto_create_session=not self.no_session,
++            **kwargs,
++        )
++
++
++def create_agent(
++    url: str,
++    key: str,
++    *,
++    model_config: ModelConfig | dict | None = None,
++    config: AmritaConfig | None = None,
++    **kwargs,
++) -> AgentRuntime:
++    """
++    Create an agent with minimal parameters by automatically creating a temporary preset.
++
++    This factory function simplifies agent creation by only requiring essential
++    parameters like URL and API key, automatically creating a temporary preset.
++
++    Args:
++        url (str): The API endpoint URL
++        key (str): The API key for authentication
++        model_config (ModelConfig | dict | None, optional): Optional model configuration. Defaults to None.
++        config (AmritaConfig | None, optional): Configuration for the agent. Defaults to global config.
++        **kwargs: Additional keyword arguments to pass to AgentRuntime
++
++    Returns:
++        AgentRuntime: Configured agent runtime instance
++
++    Examples:
++        ```python
++        # Simple usage with just url and key
++        agent = create_agent("https://api.example.com", "your-api-key")
++
++        # With custom model configuration
++        agent = create_agent(
++            "https://api.example.com",
++            "your-api-key",
++            model_config={"model": "gpt-4", "temperature": 0.7}
++        )
++        ```
++    """
++    final_config = config or get_config()
++    if isinstance(model_config, dict):
++        model_config = ModelConfig(**model_config)
++    elif not model_config:
++        model_config = ModelConfig()
++
++    preset = ModelPreset(
++        name=f"temp_{uuid4().hex[:8]}", base_url=url, api_key=key, config=model_config
++    )
++
++    return AgentRuntime(
++        config=final_config,
++        preset=preset,
++        **{k: v for k, v in kwargs.items() if k not in ["config", "model_config"]},
++    )
+diff --git a/src/amrita_core/agent/strategy.py b/src/amrita_core/agent/strategy.py
+new file mode 100644
+index 0000000..52bf415
+--- /dev/null
++++ b/src/amrita_core/agent/strategy.py
+@@ -0,0 +1,181 @@
++from __future__ import annotations
++
++from abc import ABC, abstractmethod
++from typing import TYPE_CHECKING, Literal
++
++from amrita_core.agent.context import StrategyContext
++from amrita_core.protocol import MessageWithMetadata
++from amrita_core.sessions import SessionData, SessionsManager
++from amrita_core.tools.manager import ToolsManager
++from amrita_core.types import Message
++
++if TYPE_CHECKING:
++    from amrita_core.chatmanager import ChatObject
++    from amrita_core.tools.manager import MultiToolsManager
++
++
++class AgentStrategy(ABC):
++    """
++    Abstract base class for agent strategies that define how an agent should execute its workflow.
++
++    This class provides a unified interface for different types of agent execution strategies,
++    allowing the system to support various agent patterns (basic tool calling, RAG, complex workflows).
++
++    This strategy is executed after the PreCompletionEvent hook has completed, as part of the
++    AgentWorkflow execution phase.
++
++    The strategy is initialized with a context containing all necessary information for execution,
++    including chat object, configuration, and message context.
++
++    Different strategy categories have different execution patterns:
++    - 'agent': Uses single_execute() method for step-by-step tool calling, managed by the framework
++    - 'rag': Uses run() method with minimal context (only system message and user query)
++    - 'workflow': Uses run() method with full manual control over tool calling and context management
++    - 'agent-mixed': Uses single_execute() method but can handle both RAG and Agent modes dynamically
++
++    Attributes:
++        session: The session data associated with the current chat session, or None if not available
++        tools_manager: Manager for handling available tools in the current context
++        chat_object: The chat object for yielding responses and managing the conversation flow
++        ctx: The strategy context containing execution parameters and configuration
++    """
++
++    session: SessionData | None = None
++    tools_manager: "MultiToolsManager"
++    chat_object: "ChatObject"
++    ctx: StrategyContext
++
++    def __init__(self, ctx: StrategyContext) -> None:
++        """
++        Initialize the agent strategy with the provided context.
++
++        Args:
++            ctx: StrategyContext containing chat_object, configuration, and message context
++        """
++        self.ctx = ctx
++        self.chat_object = ctx.chat_object
++        session_id = ctx.chat_object.session_id
++        self.session = SessionsManager().get_session_data(session_id, None)
++        self.tools_manager = self.session.tools if self.session else ToolsManager()
++
++    async def single_execute(
++        self,
++    ) -> bool:
++        """
++        Execute a single agent step for 'agent' and 'agent-mixed' category strategies.
++
++        This method is called by the framework to perform one iteration of tool calling.
++        The framework handles the loop management, call counting, and termination conditions.
++
++        For 'agent' category strategies, this method should:
++        - Process the current message context
++        - Make tool calls as needed
++        - Return True to continue execution, False to stop
++
++        For 'agent-mixed' category strategies, this method should:
++        - Dynamically determine whether to operate in RAG mode or Agent mode based on context
++        - Handle both retrieval-augmented generation and iterative tool calling within the same execution flow
++        - Return True to continue execution, False to stop
++
++        Returns:
++            True if should continue to next execution, False to stop.
++
++        Note:
++            This method is used by 'agent' and 'agent-mixed' category strategies.
++            'rag' and 'workflow' category strategies should implement run() instead.
++        """
++        raise NotImplementedError
++
++    async def run(self) -> None:
++        """
++        Run the complete agent strategy for 'rag' and 'workflow' category strategies.
++
++        This method gives full control to the strategy implementation for managing:
++        - Tool calling iterations and limits
++        - Context construction and management
++        - Error handling and recovery
++        - Response generation and streaming
++
++        Category-specific behavior:
++        - 'rag': Should use minimal context containing only system message and user query,
++                 without historical conversation context. Typically performs retrieval and
++                 generates a single response without iterative tool calling.
++        - 'workflow': Has complete manual control over everything including tool calling
++                     times management, context building, and execution flow. Can implement
++                      complex multi-step workflows with custom logic.
++
++        Note:
++            This method is used by 'rag' and 'workflow' category strategies.
++            'agent' and 'agent-mixed' category strategies should implement single_execute() instead.
++        """
++        raise NotImplementedError
++
++    async def on_limited(self) -> None:
++        """
++        Handle the event when the agent reaches its tool calling limit.
++
++        This method is called when the agent strategy has reached the maximum allowed number of tool calls
++        as configured by the framework. It provides a callback mechanism to handle special behavior or
++        actions required when the tool usage limit is exceeded.
++
++        Common use cases include:
++        - Sending a notification message to the user about the limit being reached
++        - Providing alternative responses without further tool calls
++        - Logging the limit event for monitoring purposes
++
++        Note:
++            This method is used by 'agent' and 'agent-mixed' category strategies.
++            'rag' and 'workflow' category strategies should implement run() instead.
++        """
++        await self.chat_object.yield_response(
++            MessageWithMetadata(
++                content="[AmritaAgent] Too many tool calls! Workflow terminated!",
++                metadata={
++                    "type": "system",
++                    "message": "[AmritaAgent] Too many tool calls! Workflow terminated!",
++                    "extra_type": "tool_call_limit",
++                },
++            )
++        )
++        self.ctx.original_context.append(
++            Message(
++                role="user",
++                content="Too much tools called occurred,please call later or follow user's instruction."
++                + "Now please continue to completion and NOT to call ANY tools.",
++            )
++        )
++
++    async def on_exception(self, exc: BaseException) -> None:
++        self.ctx.original_context.append(
++            Message(role="user", content=f"An exception occurred: {exc}")
++        )
++
++    @classmethod
++    @abstractmethod
++    def get_category(cls) -> Literal["agent", "workflow", "rag", "agent-mixed"]:
++        """
++        Get the category of the agent strategy.
++
++        The category determines how the strategy is executed by the framework:
++
++        - "agent": Framework-managed iterative execution using single_execute().
++                   The framework handles the execution loop, call counting, and termination.
++                   Strategy focuses on single-step logic. Best for standard tool-calling agents.
++
++        - "rag": Minimal-context execution using run(). Only receives system message and
++                 user query without conversation history. Designed for Retrieval-Augmented
++                 Generation scenarios where external knowledge retrieval is the primary function.
++
++        - "agent-mixed": Mixed-mode execution using single_execute(). Can handle both RAG and Agent modes.
++                         Dynamically switches between retrieval-augmented generation and iterative
++                         tool calling based on the current context and requirements. Provides
++                         flexibility to adapt execution strategy during runtime.
++
++        - "workflow": Full manual control using run(). Strategy manages everything including
++                      tool calling limits, context construction, and execution flow. Suitable
++                      for complex multi-step workflows with custom orchestration logic.
++
++        Returns:
++            The strategy category as a literal string indicating execution pattern.
++        """
++        ...
+diff --git a/src/amrita_core/builtins/adapter.py b/src/amrita_core/builtins/adapter.py
+index 09d8507..4e992bf 100644
+--- a/src/amrita_core/builtins/adapter.py
++++ b/src/amrita_core/builtins/adapter.py
+@@ -41,7 +41,7 @@ def model_dump(obj: Iterable[BaseModel | dict]) -> Sequence[Any]:
+ 
+ 
+ class AnthropicAdapter(ModelAdapter):
+-    """Anthropic Protocol Adapter"""
++    """Anthropic Protocol Adapter (Experimental)"""
+ 
+     @override
+     async def call_api(
+diff --git a/src/amrita_core/builtins/agent.py b/src/amrita_core/builtins/agent.py
+index 7be6b20..e9adc4c 100644
+--- a/src/amrita_core/builtins/agent.py
++++ b/src/amrita_core/builtins/agent.py
+@@ -1,23 +1,22 @@
+ import json
+-import os
+ import typing
+ from collections.abc import Awaitable, Callable
+-from copy import deepcopy
+-from typing import Any
++from typing import Any, Literal
+ 
++from amrita_core.agent.context import StrategyContext
++from amrita_core.agent.strategy import AgentStrategy
++from amrita_core.builtins.consts import BUILTIN_TOOLS_NAME
+ from amrita_core.config import AmritaConfig, get_config
+-from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
++from amrita_core.hook.event import CompletionEvent
+ from amrita_core.hook.exception import MatcherException as ProcEXC
+-from amrita_core.hook.on import on_completion, on_precompletion
++from amrita_core.hook.on import on_completion
+ from amrita_core.libchat import (
+     tools_caller,
+ )
+ from amrita_core.logging import debug_log, logger
+ from amrita_core.protocol import MessageWithMetadata
+-from amrita_core.sessions import SessionsManager
+-from amrita_core.tools.manager import ToolsManager, on_tools
++from amrita_core.tools.manager import on_tools
+ from amrita_core.tools.models import ToolContext
+-from amrita_core.types import CONTENT_LIST_TYPE as SEND_MESSAGES
+ from amrita_core.types import (
+     Message,
+     TextContent,
+@@ -33,23 +32,9 @@ from .tools import (
+     STOP_TOOL,
+ )
+ 
+-prehook = on_precompletion(block=False, priority=10)
+ posthook = on_completion(block=False, priority=10)
+ 
+ 
+-BUILTIN_TOOLS_NAME = {
+-    STOP_TOOL.function.name,
+-    REASONING_TOOL.function.name,
+-    PROCESS_MESSAGE.function.name,
+-}
+-
+-AGENT_PROCESS_TOOLS = (
+-    REASONING_TOOL,
+-    STOP_TOOL,
+-    PROCESS_MESSAGE,
+-)
+-
+-
+ class Continue(BaseException): ...
+ 
+ 
+@@ -61,7 +46,7 @@ class Continue(BaseException): ...
+ async def _(ctx: ToolContext) -> str | None:
+     msg: str = ctx.data["content"]
+     logger.debug(f"[LLM-ProcessMessage] {msg}")
+-    await ctx.event.chat_object.yield_response(
++    await ctx.ctx.chat_object.yield_response(
+         MessageWithMetadata(
+             content=msg, metadata={"type": "middle_message", "content": msg}
+         )
+@@ -69,60 +54,51 @@ async def _(ctx: ToolContext) -> str | None:
+     return f"Sent a message to user:\n\n```text\n{msg}\n```\n"
+ 
+ 
+-@prehook.handle()
+-async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+-    agent_last_step: str = ""
+-    session_id = event.chat_object.session_id
+-    session = SessionsManager().get_session_data(session_id, None)
+-    tools_manager = session.tools if session else ToolsManager()
++class AmritaAgentStrategy(AgentStrategy):
++    """
++    Amrita Agent Strategy is a strategy for executing an agent in RAG and Agent mode.
+ 
+-    async def _append_reasoning(
+-        msg: SEND_MESSAGES, response: UniResponse[None, list[ToolCall] | None]
+-    ):
+-        nonlocal agent_last_step
+-        tool_calls: list[ToolCall] | None = response.tool_calls
+-        if tool_calls:
+-            for tool in tool_calls:
+-                if tool.function.name == REASONING_TOOL.function.name:
+-                    break
+-            else:
+-                raise ValueError(f"No reasoning tool found in response \n\n{response}")
+-            if reasoning := json.loads(tool.function.arguments).get("content"):
+-                msg.append(Message.model_validate(response, from_attributes=True))
+-                msg.append(
+-                    ToolResult(
+-                        role="tool",
+-                        name=tool.function.name,
+-                        content=reasoning,
+-                        tool_call_id=tool.id,
+-                    )
+-                )
+-                agent_last_step = reasoning
+-                logger.debug(f"[AmritaAgent] {reasoning}")
+-                if not config.function_config.agent_reasoning_hide:
+-                    await chat_object.yield_response(
+-                        response=MessageWithMetadata(
+-                            content=f"<think>\n\n{reasoning}\n\n</think>\n",
+-                            metadata={"type": "reasoning", "content": reasoning},
+-                        )
+-                    )
+-            else:
+-                raise ValueError("Reasoning tool has no content!")
++    This strategy implements the 'agent-mixed' category, allowing it to dynamically handle
++    both retrieval-augmented generation scenarios and standard iterative tool calling agents
++    within the same execution framework.
++    """
++
++    agent_last_step: str | None = None
++    call_count = 1
++    tools: list[Any]
++    origin_msg = ""
+ 
+-    async def append_reasoning_msg(
+-        msg: SEND_MESSAGES,
++    def __init__(self, ctx: StrategyContext) -> None:
++        super().__init__(ctx)
++        config = self.chat_object.config
++        if config.builtin.tool_calling_mode == "agent":
++            self.tools.append(STOP_TOOL.model_dump())
++            if config.builtin.agent_thought_mode.startswith("reasoning"):
++                self.tools.append(REASONING_TOOL.model_dump())
++        self.tools.extend(self.tools_manager.tools_meta_dict().values())
++        self.origin_msg = (
++            "".join(
++                chunk.text
++                for chunk in ctx.original_context.user_query.content
++                if isinstance(chunk, TextContent)
++            )
++            if isinstance(ctx.original_context.user_query.content, list)
++            else ctx.original_context.user_query.content
++        )
++
++    async def _generate_reasoning_msg(
++        self,
+         original_msg: str = "",
+-        last_step: str = "",
+         tools_ctx: list[dict[str, Any]] = [],
+     ):
+-        nonlocal agent_last_step
++        last_step = self.agent_last_step
+         reasoning_msg = [
+             Message(
+                 role="system",
+                 content="Please analyze the task requirements based on the user input above,"
+                 + " summarize the current step's purpose and reasons, and execute accordingly."
+                 + " If no task needs to be performed, no description is needed;"
+-                + " please analyze according to the character tone set in <SYS_SETTINGS> (if present)."
++                + " please analyze according to the character tone set in <ROLE_SETTINGS> (if present)."
+                 + (
+                     f"\nYour previous task was:\n```text\n{last_step}\n```\n"
+                     if last_step
+@@ -130,38 +106,61 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+                 )
+                 + (f"\n<INPUT>\n{original_msg}\n</INPUT>\n" if original_msg else "")
+                 + (
+-                    f"<SYS_SETTINGS>\n{event.get_context_messages().train.content!s}\n</SYS_SETTINGS>"
++                    f"<ROLE_SETTINGS>\n{self.ctx.get_original_context().train.content!s}\n</ROLE_SETTINGS>"
+                 ),
+             ),
+-            *deepcopy(msg),
++            *self.ctx.original_context.unwrap(exclude_system=True),
+         ]
+         response: UniResponse[None, list[ToolCall] | None] = await tools_caller(
+             reasoning_msg,
+             [REASONING_TOOL.model_dump(), *tools_ctx],
+             tool_choice=REASONING_TOOL,
+-            preset=event.chat_object.preset,
++            preset=self.ctx.chat_object.preset,
+         )
+-        await _append_reasoning(msg, response)
+-
+-    async def continue_by_run(
+-        msg_list: list,
+-        call_count: int,
+-        original_msg: str = "",
+-    ) -> bool:
+-        """One term for function calling.
++        await self._append_reasoning(response)
+ 
+-        Args:
+-            msg_list (list): Context
+-            call_count (int): Called times.
+-            original_msg (str, optional): Original message (Used for reasoning). Defaults to "".
++    async def _append_reasoning(
++        self, response: UniResponse[None, list[ToolCall] | None]
++    ):
++        msg = self.ctx.get_original_context()
+ 
+-        Raises:
+-            RuntimeError: Raised on response error.
++        tool_calls: list[ToolCall] | None = response.tool_calls
++        if tool_calls:
++            for tool in tool_calls:
++                if tool.function.name == REASONING_TOOL.function.name:
++                    break
++            else:
++                raise ValueError(f"No reasoning tool found in response \n\n{response}")
++            if reasoning := json.loads(tool.function.arguments).get("content"):
++                msg.append(Message.model_validate(response, from_attributes=True))
++                msg.append(
++                    ToolResult(
++                        role="tool",
++                        name=tool.function.name,
++                        content=reasoning,
++                        tool_call_id=tool.id,
++                    )
++                )
++                self.agent_last_step = reasoning
++                logger.debug(f"[AmritaAgent] {reasoning}")
++                if not self.chat_object.config.builtin.agent_reasoning_hide:
++                    await self.chat_object.yield_response(
++                        response=MessageWithMetadata(
++                            content=f"<think>\n{reasoning}\n</think>",
++                            metadata={"type": "reasoning", "content": reasoning},
++                        )
++                    )
++            else:
++                raise ValueError("Reasoning tool has no content!")
+ 
+-        Returns:
+-            bool: Should continue to call next round.
+-        """
++    async def single_execute(
++        self,
++    ) -> bool:
+         suggested_stop: bool = False
++        config = self.chat_object.config
++        msg_list = self.ctx.original_context
++        if not self.tools:
++            return False
+ 
+         def stop_running():
+             """Mark agent workflow as completed."""
+@@ -169,25 +168,24 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+             suggested_stop = True
+ 
+         logger.info(
+-            f"Starting round {call_count} tool call, current message count: {len(msg_list)}"
++            f"Starting round {self.call_count} tool call, current message count: {len(msg_list)}"
+         )
+-        if config.function_config.tool_calling_mode == "agent" and (
+-            (
+-                call_count == 1
+-                and config.function_config.agent_thought_mode == "reasoning"
+-            )
+-            or config.function_config.agent_thought_mode == "reasoning-required"
++        if config.builtin.tool_calling_mode == "agent" and (
++            (self.call_count == 1 and config.builtin.agent_thought_mode == "reasoning")
++            or config.builtin.agent_thought_mode == "reasoning-required"
+         ):
+-            await append_reasoning_msg(msg_list, original_msg, tools_ctx=tools)
++            await self._generate_reasoning_msg(self.origin_msg, tools_ctx=self.tools)
++        elif config.builtin.tool_calling_mode == "none":
++            return False
+         response_msg = await tools_caller(
+-            msg_list,
+-            tools,
++            msg_list.unwrap(),
++            self.tools,
+             tool_choice=(
+                 "required"
+                 if (config.llm.require_tools and not suggested_stop)
+                 else "auto"
+             ),
+-            preset=event.chat_object.preset,
++            preset=self.chat_object.preset,
+         )
+ 
+         if tool_calls := response_msg.tool_calls:
+@@ -197,7 +195,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+                 function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
+                 debug_log(f"Function arguments are {tool_call.function.arguments}")
+                 logger.info(f"Calling function {function_name}")
+-                await chat_object.yield_response(
++                await self.chat_object.yield_response(
+                     MessageWithMetadata(
+                         content=f"Calling function {function_name}\n",
+                         metadata={
+@@ -213,7 +211,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+                     match function_name:
+                         case REASONING_TOOL.function.name:
+                             logger.debug("Generating task summary and reason.")
+-                            await _append_reasoning(msg_list, response=response_msg)
++                            await self._append_reasoning(response=response_msg)
+                             raise Continue()
+                         case STOP_TOOL.function.name:
+                             logger.info("Agent work has been terminated.")
+@@ -235,7 +233,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+                             stop_running()
+                         case _:
+                             if (
+-                                tool_data := tools_manager.get_tool(function_name)
++                                tool_data := self.tools_manager.get_tool(function_name)
+                             ) is not None:
+                                 if not tool_data.custom_run:
+                                     msg_list.append(
+@@ -254,8 +252,7 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+                                     )(
+                                         ToolContext(
+                                             data=function_args,
+-                                            event=event,
+-                                            matcher=prehook,
++                                            ctx=self.ctx,
+                                         )
+                                     )
+                                 ) is None:
+@@ -278,11 +275,11 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+                         raise
+                     logger.error(f"Function {function_name} execution failed: {e}")
+                     if (
+-                        config.function_config.tool_calling_mode == "agent"
++                        config.builtin.tool_calling_mode == "agent"
+                         and function_name not in BUILTIN_TOOLS_NAME
+-                        and config.function_config.agent_tool_call_notice
++                        and config.builtin.agent_tool_call_notice
+                     ):
+-                        await chat_object.yield_response(
++                        await self.chat_object.yield_response(
+                             MessageWithMetadata(
+                                 content=f"Error: {function_name} failed.",
+                                 metadata={
+@@ -315,12 +312,12 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+                     msg_list.append(msg)
+                     result_msg_list.append(msg)
+                 finally:
+-                    call_count += 1
++                    self.call_count += 1
+ 
+                 # Send tool call info to user
+-                if config.function_config.agent_tool_call_notice == "notify":
++                if config.builtin.agent_tool_call_notice == "notify":
+                     for rslt in result_msg_list:
+-                        await chat_object.yield_response(
++                        await self.chat_object.yield_response(
+                             MessageWithMetadata(
+                                 content=f"Called tool {rslt.name}\n",
+                                 metadata={
+@@ -335,95 +332,15 @@ async def agent_core(event: PreCompletionEvent, config: AmritaConfig) -> None:
+             return True
+         return False
+ 
+-    chat_object = event.chat_object
+-    if config.function_config.tool_calling_mode == "none":
+-        return
+-    msg_list: SEND_MESSAGES = (
+-        [
+-            deepcopy(event.message.train),
+-            deepcopy(event.message.user_query),
+-        ]
+-        if config.function_config.use_minimal_context
+-        else event.message.unwrap()
+-    )
+-    current_length = len(msg_list)
+-    chat_list_backup = event.message.copy()
+-    tools: list[dict[str, Any]] = []
+-    if config.function_config.tool_calling_mode == "agent":
+-        tools.append(STOP_TOOL.model_dump())
+-        if config.function_config.agent_thought_mode.startswith("reasoning"):
+-            tools.append(REASONING_TOOL.model_dump())
+-    tools.extend(tools_manager.tools_meta_dict().values())
+-    logger.debug(
+-        "Tool list:"
+-        + "".join(
+-            f"{tool['function']['name']}: {tool['function']['description']}\n\n"
+-            for tool in tools
+-        )
+-    )
+-    logger.debug(f"Tool list: {tools}")
+-    if not tools:
+-        logger.warning("No valid tools defined! Tools Workflow skipped.")
+-        return
+-    if str(os.getenv(key="AMRITA_IGNORE_AGENT_TOOLS")).lower() == "true" and (
+-        config.function_config.tool_calling_mode == "agent"
+-        and len(tools) == len(AGENT_PROCESS_TOOLS)
+-    ):
+-        logger.warning(
+-            "Note: Currently there are only Agent mode process tools without other valid tools defined, which usually isn't a best practice for using Agent mode. Configure environment variable AMRITA_IGNORE_AGENT_TOOLS=true to ignore this warning."
+-        )
+-
+-    try:
+-        for i in range(1, config.function_config.agent_tool_call_limit + 1):
+-            if not (
+-                await continue_by_run(
+-                    msg_list,
+-                    i,
+-                    original_msg=event.original_context
+-                    if isinstance(event.original_context, str)
+-                    else "".join(
+-                        [
+-                            i.content
+-                            for i in event.original_context
+-                            if isinstance(i, TextContent)
+-                        ]
+-                    ),
+-                )
+-            ):
+-                break
+-        else:
+-            await chat_object.yield_response(
+-                MessageWithMetadata(
+-                    content="[AmritaAgent] Too many tool calls! Workflow terminated!\n",
+-                    metadata={
+-                        "type": "system",
+-                        "message": "[AmritaAgent] Too many tool calls! Workflow terminated!\n",
+-                        "extra_type": "tool_call_limit",
+-                    },
+-                )
+-            )
+-            msg_list.append(
+-                Message(
+-                    role="user",
+-                    content="Too much tools called,please call later or follow user's instruction."
+-                    + "Now please continue to completion and NOT to call tools.",
+-                )
+-            )
+-        event.message.extend(msg_list[current_length:])
++    @classmethod
++    def get_category(cls) -> Literal["agent-mixed"]:
++        """
++        Get the category of the agent strategy.
+ 
+-    except Exception as e:
+-        if isinstance(e, ProcEXC):
+-            raise
+-        logger.warning(
+-            f"ERROR\n{e!s}\n!Failed to call Tools! Continuing with old data..."
+-        )
+-        await chat_object.yield_response(
+-            MessageWithMetadata(
+-                content=f"Agent run failed:{e!s}",
+-                metadata={"type": "error", "error": e},
+-            )
+-        )
+-        event._context_messages = chat_list_backup
++        Returns:
++            The strategy category as a literal string indicating execution pattern.
++        """
++        return "agent-mixed"
+ 
+ 
+ @posthook.handle()
+@@ -443,3 +360,6 @@ async def cookie(event: CompletionEvent, config: AmritaConfig):
+                     )
+                 )
+                 await event.chat_object.set_queue_done()
++
++
++__all__ = ["PROCESS_MESSAGE"]
+diff --git a/src/amrita_core/builtins/consts.py b/src/amrita_core/builtins/consts.py
+new file mode 100644
+index 0000000..df62508
+--- /dev/null
++++ b/src/amrita_core/builtins/consts.py
+@@ -0,0 +1,13 @@
++from amrita_core.builtins.tools import PROCESS_MESSAGE, REASONING_TOOL, STOP_TOOL
++
++BUILTIN_TOOLS_NAME = {
++    STOP_TOOL.function.name,
++    REASONING_TOOL.function.name,
++    PROCESS_MESSAGE.function.name,
++}
++
++AGENT_PROCESS_TOOLS = (
++    REASONING_TOOL,
++    STOP_TOOL,
++    PROCESS_MESSAGE,
++)
+diff --git a/src/amrita_core/chatmanager.py b/src/amrita_core/chatmanager.py
+index 4f61fe2..21482fc 100644
+--- a/src/amrita_core/chatmanager.py
++++ b/src/amrita_core/chatmanager.py
+@@ -12,10 +12,15 @@ from types import TracebackType
+ from typing import TYPE_CHECKING, Any, TypeAlias
+ from uuid import uuid4
+ 
++from jinja2 import Template
+ from pydantic import BaseModel, Field
+ from pytz import utc
+ from typing_extensions import Self
+ 
++from amrita_core.agent.context import StrategyContext
++from amrita_core.agent.strategy import AgentStrategy
++from amrita_core.builtins.agent import AmritaAgentStrategy
++from amrita_core.consts import ABSTRACT_INSTRUCTION, DEFAULT_TEMPLATE
+ from amrita_core.hook.exception import FallbackFailed
+ from amrita_core.preset import PresetManager
+ from amrita_core.sessions import SessionData
+@@ -26,7 +31,7 @@ from .hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
+ from .hook.matcher import MatcherManager
+ from .libchat import call_completion, get_last_response, get_tokens, text_generator
+ from .logging import debug_log, logger
+-from .protocol import MessageContent
++from .protocol import MessageContent, MessageWithMetadata
+ from .sessions import SessionsManager
+ from .tokenizer import hybrid_token_count
+ from .types import (
+@@ -80,33 +85,17 @@ class MemoryLimiter:
+ 
+     config: AmritaConfig  # Configuration object
+     usage: UniResponseUsage | None = None  # Token usage, initially None
+-    _train: dict[str, str]  # Training data (system prompts)
++    _train: Message[str]  # Training data (system prompts)
+     _dropped_messages: list[Message[str] | ToolResult]  # List of removed messages
+     _copied_messages: Memory  # Original message copies (for rollback on exceptions)
+-    _abstract_instruction = """<<SYS>>
+-You are a professional context summarizer, strictly following user instructions to perform summarization tasks.
+-<</SYS>>
+-
+-<<INSTRUCTIONS>>
+-1. Directly summarize the user-provided content
+-2. Maintain core information and key details from the original
+-3. Do not generate any additional content, explanations, or comments
+-4. Summaries should be concise, accurate, complete
+-<</INSTRUCTIONS>>
+-
+-<<RULE>>
+-- Only summarize the text provided by the user
+-- Do not add any explanations, comments, or supplementary information
+-- Do not alter the main meaning of the original
+-- Maintain an objective and neutral tone
+-<</RULE>>
+-
+-<<FORMATTING>>
+-User input → Direct summary output
+-<</FORMATTING>>"""
++    _abstract_instruction = ABSTRACT_INSTRUCTION
+ 
+     def __init__(
+-        self, memory: Memory, train: dict[str, str], config: AmritaConfig | None = None
++        self,
++        memory: Memory,
++        train: dict[str, str] | Message[str],
++        config: AmritaConfig | None = None,
++        abstract_instruction: str | None = None,
+     ) -> None:
+         """Initialize context processor
+ 
+@@ -116,7 +105,10 @@ User input → Direct summary output
+         """
+         self.memory: Memory = memory
+         self.config = config or get_config()
+-        self._train = train
++        self._train = (
++            train if isinstance(train, Message) else Message[str].model_validate(train)
++        )
++        self._abstract_instruction = abstract_instruction or self._abstract_instruction
+ 
+     async def __aenter__(self) -> Self:
+         """Async context manager entry, initialize processing state
+@@ -153,6 +145,11 @@ User input → Direct summary output
+         """
+         return cls._abstract_instruction
+ 
++    @classmethod
++    def reset_abstract_instruction(cls):
++        """Reset abstract instruction"""
++        cls._abstract_instruction = ABSTRACT_INSTRUCTION
++
+     async def _make_abstract(self):
+         """Generate context summary
+ 
+@@ -328,7 +325,7 @@ User input → Direct summary output
+         if not self.config.llm.enable_tokens_limit:
+             logger.debug("Token limitation disabled, skipping processing")
+             return
+-        prompt_length = hybrid_token_count(train["content"])
++        prompt_length = hybrid_token_count(train.content)
+         if prompt_length > self.config.llm.session_tokens_windows:
+             print(
+                 f"Prompt size too large! It's {prompt_length}>{self.config.llm.session_tokens_windows}! Please adjusts the prompt or settings!"
+@@ -392,13 +389,15 @@ class ChatObject:
+     user_input: USER_INPUT
+     user_message: Message[USER_INPUT]  # (lateinit) User message
+     context_wrap: SendMessageWrap  # (lateinit) Context message
+-    train: dict[str, str]  # System message
++    train: Message[str]  # System message
+     last_call: datetime  # Last internal function call time
+     session_id: str  # Session ID
+     response: UniResponse[str, None]  # (lateinit) Response
+     preset: ModelPreset  # preset used in this call
+     config: AmritaConfig  # config used in this call
+     session: SessionData | None  # (lateinit) Session data
++    strategy: type[AgentStrategy]
++    template: Template
+     _response_queue: asyncio.Queue[RESPONSE_TYPE]
+     _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
+     _is_running: bool = False  # Whether it is running
+@@ -416,7 +415,7 @@ class ChatObject:
+ 
+     def __init__(
+         self,
+-        train: dict[str, str],
++        train: dict[str, str] | Message[str],
+         user_input: USER_INPUT,
+         context: Memory | None,
+         session_id: str,
+@@ -424,28 +423,33 @@ class ChatObject:
+         config: AmritaConfig | None = None,
+         preset: ModelPreset | None = None,
+         auto_create_session: bool = False,
++        *,
++        train_template: Template = DEFAULT_TEMPLATE,
++        agent_strategy: type[AgentStrategy] = AmritaAgentStrategy,
+         hook_args: tuple[Any, ...] = (),
+         hook_kwargs: dict[str, Any] | None = None,
+         exception_ignored: tuple[type[BaseException], ...] = (),
+         queue_size: int = 25,
+         overflow_queue_size: int = 45,
+     ) -> None:
+-        """Initialize chat object
++        """Initialize a chat object
+ 
+         Args:
+-            train: Training data (system prompts)
+-            user_input: Input from the user
+-            context: Memory context for the session
+-            session_id: Unique identifier for the session
+-            callback: Callback function to be called when returning response
+-            config: Config used for this call
+-            preset: Preset used for this call
+-            auto_create_session: Whether to automatically create a session if it does not exist
+-            hook_args: Arguments could be passed to the Matcher function
+-            hook_kwargs: Keyword arguments could be passed to the Matcher function
+-            exception_ignored: These exceptions will be raised again if they are raised in the Matcher function.
+-            queue_size: Maximum number of message chunks to be stored in the queue
+-            overflow_queue_size: Maximum number of message chunks to be stored in the overflow queue
++            train (dict[str, str] | Message[str]): Training data (system prompts)
++            user_input (USER_INPUT): Input from the user
++            context (Memory | None): Memory context for the session
++            session_id (str): Unique identifier for the session
++            callback (RESPONSE_CALLBACK_TYPE, optional): Callback function to be called when returning response. Defaults to None.
++            config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
++            preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
++            auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
++            train_template (Template, optional): Jinja2 template used to format system message.
++            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
++            hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
++            hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
++            exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
++            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.
++            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 45.
+         """
+         sm = SessionsManager()
+         if auto_create_session and not sm.is_session_registered(session_id):
+@@ -453,9 +457,12 @@ class ChatObject:
+         self._raised_exc = exception_ignored
+         session: SessionData | None = sm.get_session_data(session_id, None)
+         self.session = session
+-        self.train = train
++        self.train = (
++            train if isinstance(train, Message) else Message[str].model_validate(train)
++        )
+         self.data = context or sm.get_session_data(session_id).memory
+         self.session_id = session_id
++        # data
+         self.user_input = user_input
+         self.user_message = Message(role="user", content=user_input)
+         self.timestamp = get_current_datetime_timestamp()
+@@ -463,12 +470,15 @@ class ChatObject:
+         self.config: AmritaConfig = config or (
+             session.config if session else get_config()
+         )
++        self.strategy = agent_strategy
++        # other
+         self.last_call = datetime.now(utc)
+         self.preset = preset or (
+             session.presets.get_default_preset()
+             if session
+             else PresetManager().get_default_preset()
+         )
++        self.template = train_template
+         # Hook args
+         self._hook_args = hook_args
+         self._hook_kwargs = hook_kwargs or {}
+@@ -591,27 +601,11 @@ class ChatObject:
+         logger.debug(
+             f"Added user message to memory, current message count: {len(data.messages)}"
+         )
+-
+-        self.train["content"] = (
+-            "<SCHEMA>\n"
+-            + (
+-                f"<HIDDEN>{config.cookie.cookie}</HIDDEN>\n"
+-                if config.cookie.enable_cookie
+-                else ""
+-            )
+-            + "Please participate in the discussion in your own character identity. Try not to use similar phrases when responding to different topics. User's messages are contained within user inputs."
+-            + "Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of previous conversations is in the <SUMMARY> tags (if provided)."
+-            + "\n</SCHEMA>\n"
+-            + "<SYSTEM_INSTRUCTIONS>\n"
+-            + self.train["content"]
+-            + "\n</SYSTEM_INSTRUCTIONS>"
+-            + (
+-                f"\n<SUMMARY>\n{data.abstract} \n</SUMMARY>"
+-                if config.llm.enable_memory_abstract
+-                else ""
+-            )
++        # train,memory,self(ChatObject),config will be given to Jinja2
++        self.train.content = await self.template.render_async(
++            train=self.train, memory=self.data, self=self, config=config
+         )
+-        debug_log(self.train["content"])
++        debug_log(self.train.content)
+         logger.debug("Starting applying memory limitations..")
+         async with MemoryLimiter(self.data, self.train, config=config) as lim:
+             await lim.run_enforce()
+@@ -778,6 +772,63 @@ class ChatObject:
+                 # Otherwise, wait a bit before checking again
+                 await asyncio.sleep(0.01)
+ 
++    async def _run_strategy(self) -> None:
++        """Run workflow of strategy given."""
++
++        match self.strategy.get_category():
++            case "agent-mixed" | "agent":
++                context = (
++                    SendMessageWrap.validate_messages([self.train, self.user_message])
++                    if self.config.function_config.use_minimal_context
++                    else self.context_wrap.copy()
++                )
++                ctx = StrategyContext(self.user_input, context, self)
++                await self._run_agent(ctx)
++
++            case "rag":
++                context = SendMessageWrap.validate_messages(
++                    [self.train, self.user_message]
++                )
++            case "workflow":
++                context = self.context_wrap.copy()
++            case _:
++                raise RuntimeError("Invalid agent strategy")
++        ctx = StrategyContext(self.user_input, context, self)
++        st = self.strategy(ctx)
++        try:
++            await st.run()
++        except Exception as e:
++            if isinstance(e, self._raised_exc):
++                raise
++            await st.on_exception(e)
++        self.context_wrap.extend(ctx.original_context.end_messages)
++
++    async def _run_agent(self, ctx: StrategyContext) -> None:
++        strategy = self.strategy(ctx)
++        backup = self.context_wrap.copy()
++        try:
++            for _ in range(1, self.config.function_config.agent_tool_call_limit + 1):
++                if not (await strategy.single_execute()):
++                    break
++            else:
++                await strategy.on_limited()
++            self.context_wrap.extend(strategy.ctx.original_context.end_messages)
++
++        except Exception as e:
++            if isinstance(e, self._raised_exc):
++                raise
++            logger.warning(
++                f"ERROR\n{e!s}\n!Failed to call Tools! Continuing with old data..."
++            )
++            await self.yield_response(
++                MessageWithMetadata(
++                    content=f"Agent run failed:{e!s}",
++                    metadata={"type": "error", "error": e},
++                )
++            )
++            await strategy.on_exception(e)
++            self.context_wrap = backup
++
+     async def _process_chat(
+         self,
+         send_messages: CONTENT_LIST_TYPE,
+@@ -803,7 +854,7 @@ class ChatObject:
+         chat_event = PreCompletionEvent(
+             chat_object=self,
+             user_input=self.user_input,
+-            original_context=messages,  # Use the original context
++            original_context=messages,
+         )
+         await MatcherManager.trigger_event(
+             chat_event,
+@@ -815,6 +866,7 @@ class ChatObject:
+             exception_ignored=self._raised_exc,
+             **self._hook_kwargs,
+         )
++        await self._run_strategy()
+         self.data.messages = chat_event.get_context_messages().unwrap(
+             exclude_system=True
+         )
+diff --git a/src/amrita_core/config.py b/src/amrita_core/config.py
+index b84f7fa..4dbefca 100644
+--- a/src/amrita_core/config.py
++++ b/src/amrita_core/config.py
+@@ -34,42 +34,47 @@ class CookieConfig(BaseModel):
+ 
+ class FunctionConfig(BaseModel):
+     use_minimal_context: bool = Field(
+-        default=True,
++        default=False,
+         description="Whether to use minimal context, i.e. system prompt + user's last message (disabling this option will use all context from the message list, which may consume a large amount of Tokens during Agent workflow execution; enabling this option may effectively reduce token usage)",
+     )
+ 
++    agent_tool_call_limit: int = Field(
++        default=10, description="Tool call limit in calling tools."
++    )
++
++    agent_middle_message: bool = Field(
++        default=True,
++        description="Whether to allow Agent to send intermediate messages to users in tools calling",
++    )
++    agent_mcp_client_enable: bool = Field(
++        default=False, description="Whether to enable MCP client"
++    )
++    agent_mcp_server_scripts: list[str] = Field(
++        default=[], description="List of MCP server scripts"
++    )
++
++
++class BuiltinAgentConfig(BaseModel):
+     tool_calling_mode: Literal["agent", "rag", "none"] = Field(
+         default="agent",
+-        description="Tool calling mode, i.e. whether to use Agent or RAG to call tools",
+-    )
+-    agent_tool_call_limit: int = Field(
+-        default=10, description="Tool call limit in agent mode"
++        description="Tool calling mode for amrita's built-in agent strategy",
+     )
+     agent_tool_call_notice: Literal["hide", "notify"] = Field(
+         default="hide",
+-        description="Method of showing tool call status in agent mode, hide to conceal, notify to inform",
++        description="Method of showing tool call status in built-in agent strategy, hide to conceal, notify to inform",
+     )
+     agent_thought_mode: Literal[
+         "reasoning", "chat", "reasoning-required", "reasoning-optional"
+     ] = Field(
+         default="chat",
+-        description="Thinking mode in agent mode, reasoning mode will first perform reasoning process, then execute tasks; "
++        description="Thinking mode in built-in agent strategy, reasoning mode will first perform reasoning process, then execute tasks; "
+         "reasoning-required requires task analysis for each Tool Calling; "
+         "reasoning-optional does not require reasoning but allows it; "
+         "chat mode executes tasks directly",
+     )
+     agent_reasoning_hide: bool = Field(
+-        default=False, description="Whether to hide the thought process in agent mode"
+-    )
+-    agent_middle_message: bool = Field(
+-        default=True,
+-        description="Whether to allow Agent to send intermediate messages to users in agent mode",
+-    )
+-    agent_mcp_client_enable: bool = Field(
+-        default=False, description="Whether to enable MCP client"
+-    )
+-    agent_mcp_server_scripts: list[str] = Field(
+-        default=[], description="List of MCP server scripts"
++        default=False,
++        description="Whether to hide the thought process in built-in agent strategy",
+     )
+ 
+ 
+@@ -110,7 +115,7 @@ class LLMConfig(BaseModel):
+         description="Whether to enable context memory summarization (will delete context and insert a summary into system instruction)",
+     )
+     memory_abstract_proportion: float = Field(
+-        default=15e-2, description="Context summarization proportion (0.15=15%)"
++        default=50e-2, description="Context summarization proportion (0.5=50%)"
+     )
+     enable_multi_modal: bool = Field(
+         default=True,
+@@ -130,6 +135,10 @@ class AmritaConfig(BaseModel):
+     cookie: CookieConfig = Field(
+         default_factory=CookieConfig, description="Cookie configuration"
+     )
++    builtin: BuiltinAgentConfig = Field(
++        default_factory=BuiltinAgentConfig,
++        description="Built-in agent configuration",
++    )
+ 
+ 
+ __config = AmritaConfig()
+diff --git a/src/amrita_core/consts.py b/src/amrita_core/consts.py
+new file mode 100644
+index 0000000..7c7ba14
+--- /dev/null
++++ b/src/amrita_core/consts.py
+@@ -0,0 +1,44 @@
++from jinja2 import Template
++
++ABSTRACT_INSTRUCTION = """<SYS>
++You are a professional context summarizer, strictly following user instructions to perform summarization tasks.
++</SYS>
++
++<INSTRUCTIONS>
++1. Directly summarize the user-provided content
++2. Maintain core information and key details from the original
++3. Do not generate any additional content, explanations, or comments
++4. Summaries should be concise, accurate, complete
++</INSTRUCTIONS>
++
++<RULE>
++- Only summarize the text provided by the user
++- Do not add any explanations, comments, or supplementary information
++- Do not alter the main meaning of the original
++- Maintain an objective and neutral tone
++</RULE>
++
++<FORMATTING>
++User input → Direct summary output
++</FORMATTING>"""
++
++# train,memory,self(ChatObject),config will be given to Jinja2
++PROMPT_TEMPLATE = """<SCHEMA>
++{% if config.cookie.enable %}
++<HIDDEN>{{ config.cookie.cookie }}</HIDDEN>
++{% endif %}
++Please participate in the discussion in your own character identity. Try not to use similar phrases when responding to different topics. User's messages are contained within user inputs.
++Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of previous conversations is in the <SUMMARY> tags (if provided).
++</SCHEMA>
++
++<SYSTEM_INSTRUCTIONS>
++{{ train.content }}
++</SYSTEM_INSTRUCTIONS>
++{% if memory.abstract and config.llm.enable_memory_abstract %}
++<SUMMARY>
++{{ memory.abstract }}
++</SUMMARY>
++{% endif %}
++"""
++
++DEFAULT_TEMPLATE = Template(PROMPT_TEMPLATE)
+diff --git a/src/amrita_core/hook/matcher.py b/src/amrita_core/hook/matcher.py
+index e68ffa6..dc646ab 100644
+--- a/src/amrita_core/hook/matcher.py
++++ b/src/amrita_core/hook/matcher.py
+@@ -16,10 +16,9 @@ from typing import (
+     overload,
+ )
+ 
+-from deprecated.sphinx import deprecated
+ from exceptiongroup import ExceptionGroup
+ from pydantic import BaseModel, Field
+-from typing_extensions import Self
++from typing_extensions import Self, deprecated
+ 
+ from amrita_core.config import AmritaConfig
+ from amrita_core.hook.event import EventTypeEnum
+@@ -61,7 +60,10 @@ class EventRegistry:
+     def get_handlers(self, event_type: str) -> defaultdict[int, list[FunctionData]]:
+         return self._event_handlers[event_type]
+ 
+-    @deprecated(reason="Use `get_all()` instead.", version="0.6.0")
++    @deprecated(
++        "Use `get_all()` instead. Will be removed in v0.6.0",
++        category=DeprecationWarning,
++    )
+     def _all(self) -> defaultdict[str, defaultdict[int, list[FunctionData]]]:
+         return self.get_all()
+ 
+@@ -118,7 +120,10 @@ class Matcher:
+         """
+         raise CancelException()
+ 
+-    @deprecated(reason="Use `stop_process()` instead.", version="0.6.0")
++    @deprecated(
++        "Use `stop_process()` instead. Will be removed at 0.6.0",
++        category=DeprecationWarning,
++    )
+     def cancel_matcher(self):
+         """
+         Stop the matcher then cancel the matcher loop.
+@@ -231,14 +236,19 @@ class MatcherFactory:
+                 - dict: Resolved keyword arguments
+                 - dict: kwargs should be resolved by dependency injection
+         """
+-        args_types = {k: v.annotation for k, v in signature.parameters.items()}
+-        filtered_args_types = {
+-            k: v for k, v in args_types.items() if v is not inspect._empty
+-        }
+-
+-        # Check if all parameters are typed
+-        if args_types != filtered_args_types:
+-            return False, (), {}, {}
++        params: MappingProxyType[str, inspect.Parameter] = signature.parameters
++        filtered_args_types = {}
++        f_kwargs: dict[str, Any] = {}
++        d_kwargs: dict[str, DependsFactory] = {}
++        for k, v in params.items():
++            if v.annotation is not inspect._empty:
++                filtered_args_types[k] = v.annotation
++            else:
++                return False, (), {}, {}
++            if k in session_kwargs:
++                f_kwargs[k] = session_kwargs[k]
++            if isinstance(v.default, DependsFactory):
++                d_kwargs[k] = v.default
+ 
+         new_args = []
+         used_indices: set[int] = set()
+@@ -268,21 +278,6 @@ class MatcherFactory:
+             if not found:
+                 return False, (), {}, {}
+ 
+-        # Get keyword arguments from session_kwargs that match function signature
+-        kwparams: MappingProxyType[str, inspect.Parameter] = signature.parameters
+-        f_kwargs: dict[str, Any] = {
+-            param_name: session_kwargs[param_name]
+-            for param_name in kwparams.keys()
+-            if param_name in session_kwargs
+-        }
+-
+-        # Get default dependencies from function signature
+-        d_kwargs: dict[str, DependsFactory] = {
+-            k: v.default
+-            for k, v in kwparams.items()
+-            if isinstance(v.default, DependsFactory)
+-        }
+-
+         # Verify all required parameters are resolved
+         if len(param_names_resolved) != len(required_params):
+             return False, (), {}, {}
+diff --git a/src/amrita_core/sessions.py b/src/amrita_core/sessions.py
+index e5376d0..2391766 100644
+--- a/src/amrita_core/sessions.py
++++ b/src/amrita_core/sessions.py
+@@ -5,6 +5,7 @@ import uuid
+ from dataclasses import dataclass
+ from typing import TypeVar, overload
+ 
++from jinja2 import Template
+ from typing_extensions import Self
+ 
+ from amrita_core.config import AmritaConfig
+diff --git a/src/amrita_core/tools/models.py b/src/amrita_core/tools/models.py
+index 236d968..f6c049f 100644
+--- a/src/amrita_core/tools/models.py
++++ b/src/amrita_core/tools/models.py
+@@ -3,13 +3,14 @@ from __future__ import annotations
+ from collections.abc import Awaitable, Callable
+ from copy import deepcopy
+ from dataclasses import dataclass, field
+-from typing import Any, Generic, Literal, TypeVar
++from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
+ 
+ from pydantic import BaseModel, Field, model_validator
+ from typing_extensions import Self
+ 
+-from ..hook.event import Event
+-from ..hook.matcher import Matcher
++if TYPE_CHECKING:
++    from amrita_core.agent.context import StrategyContext
++
+ 
+ T = TypeVar("T", str, int, float, bool, list, dict)  # JSON type
+ JOT_T = TypeVar(
+@@ -331,8 +332,7 @@ ToolChoice = Literal["none", "auto", "required"] | ToolFunctionSchema
+ @dataclass
+ class ToolContext:
+     data: dict[str, Any] = field()
+-    event: Event = field()
+-    matcher: Matcher = field()
++    ctx: "StrategyContext" = field()
+ 
+ 
+ class ToolData(BaseModel):
+diff --git a/src/amrita_core/types.py b/src/amrita_core/types.py
+index 9ef28d1..11ac3dc 100644
+--- a/src/amrita_core/types.py
++++ b/src/amrita_core/types.py
+@@ -383,6 +383,7 @@ class SendMessageWrap(Iterable[CONTENT_LIST_TYPE_ITEM]):
+         self.end_messages.extend(messages)
+ 
+ 
++# Register content types
+ register_content(TextContent)
+ register_content(ImageContent)
+ register_content(FileContent)
+diff --git a/uv.lock b/uv.lock
+index 59fb8f5..72838b2 100644
+--- a/uv.lock
++++ b/uv.lock
+@@ -133,16 +133,16 @@ wheels = [
+ 
+ [[package]]
+ name = "amrita-core"
+-version = "0.5.0"
++version = "0.5.1.dev1"
+ source = { editable = "." }
+ dependencies = [
+     { name = "aiofiles" },
+     { name = "aiohttp" },
+     { name = "anthropic" },
+-    { name = "deprecated" },
+     { name = "fastmcp" },
+     { name = "filetype" },
+     { name = "jieba" },
++    { name = "jinja2" },
+     { name = "loguru" },
+     { name = "openai" },
+     { name = "pydantic" },
+@@ -165,10 +165,10 @@ requires-dist = [
+     { name = "aiofiles", specifier = ">=25.1.0" },
+     { name = "aiohttp", specifier = ">=3.13.3" },
+     { name = "anthropic", specifier = ">=0.84.0" },
+-    { name = "deprecated", specifier = ">=1.3.1" },
+     { name = "fastmcp", specifier = ">=2.14.4" },
+     { name = "filetype", specifier = ">=1.2.0" },
+     { name = "jieba", specifier = ">=0.42.1" },
++    { name = "jinja2", specifier = ">=3.1.6" },
+     { name = "loguru", specifier = ">=0.7.3" },
+     { name = "openai", specifier = ">=2.16.0" },
+     { name = "pydantic", specifier = ">=2.12.5" },
+@@ -302,12 +302,20 @@ sdist = { url = "https://files.pythonhosted.org/packages/92/88/b8527e1b00c1811db
+ wheels = [
+     { url = "https://files.pythonhosted.org/packages/6a/80/ea4ead0c5d52a9828692e7df20f0eafe8d26e671ce4883a0a146bb91049e/caio-0.9.25-cp310-cp310-macosx_10_9_universal2.whl", hash = "sha256:ca6c8ecda611478b6016cb94d23fd3eb7124852b985bdec7ecaad9f3116b9619", size = 36836, upload-time = "2025-12-26T15:22:04.662Z" },
+     { url = "https://files.pythonhosted.org/packages/17/b9/36715c97c873649d1029001578f901b50250916295e3dddf20c865438865/caio-0.9.25-cp310-cp310-manylinux2010_x86_64.manylinux2014_x86_64.manylinux_2_12_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:db9b5681e4af8176159f0d6598e73b2279bb661e718c7ac23342c550bd78c241", size = 79695, upload-time = "2025-12-26T15:22:18.818Z" },
++    { url = "https://files.pythonhosted.org/packages/0b/ab/07080ecb1adb55a02cbd8ec0126aa8e43af343ffabb6a71125b42670e9a1/caio-0.9.25-cp310-cp310-manylinux_2_34_aarch64.whl", hash = "sha256:bf61d7d0c4fd10ffdd98ca47f7e8db4d7408e74649ffaf4bef40b029ada3c21b", size = 79457, upload-time = "2026-03-04T22:08:16.024Z" },
++    { url = "https://files.pythonhosted.org/packages/88/95/dd55757bb671eb4c376e006c04e83beb413486821f517792ea603ef216e9/caio-0.9.25-cp310-cp310-manylinux_2_34_x86_64.whl", hash = "sha256:ab52e5b643f8bbd64a0605d9412796cd3464cb8ca88593b13e95a0f0b10508ae", size = 77705, upload-time = "2026-03-04T22:08:17.202Z" },
+     { url = "https://files.pythonhosted.org/packages/ec/90/543f556fcfcfa270713eef906b6352ab048e1e557afec12925c991dc93c2/caio-0.9.25-cp311-cp311-macosx_10_9_universal2.whl", hash = "sha256:d6956d9e4a27021c8bd6c9677f3a59eb1d820cc32d0343cea7961a03b1371965", size = 36839, upload-time = "2025-12-26T15:21:40.267Z" },
+     { url = "https://files.pythonhosted.org/packages/51/3b/36f3e8ec38dafe8de4831decd2e44c69303d2a3892d16ceda42afed44e1b/caio-0.9.25-cp311-cp311-manylinux2010_x86_64.manylinux2014_x86_64.manylinux_2_12_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:bf84bfa039f25ad91f4f52944452a5f6f405e8afab4d445450978cd6241d1478", size = 80255, upload-time = "2025-12-26T15:22:20.271Z" },
++    { url = "https://files.pythonhosted.org/packages/df/ce/65e64867d928e6aff1b4f0e12dba0ef6d5bf412c240dc1df9d421ac10573/caio-0.9.25-cp311-cp311-manylinux_2_34_aarch64.whl", hash = "sha256:ae3d62587332bce600f861a8de6256b1014d6485cfd25d68c15caf1611dd1f7c", size = 80052, upload-time = "2026-03-04T22:08:20.402Z" },
++    { url = "https://files.pythonhosted.org/packages/46/90/e278863c47e14ec58309aa2e38a45882fbe67b4cc29ec9bc8f65852d3e45/caio-0.9.25-cp311-cp311-manylinux_2_34_x86_64.whl", hash = "sha256:fc220b8533dcf0f238a6b1a4a937f92024c71e7b10b5a2dfc1c73604a25709bc", size = 78273, upload-time = "2026-03-04T22:08:21.368Z" },
+     { url = "https://files.pythonhosted.org/packages/d3/25/79c98ebe12df31548ba4eaf44db11b7cad6b3e7b4203718335620939083c/caio-0.9.25-cp312-cp312-macosx_10_13_universal2.whl", hash = "sha256:fb7ff95af4c31ad3f03179149aab61097a71fd85e05f89b4786de0359dffd044", size = 36983, upload-time = "2025-12-26T15:21:36.075Z" },
+     { url = "https://files.pythonhosted.org/packages/a3/2b/21288691f16d479945968a0a4f2856818c1c5be56881d51d4dac9b255d26/caio-0.9.25-cp312-cp312-manylinux2010_x86_64.manylinux2014_x86_64.manylinux_2_12_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:97084e4e30dfa598449d874c4d8e0c8d5ea17d2f752ef5e48e150ff9d240cd64", size = 82012, upload-time = "2025-12-26T15:22:20.983Z" },
++    { url = "https://files.pythonhosted.org/packages/03/c4/8a1b580875303500a9c12b9e0af58cb82e47f5bcf888c2457742a138273c/caio-0.9.25-cp312-cp312-manylinux_2_34_aarch64.whl", hash = "sha256:4fa69eba47e0f041b9d4f336e2ad40740681c43e686b18b191b6c5f4c5544bfb", size = 81502, upload-time = "2026-03-04T22:08:22.381Z" },
++    { url = "https://files.pythonhosted.org/packages/d1/1c/0fe770b8ffc8362c48134d1592d653a81a3d8748d764bec33864db36319d/caio-0.9.25-cp312-cp312-manylinux_2_34_x86_64.whl", hash = "sha256:6bebf6f079f1341d19f7386db9b8b1f07e8cc15ae13bfdaff573371ba0575d69", size = 80200, upload-time = "2026-03-04T22:08:23.382Z" },
+     { url = "https://files.pythonhosted.org/packages/31/57/5e6ff127e6f62c9f15d989560435c642144aa4210882f9494204bc892305/caio-0.9.25-cp313-cp313-macosx_10_13_universal2.whl", hash = "sha256:d6c2a3411af97762a2b03840c3cec2f7f728921ff8adda53d7ea2315a8563451", size = 36979, upload-time = "2025-12-26T15:21:35.484Z" },
+     { url = "https://files.pythonhosted.org/packages/a3/9f/f21af50e72117eb528c422d4276cbac11fb941b1b812b182e0a9c70d19c5/caio-0.9.25-cp313-cp313-manylinux2010_x86_64.manylinux2014_x86_64.manylinux_2_12_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:0998210a4d5cd5cb565b32ccfe4e53d67303f868a76f212e002a8554692870e6", size = 81900, upload-time = "2025-12-26T15:22:21.919Z" },
++    { url = "https://files.pythonhosted.org/packages/9c/12/c39ae2a4037cb10ad5eb3578eb4d5f8c1a2575c62bba675f3406b7ef0824/caio-0.9.25-cp313-cp313-manylinux_2_34_aarch64.whl", hash = "sha256:1a177d4777141b96f175fe2c37a3d96dec7911ed9ad5f02bac38aaa1c936611f", size = 81523, upload-time = "2026-03-04T22:08:25.187Z" },
++    { url = "https://files.pythonhosted.org/packages/22/59/f8f2e950eb4f1a5a3883e198dca514b9d475415cb6cd7b78b9213a0dd45a/caio-0.9.25-cp313-cp313-manylinux_2_34_x86_64.whl", hash = "sha256:9ed3cfb28c0e99fec5e208c934e5c157d0866aa9c32aa4dc5e9b6034af6286b7", size = 80243, upload-time = "2026-03-04T22:08:26.449Z" },
+     { url = "https://files.pythonhosted.org/packages/86/93/1f76c8d1bafe3b0614e06b2195784a3765bbf7b0a067661af9e2dd47fc33/caio-0.9.25-py3-none-any.whl", hash = "sha256:06c0bb02d6b929119b1cfbe1ca403c768b2013a369e2db46bfa2a5761cf82e40", size = 19087, upload-time = "2025-12-26T15:22:00.221Z" },
+ ]
+ 
+@@ -552,18 +560,6 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/a9/0f/119fa63fa93e0a331fbedcb27162d8f88d3ba2f38eba1567e3e44307b857/cyclopts-4.5.4-py3-none-any.whl", hash = "sha256:ad001986ec403ca1dc1ed20375c439d62ac796295ea32b451dfe25d6696bc71a", size = 200225, upload-time = "2026-02-20T00:58:47.275Z" },
+ ]
+ 
+-[[package]]
+-name = "deprecated"
+-version = "1.3.1"
+-source = { registry = "https://pypi.org/simple" }
+-dependencies = [
+-    { name = "wrapt" },
+-]
+-sdist = { url = "https://files.pythonhosted.org/packages/49/85/12f0a49a7c4ffb70572b6c2ef13c90c88fd190debda93b23f026b25f9634/deprecated-1.3.1.tar.gz", hash = "sha256:b1b50e0ff0c1fddaa5708a2c6b0a6588bb09b892825ab2b214ac9ea9d92a5223", size = 2932523, upload-time = "2025-10-30T08:19:02.757Z" }
+-wheels = [
+-    { url = "https://files.pythonhosted.org/packages/84/d0/205d54408c08b13550c733c4b85429e7ead111c7f0014309637425520a9a/deprecated-1.3.1-py2.py3-none-any.whl", hash = "sha256:597bfef186b6f60181535a29fbe44865ce137a5079f295b479886c82729d5f3f", size = 11298, upload-time = "2025-10-30T08:19:00.758Z" },
+-]
+-
+ [[package]]
+ name = "distro"
+ version = "1.9.0"
+@@ -881,6 +877,18 @@ version = "0.42.1"
+ source = { registry = "https://pypi.org/simple" }
+ sdist = { url = "https://files.pythonhosted.org/packages/c6/cb/18eeb235f833b726522d7ebed54f2278ce28ba9438e3135ab0278d9792a2/jieba-0.42.1.tar.gz", hash = "sha256:055ca12f62674fafed09427f176506079bc135638a14e23e25be909131928db2", size = 19214172, upload-time = "2020-01-20T14:27:23.5Z" }
+ 
++[[package]]
++name = "jinja2"
++version = "3.1.6"
++source = { registry = "https://pypi.org/simple" }
++dependencies = [
++    { name = "markupsafe" },
++]
++sdist = { url = "https://files.pythonhosted.org/packages/df/bf/f7da0350254c0ed7c72f3e33cef02e048281fec7ecec5f032d4aac52226b/jinja2-3.1.6.tar.gz", hash = "sha256:0137fb05990d35f1275a587e9aee6d56da821fc83491a0fb838183be43f66d6d", size = 245115, upload-time = "2025-03-05T20:05:02.478Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/62/a1/3d680cbfd5f4b8f15abc1d571870c5fc3e594bb582bc3b64ea099db13e56/jinja2-3.1.6-py3-none-any.whl", hash = "sha256:85ece4451f492d0c13c5dd7c13a64681a86afae63a5f347908daf103ce6d2f67", size = 134899, upload-time = "2025-03-05T20:05:00.369Z" },
++]
++
+ [[package]]
+ name = "jiter"
+ version = "0.13.0"
+@@ -1046,6 +1054,69 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/94/54/e7d793b573f298e1c9013b8c4dade17d481164aa517d1d7148619c2cedbf/markdown_it_py-4.0.0-py3-none-any.whl", hash = "sha256:87327c59b172c5011896038353a81343b6754500a08cd7a4973bb48c6d578147", size = 87321, upload-time = "2025-08-11T12:57:51.923Z" },
+ ]
+ 
++[[package]]
++name = "markupsafe"
++version = "3.0.3"
++source = { registry = "https://pypi.org/simple" }
++sdist = { url = "https://files.pythonhosted.org/packages/7e/99/7690b6d4034fffd95959cbe0c02de8deb3098cc577c67bb6a24fe5d7caa7/markupsafe-3.0.3.tar.gz", hash = "sha256:722695808f4b6457b320fdc131280796bdceb04ab50fe1795cd540799ebe1698", size = 80313, upload-time = "2025-09-27T18:37:40.426Z" }
++wheels = [
++    { url = "https://files.pythonhosted.org/packages/e8/4b/3541d44f3937ba468b75da9eebcae497dcf67adb65caa16760b0a6807ebb/markupsafe-3.0.3-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:2f981d352f04553a7171b8e44369f2af4055f888dfb147d55e42d29e29e74559", size = 11631, upload-time = "2025-09-27T18:36:05.558Z" },
++    { url = "https://files.pythonhosted.org/packages/98/1b/fbd8eed11021cabd9226c37342fa6ca4e8a98d8188a8d9b66740494960e4/markupsafe-3.0.3-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:e1c1493fb6e50ab01d20a22826e57520f1284df32f2d8601fdd90b6304601419", size = 12057, upload-time = "2025-09-27T18:36:07.165Z" },
++    { url = "https://files.pythonhosted.org/packages/40/01/e560d658dc0bb8ab762670ece35281dec7b6c1b33f5fbc09ebb57a185519/markupsafe-3.0.3-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:1ba88449deb3de88bd40044603fafffb7bc2b055d626a330323a9ed736661695", size = 22050, upload-time = "2025-09-27T18:36:08.005Z" },
++    { url = "https://files.pythonhosted.org/packages/af/cd/ce6e848bbf2c32314c9b237839119c5a564a59725b53157c856e90937b7a/markupsafe-3.0.3-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:f42d0984e947b8adf7dd6dde396e720934d12c506ce84eea8476409563607591", size = 20681, upload-time = "2025-09-27T18:36:08.881Z" },
++    { url = "https://files.pythonhosted.org/packages/c9/2a/b5c12c809f1c3045c4d580b035a743d12fcde53cf685dbc44660826308da/markupsafe-3.0.3-cp310-cp310-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:c0c0b3ade1c0b13b936d7970b1d37a57acde9199dc2aecc4c336773e1d86049c", size = 20705, upload-time = "2025-09-27T18:36:10.131Z" },
++    { url = "https://files.pythonhosted.org/packages/cf/e3/9427a68c82728d0a88c50f890d0fc072a1484de2f3ac1ad0bfc1a7214fd5/markupsafe-3.0.3-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:0303439a41979d9e74d18ff5e2dd8c43ed6c6001fd40e5bf2e43f7bd9bbc523f", size = 21524, upload-time = "2025-09-27T18:36:11.324Z" },
++    { url = "https://files.pythonhosted.org/packages/bc/36/23578f29e9e582a4d0278e009b38081dbe363c5e7165113fad546918a232/markupsafe-3.0.3-cp310-cp310-musllinux_1_2_riscv64.whl", hash = "sha256:d2ee202e79d8ed691ceebae8e0486bd9a2cd4794cec4824e1c99b6f5009502f6", size = 20282, upload-time = "2025-09-27T18:36:12.573Z" },
++    { url = "https://files.pythonhosted.org/packages/56/21/dca11354e756ebd03e036bd8ad58d6d7168c80ce1fe5e75218e4945cbab7/markupsafe-3.0.3-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:177b5253b2834fe3678cb4a5f0059808258584c559193998be2601324fdeafb1", size = 20745, upload-time = "2025-09-27T18:36:13.504Z" },
++    { url = "https://files.pythonhosted.org/packages/87/99/faba9369a7ad6e4d10b6a5fbf71fa2a188fe4a593b15f0963b73859a1bbd/markupsafe-3.0.3-cp310-cp310-win32.whl", hash = "sha256:2a15a08b17dd94c53a1da0438822d70ebcd13f8c3a95abe3a9ef9f11a94830aa", size = 14571, upload-time = "2025-09-27T18:36:14.779Z" },
++    { url = "https://files.pythonhosted.org/packages/d6/25/55dc3ab959917602c96985cb1253efaa4ff42f71194bddeb61eb7278b8be/markupsafe-3.0.3-cp310-cp310-win_amd64.whl", hash = "sha256:c4ffb7ebf07cfe8931028e3e4c85f0357459a3f9f9490886198848f4fa002ec8", size = 15056, upload-time = "2025-09-27T18:36:16.125Z" },
++    { url = "https://files.pythonhosted.org/packages/d0/9e/0a02226640c255d1da0b8d12e24ac2aa6734da68bff14c05dd53b94a0fc3/markupsafe-3.0.3-cp310-cp310-win_arm64.whl", hash = "sha256:e2103a929dfa2fcaf9bb4e7c091983a49c9ac3b19c9061b6d5427dd7d14d81a1", size = 13932, upload-time = "2025-09-27T18:36:17.311Z" },
++    { url = "https://files.pythonhosted.org/packages/08/db/fefacb2136439fc8dd20e797950e749aa1f4997ed584c62cfb8ef7c2be0e/markupsafe-3.0.3-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:1cc7ea17a6824959616c525620e387f6dd30fec8cb44f649e31712db02123dad", size = 11631, upload-time = "2025-09-27T18:36:18.185Z" },
++    { url = "https://files.pythonhosted.org/packages/e1/2e/5898933336b61975ce9dc04decbc0a7f2fee78c30353c5efba7f2d6ff27a/markupsafe-3.0.3-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:4bd4cd07944443f5a265608cc6aab442e4f74dff8088b0dfc8238647b8f6ae9a", size = 12058, upload-time = "2025-09-27T18:36:19.444Z" },
++    { url = "https://files.pythonhosted.org/packages/1d/09/adf2df3699d87d1d8184038df46a9c80d78c0148492323f4693df54e17bb/markupsafe-3.0.3-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:6b5420a1d9450023228968e7e6a9ce57f65d148ab56d2313fcd589eee96a7a50", size = 24287, upload-time = "2025-09-27T18:36:20.768Z" },
++    { url = "https://files.pythonhosted.org/packages/30/ac/0273f6fcb5f42e314c6d8cd99effae6a5354604d461b8d392b5ec9530a54/markupsafe-3.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0bf2a864d67e76e5c9a34dc26ec616a66b9888e25e7b9460e1c76d3293bd9dbf", size = 22940, upload-time = "2025-09-27T18:36:22.249Z" },
++    { url = "https://files.pythonhosted.org/packages/19/ae/31c1be199ef767124c042c6c3e904da327a2f7f0cd63a0337e1eca2967a8/markupsafe-3.0.3-cp311-cp311-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:bc51efed119bc9cfdf792cdeaa4d67e8f6fcccab66ed4bfdd6bde3e59bfcbb2f", size = 21887, upload-time = "2025-09-27T18:36:23.535Z" },
++    { url = "https://files.pythonhosted.org/packages/b2/76/7edcab99d5349a4532a459e1fe64f0b0467a3365056ae550d3bcf3f79e1e/markupsafe-3.0.3-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:068f375c472b3e7acbe2d5318dea141359e6900156b5b2ba06a30b169086b91a", size = 23692, upload-time = "2025-09-27T18:36:24.823Z" },
++    { url = "https://files.pythonhosted.org/packages/a4/28/6e74cdd26d7514849143d69f0bf2399f929c37dc2b31e6829fd2045b2765/markupsafe-3.0.3-cp311-cp311-musllinux_1_2_riscv64.whl", hash = "sha256:7be7b61bb172e1ed687f1754f8e7484f1c8019780f6f6b0786e76bb01c2ae115", size = 21471, upload-time = "2025-09-27T18:36:25.95Z" },
++    { url = "https://files.pythonhosted.org/packages/62/7e/a145f36a5c2945673e590850a6f8014318d5577ed7e5920a4b3448e0865d/markupsafe-3.0.3-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:f9e130248f4462aaa8e2552d547f36ddadbeaa573879158d721bbd33dfe4743a", size = 22923, upload-time = "2025-09-27T18:36:27.109Z" },
++    { url = "https://files.pythonhosted.org/packages/0f/62/d9c46a7f5c9adbeeeda52f5b8d802e1094e9717705a645efc71b0913a0a8/markupsafe-3.0.3-cp311-cp311-win32.whl", hash = "sha256:0db14f5dafddbb6d9208827849fad01f1a2609380add406671a26386cdf15a19", size = 14572, upload-time = "2025-09-27T18:36:28.045Z" },
++    { url = "https://files.pythonhosted.org/packages/83/8a/4414c03d3f891739326e1783338e48fb49781cc915b2e0ee052aa490d586/markupsafe-3.0.3-cp311-cp311-win_amd64.whl", hash = "sha256:de8a88e63464af587c950061a5e6a67d3632e36df62b986892331d4620a35c01", size = 15077, upload-time = "2025-09-27T18:36:29.025Z" },
++    { url = "https://files.pythonhosted.org/packages/35/73/893072b42e6862f319b5207adc9ae06070f095b358655f077f69a35601f0/markupsafe-3.0.3-cp311-cp311-win_arm64.whl", hash = "sha256:3b562dd9e9ea93f13d53989d23a7e775fdfd1066c33494ff43f5418bc8c58a5c", size = 13876, upload-time = "2025-09-27T18:36:29.954Z" },
++    { url = "https://files.pythonhosted.org/packages/5a/72/147da192e38635ada20e0a2e1a51cf8823d2119ce8883f7053879c2199b5/markupsafe-3.0.3-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:d53197da72cc091b024dd97249dfc7794d6a56530370992a5e1a08983ad9230e", size = 11615, upload-time = "2025-09-27T18:36:30.854Z" },
++    { url = "https://files.pythonhosted.org/packages/9a/81/7e4e08678a1f98521201c3079f77db69fb552acd56067661f8c2f534a718/markupsafe-3.0.3-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:1872df69a4de6aead3491198eaf13810b565bdbeec3ae2dc8780f14458ec73ce", size = 12020, upload-time = "2025-09-27T18:36:31.971Z" },
++    { url = "https://files.pythonhosted.org/packages/1e/2c/799f4742efc39633a1b54a92eec4082e4f815314869865d876824c257c1e/markupsafe-3.0.3-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:3a7e8ae81ae39e62a41ec302f972ba6ae23a5c5396c8e60113e9066ef893da0d", size = 24332, upload-time = "2025-09-27T18:36:32.813Z" },
++    { url = "https://files.pythonhosted.org/packages/3c/2e/8d0c2ab90a8c1d9a24f0399058ab8519a3279d1bd4289511d74e909f060e/markupsafe-3.0.3-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:d6dd0be5b5b189d31db7cda48b91d7e0a9795f31430b7f271219ab30f1d3ac9d", size = 22947, upload-time = "2025-09-27T18:36:33.86Z" },
++    { url = "https://files.pythonhosted.org/packages/2c/54/887f3092a85238093a0b2154bd629c89444f395618842e8b0c41783898ea/markupsafe-3.0.3-cp312-cp312-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:94c6f0bb423f739146aec64595853541634bde58b2135f27f61c1ffd1cd4d16a", size = 21962, upload-time = "2025-09-27T18:36:35.099Z" },
++    { url = "https://files.pythonhosted.org/packages/c9/2f/336b8c7b6f4a4d95e91119dc8521402461b74a485558d8f238a68312f11c/markupsafe-3.0.3-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:be8813b57049a7dc738189df53d69395eba14fb99345e0a5994914a3864c8a4b", size = 23760, upload-time = "2025-09-27T18:36:36.001Z" },
++    { url = "https://files.pythonhosted.org/packages/32/43/67935f2b7e4982ffb50a4d169b724d74b62a3964bc1a9a527f5ac4f1ee2b/markupsafe-3.0.3-cp312-cp312-musllinux_1_2_riscv64.whl", hash = "sha256:83891d0e9fb81a825d9a6d61e3f07550ca70a076484292a70fde82c4b807286f", size = 21529, upload-time = "2025-09-27T18:36:36.906Z" },
++    { url = "https://files.pythonhosted.org/packages/89/e0/4486f11e51bbba8b0c041098859e869e304d1c261e59244baa3d295d47b7/markupsafe-3.0.3-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:77f0643abe7495da77fb436f50f8dab76dbc6e5fd25d39589a0f1fe6548bfa2b", size = 23015, upload-time = "2025-09-27T18:36:37.868Z" },
++    { url = "https://files.pythonhosted.org/packages/2f/e1/78ee7a023dac597a5825441ebd17170785a9dab23de95d2c7508ade94e0e/markupsafe-3.0.3-cp312-cp312-win32.whl", hash = "sha256:d88b440e37a16e651bda4c7c2b930eb586fd15ca7406cb39e211fcff3bf3017d", size = 14540, upload-time = "2025-09-27T18:36:38.761Z" },
++    { url = "https://files.pythonhosted.org/packages/aa/5b/bec5aa9bbbb2c946ca2733ef9c4ca91c91b6a24580193e891b5f7dbe8e1e/markupsafe-3.0.3-cp312-cp312-win_amd64.whl", hash = "sha256:26a5784ded40c9e318cfc2bdb30fe164bdb8665ded9cd64d500a34fb42067b1c", size = 15105, upload-time = "2025-09-27T18:36:39.701Z" },
++    { url = "https://files.pythonhosted.org/packages/e5/f1/216fc1bbfd74011693a4fd837e7026152e89c4bcf3e77b6692fba9923123/markupsafe-3.0.3-cp312-cp312-win_arm64.whl", hash = "sha256:35add3b638a5d900e807944a078b51922212fb3dedb01633a8defc4b01a3c85f", size = 13906, upload-time = "2025-09-27T18:36:40.689Z" },
++    { url = "https://files.pythonhosted.org/packages/38/2f/907b9c7bbba283e68f20259574b13d005c121a0fa4c175f9bed27c4597ff/markupsafe-3.0.3-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:e1cf1972137e83c5d4c136c43ced9ac51d0e124706ee1c8aa8532c1287fa8795", size = 11622, upload-time = "2025-09-27T18:36:41.777Z" },
++    { url = "https://files.pythonhosted.org/packages/9c/d9/5f7756922cdd676869eca1c4e3c0cd0df60ed30199ffd775e319089cb3ed/markupsafe-3.0.3-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:116bb52f642a37c115f517494ea5feb03889e04df47eeff5b130b1808ce7c219", size = 12029, upload-time = "2025-09-27T18:36:43.257Z" },
++    { url = "https://files.pythonhosted.org/packages/00/07/575a68c754943058c78f30db02ee03a64b3c638586fba6a6dd56830b30a3/markupsafe-3.0.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:133a43e73a802c5562be9bbcd03d090aa5a1fe899db609c29e8c8d815c5f6de6", size = 24374, upload-time = "2025-09-27T18:36:44.508Z" },
++    { url = "https://files.pythonhosted.org/packages/a9/21/9b05698b46f218fc0e118e1f8168395c65c8a2c750ae2bab54fc4bd4e0e8/markupsafe-3.0.3-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:ccfcd093f13f0f0b7fdd0f198b90053bf7b2f02a3927a30e63f3ccc9df56b676", size = 22980, upload-time = "2025-09-27T18:36:45.385Z" },
++    { url = "https://files.pythonhosted.org/packages/7f/71/544260864f893f18b6827315b988c146b559391e6e7e8f7252839b1b846a/markupsafe-3.0.3-cp313-cp313-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:509fa21c6deb7a7a273d629cf5ec029bc209d1a51178615ddf718f5918992ab9", size = 21990, upload-time = "2025-09-27T18:36:46.916Z" },
++    { url = "https://files.pythonhosted.org/packages/c2/28/b50fc2f74d1ad761af2f5dcce7492648b983d00a65b8c0e0cb457c82ebbe/markupsafe-3.0.3-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:a4afe79fb3de0b7097d81da19090f4df4f8d3a2b3adaa8764138aac2e44f3af1", size = 23784, upload-time = "2025-09-27T18:36:47.884Z" },
++    { url = "https://files.pythonhosted.org/packages/ed/76/104b2aa106a208da8b17a2fb72e033a5a9d7073c68f7e508b94916ed47a9/markupsafe-3.0.3-cp313-cp313-musllinux_1_2_riscv64.whl", hash = "sha256:795e7751525cae078558e679d646ae45574b47ed6e7771863fcc079a6171a0fc", size = 21588, upload-time = "2025-09-27T18:36:48.82Z" },
++    { url = "https://files.pythonhosted.org/packages/b5/99/16a5eb2d140087ebd97180d95249b00a03aa87e29cc224056274f2e45fd6/markupsafe-3.0.3-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:8485f406a96febb5140bfeca44a73e3ce5116b2501ac54fe953e488fb1d03b12", size = 23041, upload-time = "2025-09-27T18:36:49.797Z" },
++    { url = "https://files.pythonhosted.org/packages/19/bc/e7140ed90c5d61d77cea142eed9f9c303f4c4806f60a1044c13e3f1471d0/markupsafe-3.0.3-cp313-cp313-win32.whl", hash = "sha256:bdd37121970bfd8be76c5fb069c7751683bdf373db1ed6c010162b2a130248ed", size = 14543, upload-time = "2025-09-27T18:36:51.584Z" },
++    { url = "https://files.pythonhosted.org/packages/05/73/c4abe620b841b6b791f2edc248f556900667a5a1cf023a6646967ae98335/markupsafe-3.0.3-cp313-cp313-win_amd64.whl", hash = "sha256:9a1abfdc021a164803f4d485104931fb8f8c1efd55bc6b748d2f5774e78b62c5", size = 15113, upload-time = "2025-09-27T18:36:52.537Z" },
++    { url = "https://files.pythonhosted.org/packages/f0/3a/fa34a0f7cfef23cf9500d68cb7c32dd64ffd58a12b09225fb03dd37d5b80/markupsafe-3.0.3-cp313-cp313-win_arm64.whl", hash = "sha256:7e68f88e5b8799aa49c85cd116c932a1ac15caaa3f5db09087854d218359e485", size = 13911, upload-time = "2025-09-27T18:36:53.513Z" },
++    { url = "https://files.pythonhosted.org/packages/e4/d7/e05cd7efe43a88a17a37b3ae96e79a19e846f3f456fe79c57ca61356ef01/markupsafe-3.0.3-cp313-cp313t-macosx_10_13_x86_64.whl", hash = "sha256:218551f6df4868a8d527e3062d0fb968682fe92054e89978594c28e642c43a73", size = 11658, upload-time = "2025-09-27T18:36:54.819Z" },
++    { url = "https://files.pythonhosted.org/packages/99/9e/e412117548182ce2148bdeacdda3bb494260c0b0184360fe0d56389b523b/markupsafe-3.0.3-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:3524b778fe5cfb3452a09d31e7b5adefeea8c5be1d43c4f810ba09f2ceb29d37", size = 12066, upload-time = "2025-09-27T18:36:55.714Z" },
++    { url = "https://files.pythonhosted.org/packages/bc/e6/fa0ffcda717ef64a5108eaa7b4f5ed28d56122c9a6d70ab8b72f9f715c80/markupsafe-3.0.3-cp313-cp313t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:4e885a3d1efa2eadc93c894a21770e4bc67899e3543680313b09f139e149ab19", size = 25639, upload-time = "2025-09-27T18:36:56.908Z" },
++    { url = "https://files.pythonhosted.org/packages/96/ec/2102e881fe9d25fc16cb4b25d5f5cde50970967ffa5dddafdb771237062d/markupsafe-3.0.3-cp313-cp313t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:8709b08f4a89aa7586de0aadc8da56180242ee0ada3999749b183aa23df95025", size = 23569, upload-time = "2025-09-27T18:36:57.913Z" },
++    { url = "https://files.pythonhosted.org/packages/4b/30/6f2fce1f1f205fc9323255b216ca8a235b15860c34b6798f810f05828e32/markupsafe-3.0.3-cp313-cp313t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:b8512a91625c9b3da6f127803b166b629725e68af71f8184ae7e7d54686a56d6", size = 23284, upload-time = "2025-09-27T18:36:58.833Z" },
++    { url = "https://files.pythonhosted.org/packages/58/47/4a0ccea4ab9f5dcb6f79c0236d954acb382202721e704223a8aafa38b5c8/markupsafe-3.0.3-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:9b79b7a16f7fedff2495d684f2b59b0457c3b493778c9eed31111be64d58279f", size = 24801, upload-time = "2025-09-27T18:36:59.739Z" },
++    { url = "https://files.pythonhosted.org/packages/6a/70/3780e9b72180b6fecb83a4814d84c3bf4b4ae4bf0b19c27196104149734c/markupsafe-3.0.3-cp313-cp313t-musllinux_1_2_riscv64.whl", hash = "sha256:12c63dfb4a98206f045aa9563db46507995f7ef6d83b2f68eda65c307c6829eb", size = 22769, upload-time = "2025-09-27T18:37:00.719Z" },
++    { url = "https://files.pythonhosted.org/packages/98/c5/c03c7f4125180fc215220c035beac6b9cb684bc7a067c84fc69414d315f5/markupsafe-3.0.3-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:8f71bc33915be5186016f675cd83a1e08523649b0e33efdb898db577ef5bb009", size = 23642, upload-time = "2025-09-27T18:37:01.673Z" },
++    { url = "https://files.pythonhosted.org/packages/80/d6/2d1b89f6ca4bff1036499b1e29a1d02d282259f3681540e16563f27ebc23/markupsafe-3.0.3-cp313-cp313t-win32.whl", hash = "sha256:69c0b73548bc525c8cb9a251cddf1931d1db4d2258e9599c28c07ef3580ef354", size = 14612, upload-time = "2025-09-27T18:37:02.639Z" },
++    { url = "https://files.pythonhosted.org/packages/2b/98/e48a4bfba0a0ffcf9925fe2d69240bfaa19c6f7507b8cd09c70684a53c1e/markupsafe-3.0.3-cp313-cp313t-win_amd64.whl", hash = "sha256:1b4b79e8ebf6b55351f0d91fe80f893b4743f104bff22e90697db1590e47a218", size = 15200, upload-time = "2025-09-27T18:37:03.582Z" },
++    { url = "https://files.pythonhosted.org/packages/0e/72/e3cc540f351f316e9ed0f092757459afbc595824ca724cbc5a5d4263713f/markupsafe-3.0.3-cp313-cp313t-win_arm64.whl", hash = "sha256:ad2cf8aa28b8c020ab2fc8287b0f823d0a7d8630784c31e9ee5edea20f406287", size = 13973, upload-time = "2025-09-27T18:37:04.929Z" },
++]
++
+ [[package]]
+ name = "mcp"
+ version = "1.26.0"
+@@ -2157,60 +2228,6 @@ wheels = [
+     { url = "https://files.pythonhosted.org/packages/e1/07/c6fe3ad3e685340704d314d765b7912993bcb8dc198f0e7a89382d37974b/win32_setctime-1.2.0-py3-none-any.whl", hash = "sha256:95d644c4e708aba81dc3704a116d8cbc974d70b3bdb8be1d150e36be6e9d1390", size = 4083, upload-time = "2024-12-07T15:28:26.465Z" },
+ ]
+ 
+-[[package]]
+-name = "wrapt"
+-version = "2.1.1"
+-source = { registry = "https://pypi.org/simple" }
+-sdist = { url = "https://files.pythonhosted.org/packages/f7/37/ae31f40bec90de2f88d9597d0b5281e23ffe85b893a47ca5d9c05c63a4f6/wrapt-2.1.1.tar.gz", hash = "sha256:5fdcb09bf6db023d88f312bd0767594b414655d58090fc1c46b3414415f67fac", size = 81329, upload-time = "2026-02-03T02:12:13.786Z" }
+-wheels = [
+-    { url = "https://files.pythonhosted.org/packages/ca/21/293b657a27accfbbbb6007ebd78af0efa2083dac83e8f523272ea09b4638/wrapt-2.1.1-cp310-cp310-macosx_10_9_x86_64.whl", hash = "sha256:7e927375e43fd5a985b27a8992327c22541b6dede1362fc79df337d26e23604f", size = 60554, upload-time = "2026-02-03T02:11:17.362Z" },
+-    { url = "https://files.pythonhosted.org/packages/25/e9/96dd77728b54a899d4ce2798d7b1296989ce687ed3c0cb917d6b3154bf5d/wrapt-2.1.1-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:e1c99544b6a7d40ca22195563b6d8bc3986ee8bb82f272f31f0670fe9440c869", size = 61496, upload-time = "2026-02-03T02:12:54.732Z" },
+-    { url = "https://files.pythonhosted.org/packages/44/79/4c755b45df6ef30c0dd628ecfaa0c808854be147ca438429da70a162833c/wrapt-2.1.1-cp310-cp310-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:b2be3fa5f4efaf16ee7c77d0556abca35f5a18ad4ac06f0ef3904c3399010ce9", size = 113528, upload-time = "2026-02-03T02:12:26.405Z" },
+-    { url = "https://files.pythonhosted.org/packages/9f/63/23ce28f7b841217d9a6337a340fbb8d4a7fbd67a89d47f377c8550fa34aa/wrapt-2.1.1-cp310-cp310-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:67c90c1ae6489a6cb1a82058902caa8006706f7b4e8ff766f943e9d2c8e608d0", size = 115536, upload-time = "2026-02-03T02:11:54.397Z" },
+-    { url = "https://files.pythonhosted.org/packages/23/7b/5ca8d3b12768670d16c8329e29960eedd56212770365a02a8de8bf73dc01/wrapt-2.1.1-cp310-cp310-musllinux_1_2_aarch64.whl", hash = "sha256:05c0db35ccffd7480143e62df1e829d101c7b86944ae3be7e4869a7efa621f53", size = 114716, upload-time = "2026-02-03T02:12:20.771Z" },
+-    { url = "https://files.pythonhosted.org/packages/c7/3a/9789ccb14a096d30bb847bf3ee137bf682cc9750c2ce155f4c5ae1962abf/wrapt-2.1.1-cp310-cp310-musllinux_1_2_x86_64.whl", hash = "sha256:0c2ec9f616755b2e1e0bf4d0961f59bb5c2e7a77407e7e2c38ef4f7d2fdde12c", size = 113200, upload-time = "2026-02-03T02:12:07.688Z" },
+-    { url = "https://files.pythonhosted.org/packages/cf/e5/4ec3526ce6ce920b267c8d35d2c2f0874d3fad2744c8b7259353f1132baa/wrapt-2.1.1-cp310-cp310-win32.whl", hash = "sha256:203ba6b3f89e410e27dbd30ff7dccaf54dcf30fda0b22aa1b82d560c7f9fe9a1", size = 57876, upload-time = "2026-02-03T02:11:42.61Z" },
+-    { url = "https://files.pythonhosted.org/packages/d1/4e/661c7c76ecd85375b2bc03488941a3a1078642af481db24949e2b9de01f4/wrapt-2.1.1-cp310-cp310-win_amd64.whl", hash = "sha256:6f9426d9cfc2f8732922fc96198052e55c09bb9db3ddaa4323a18e055807410e", size = 60224, upload-time = "2026-02-03T02:11:19.096Z" },
+-    { url = "https://files.pythonhosted.org/packages/5f/b7/53c7252d371efada4cb119e72e774fa2c6b3011fc33e3e552cdf48fb9488/wrapt-2.1.1-cp310-cp310-win_arm64.whl", hash = "sha256:69c26f51b67076b40714cff81bdd5826c0b10c077fb6b0678393a6a2f952a5fc", size = 58645, upload-time = "2026-02-03T02:12:10.396Z" },
+-    { url = "https://files.pythonhosted.org/packages/b8/a8/9254e4da74b30a105935197015b18b31b7a298bf046e67d8952ef74967bd/wrapt-2.1.1-cp311-cp311-macosx_10_9_x86_64.whl", hash = "sha256:6c366434a7fb914c7a5de508ed735ef9c133367114e1a7cb91dfb5cd806a1549", size = 60554, upload-time = "2026-02-03T02:11:13.038Z" },
+-    { url = "https://files.pythonhosted.org/packages/9e/a1/378579880cc7af226354054a2c255f69615b379d8adad482bfe2f22a0dc2/wrapt-2.1.1-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:5d6a2068bd2e1e19e5a317c8c0b288267eec4e7347c36bc68a6e378a39f19ee7", size = 61491, upload-time = "2026-02-03T02:12:56.077Z" },
+-    { url = "https://files.pythonhosted.org/packages/dc/72/957b51c56acca35701665878ad31626182199fc4afecfe67dea072210f95/wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:891ab4713419217b2aed7dd106c9200f64e6a82226775a0d2ebd6bef2ebd1747", size = 113949, upload-time = "2026-02-03T02:11:04.516Z" },
+-    { url = "https://files.pythonhosted.org/packages/cd/74/36bbebb4a3d2ae9c3e6929639721f8606cd0710a82a777c371aa69e36504/wrapt-2.1.1-cp311-cp311-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:c8ef36a0df38d2dc9d907f6617f89e113c5892e0a35f58f45f75901af0ce7d81", size = 115989, upload-time = "2026-02-03T02:12:19.398Z" },
+-    { url = "https://files.pythonhosted.org/packages/ae/0d/f1177245a083c7be284bc90bddfe5aece32cdd5b858049cb69ce001a0e8d/wrapt-2.1.1-cp311-cp311-musllinux_1_2_aarch64.whl", hash = "sha256:76e9af3ebd86f19973143d4d592cbf3e970cf3f66ddee30b16278c26ae34b8ab", size = 115242, upload-time = "2026-02-03T02:11:08.111Z" },
+-    { url = "https://files.pythonhosted.org/packages/62/3e/3b7cf5da27e59df61b1eae2d07dd03ff5d6f75b5408d694873cca7a8e33c/wrapt-2.1.1-cp311-cp311-musllinux_1_2_x86_64.whl", hash = "sha256:ff562067485ebdeaef2fa3fe9b1876bc4e7b73762e0a01406ad81e2076edcebf", size = 113676, upload-time = "2026-02-03T02:12:41.026Z" },
+-    { url = "https://files.pythonhosted.org/packages/f7/65/8248d3912c705f2c66f81cb97c77436f37abcbedb16d633b5ab0d795d8cd/wrapt-2.1.1-cp311-cp311-win32.whl", hash = "sha256:9e60a30aa0909435ec4ea2a3c53e8e1b50ac9f640c0e9fe3f21fd248a22f06c5", size = 57863, upload-time = "2026-02-03T02:12:18.112Z" },
+-    { url = "https://files.pythonhosted.org/packages/6b/31/d29310ab335f71f00c50466153b3dc985aaf4a9fc03263e543e136859541/wrapt-2.1.1-cp311-cp311-win_amd64.whl", hash = "sha256:7d79954f51fcf84e5ec4878ab4aea32610d70145c5bbc84b3370eabfb1e096c2", size = 60224, upload-time = "2026-02-03T02:12:29.289Z" },
+-    { url = "https://files.pythonhosted.org/packages/0c/90/a6ec319affa6e2894962a0cb9d73c67f88af1a726d15314bfb5c88b8a08d/wrapt-2.1.1-cp311-cp311-win_arm64.whl", hash = "sha256:d3ffc6b0efe79e08fd947605fd598515aebefe45e50432dc3b5cd437df8b1ada", size = 58643, upload-time = "2026-02-03T02:12:43.022Z" },
+-    { url = "https://files.pythonhosted.org/packages/df/cb/4d5255d19bbd12be7f8ee2c1fb4269dddec9cef777ef17174d357468efaa/wrapt-2.1.1-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:ab8e3793b239db021a18782a5823fcdea63b9fe75d0e340957f5828ef55fcc02", size = 61143, upload-time = "2026-02-03T02:11:46.313Z" },
+-    { url = "https://files.pythonhosted.org/packages/6f/07/7ed02daa35542023464e3c8b7cb937fa61f6c61c0361ecf8f5fecf8ad8da/wrapt-2.1.1-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:7c0300007836373d1c2df105b40777986accb738053a92fe09b615a7a4547e9f", size = 61740, upload-time = "2026-02-03T02:12:51.966Z" },
+-    { url = "https://files.pythonhosted.org/packages/c4/60/a237a4e4a36f6d966061ccc9b017627d448161b19e0a3ab80a7c7c97f859/wrapt-2.1.1-cp312-cp312-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:2b27c070fd1132ab23957bcd4ee3ba707a91e653a9268dc1afbd39b77b2799f7", size = 121327, upload-time = "2026-02-03T02:11:06.796Z" },
+-    { url = "https://files.pythonhosted.org/packages/ae/fe/9139058a3daa8818fc67e6460a2340e8bbcf3aef8b15d0301338bbe181ca/wrapt-2.1.1-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:8b0e36d845e8b6f50949b6b65fc6cd279f47a1944582ed4ec8258cd136d89a64", size = 122903, upload-time = "2026-02-03T02:12:48.657Z" },
+-    { url = "https://files.pythonhosted.org/packages/91/10/b8479202b4164649675846a531763531f0a6608339558b5a0a718fc49a8d/wrapt-2.1.1-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:4aeea04a9889370fcfb1ef828c4cc583f36a875061505cd6cd9ba24d8b43cc36", size = 121333, upload-time = "2026-02-03T02:11:32.148Z" },
+-    { url = "https://files.pythonhosted.org/packages/5f/75/75fc793b791d79444aca2c03ccde64e8b99eda321b003f267d570b7b0985/wrapt-2.1.1-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:d88b46bb0dce9f74b6817bc1758ff2125e1ca9e1377d62ea35b6896142ab6825", size = 120458, upload-time = "2026-02-03T02:11:16.039Z" },
+-    { url = "https://files.pythonhosted.org/packages/d7/8f/c3f30d511082ca6d947c405f9d8f6c8eaf83cfde527c439ec2c9a30eb5ea/wrapt-2.1.1-cp312-cp312-win32.whl", hash = "sha256:63decff76ca685b5c557082dfbea865f3f5f6d45766a89bff8dc61d336348833", size = 58086, upload-time = "2026-02-03T02:12:35.041Z" },
+-    { url = "https://files.pythonhosted.org/packages/0a/c8/37625b643eea2849f10c3b90f69c7462faa4134448d4443234adaf122ae5/wrapt-2.1.1-cp312-cp312-win_amd64.whl", hash = "sha256:b828235d26c1e35aca4107039802ae4b1411be0fe0367dd5b7e4d90e562fcbcd", size = 60328, upload-time = "2026-02-03T02:12:45.808Z" },
+-    { url = "https://files.pythonhosted.org/packages/ce/79/56242f07572d5682ba8065a9d4d9c2218313f576e3c3471873c2a5355ffd/wrapt-2.1.1-cp312-cp312-win_arm64.whl", hash = "sha256:75128507413a9f1bcbe2db88fd18fbdbf80f264b82fa33a6996cdeaf01c52352", size = 58722, upload-time = "2026-02-03T02:12:27.949Z" },
+-    { url = "https://files.pythonhosted.org/packages/f7/ca/3cf290212855b19af9fcc41b725b5620b32f470d6aad970c2593500817eb/wrapt-2.1.1-cp313-cp313-macosx_10_13_x86_64.whl", hash = "sha256:ce9646e17fa7c3e2e7a87e696c7de66512c2b4f789a8db95c613588985a2e139", size = 61150, upload-time = "2026-02-03T02:12:50.575Z" },
+-    { url = "https://files.pythonhosted.org/packages/9d/33/5b8f89a82a9859ce82da4870c799ad11ce15648b6e1c820fec3e23f4a19f/wrapt-2.1.1-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:428cfc801925454395aa468ba7ddb3ed63dc0d881df7b81626cdd433b4e2b11b", size = 61743, upload-time = "2026-02-03T02:11:55.733Z" },
+-    { url = "https://files.pythonhosted.org/packages/1e/2f/60c51304fbdf47ce992d9eefa61fbd2c0e64feee60aaa439baf42ea6f40b/wrapt-2.1.1-cp313-cp313-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:5797f65e4d58065a49088c3b32af5410751cd485e83ba89e5a45e2aa8905af98", size = 121341, upload-time = "2026-02-03T02:11:20.461Z" },
+-    { url = "https://files.pythonhosted.org/packages/ad/03/ce5256e66dd94e521ad5e753c78185c01b6eddbed3147be541f4d38c0cb7/wrapt-2.1.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:5a2db44a71202c5ae4bb5f27c6d3afbc5b23053f2e7e78aa29704541b5dad789", size = 122947, upload-time = "2026-02-03T02:11:33.596Z" },
+-    { url = "https://files.pythonhosted.org/packages/eb/ae/50ca8854b81b946a11a36fcd6ead32336e6db2c14b6e4a8b092b80741178/wrapt-2.1.1-cp313-cp313-musllinux_1_2_aarch64.whl", hash = "sha256:8d5350c3590af09c1703dd60ec78a7370c0186e11eaafb9dda025a30eee6492d", size = 121370, upload-time = "2026-02-03T02:11:09.886Z" },
+-    { url = "https://files.pythonhosted.org/packages/fb/d9/d6a7c654e0043319b4cc137a4caaf7aa16b46b51ee8df98d1060254705b7/wrapt-2.1.1-cp313-cp313-musllinux_1_2_x86_64.whl", hash = "sha256:2d9b076411bed964e752c01b49fd224cc385f3a96f520c797d38412d70d08359", size = 120465, upload-time = "2026-02-03T02:11:37.592Z" },
+-    { url = "https://files.pythonhosted.org/packages/55/90/65be41e40845d951f714b5a77e84f377a3787b1e8eee6555a680da6d0db5/wrapt-2.1.1-cp313-cp313-win32.whl", hash = "sha256:0bb7207130ce6486727baa85373503bf3334cc28016f6928a0fa7e19d7ecdc06", size = 58090, upload-time = "2026-02-03T02:12:53.342Z" },
+-    { url = "https://files.pythonhosted.org/packages/5f/66/6a09e0294c4fc8c26028a03a15191721c9271672467cc33e6617ee0d91d2/wrapt-2.1.1-cp313-cp313-win_amd64.whl", hash = "sha256:cbfee35c711046b15147b0ae7db9b976f01c9520e6636d992cd9e69e5e2b03b1", size = 60341, upload-time = "2026-02-03T02:12:36.384Z" },
+-    { url = "https://files.pythonhosted.org/packages/7a/f0/20ceb8b701e9a71555c87a5ddecbed76ec16742cf1e4b87bbaf26735f998/wrapt-2.1.1-cp313-cp313-win_arm64.whl", hash = "sha256:7d2756061022aebbf57ba14af9c16e8044e055c22d38de7bf40d92b565ecd2b0", size = 58731, upload-time = "2026-02-03T02:12:01.328Z" },
+-    { url = "https://files.pythonhosted.org/packages/80/b4/fe95beb8946700b3db371f6ce25115217e7075ca063663b8cca2888ba55c/wrapt-2.1.1-cp313-cp313t-macosx_10_13_x86_64.whl", hash = "sha256:4814a3e58bc6971e46baa910ecee69699110a2bf06c201e24277c65115a20c20", size = 62969, upload-time = "2026-02-03T02:11:51.245Z" },
+-    { url = "https://files.pythonhosted.org/packages/b8/89/477b0bdc784e3299edf69c279697372b8bd4c31d9c6966eae405442899df/wrapt-2.1.1-cp313-cp313t-macosx_11_0_arm64.whl", hash = "sha256:106c5123232ab9b9f4903692e1fa0bdc231510098f04c13c3081f8ad71c3d612", size = 63606, upload-time = "2026-02-03T02:12:02.64Z" },
+-    { url = "https://files.pythonhosted.org/packages/ed/55/9d0c1269ab76de87715b3b905df54dd25d55bbffd0b98696893eb613469f/wrapt-2.1.1-cp313-cp313t-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl", hash = "sha256:1a40b83ff2535e6e56f190aff123821eea89a24c589f7af33413b9c19eb2c738", size = 152536, upload-time = "2026-02-03T02:11:24.492Z" },
+-    { url = "https://files.pythonhosted.org/packages/44/18/2004766030462f79ad86efaa62000b5e39b1ff001dcce86650e1625f40ae/wrapt-2.1.1-cp313-cp313t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:789cea26e740d71cf1882e3a42bb29052bc4ada15770c90072cb47bf73fb3dbf", size = 158697, upload-time = "2026-02-03T02:12:32.214Z" },
+-    { url = "https://files.pythonhosted.org/packages/e1/bb/0a880fa0f35e94ee843df4ee4dd52a699c9263f36881311cfb412c09c3e5/wrapt-2.1.1-cp313-cp313t-musllinux_1_2_aarch64.whl", hash = "sha256:ba49c14222d5e5c0ee394495a8655e991dc06cbca5398153aefa5ac08cd6ccd7", size = 155563, upload-time = "2026-02-03T02:11:49.737Z" },
+-    { url = "https://files.pythonhosted.org/packages/42/ff/cd1b7c4846c8678fac359a6eb975dc7ab5bd606030adb22acc8b4a9f53f1/wrapt-2.1.1-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:ac8cda531fe55be838a17c62c806824472bb962b3afa47ecbd59b27b78496f4e", size = 150161, upload-time = "2026-02-03T02:12:33.613Z" },
+-    { url = "https://files.pythonhosted.org/packages/38/ec/67c90a7082f452964b4621e4890e9a490f1add23cdeb7483cc1706743291/wrapt-2.1.1-cp313-cp313t-win32.whl", hash = "sha256:b8af75fe20d381dd5bcc9db2e86a86d7fcfbf615383a7147b85da97c1182225b", size = 59783, upload-time = "2026-02-03T02:11:39.863Z" },
+-    { url = "https://files.pythonhosted.org/packages/ec/08/466afe4855847d8febdfa2c57c87e991fc5820afbdef01a273683dfd15a0/wrapt-2.1.1-cp313-cp313t-win_amd64.whl", hash = "sha256:45c5631c9b6c792b78be2d7352129f776dd72c605be2c3a4e9be346be8376d83", size = 63082, upload-time = "2026-02-03T02:12:09.075Z" },
+-    { url = "https://files.pythonhosted.org/packages/9a/62/60b629463c28b15b1eeadb3a0691e17568622b12aa5bfa7ebe9b514bfbeb/wrapt-2.1.1-cp313-cp313t-win_arm64.whl", hash = "sha256:da815b9263947ac98d088b6414ac83507809a1d385e4632d9489867228d6d81c", size = 60251, upload-time = "2026-02-03T02:11:21.794Z" },
+-    { url = "https://files.pythonhosted.org/packages/c4/da/5a086bf4c22a41995312db104ec2ffeee2cf6accca9faaee5315c790377d/wrapt-2.1.1-py3-none-any.whl", hash = "sha256:3b0f4629eb954394a3d7c7a1c8cca25f0b07cefe6aa8545e862e9778152de5b7", size = 43886, upload-time = "2026-02-03T02:11:45.048Z" },
+-]
+-
+ [[package]]
+ name = "yarl"
+ version = "1.22.0"
