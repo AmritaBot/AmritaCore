@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TypeVar, overload
 
 from typing_extensions import Self
@@ -31,11 +31,11 @@ class SessionData:
     """
 
     session_id: str
-    memory: MemoryModel
-    tools: MultiToolsManager
-    presets: MultiPresetManager
-    mcp: ClientManager
-    config: AmritaConfig
+    memory: MemoryModel = field(default_factory=MemoryModel)
+    tools: MultiToolsManager = field(default_factory=MultiToolsManager)
+    presets: MultiPresetManager = field(default_factory=MultiPresetManager)
+    mcp: ClientManager = field(default_factory=ClientManager)
+    config: AmritaConfig = field(default_factory=AmritaConfig)
 
 
 class SessionsManager:
@@ -85,10 +85,6 @@ class SessionsManager:
         if session_id not in self._session2DataMap:
             self._session2DataMap[session_id] = SessionData(
                 session_id,
-                MemoryModel(),
-                MultiToolsManager(),
-                MultiPresetManager(),
-                ClientManager(),
                 config=AmritaConfig(),
             )
 

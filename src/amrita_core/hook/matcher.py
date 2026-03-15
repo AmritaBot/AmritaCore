@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import warnings
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Iterable
 from copy import deepcopy
@@ -18,7 +17,7 @@ from typing import (
 
 from exceptiongroup import ExceptionGroup
 from pydantic import BaseModel, Field
-from typing_extensions import Self, deprecated
+from typing_extensions import Never, Self
 
 from amrita_core.config import AmritaConfig
 from amrita_core.hook.event import EventTypeEnum
@@ -107,31 +106,17 @@ class Matcher:
     def set_block(self, block: bool):
         self.block = block
 
-    def stop_process(self):
+    def stop_process(self) -> Never:
         """
         Stop the current matcher then break the matcher loop.
         """
-        raise CancelException()
+        raise CancelException()  # pragma: no cover
 
-    @deprecated(
-        "Use `stop_process()` instead. Will be removed at 0.6.0",
-        category=DeprecationWarning,
-    )
-    def cancel_matcher(self):
-        """
-        Stop the matcher then cancel the matcher loop.
-        """
-        warnings.warn(
-            "This method is deprecated, please `use stop_process()` instead.",
-            category=DeprecationWarning,
-        )
-        self.stop_process()
-
-    def pass_event(self):
+    def pass_event(self) -> Never:
         """
         Ignore the current handler and continue processing the next one.
         """
-        raise PassException()
+        raise PassException()  # pragma: no cover
 
 
 T = TypeVar("T")

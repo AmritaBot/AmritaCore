@@ -107,7 +107,7 @@ agent = create_agent(
 - `config` ([AmritaConfig](classes/AmritaConfig.md) | None, 可选): agent 的配置。默认为全局配置。
 - `**kwargs`: 传递给 AgentRuntime 的其他关键字参数
 
-**返回**: [AgentRuntime](#agentruntime) - 配置好的 agent 运行时实例
+**返回**: `AgentRuntime` - 配置好的 agent 运行时实例
 
 **使用注意事项**:
 

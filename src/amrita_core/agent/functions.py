@@ -42,10 +42,10 @@ class AgentRuntime:
         self,
         config: AmritaConfig,
         preset: ModelPreset,
+        train: dict[str, str] | Message[str],
         strategy: type[AgentStrategy] = AmritaAgentStrategy,
         template: Template | str = DEFAULT_TEMPLATE,
         session: SessionData | str | None = None,
-        train: dict[str, str] | Message[str] | None = None,
         no_session: bool = False,
     ):
         """
@@ -54,12 +54,11 @@ class AgentRuntime:
         Args:
             config (AmritaConfig): Amrita configuration object containing global configuration settings.
             preset (ModelPreset): Model preset configuration defining basic model parameters and settings.
+            train (Message[str] | dict[str,str]): System prompt for agent.
             strategy (type[AgentStrategy], optional): Agent strategy class, defaults to AmritaAgentStrategy.
             template (Template | str, optional): Train template to render system role message.
             session (SessionData | str | None, optional): Session data or session ID string for restoring
                 existing sessions. If None, a new session will be created.
-            train (dict[str, str] | Message[str] | None, optional): Training data (system prompts),
-                can be in dictionary format or as a Message object.
             no_session (bool, optional): Whether to disable session functionality. If True, session
                 management will be disabled but a temporary session ID will still be assigned.
         """
@@ -148,6 +147,7 @@ def create_agent(
     key: str,
     model: str = "auto",
     *,
+    train: str | None = None,
     model_config: ModelConfig | dict | None = None,
     config: AmritaConfig | None = None,
     **kwargs,
@@ -179,6 +179,7 @@ def create_agent(
         )
         ```
     """
+    train = train or "You are a helpful assistant."
     final_config = config or get_config()
     if isinstance(model_config, dict):
         model_config = ModelConfig(**model_config)
@@ -196,5 +197,6 @@ def create_agent(
     return AgentRuntime(
         config=final_config,
         preset=preset,
+        train=Message(content=train, role="system"),
         **{k: v for k, v in kwargs.items() if k not in ["config", "model_config"]},
     )

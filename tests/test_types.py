@@ -41,7 +41,7 @@ class TestModelPreset:
     def test_default_values(self):
         """Test default values"""
         preset = ModelPreset()
-        assert preset.model == ""
+        assert preset.model == "auto"
         assert preset.name == "default"
         assert preset.base_url == ""
         assert preset.api_key == ""
