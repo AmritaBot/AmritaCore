@@ -4,14 +4,13 @@ from asyncio import Lock
 from collections.abc import Awaitable, Callable, Iterable
 from contextlib import nullcontext
 from copy import deepcopy
+from pathlib import Path
 from typing import Any, overload
 
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
-from fastmcp.client.transports.base import ClientTransportT
 from mcp.types import TextContent
 from typing_extensions import Self
-from zipp import Path
 
 from amrita_core.logging import logger
 
@@ -25,7 +24,9 @@ from .models import (
     cast_mcp_properties_to_amrita,
 )
 
-MCP_SERVER_SCRIPT_TYPE = ClientTransportT
+MCP_SERVER_SCRIPT_TYPE = (
+    str | Path  # TODO: Support all types of scripts
+)
 
 
 class NOT_GIVEN:
@@ -87,11 +88,11 @@ class MCPClient:
         if self.mcp_client is not None:
             raise RuntimeError("MCP Server is already connected!")
 
-        server_script = self.server_script
+        server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
         self.mcp_client = Client(server_script)
         await self.mcp_client.__aenter__()
         logger.info(f"Successfully connected to MCP Server@{server_script}")
-        if not self.tools or update_tools:
+        if update_tools or not self.tools:
             self.tools = [
                 MCPToolSchema.model_validate(i.model_dump())
                 for i in await self.mcp_client.list_tools()

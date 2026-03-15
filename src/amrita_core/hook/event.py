@@ -64,7 +64,7 @@ class FallbackContext(BaseEvent):
     def get_event_type(self) -> EventTypeEnum:
         return self._event_type
 
-    def fail(self, reason: Any | None = None) -> Never:
+    def fail(self, reason: Any | None = None) -> Never:  # pragma: no cover
         """Mark the event as failed"""
         raise FallbackFailed(reason)
 

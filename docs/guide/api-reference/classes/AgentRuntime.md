@@ -53,9 +53,10 @@ from amrita_core import create_agent
 
 # Create an agent using the factory function
 agent = create_agent(
-    url="https://api.example.com",
-    key="your-api-key",
-    model_config={"model": "gpt-4", "temperature": 0.7}
+    "https://api.example.com",
+    "your-api-key",
+    model="gpt-4",
+    model_config={"temperature": 0.7}
 )
 
 # Get a chat object for interaction

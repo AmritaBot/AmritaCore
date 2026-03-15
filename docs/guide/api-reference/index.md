@@ -90,15 +90,12 @@ The `create_agent()` function creates an agent with minimal parameters by automa
 ```python
 from amrita_core import create_agent
 
-# Simple usage with just url and key
-agent = create_agent("https://api.example.com", "your-api-key")
-
-# With custom model configuration
 agent = create_agent(
-    "https://api.example.com",
-    "your-api-key",
-    model_config={"model": "gpt-4", "temperature": 0.7}
-)
+    "https://api.example.com", # Replace with your API URL
+    "your-api-key", # Replace with your API key
+    model="gpt-4", # Replace with your desired model
+    model_config={"temperature": 0.7}
+    )
 ```
 
 **Purpose**: Simplifies agent creation by only requiring essential parameters like URL and API key, automatically creating a temporary preset for immediate use.

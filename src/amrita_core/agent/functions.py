@@ -8,7 +8,7 @@ from jinja2 import Template
 from amrita_core.builtins.agent import AmritaAgentStrategy
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import get_config
-from amrita_core.consts import DEFAULT_TEMPLATE
+from amrita_core.consts import DEFAULT_INSTRUCTIONS, DEFAULT_TEMPLATE
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.types import USER_INPUT, MemoryModel, Message, ModelConfig, ModelPreset
 
@@ -42,10 +42,10 @@ class AgentRuntime:
         self,
         config: AmritaConfig,
         preset: ModelPreset,
+        train: dict[str, str] | Message[str],
         strategy: type[AgentStrategy] = AmritaAgentStrategy,
         template: Template | str = DEFAULT_TEMPLATE,
         session: SessionData | str | None = None,
-        train: dict[str, str] | Message[str] | None = None,
         no_session: bool = False,
     ):
         """
@@ -54,12 +54,11 @@ class AgentRuntime:
         Args:
             config (AmritaConfig): Amrita configuration object containing global configuration settings.
             preset (ModelPreset): Model preset configuration defining basic model parameters and settings.
+            train (Message[str] | dict[str,str]): System prompt for agent.
             strategy (type[AgentStrategy], optional): Agent strategy class, defaults to AmritaAgentStrategy.
             template (Template | str, optional): Train template to render system role message.
             session (SessionData | str | None, optional): Session data or session ID string for restoring
                 existing sessions. If None, a new session will be created.
-            train (dict[str, str] | Message[str] | None, optional): Training data (system prompts),
-                can be in dictionary format or as a Message object.
             no_session (bool, optional): Whether to disable session functionality. If True, session
                 management will be disabled but a temporary session ID will still be assigned.
         """
@@ -146,7 +145,9 @@ class AgentRuntime:
 def create_agent(
     url: str,
     key: str,
+    model: str = "auto",
     *,
+    train: str | None = None,
     model_config: ModelConfig | dict | None = None,
     config: AmritaConfig | None = None,
     **kwargs,
@@ -160,6 +161,7 @@ def create_agent(
     Args:
         url (str): The API endpoint URL
         key (str): The API key for authentication
+        model (str, optional): The model to use. Defaults to "auto".
         model_config (ModelConfig | dict | None, optional): Optional model configuration. Defaults to None.
         config (AmritaConfig | None, optional): Configuration for the agent. Defaults to global config.
         **kwargs: Additional keyword arguments to pass to AgentRuntime
@@ -169,17 +171,16 @@ def create_agent(
 
     Examples:
         ```python
-        # Simple usage with just url and key
-        agent = create_agent("https://api.example.com", "your-api-key")
-
-        # With custom model configuration
         agent = create_agent(
-            "https://api.example.com",
-            "your-api-key",
-            model_config={"model": "gpt-4", "temperature": 0.7}
+            "https://api.example.com", # Replace with your API URL
+            "your-api-key", # Replace with your API key
+            model="gpt-4", # Replace with your desired model
+            model_config={"temperature": 0.7}
         )
         ```
     """
+    if train is None:
+        train = DEFAULT_INSTRUCTIONS
     final_config = config or get_config()
     if isinstance(model_config, dict):
         model_config = ModelConfig(**model_config)
@@ -187,11 +188,16 @@ def create_agent(
         model_config = ModelConfig()
 
     preset = ModelPreset(
-        name=f"temp_{uuid4().hex[:8]}", base_url=url, api_key=key, config=model_config
+        name=f"temp_{uuid4().hex[:8]}",
+        base_url=url,
+        api_key=key,
+        config=model_config,
+        model=model,
     )
 
     return AgentRuntime(
         config=final_config,
         preset=preset,
+        train=Message(content=train, role="system"),
         **{k: v for k, v in kwargs.items() if k not in ["config", "model_config"]},
     )

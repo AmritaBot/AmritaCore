@@ -61,7 +61,7 @@ class ModelConfig(BaseModel):
 
 class ModelPreset(BaseModel):
     model: str = Field(
-        default="", description="Name of the AI model to use (e.g. gpt-3.5-turbo)"
+        default="auto", description="Name of the AI model to use (e.g. gpt-3.5-turbo)"
     )
     name: str = Field(
         default="default", description="Identifier name for current preset"
