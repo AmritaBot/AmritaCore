@@ -8,7 +8,7 @@ from jinja2 import Template
 from amrita_core.builtins.agent import AmritaAgentStrategy
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import get_config
-from amrita_core.consts import DEFAULT_TEMPLATE
+from amrita_core.consts import DEFAULT_INSTRUCTIONS, DEFAULT_TEMPLATE
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.types import USER_INPUT, MemoryModel, Message, ModelConfig, ModelPreset
 
@@ -179,7 +179,8 @@ def create_agent(
         )
         ```
     """
-    train = train or "You are a helpful assistant."
+    if train is None:
+        train = DEFAULT_INSTRUCTIONS
     final_config = config or get_config()
     if isinstance(model_config, dict):
         model_config = ModelConfig(**model_config)
