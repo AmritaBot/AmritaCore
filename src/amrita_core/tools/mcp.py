@@ -4,12 +4,14 @@ from asyncio import Lock
 from collections.abc import Awaitable, Callable, Iterable
 from contextlib import nullcontext
 from copy import deepcopy
-from typing import Any, overload
+from typing import Any, Generic, TypeVar, overload
 
-from fastmcp import Client
+from fastmcp import Client, FastMCP
 from fastmcp.client.client import CallToolResult
-from fastmcp.client.transports.base import ClientTransportT
+from fastmcp.client.transports.base import ClientTransport
+from fastmcp.mcp_config import MCPConfig
 from mcp.types import TextContent
+from pydantic import AnyUrl
 from typing_extensions import Self
 from zipp import Path
 
@@ -25,14 +27,23 @@ from .models import (
     cast_mcp_properties_to_amrita,
 )
 
-MCP_SERVER_SCRIPT_TYPE = ClientTransportT
+MCP_SERVER_SCRIPT_TYPE = TypeVar(
+    "MCP_SERVER_SCRIPT_TYPE",
+    str,
+    ClientTransport,
+    AnyUrl,
+    FastMCP,
+    MCPConfig,
+    dict[str, Any],
+    covariant=True,
+)
 
 
 class NOT_GIVEN:
     pass
 
 
-class MCPClient:
+class MCPClient(Generic[MCP_SERVER_SCRIPT_TYPE]):
     """Reusable MCP Client"""
 
     mcp_client: Client | None = None
@@ -87,11 +98,11 @@ class MCPClient:
         if self.mcp_client is not None:
             raise RuntimeError("MCP Server is already connected!")
 
-        server_script = self.server_script
+        server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
         self.mcp_client = Client(server_script)
         await self.mcp_client.__aenter__()
         logger.info(f"Successfully connected to MCP Server@{server_script}")
-        if not self.tools or update_tools:
+        if update_tools or not self.tools:
             self.tools = [
                 MCPToolSchema.model_validate(i.model_dump())
                 for i in await self.mcp_client.list_tools()
@@ -163,7 +174,9 @@ class MultiClientManager:
         self.script_to_clients = {}
         self._lock = Lock()
 
-    def get_client_by_script(self, server_script: MCP_SERVER_SCRIPT_TYPE) -> MCPClient:
+    def get_client_by_script(
+        self, server_script: MCP_SERVER_SCRIPT_TYPE
+    ) -> MCPClient[MCP_SERVER_SCRIPT_TYPE]:
         """Get MCP Client (without operating stored MCP Server)
         Args:
             server_script (str, optional): MCP Server script path (or URI).
@@ -206,7 +219,7 @@ class MultiClientManager:
         self,
         *,
         server_script: MCP_SERVER_SCRIPT_TYPE | None = None,
-        client: MCPClient | None = None,
+        client: MCPClient[MCP_SERVER_SCRIPT_TYPE] | None = None,
     ) -> Self:
         """Register MCP Server only, without initialization"""
         if client is not None:
@@ -240,7 +253,9 @@ class MultiClientManager:
         self, server_script: MCP_SERVER_SCRIPT_TYPE, fail_then_raise: bool = False
     ) -> Self:
         """Register and initialize single MCP Server"""
-        client: MCPClient = self.get_client_by_script(server_script)
+        client: MCPClient[MCP_SERVER_SCRIPT_TYPE] = self.get_client_by_script(
+            server_script
+        )
         async with self._lock:
             try:
                 await self._load_this(client)

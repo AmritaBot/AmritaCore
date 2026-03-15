@@ -53,9 +53,10 @@ from amrita_core import create_agent
 
 # 使用工厂函数创建 agent
 agent = create_agent(
-    url="https://api.example.com",
-    key="your-api-key",
-    model_config={"model": "gpt-4", "temperature": 0.7}
+    "https://api.example.com",
+    "your-api-key",
+    model="gpt-4",
+    model_config={"temperature": 0.7}
 )
 
 # 获取用于交互的聊天对象

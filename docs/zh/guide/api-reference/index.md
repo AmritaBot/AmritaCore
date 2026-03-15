@@ -89,14 +89,11 @@ print(config.function_config.use_minimal_context)
 ```python
 from amrita_core import create_agent
 
-# 仅使用 url 和 key 的简单用法
-agent = create_agent("https://api.example.com", "your-api-key")
-
-# 使用自定义模型配置
 agent = create_agent(
     "https://api.example.com",
     "your-api-key",
-    model_config={"model": "gpt-4", "temperature": 0.7}
+    model="gpt-4",
+    model_config={"temperature": 0.7}
 )
 ```
 

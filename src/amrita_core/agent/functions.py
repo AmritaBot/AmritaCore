@@ -146,6 +146,7 @@ class AgentRuntime:
 def create_agent(
     url: str,
     key: str,
+    model: str = "auto",
     *,
     model_config: ModelConfig | dict | None = None,
     config: AmritaConfig | None = None,
@@ -160,6 +161,7 @@ def create_agent(
     Args:
         url (str): The API endpoint URL
         key (str): The API key for authentication
+        model (str, optional): The model to use. Defaults to "auto".
         model_config (ModelConfig | dict | None, optional): Optional model configuration. Defaults to None.
         config (AmritaConfig | None, optional): Configuration for the agent. Defaults to global config.
         **kwargs: Additional keyword arguments to pass to AgentRuntime
@@ -169,14 +171,11 @@ def create_agent(
 
     Examples:
         ```python
-        # Simple usage with just url and key
-        agent = create_agent("https://api.example.com", "your-api-key")
-
-        # With custom model configuration
         agent = create_agent(
-            "https://api.example.com",
-            "your-api-key",
-            model_config={"model": "gpt-4", "temperature": 0.7}
+            "https://api.example.com", # Replace with your API URL
+            "your-api-key", # Replace with your API key
+            model="gpt-4", # Replace with your desired model
+            model_config={"temperature": 0.7}
         )
         ```
     """
@@ -187,7 +186,11 @@ def create_agent(
         model_config = ModelConfig()
 
     preset = ModelPreset(
-        name=f"temp_{uuid4().hex[:8]}", base_url=url, api_key=key, config=model_config
+        name=f"temp_{uuid4().hex[:8]}",
+        base_url=url,
+        api_key=key,
+        config=model_config,
+        model=model,
     )
 
     return AgentRuntime(

@@ -8,7 +8,8 @@ async def minimal_example():
     agent = create_agent(
         url="YOUR_API_ENDPOINT",  # Replace with your API endpoint
         key="YOUR_API_KEY",  # Replace with your API key
-        model_config={"model": "gpt-3.5-turbo", "stream": True},
+        model="gpt-3.5-turbo",  # Replace with your desired model
+        model_config={"stream": True, "temperature": 0.7},
     )
 
     # Get a chat object for the interaction

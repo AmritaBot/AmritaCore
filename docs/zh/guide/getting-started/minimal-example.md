@@ -11,9 +11,10 @@ from amrita_core import create_agent
 async def minimal_example():
     # 使用最少参数创建一个 agent
     agent = create_agent(
-        url="YOUR_API_ENDPOINT",  # 替换为您的 API 端点
-        key="YOUR_API_KEY",       # 替换为您的 API 密钥
-        model_config={"model": "gpt-3.5-turbo", "stream": True}
+    "https://api.example.com", # Replace with your API URL
+    "your-api-key", # Replace with your API key
+    model="gpt-4", # Replace with your desired model
+    model_config={"temperature": 0.7}
     )
     
     # 获取用于交互的聊天对象
