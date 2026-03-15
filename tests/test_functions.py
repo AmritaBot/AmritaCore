@@ -85,6 +85,7 @@ def test_agent_runtime_init_with_session_string(mock_config, mock_preset):
         assert runtime.session_id == session_id
         assert runtime.context == mock_session_data.memory
 
+
 def test_agent_runtime_init_new_session(mock_config, mock_preset):
     """Test AgentRuntime initialization creating new session."""
     with (
