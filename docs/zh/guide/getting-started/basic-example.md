@@ -128,8 +128,7 @@ if __name__ == "__main__":
 - **创建 Agent**：`create_agent(base_url, api_key, model, model_config)` 是唯一的入口。它内部会自动设置默认的系统提示、上下文管理和模型预设。
 - **模型配置**：通过 `model_config` 字典传递任何模型参数（例如 `temperature`、`stream`）。`stream` 标志控制是否使用流式响应。
 - **上下文处理**：Agent 会自动保留对话历史。您**无需**手动管理 `MemoryModel` 或 `train` 消息——这些都已内置，除非您需要在外部序列化与反序列化。
-- **系统提示**：提供了合理的默认系统提示。如果您需要自定义，`create_agent` 接受一个可选的 `train
-` 参数。
+- **系统提示**：提供了合理的默认系统提示。如果您需要自定义，`create_agent` 接受一个可选的 `train` 参数。
 
 ## 2.3.3 常见问题排查
 
