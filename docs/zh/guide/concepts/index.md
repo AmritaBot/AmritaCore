@@ -9,15 +9,17 @@
 - `FunctionConfig`: 定义Agent的行为方面
 - `LLMConfig`: 控制语言模型交互
 - `CookieConfig`: 处理安全方面
+- `BuiltinAgentConfig`: 内置Agent的策略控制
 
 ```python
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig
+from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgentConfig
 
 # 完整配置
 config = AmritaConfig(
     function_config=FunctionConfig(...),
     llm=LLMConfig(...),
-    cookie=CookieConfig(...)
+    cookie=CookieConfig(...),
+    builtin=BuiltinAgentConfig(...),
 )
 
 # 应用配置
@@ -27,7 +29,7 @@ set_config(config)
 
 ### 3.1.2 FunctionConfig 功能配置
 
-[FunctionConfig](../api-reference/classes/FunctionConfig.md) 类控制Agent的功能行为：
+[FunctionConfig](../api-reference/classes/FunctionConfig.md) 类控制AmritaCore主要的功能行为：
 
 #### 3.1.2.1 use_minimal_context 上下文模式
 
@@ -43,40 +45,7 @@ func_config_full = FunctionConfig(use_minimal_context=False)
 func_config_minimal = FunctionConfig(use_minimal_context=True)
 ```
 
-#### 3.1.2.2 tool_calling_mode 工具调用模式
-
-`tool_calling_mode` 属性指定工具如何被调用：
-
-- `"agent"`: Agent自主决定何时使用工具
-- `"rag"`: 工具主要用于检索增强生成，只在一次对话中调用一次。
-- `"none"`: 工具被禁用
-
-```python
-# Agent决定何时使用工具
-func_config_agent = FunctionConfig(tool_calling_mode="agent")
-
-# 主要用于RAG目的
-func_config_rag = FunctionConfig(tool_calling_mode="rag")
-```
-
-#### 3.1.2.3 agent_thought_mode Agent思维模式
-
-`agent_thought_mode` 属性控制Agent如何处理信息：
-
-- `"reasoning"`: 在每次用户消息开始时进行推理
-- `"chat"`: 直接执行任务而不进行明确推理
-- `"reasoning-required"`: 每次工具调用都需要推理
-- `"reasoning-optional"`: 允许推理但不要求
-
-```python
-# 推理模式
-func_config_reasoning = FunctionConfig(agent_thought_mode="reasoning")
-
-# 直接聊天模式
-func_config_chat = FunctionConfig(agent_thought_mode="chat")
-```
-
-#### 3.1.2.4 agent_mcp_client_enable MCP 客户端配置
+#### 3.1.2.2 agent_mcp_client_enable MCP 客户端配置
 
 `agent_mcp_client_enable` 标志启用或禁用模型上下文协议 (MCP) 客户端功能：
 
@@ -117,7 +86,42 @@ llm_config = LLMConfig(
 )
 ```
 
-### 3.1.4 CookieConfig 安全配置
+### 3.1.4 BuiltinAgentConfig 内置Agent策略行为调整
+
+#### 3.1.4.2 tool_calling_mode 工具调用模式
+
+`tool_calling_mode` 属性指定工具如何被调用：
+
+- `"agent"`: Agent自主决定何时使用工具
+- `"rag"`: 工具主要用于检索增强生成，只在一次对话中调用一次。
+- `"none"`: 工具被禁用
+
+```python
+# Agent决定何时使用工具
+func_config_agent = BuiltinAgentConfig(tool_calling_mode="agent")
+
+# 主要用于RAG目的
+func_config_rag = BuiltinAgentConfig(tool_calling_mode="rag")
+```
+
+#### 3.1.4.3 agent_thought_mode Agent思维模式
+
+`agent_thought_mode` 属性控制Agent如何处理信息：
+
+- `"reasoning"`: 在每次用户消息开始时进行推理
+- `"chat"`: 直接执行任务而不进行明确推理
+- `"reasoning-required"`: 每次工具调用都需要推理
+- `"reasoning-optional"`: 允许推理但不要求
+
+```python
+# 推理模式
+func_config_reasoning = BuiltinAgentConfig(agent_thought_mode="reasoning")
+
+# 直接聊天模式
+func_config_chat = BuiltinAgentConfig(agent_thought_mode="chat")
+```
+
+### 3.1.5 CookieConfig 安全配置
 
 [CookieConfig](../api-reference/classes/CookieConfig.md) 类处理与安全相关的设置：
 
@@ -130,7 +134,7 @@ security_config = CookieConfig(
 )
 ```
 
-### 3.1.5 配置最佳实践
+### 3.1.6 配置最佳实践
 
 - 对简单查询使用最小上下文以节省Token
 - 对长对话启用记忆抽象
