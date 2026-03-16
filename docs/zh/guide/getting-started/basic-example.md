@@ -1,208 +1,145 @@
 # 基础示例
 
-## 2.3.1 完整的基础功能演示
+## 2.3.1 完整功能演示
 
-让我们来看一个更完整的示例，展示上下文保留和多次交互：
+让我们看一个更完整的示例，演示如何使用简化的 `create_agent` 接口实现上下文记忆和多轮交互：
 
 ```python
 """
-AmritaCore 基础示例 - 核心功能的简单演示。
+Basic Example for AmritaCore - A simple demonstration of core functionality.
 
-此示例演示如何初始化 AmritaCore、配置它，
-并运行与 AI 助手的基本聊天会话。
+This example shows how to create an agent, interact with it, and maintain
+conversation context across multiple turns using the new unified API.
 """
 
 import asyncio
 
-from amrita_core import ChatObject, init, load_amrita, logger
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig
-from amrita_core.preset import PresetManager
-from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
+from amrita_core import create_agent  # Main entry point
+from amrita_core.logger import logger  # Optional logging
 
 
 async def basic_example():
     """
-    基础示例，演示 AmritaCore 的核心功能。
-    展示初始化、配置和简单聊天交互。
+    Basic example demonstrating core functionality with the new agent API.
+    Shows agent creation, streaming responses, and automatic context retention.
     """
-    print("🚀 启动 AmritaCore 基础示例")
+    print("🚀 Starting AmritaCore Basic Example (New API)")
     print("-" * 50)
 
-    # 配置 AmritaCore
-    # FunctionConfig 定义Agent的一般行为
-    func = FunctionConfig(
-        use_minimal_context=False,  # 使用完整上下文或最小上下文
+    # Create an agent with minimal configuration
+    # All necessary defaults (system prompt, context handling) are built-in
+    agent = create_agent(
+        base_url="https://api.example.com",           # Your API endpoint
+        api_key="your-api-key",                        # Your API key
+        model="gpt-3.5-turbo",                         # Model name
+        model_config={                                  # Optional model parameters
+            "temperature": 0.7,
+            "stream": True,                             # Enable streaming
+        }
     )
+    logger.info("✅ Agent created successfully.")
 
-    # LLMConfig 定义语言模型行为
-    llm = LLMConfig(
-        enable_memory_abstract=True,  # 启用记忆摘要功能
-    )
-
-    # 将配置合并为主配置
-    config = AmritaConfig(
-        function_config=func,
-        llm=llm,
-    )
-
-    # 应用配置
-    from amrita_core.config import set_config
-
-    set_config(config)
-
-    # 加载 AmritaCore 组件
-    await load_amrita()
-
-    # 设置模型预设 - 定义要使用的 LLM
-    preset = ModelPreset(
-        model="gpt-3.5-turbo",  # 模型名称
-        base_url="INSERT_YOUR_API_ENDPOINT_HERE",  # API 端点
-        api_key="INSERT_YOUR_API_KEY_HERE",  # API 密钥
-        config=ModelConfig(stream=True),  # 启用流式响应
-    )
-
-    # 注册模型预设
-    preset_manager = PresetManager()
-    preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preset.name)
-    logger.info("✅ 注册模型预设。")
-
-    # 创建记忆上下文以保存对话历史
-    context = MemoryModel()
-
-    # 定义系统指令（AI 应该如何行为）
-    train = Message(
-        content="您是一个有用的 AI 助手。请简洁准确地回答。",
-        role="system",
-    )
-
-    print("💬 开始示例对话:")
+    print("💬 Starting a sample conversation:")
     print()
 
-    # 示例 1: 简单文本交互
-    user_input = "你好！你能告诉我 AmritaCore 是什么吗？"
+    # Example 1: First interaction
+    user_input = "Hello! Can you tell me what AmritaCore is?"
 
-    print(f"👤 用户: {user_input}")
+    print(f"👤 User: {user_input}")
 
-    # 创建用于交互的 ChatObject
-    chat = ChatObject(
-        context=context,
-        session_id="basic_example_session",
-        user_input=user_input,
-        train=train.model_dump(),  # 将 Message 转换为字典
-    )
+    # Get a chat object for this user input
+    chat = agent.get_chatobject(user_input)
 
-    # 处理响应并显示
-    print("🤖 助手: ", end="")
+    print("🤖 Assistant: ", end="")
 
+    # Stream the response token by token
     async with chat.begin():
         async for message in chat.get_response_generator():
+            # message can be a string or a Message object
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
 
-    print("\n")  # 响应后换行
+    print("\n")  # New line after response
 
-    # 使用最新的对话状态更新上下文
-    context = chat.data
+    # Example 2: Follow-up question – context is automatically retained by the agent
+    follow_up = "Can you explain its main features?"
 
-    # 示例 2: 后续问题以演示上下文保留
-    follow_up = "你能解释它的主要功能吗？"
+    print(f"👤 User: {follow_up}")
 
-    print(f"👤 用户: {follow_up}")
+    # Simply create another chat object with the same agent
+    chat2 = agent.get_chatobject(follow_up)
 
-    # 使用更新的上下文创建另一个 ChatObject
-    chat2 = ChatObject(
-        context=context,
-        session_id="basic_example_session",
-        user_input=follow_up,
-        train=train.model_dump(),
-    )
+    print("🤖 Assistant: ", end="")
 
-    print("🤖 助手: ", end="")
+    async with chat2.begin():
+        async for message in chat2.get_response_generator():
+            content = message if isinstance(message, str) else message.get_content()
+            print(content, end="")
 
-    # 处理后续问题
-    await chat2.begin()
+    print("\n")  # New line after response
 
-    async for message in chat2.get_response_generator():
-        content = message if isinstance(message, str) else message.get_content()
-        print(content, end="")
-
-    print("\n")  # 响应后换行
-
-    print("🎉 基础示例成功完成！")
+    print("🎉 Basic example completed successfully!")
     print("-" * 50)
-    print("💡 演示的关键概念:")
-    print("   • 初始化和配置")
-    print("   • 创建 ChatObject 实例")
-    print("   • 流式响应")
-    print("   • 上下文管理")
-    print("   • 会话处理")
+    print("💡 Key concepts demonstrated:")
+    print("   • Agent creation with create_agent()")
+    print("   • Obtaining chat objects via agent.get_chatobject()")
+    print("   • Streaming responses")
+    print("   • Automatic context retention across turns")
+    print("   • Built‑in default system prompt")
 
 
 async def minimal_example():
     """
-    最小示例，显示运行 AmritaCore 的基本步骤。
+    A minimal example showing the essential steps to run AmritaCore.
     """
-    print("\n🧪 最小示例")
+    print("\n🧪 Minimal Example")
     print("-" * 30)
 
-    # 最小配置
-    from amrita_core.config import set_config
-
-    set_config(AmritaConfig())
-
-    # 加载 AmritaCore
-    await load_amrita()
-
-    # 注意: 在实际场景中，您将在此处配置模型预设
-    print("✅ AmritaCore 已使用最小配置加载")
-
-    # 创建上下文和系统消息
-    context = MemoryModel()
-    train = Message(content="您是一个有用的助手。", role="system")
-
-    # 创建并运行聊天交互
-    chat = ChatObject(
-        context=context,
-        session_id="minimal_session",
-        user_input="你能做什么？",
-        train=train.model_dump(),
+    # Create an agent with just the required parameters
+    agent = create_agent(
+        base_url="https://api.example.com",
+        api_key="your-api-key",
+        model="gpt-4",
+        model_config={"temperature": 0.7}
     )
 
+    # Get a chat object and get the full response (non‑streaming)
+    chat = agent.get_chatobject("Hello!What can you do?")
 
-    # 收集响应（仅显示其工作）
     async with chat.begin():
         response = await chat.full_response()
-    print(f"💬 响应长度: {len(response)} 个字符")
-    print("✅ 最小示例完成！")
+
+    print(f"💬 Response: {response}")
+    print("✅ Minimal example completed!")
 
 
 if __name__ == "__main__":
-    # 初始化 AmritaCore
-    init()
-
-    # 运行示例
+    # No explicit init() needed – create_agent handles everything
     asyncio.run(basic_example())
     asyncio.run(minimal_example())
 
-    print("\n✨ 所有示例已完成！")
-
+    print("\n✨ All examples completed!")
 ```
 
-## 2.3.2 配置详情
+## 2.3.2 配置说明
 
-该示例展示了几个重要的配置选项：
+新版 API 简化了配置流程：
 
-- `use_minimal_context=False`: 使用完整对话历史而不是仅最后一条消息
-- `enable_memory_abstract=True`: 启用自动上下文摘要以管理Token使用
+- **创建 Agent**：`create_agent(base_url, api_key, model, model_config)` 是唯一的入口。它内部会自动设置默认的系统提示、上下文管理和模型预设。
+- **模型配置**：通过 `model_config` 字典传递任何模型参数（例如 `temperature`、`stream`）。`stream` 标志控制是否使用流式响应。
+- **上下文处理**：Agent 会自动保留对话历史。您**无需**手动管理 `MemoryModel` 或 `train` 消息——这些都已内置，除非您需要在外部序列化与反序列化。
+- **系统提示**：提供了合理的默认系统提示。如果您需要自定义，`create_agent` 接受一个可选的 `train` 参数。
 
 ## 2.3.3 常见问题排查
 
-**问题**: API 端点连接错误
-**解决方案**: 验证您的 API 端点和密钥是否正确，以及网络连接是否正常。
+**问题**：连接到 API 端点时出现连接错误  
+**解决方案**：检查 `base_url` 和 `api_key` 是否正确，并确保网络可以访问该端点。
 
-**问题**: 高Token使用率
-**解决方案**: 启用记忆摘要 (`enable_memory_abstract=True`) 并考虑在简单查询时使用最小上下文模式。
+**问题**：长对话中 Token 消耗过高  
+**解决方案**：Agent 会自动应用内存摘要（如果后端启用了该功能）来总结旧消息。您也可以在 `model_config` 中调整 `max_tokens` 参数来限制响应长度。
 
-**问题**: 响应缓慢
-**解决方案**: 检查您的网络连接和 API 提供商性能。考虑使用较小的模型以获得更快的响应。
+**问题**：响应缓慢  
+**解决方案**：检查网络延迟。如需更快的响应，可考虑使用较小的模型或降低 `temperature`（这会使输出更确定，稍快一些）。流式响应（`stream=True`）也能让文本更早开始显示。
+
+**问题**：多轮对话后上下文似乎丢失  
+**解决方案**：确保同一对话的所有轮次都使用**同一个 agent 实例**。每次调用 `agent.get_chatobject()` 都会自动使用 agent 的内部上下文。
