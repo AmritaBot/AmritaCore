@@ -127,8 +127,8 @@ The new API simplifies configuration:
 
 - **Agent creation**: `create_agent(base_url, api_key, model, model_config)` is the single entry point. It internally sets up default system prompts, context management, and model presets.
 - **Model configuration**: Pass any model parameters (e.g., `temperature`, `stream`) as a dictionary via `model_config`. The `stream` flag controls whether responses are streamed.
-- **Context handling**: The agent automatically retains conversation history. You do **not** need to manage `MemoryModel` or `train` messages manually – they are built in.
-- **System prompt**: A sensible default system prompt is provided. If you need to customize it, `create_agent` accepts an optional `system_prompt` parameter.
+- **Context handling**: The agent automatically retains conversation history. You do **not** need to manage `MemoryModel` or `train` messages manually – they are built in, unless you need to dump memory or load deserialize it.
+- **System prompt**: A sensible default system prompt is provided. If you need to customize it, `create_agent` accepts an optional `train` parameter.
 
 ## 2.3.3 Common Issue Troubleshooting
 
