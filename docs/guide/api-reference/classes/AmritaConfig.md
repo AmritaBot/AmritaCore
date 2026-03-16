@@ -11,7 +11,7 @@ The AmritaConfig class is the central configuration object for AmritaCore.
 ## Example
 
 ```python
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgnentConfig
+from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgentConfig
 
 config = AmritaConfig(
     function_config=FunctionConfig(
