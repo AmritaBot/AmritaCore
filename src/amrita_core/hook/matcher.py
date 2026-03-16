@@ -218,6 +218,7 @@ class MatcherFactory:
         filtered_args_types = {}
         f_kwargs: dict[str, Any] = {}
         d_kwargs: dict[str, DependsFactory] = {}
+        required_params: dict[str, inspect.Parameter] = {}
         for k, v in params.items():
             if v.annotation is not inspect._empty:
                 filtered_args_types[k] = v.annotation
@@ -227,15 +228,12 @@ class MatcherFactory:
                 f_kwargs[k] = session_kwargs[k]
             if isinstance(v.default, DependsFactory):
                 d_kwargs[k] = v.default
+            if v.default == inspect.Parameter.empty:
+                required_params[k] = v
 
         new_args = []
         used_indices: set[int] = set()
         param_names_resolved: set[str] = set()
-        required_params: dict[str, inspect.Parameter] = {
-            name: param
-            for name, param in signature.parameters.items()
-            if param.default == inspect.Parameter.empty
-        }
         for name, param in required_params.items():
             param_type: type[Any] = param.annotation
             found = False

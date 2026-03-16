@@ -32,8 +32,6 @@ async def basic_example():
     # FunctionConfig 定义Agent的一般行为
     func = FunctionConfig(
         use_minimal_context=False,  # 使用完整上下文或最小上下文
-        tool_calling_mode="agent",  # 工具调用方式
-        agent_thought_mode="reasoning",  # Agent解决问题的思考方式
     )
 
     # LLMConfig 定义语言模型行为
@@ -196,8 +194,6 @@ if __name__ == "__main__":
 该示例展示了几个重要的配置选项：
 
 - `use_minimal_context=False`: 使用完整对话历史而不是仅最后一条消息
-- `tool_calling_mode="agent"`: 配置工具调用方式
-- `agent_thought_mode="reasoning"`: 使Agent在响应前思考问题
 - `enable_memory_abstract=True`: 启用自动上下文摘要以管理Token使用
 
 ## 2.3.3 常见问题排查

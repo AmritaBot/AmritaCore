@@ -194,18 +194,20 @@ memory.messages.append(Message(content="Hi there", role="assistant"))
 The [AmritaConfig](classes/AmritaConfig.md) class is the central configuration object for AmritaCore.
 
 ```python
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig
+from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgentConfig
 
 config = AmritaConfig(
     function_config=FunctionConfig(
         use_minimal_context=False,
-        tool_calling_mode="agent"
     ),
     llm=LLMConfig(
         enable_memory_abstract=True
     ),
     cookie=CookieConfig(
         enable_cookie=True
+    ),
+    builtin=BuiltinAgentConfig(
+        tool_calling_mode="agent"
     )
 )
 ```

@@ -32,8 +32,6 @@ async def basic_example():
     # FunctionConfig defines general behavior of the agent
     func = FunctionConfig(
         use_minimal_context=False,  # Use full context or minimal context
-        tool_calling_mode="agent",  # How tools are called
-        agent_thought_mode="reasoning",  # How agent thinks through problems
     )
 
     # LLMConfig defines language model behavior
@@ -196,8 +194,6 @@ if __name__ == "__main__":
 The example demonstrates several important configuration options:
 
 - `use_minimal_context=False`: Uses full conversation history instead of just the last message
-- `tool_calling_mode="agent"`: Configures how tools are invoked
-- `agent_thought_mode="reasoning"`: Makes the agent think through problems before responding
 - `enable_memory_abstract=True`: Enables automatic context summarization to manage token usage
 
 ## 2.3.3 Common Issue Troubleshooting
