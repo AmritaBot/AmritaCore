@@ -168,7 +168,7 @@ def test_create_agent_basic(mock_config):
     key = "test-api-key"
     model = "test-model"
 
-    agent = create_agent(url=url, key=key, model=model, config=mock_config)
+    agent = create_agent(base_url=url, api_key=key, model=model, config=mock_config)
 
     assert isinstance(agent, AgentRuntime)
     assert agent.config == mock_config
@@ -180,8 +180,8 @@ def test_create_agent_basic(mock_config):
 def test_create_agent_with_model_config_dict(mock_config):
     """Test create_agent with model_config as dictionary."""
     agent = create_agent(
-        url="https://api.test.com",
-        key="test-key",
+        base_url="https://api.test.com",
+        api_key="test-key",
         model_config={
             "temperature": 0.7,
         },
@@ -196,8 +196,8 @@ def test_create_agent_with_model_config_object(mock_config):
     """Test create_agent with model_config as ModelConfig object."""
     model_config = ModelConfig(temperature=0.8)
     agent = create_agent(
-        url="https://api.test.com",
-        key="test-key",
+        base_url="https://api.test.com",
+        api_key="test-key",
         model_config=model_config,
         config=mock_config,
     )
@@ -207,7 +207,9 @@ def test_create_agent_with_model_config_object(mock_config):
 
 def test_create_agent_no_model_config(mock_config):
     """Test create_agent without model_config."""
-    agent = create_agent(url="https://api.test.com", key="test-key", config=mock_config)
+    agent = create_agent(
+        base_url="https://api.test.com", api_key="test-key", config=mock_config
+    )
 
     assert isinstance(agent.preset.config, ModelConfig)
 
@@ -222,8 +224,8 @@ def test_create_agent_with_additional_kwargs(mock_config):
         mock_get.return_value = SessionData(session_id="test-id")
 
         agent = create_agent(
-            url="https://api.test.com",
-            key="test-key",
+            base_url="https://api.test.com",
+            api_key="test-key",
             config=mock_config,
             template="custom template",
             no_session=False,

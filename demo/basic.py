@@ -1,118 +1,70 @@
 """
 Basic Example for AmritaCore - A simple demonstration of core functionality.
 
-This example demonstrates how to initialize AmritaCore, configure it,
-and run a basic chat session with the AI assistant.
+This example shows how to create an agent, interact with it, and maintain
+conversation context across multiple turns using the new unified API.
 """
 
 import asyncio
 
-from amrita_core import ChatObject, init, load_amrita, logger
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig
-from amrita_core.preset import PresetManager
-from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
+from amrita_core import create_agent, minimal_init  # Main entry point
+from amrita_core.logging import logger  # Optional logging
 
 
 async def basic_example():
     """
-    Basic example demonstrating core functionality of AmritaCore.
-    Shows initialization, configuration, and a simple chat interaction.
+    Basic example demonstrating core functionality with the new agent API.
+    Shows agent creation, streaming responses, and automatic context retention.
     """
-    print("🚀 Starting AmritaCore Basic Example")
+    print("🚀 Starting AmritaCore Basic Example (New API)")
     print("-" * 50)
 
-    # Configure AmritaCore
-    # FunctionConfig defines general behavior of the agent
-    func = FunctionConfig(
-        use_minimal_context=False,  # Use full context or minimal context
-    )
-
-    # LLMConfig defines language model behavior
-    llm = LLMConfig(
-        enable_memory_abstract=True,  # Enable memory abstraction feature
-    )
-
-    # Combine configs into main config
-    config = AmritaConfig(
-        function_config=func,
-        llm=llm,
-    )
-
-    # Apply the configuration
-    from amrita_core.config import set_config
-
-    set_config(config)
-
-    # Load AmritaCore components
-    await load_amrita()
-
-    # Setup model preset - define which LLM to use
-    preset = ModelPreset(
+    # Create an agent with minimal configuration
+    # All necessary defaults (system prompt, context handling) are built-in
+    await minimal_init()
+    agent = create_agent(
+        base_url="https://api.example.com",  # Your API endpoint
+        api_key="your-api-key",  # Your API key
         model="gpt-3.5-turbo",  # Model name
-        base_url="INSERT_YOUR_API_ENDPOINT_HERE",  # API endpoint
-        api_key="INSERT_YOUR_API_KEY_HERE",  # API key
-        config=ModelConfig(stream=True),  # Enable streaming responses
+        model_config={  # Optional model parameters
+            "temperature": 0.7,
+            "stream": True,  # Enable streaming
+        },
     )
-
-    # Register the model preset
-    preset_manager = PresetManager()
-    preset_manager.add_preset(preset)
-    preset_manager.set_default_preset(preset.name)
-    logger.info("✅ Registered model preset.")
-
-    # Create a memory context to hold conversation history
-    context = MemoryModel()
-
-    # Define system instruction (how the AI should behave)
-    train = Message(
-        content="You are a helpful AI assistant. Answer concisely and accurately.",
-        role="system",
-    )
+    logger.info("✅ Agent created successfully.")
 
     print("💬 Starting a sample conversation:")
     print()
 
-    # Example 1: Simple text interaction
+    # Example 1: First interaction
     user_input = "Hello! Can you tell me what AmritaCore is?"
 
     print(f"👤 User: {user_input}")
 
-    # Create a ChatObject for the interaction
-    chat = ChatObject(
-        context=context,
-        session_id="basic_example_session",
-        user_input=user_input,
-        train=train.model_dump(),  # Convert Message to dictionary
-    )
+    # Get a chat object for this user input
+    chat = agent.get_chatobject(user_input)
 
-    # Process the response and display it
     print("🤖 Assistant: ", end="")
 
-    # Print the streamed response
+    # Stream the response token by token
     async with chat.begin():
         async for message in chat.get_response_generator():
+            # message can be a string or a Message object
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
 
     print("\n")  # New line after response
 
-    # Update context with the latest conversation state
-    context = chat.data
-
-    # Example 2: Follow-up question to demonstrate context retention
+    # Example 2: Follow-up question – context is automatically retained by the agent
     follow_up = "Can you explain its main features?"
 
     print(f"👤 User: {follow_up}")
 
-    # Create another ChatObject with the updated context
-    chat2 = ChatObject(
-        context=context,
-        session_id="basic_example_session",
-        user_input=follow_up,
-        train=train.model_dump(),
-    )
+    # Simply create another chat object with the same agent
+    chat2 = agent.get_chatobject(follow_up)
 
     print("🤖 Assistant: ", end="")
+
     async with chat2.begin():
         async for message in chat2.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
@@ -123,11 +75,11 @@ async def basic_example():
     print("🎉 Basic example completed successfully!")
     print("-" * 50)
     print("💡 Key concepts demonstrated:")
-    print("   • Initialization and configuration")
-    print("   • Creating ChatObject instances")
+    print("   • Agent creation with create_agent()")
+    print("   • Obtaining chat objects via agent.get_chatobject()")
     print("   • Streaming responses")
-    print("   • Context management")
-    print("   • Session handling")
+    print("   • Automatic context retention across turns")
+    print("   • Built‑in default system prompt")
 
 
 async def minimal_example():
@@ -136,41 +88,27 @@ async def minimal_example():
     """
     print("\n🧪 Minimal Example")
     print("-" * 30)
-
-    # Minimal configuration
-    from amrita_core.config import set_config
-
-    set_config(AmritaConfig())
-
-    # Load AmritaCore
-    await load_amrita()
-
-    # Note: In a real scenario, you would configure your model preset here
-    print("✅ AmritaCore loaded with minimal configuration")
-
-    # Create context and system message
-    context = MemoryModel()
-    train = Message(content="You are a helpful assistant.", role="system")
-
-    # Create and run a chat interaction
-    chat = ChatObject(
-        context=context,
-        session_id="minimal_session",
-        user_input="What can you do?",
-        train=train.model_dump(),
+    await minimal_init()
+    # Create an agent with just the required parameters
+    agent = create_agent(
+        base_url="https://api.example.com",
+        api_key="your-api-key",
+        model="gpt-4",
+        model_config={"temperature": 0.7},
     )
-    # Collect response (just to show it works)
+
+    # Get a chat object and get the full response (non‑streaming)
+    chat = agent.get_chatobject("你好，你能做什么？")
+
     async with chat.begin():
         response = await chat.full_response()
-    print(f"💬 Response length: {len(response)} characters")
+
+    print(f"💬 Response: {response}")
     print("✅ Minimal example completed!")
 
 
 if __name__ == "__main__":
-    # Initialize AmritaCore
-    init()
-
-    # Run examples
+    # No explicit init() needed – create_agent handles everything
     asyncio.run(basic_example())
     asyncio.run(minimal_example())
 

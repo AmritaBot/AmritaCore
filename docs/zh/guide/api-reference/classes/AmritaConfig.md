@@ -16,7 +16,7 @@ from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieCo
 config = AmritaConfig(
     function_config=FunctionConfig(
         use_minimal_context=False,
-        
+
     ),
     llm=LLMConfig(
         enable_memory_abstract=True

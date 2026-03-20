@@ -36,6 +36,19 @@ AmritaCore supports four distinct strategy categories, each designed for specifi
 - **Use Case**: Agents that need to adapt between RAG and iterative tool calling based on context
 - **Context**: Full conversation history with dynamic behavior adaptation
 
+### Unified Tool Interface
+
+All agent strategies inherit the `call_tool()` method from the base `AgentStrategy` class. This provides a **unified interface for tool execution** that ensures consistency across all strategy implementations in AmritaCore.
+
+Key characteristics of the unified tool interface:
+
+- **Single-step execution**: Each call executes exactly one tool without modifying the agent's internal context
+- **Consistent error handling**: Tools not found in the manager raise `RuntimeError`
+- **Standardized response format**: Returns string responses or default messages for None returns
+- **ToolContext integration**: Supports both simple function calls and advanced tool implementations with context access
+
+This unified interface guarantees that regardless of which strategy category you implement, tool calling behavior remains consistent and predictable throughout the AmritaCore ecosystem.
+
 ## Implementation Guide
 
 ### Creating Custom Agent Strategies
@@ -50,12 +63,12 @@ class MyCustomAgentStrategy(AgentStrategy):
     def __init__(self, ctx):
         super().__init__(ctx)
         # Initialize custom state
-        
+
     async def single_execute(self) -> bool:
         # Implement single step execution logic
         # Return True to continue, False to stop
         return True
-        
+
     @classmethod
     def get_category(cls) -> Literal["agent"]:
         return "agent"
@@ -66,20 +79,31 @@ class MyCustomAgentStrategy(AgentStrategy):
 AmritaCore provides the `AmritaAgentStrategy` as a built-in implementation that supports the `"agent-mixed"` category:
 
 ```python
-from amrita_core import create_agent
+import asyncio
+from amrita_core import create_agent, minimal_init
 from amrita_core.builtins.agent import AmritaAgentStrategy
 
-# Create agent with custom strategy
-agent = create_agent(
-    url="https://api.example.com",
-    key="your-api-key",
-    strategy=AmritaAgentStrategy
-)
+async def use_builtin_strategy():
+    # Initialize AmritaCore
+    await minimal_init()
 
-# Use the agent
-chat = agent.get_chatobject("What can you do?")
-async with chat.begin():
-    response = await chat.full_response()
+    # Create agent with custom strategy
+    agent = create_agent(
+        url="https://api.example.com",
+        key="your-api-key",
+        strategy=AmritaAgentStrategy
+    )
+
+    # Use the agent
+    chat = agent.get_chatobject("What can you do?")
+    async with chat.begin():
+        response = await chat.full_response()
+
+    return response
+
+# Run the example
+if __name__ == "__main__":
+    asyncio.run(use_builtin_strategy())
 ```
 
 ## Strategy Context
@@ -108,16 +132,16 @@ class RAGStrategy(AgentStrategy):
     async def run(self) -> None:
         # Retrieve relevant documents based on user query
         documents = self.retrieve_documents(self.ctx.user_input)
-        
+
         # Construct context with retrieved documents
         rag_context = f"Based on the following documents:\n{documents}\n\nUser query: {self.ctx.user_input}"
-        
+
         # Update the message context
         self.ctx.original_context.train.content += f"\n\nRetrieved context: {rag_context}"
-        
+
         # Let the framework handle the rest
         pass
-        
+
     @classmethod
     def get_category(cls) -> Literal["rag"]:
         return "rag"

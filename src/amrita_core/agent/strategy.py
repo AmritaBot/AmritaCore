@@ -1,13 +1,17 @@
 from __future__ import annotations
 
+import json
+import typing
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal
+from collections.abc import Awaitable, Callable
+from typing import TYPE_CHECKING, Any, Literal
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.protocol import MessageWithMetadata
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.tools.manager import ToolsManager
-from amrita_core.types import Message
+from amrita_core.tools.models import ToolContext
+from amrita_core.types import Message, ToolCall
 
 if TYPE_CHECKING:
     from amrita_core.chatmanager import ChatObject
@@ -109,6 +113,47 @@ class AgentStrategy(ABC):
             'agent' and 'agent-mixed' category strategies should implement single_execute() instead.
         """
         raise NotImplementedError
+
+    async def call_tool(self, tool_call: ToolCall) -> str:
+        """Execute a single tool call without modifying the agent's context.
+
+        This is a one-step tool execution that processes the given tool call
+        and returns its response. It does not alter the agent's internal state
+        or context beyond what the tool itself might do through the provided
+        ToolContext.
+
+        Args:
+            tool_call (ToolCall): The ToolCall object containing the function name and arguments
+
+        Raises:
+            RuntimeError: If the requested tool is not found in the tools manager
+
+        Returns:
+            str: The string response from the tool execution, or a default message if the tool returns None
+        """
+        function_name = tool_call.function.name
+        function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
+        if (tool_data := self.tools_manager.get_tool(function_name)) is not None:
+            if not tool_data.custom_run:
+                func_response: str | None = await typing.cast(
+                    Callable[[dict[str, Any]], Awaitable[str]],
+                    tool_data.func,
+                )(function_args)
+            elif (
+                func_response := await typing.cast(
+                    Callable[[ToolContext], Awaitable[str | None]],
+                    tool_data.func,
+                )(
+                    ToolContext(
+                        data=function_args,
+                        ctx=self.ctx,
+                    )
+                )
+            ) is None:
+                func_response = "(this tool returned no content)"
+            return func_response
+        else:
+            raise RuntimeError("Received unexpected tool call")
 
     async def on_limited(self) -> None:
         """

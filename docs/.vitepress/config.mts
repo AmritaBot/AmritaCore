@@ -66,7 +66,10 @@ export default withMermaid({
               { text: "Event System", link: "/guide/concepts/event" },
               { text: "Tool System", link: "/guide/concepts/tool" },
               { text: "Data Management", link: "/guide/concepts/management" },
-              { text: "Agent Strategy", link: "/guide/concepts/agent-strategy" },
+              {
+                text: "Agent Strategy",
+                link: "/guide/concepts/agent-strategy",
+              },
             ],
           },
           {

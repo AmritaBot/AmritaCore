@@ -385,7 +385,7 @@ async def process_message(ctx: ToolContext) -> str | None:
     logger.debug(f"[LLM-ProcessMessage] {content}")
 
     # Send message directly to the chat object
-    await ctx.event.chat_object.yield_response(f"{content}\n")
+    await ctx.ctx.chat_object.yield_response(f"{content}\n")
 
     # Return processed result
     return f"Sent a message to user:\n\n```text\n{content}\n```\n"
@@ -396,8 +396,7 @@ In custom run mode:
 - The function receives a [ToolContext](../api-reference/classes/ToolContext.md) object instead of raw arguments
 - The [ToolContext](../api-reference/classes/ToolContext.md) contains:
   - `ctx.data`: The arguments passed to the tool
-  - `ctx.event`: The current event, allowing access to chat object
-  - `ctx.matcher`: The matcher associated with the event
+  - `ctx.ctx`: The [StrategyContext](../api-reference/classes/StrategyContext.md) containing the current execution context, including access to the chat object
 - Functions can be synchronous or asynchronous
 - Return type can be `str` or `None`
 

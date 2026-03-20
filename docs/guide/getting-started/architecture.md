@@ -8,7 +8,7 @@
 graph TB
     subgraph "Entry Layer"
         H[Agent Runtime]
-        Factory[create_agent()]
+        Factory["create_agent()"]
     end
 
     subgraph "Core Execution Layer"
@@ -30,7 +30,7 @@ graph TB
         MCP[MCP Client]
     end
 
-    User Input --> Factory
+    UserInput --> Factory
     Factory --> H
     H --> A
     A --> F
@@ -39,14 +39,14 @@ graph TB
     F --> Adapter
     Adapter --> LLM
     F --> MCP
-    
+
     B --> F
     C --> F
     D --> F
     E --> F
-    
+
     F --> ResponseStream[Response Stream]
-    ResponseStream --> User Output
+    ResponseStream --> UserOutput
     F --> E
 ```
 
@@ -114,27 +114,27 @@ graph LR
 
 ## 2.4.2 Core Component Relationships
 
-- **Entry Layer**: Provides a simplified interaction interface for users  
-  - `create_agent()`: Factory function that creates an `AgentRuntime` with minimal parameters  
+- **Entry Layer**: Provides a simplified interaction interface for users
+  - `create_agent()`: Factory function that creates an `AgentRuntime` with minimal parameters
   - `AgentRuntime`: High-level wrapper that encapsulates complexity and provides reusable agent operations
 
-- **Core Execution Layer**: Handles the main processing logic  
-  - `ChatObject`: Manages the primary interaction point for a single conversation, coordinating all components  
-  - `Agent Core`: The central processing logic inside `ChatObject` that executes the complete agent loop  
+- **Core Execution Layer**: Handles the main processing logic
+  - `ChatObject`: Manages the primary interaction point for a single conversation, coordinating all components
+  - `Agent Core`: The central processing logic inside `ChatObject` that executes the complete agent loop
   - `Agent Strategy`: Abstract base class defining execution modes, supporting four strategy categories
 
-- **Support System**: Provides essential services and data management  
-  - `Configuration`: Controls system behavior via `AmritaConfig`  
-  - `Event System`: Enables hooks in the processing pipeline through decorators and dependency injection  
-  - `Tool Manager`: Extends functionality via dynamic registration of external functions  
+- **Support System**: Provides essential services and data management
+  - `Configuration`: Controls system behavior via `AmritaConfig`
+  - `Event System`: Enables hooks in the processing pipeline through decorators and dependency injection
+  - `Tool Manager`: Extends functionality via dynamic registration of external functions
   - `Memory Model`: Maintains conversation context and history within session data
 
-- **External Integration**: Handles communication with external systems  
-  - `Adapter Layer`: Abstracts LLM provider communication, enabling vendor‑neutral integration  
+- **External Integration**: Handles communication with external systems
+  - `Adapter Layer`: Abstracts LLM provider communication, enabling vendor‑neutral integration
   - `MCP Client`: Provides Model Context Protocol support for external service integration
 
-- **Data Containers**: Manage data isolation and sharing  
-  - `Global Container`: Stores shared resources accessible to all sessions  
+- **Data Containers**: Manage data isolation and sharing
+  - `Global Container`: Stores shared resources accessible to all sessions
   - `Session Context`: Maintains isolated conversation contexts with independent state
 
 ## 2.4.3 Agent Loop and Session Isolation Mechanism
@@ -150,7 +150,7 @@ sequenceDiagram
     User->>Entry: create_agent(url, key, ...)
     Entry->>Entry: Create AgentRuntime
     Entry-->>User: Return AgentRuntime
-    
+
     User->>Entry: get_chatobject("input")
     Entry->>Core: Create ChatObject
     Core->>Core: Initialize Agent Strategy

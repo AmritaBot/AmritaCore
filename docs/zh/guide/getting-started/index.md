@@ -25,7 +25,6 @@ uv venv
 uv add amrita-core
 ```
 
-
 使用 pip 安装 AmritaCore：
 
 ```bash

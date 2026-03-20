@@ -27,6 +27,3 @@ AmritaCore addresses these challenges with a modular architecture that allows fo
 - **Security**: Built-in mechanisms for secure sessions and prompt injection protection
 - **Extensibility**: Easy to extend with custom tools and event handlers
 - **Portability**: Vendor-agnostic approach allowing deployment across different platforms
-
-
-

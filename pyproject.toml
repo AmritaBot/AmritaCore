@@ -1,7 +1,7 @@
 [project]
 name = "amrita_core"
-version = "0.6.1"
-description = "Agent core of Project Amrita"
+version = "0.6.2"
+description = "High performance, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.14"
 dependencies = [
@@ -33,7 +33,7 @@ dev-dependencies = [
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.0.0",
 ]
-package= true
+package = true
 
 [tool.ruff]
 line-length = 88
@@ -63,7 +63,7 @@ ignore = [
 ]
 [tool.ruff.lint.per-file-ignores]
 "demo/*.py" = ["ASYNC250"]
-"tests/*.py" = ["ASYNC250","PERF401"]
+"tests/*.py" = ["ASYNC250", "PERF401"]
 
 [tool.pyright]
 typeCheckingMode = "standard"

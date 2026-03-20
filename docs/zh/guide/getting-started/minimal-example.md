@@ -6,20 +6,21 @@
 
 ```python
 import asyncio
-from amrita_core import create_agent
+from amrita_core import create_agent, minimal_init
 
 async def minimal_example():
     # 使用最少参数创建一个 agent
+    await minimal_init()
     agent = create_agent(
     "https://api.example.com", # Replace with your API URL
     "your-api-key", # Replace with your API key
     model="gpt-4", # Replace with your desired model
     model_config={"temperature": 0.7}
     )
-    
+
     # 获取用于交互的聊天对象
     chat = agent.get_chatobject("你好，你能做什么？")
-    
+
     # 执行交互并获取响应
     async with chat.begin():
         print(await chat.full_response())
