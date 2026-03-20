@@ -8,7 +8,7 @@
 graph TB
     subgraph "Entry Layer"
         H[Agent Runtime]
-        Factory[create_agent()]
+        Factory["create_agent()"]
     end
 
     subgraph "Core Execution Layer"
