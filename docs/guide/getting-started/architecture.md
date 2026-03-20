@@ -30,7 +30,7 @@ graph TB
         MCP[MCP Client]
     end
 
-    User Input --> Factory
+    UserInput --> Factory
     Factory --> H
     H --> A
     A --> F
@@ -46,7 +46,7 @@ graph TB
     E --> F
 
     F --> ResponseStream[Response Stream]
-    ResponseStream --> User Output
+    ResponseStream --> UserOutput
     F --> E
 ```
 
