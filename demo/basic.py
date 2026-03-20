@@ -7,7 +7,7 @@ conversation context across multiple turns using the new unified API.
 
 import asyncio
 
-from amrita_core import create_agent  # Main entry point
+from amrita_core import create_agent, minimal_init  # Main entry point
 from amrita_core.logging import logger  # Optional logging
 
 
@@ -21,6 +21,7 @@ async def basic_example():
 
     # Create an agent with minimal configuration
     # All necessary defaults (system prompt, context handling) are built-in
+    await minimal_init()
     agent = create_agent(
         base_url="https://api.example.com",  # Your API endpoint
         api_key="your-api-key",  # Your API key
@@ -87,7 +88,7 @@ async def minimal_example():
     """
     print("\n🧪 Minimal Example")
     print("-" * 30)
-
+    await minimal_init()
     # Create an agent with just the required parameters
     agent = create_agent(
         base_url="https://api.example.com",

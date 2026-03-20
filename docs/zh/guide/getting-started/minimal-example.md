@@ -6,10 +6,11 @@
 
 ```python
 import asyncio
-from amrita_core import create_agent
+from amrita_core import create_agent, minimal_init
 
 async def minimal_example():
     # 使用最少参数创建一个 agent
+    await minimal_init()
     agent = create_agent(
     "https://api.example.com", # Replace with your API URL
     "your-api-key", # Replace with your API key

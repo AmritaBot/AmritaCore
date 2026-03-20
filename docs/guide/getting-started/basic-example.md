@@ -14,7 +14,7 @@ conversation context across multiple turns using the new unified API.
 
 import asyncio
 
-from amrita_core import create_agent  # Main entry point
+from amrita_core import create_agent, minimal_init  # Main entry point
 from amrita_core.logging import logger  # Optional logging
 
 
@@ -26,6 +26,8 @@ async def basic_example():
     print("🚀 Starting AmritaCore Basic Example (New API)")
     print("-" * 50)
 
+    # Initialize AmritaCore before creating agent
+    await minimal_init()
     # Create an agent with minimal configuration
     # All necessary defaults (system prompt, context handling) are built-in
     agent = create_agent(
@@ -95,6 +97,8 @@ async def minimal_example():
     print("\n🧪 Minimal Example")
     print("-" * 30)
 
+    # Initialize AmritaCore before creating agent
+    await minimal_init()
     # Create an agent with just the required parameters
     agent = create_agent(
         base_url="https://api.example.com",
@@ -104,7 +108,7 @@ async def minimal_example():
     )
 
     # Get a chat object and get the full response (non‑streaming)
-    chat = agent.get_chatobject("你好，你能做什么？")
+    chat = agent.get_chatobject("Hello! What can you do?")
 
     async with chat.begin():
         response = await chat.full_response()
@@ -114,7 +118,7 @@ async def minimal_example():
 
 
 if __name__ == "__main__":
-    # No explicit init() needed – create_agent handles everything
+    # Run examples with proper initialization
     asyncio.run(basic_example())
     asyncio.run(minimal_example())
 
