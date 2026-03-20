@@ -63,7 +63,7 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 
 **Features**:
 
-- **API Calls**: Asynchronous calls to Anthropic API
+- **API Calls**: Asynchronous calls to the Anthropic API
 - **Streaming Responses**: Supports streaming with message stream handling
 - **Token Tracking**: Proper input/output token tracking for Anthropic's usage model
 

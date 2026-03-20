@@ -217,9 +217,9 @@ class AmritaAgentStrategy(AgentStrategy):
                         case STOP_TOOL.function.name:
                             logger.info("Agent work has been terminated.")
                             func_response = (
-                                "You have indicated readiness to provide the final answer."
+                                "You have indicated readiness to provide the final answer. "
                                 + "Please now generate the final, comprehensive response for the user."
-                                + "You should NOT to call ANY tool again."
+                                + "You must NOT call any tools again."
                             )
                             if "result" in function_args:
                                 debug_log(f"[Done] {function_args['result']}")
