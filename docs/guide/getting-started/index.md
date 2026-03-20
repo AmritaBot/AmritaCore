@@ -23,8 +23,7 @@ We recommend using a virtual environment for development by using `uv` , `pdm` e
 uv init
 uv venv
 uv add amrita-core
-````
-
+```
 
 Install AmritaCore using pip:
 

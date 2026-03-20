@@ -20,7 +20,7 @@ async def minimal_example():
     )
     # Get a chat object for the interaction
     chat = agent.get_chatobject("Hello, what can you do?")
-    
+
     # Execute the interaction and get the response
     async with chat.begin():
         print(await chat.full_response())

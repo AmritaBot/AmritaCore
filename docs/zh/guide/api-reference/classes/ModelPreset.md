@@ -8,7 +8,7 @@ The ModelPreset class defines the preset configuration for AI models.
 - `name` (str): Identifier name for current preset, defaults to "default"
 - `base_url` (str): Base address of API service (uses OpenAI default if empty)
 - `api_key` (str): Key required to access API
-- `protocol` (str): Protocol adapter type, defaults to "__main__"
+- `protocol` (str): Protocol adapter type, defaults to "**main**"
 - `config` ([ModelConfig](ModelConfig.md)): Model configuration object
 - `extra` (dict[str, Any]): Extra configuration items
 

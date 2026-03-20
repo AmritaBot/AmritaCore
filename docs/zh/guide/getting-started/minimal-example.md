@@ -17,10 +17,10 @@ async def minimal_example():
     model="gpt-4", # Replace with your desired model
     model_config={"temperature": 0.7}
     )
-    
+
     # 获取用于交互的聊天对象
     chat = agent.get_chatobject("你好，你能做什么？")
-    
+
     # 执行交互并获取响应
     async with chat.begin():
         print(await chat.full_response())

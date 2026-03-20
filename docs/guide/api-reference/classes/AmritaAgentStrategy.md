@@ -25,19 +25,21 @@ This method handles both RAG and Agent modes dynamically based on the current co
 
 **Returns**: bool - True if should continue to next execution, False to stop.
 
-### _generate_reasoning_msg(original_msg, tools_ctx)
+### \_generate_reasoning_msg(original_msg, tools_ctx)
 
 Generate a reasoning message for the agent's thought process.
 
 **Parameters**:
+
 - `original_msg` (str): The original user message
 - `tools_ctx` (list[dict[str, Any]]): Context for available tools
 
-### _append_reasoning(response)
+### \_append_reasoning(response)
 
 Append reasoning results to the message context.
 
 **Parameters**:
+
 - `response` (UniResponse[None, list[ToolCall] | None]): The response containing reasoning tool calls
 
 ### get_category()

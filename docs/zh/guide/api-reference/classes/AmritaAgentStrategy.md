@@ -25,19 +25,21 @@ AmritaAgentStrategy 是用于在 RAG 和 Agent 模式下执行 agent 的策略�
 
 **返回**: bool - 如果应继续下一次执行则返回 True，否则返回 False。
 
-### _generate_reasoning_msg(original_msg, tools_ctx)
+### \_generate_reasoning_msg(original_msg, tools_ctx)
 
 为 agent 的思维过程生成推理消息。
 
 **参数**:
+
 - `original_msg` (str): 原始用户消息
 - `tools_ctx` (list[dict[str, Any]]): 可用工具的上下文
 
-### _append_reasoning(response)
+### \_append_reasoning(response)
 
 将推理结果附加到消息上下文中。
 
 **参数**:
+
 - `response` (UniResponse[None, list[ToolCall] | None]): 包含推理工具调用的响应
 
 ### get_category()

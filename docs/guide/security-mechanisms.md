@@ -81,8 +81,8 @@ async def content_filter(event: PreCompletionEvent):
             if contains_harmful_content(msg.content):
                 # Replace with a safer message or add a warning
                 msg.content = "[CONTENT FILTERED FOR SAFETY]"
-    
-    
+
+
 
 def contains_harmful_content(content: str) -> bool:
     """
@@ -93,7 +93,7 @@ def contains_harmful_content(content: str) -> bool:
         "jailbreak", "ignore instructions", "prompt injection",
         "system prompt", "role play as", "never say"
     ]
-    
+
     content_lower = content.lower()
     return any(keyword in content_lower for keyword in harmful_keywords)
 ```
@@ -117,8 +117,8 @@ async def response_filter(event: CompletionEvent):
         print(f"Potential sensitive info detected in response: {event.response[:100]}...")
         # Optionally modify the response
         # event.response = "[RESPONSE MODIFIED FOR SECURITY]"
-    
-    
+
+
 
 def contains_sensitive_info(content: str) -> bool:
     """
@@ -128,7 +128,7 @@ def contains_sensitive_info(content: str) -> bool:
     sensitive_patterns = [
         "system:", "internal:", "admin:", "password:", "secret:"
     ]
-    
+
     content_lower = content.lower()
     return any(pattern in content_lower for pattern in sensitive_patterns)
 ```
@@ -151,13 +151,13 @@ def detect_sensitive_information(text: str):
         "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
         "ip_address": r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"
     }
-    
+
     found_items = {}
     for item_type, pattern in patterns.items():
         matches = re.findall(pattern, text)
         if matches:
             found_items[item_type] = matches
-    
+
     return found_items
 ```
 
@@ -228,7 +228,7 @@ def create_secure_session() -> tuple[str, MemoryModel]:
     session_id = session_manager.new_session()
     session_data = session_manager.get_session_data(session_id)
     context = session_data.memory  # Use the memory instance from session data
-    
+
     return session_id, context
 
 # Example usage
@@ -247,7 +247,7 @@ from amrita_core.sessions import SessionsManager
 class SecureConversationManager:
     def __init__(self):
         self.session_manager = SessionsManager()
-    
+
     async def process_user_input(self, session_id: str, user_input: str):
         """
         Process user input in a secure, isolated session
@@ -259,10 +259,10 @@ class SecureConversationManager:
             # Create new session if it doesn't exist
             session_id = self.session_manager.new_session()
             session_data = self.session_manager.get_session_data(session_id)
-        
+
         # Get configuration from session data
         config = session_data.config
-        
+
         # Use session-specific configuration
         chat = ChatObject(
             context=session_data.memory,  # Use session-specific memory
@@ -270,10 +270,10 @@ class SecureConversationManager:
             user_input=user_input,
             config=config
         )
-        
+
         async with chat.begin():
             response = await chat.full_response()
-        
+
         return response
 ```
 
@@ -296,8 +296,8 @@ async def session_isolation_check(event: PreCompletionEvent, session_id: str = N
             if session_id in msg.content and msg.role != "system":
                 # This could indicate a potential leak or injection
                 print(f"Warning: Session ID appeared in non-system message: {msg.content}")
-    
-    
+
+
 ```
 
 ## 6.4 Access Control
@@ -314,14 +314,14 @@ from amrita_core.hook.on import on_precompletion
 class AccessControlManager:
     def __init__(self):
         self.user_permissions: Dict[str, List[str]] = {}
-    
+
     def has_permission(self, user_id: str, permission: str) -> bool:
         """
         Check if a user has a specific permission
         """
         user_perms = self.user_permissions.get(user_id, [])
         return permission in user_perms
-    
+
     def add_permission(self, user_id: str, permission: str):
         """
         Grant a permission to a user
@@ -343,8 +343,8 @@ async def check_access_control(event: PreCompletionEvent, user_id: str = None):
         if not access_manager.has_permission(user_id, "advanced_tools"):
             # Filter out advanced tool usage
             event.messages = filter_advanced_tools(event.messages)
-    
-    
+
+
 
 def filter_advanced_tools(messages):
     """
@@ -367,18 +367,18 @@ class RateLimiter:
         self.max_requests = max_requests
         self.time_window = time_window
         self.requests = defaultdict(list)
-    
+
     def is_allowed(self, user_id: str) -> bool:
         now = datetime.now()
         # Clean old requests
         self.requests[user_id] = [
-            req_time for req_time in self.requests[user_id] 
+            req_time for req_time in self.requests[user_id]
             if now - req_time < timedelta(seconds=self.time_window)
         ]
-        
+
         if len(self.requests[user_id]) >= self.max_requests:
             return False
-        
+
         self.requests[user_id].append(now)
         return True
 
@@ -388,7 +388,7 @@ rate_limiter = RateLimiter(max_requests=5, time_window=60)
 def handle_request(user_id: str):
     if not rate_limiter.is_allowed(user_id):
         raise Exception("Rate limit exceeded")
-    
+
     # Process the request
     pass
 ```
@@ -408,15 +408,15 @@ async def log_request(event: PreCompletionEvent, user_id: str = None):
     Log incoming requests for audit purposes
     """
     user_identifier = user_id or "anonymous"
-    
+
     logger.info(f"Request from user {user_identifier}: {len(event.messages)} messages")
-    
+
     # Log user messages specifically
     for msg in event.messages:
         if msg.role == "user":
             logger.debug(f"User {user_identifier} said: {msg.content[:100]}...")
-    
-    
+
+
 
 @on_completion()
 async def log_response(event: CompletionEvent, user_id: str = None):
@@ -424,9 +424,9 @@ async def log_response(event: CompletionEvent, user_id: str = None):
     Log responses for audit purposes
     """
     user_identifier = user_id or "anonymous"
-    
+
     logger.info(f"Response to user {user_identifier}: {len(event.response)} chars")
     logger.debug(f"Response to {user_identifier}: {event.response[:100]}...")
-    
-    
+
+
 ```

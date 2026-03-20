@@ -81,8 +81,8 @@ async def content_filter(event: PreCompletionEvent):
             if contains_harmful_content(msg.content):
                 # 替换为更安全的消息或添加警告
                 msg.content = "[出于安全考虑已过滤内容]"
-    
-    
+
+
 
 def contains_harmful_content(content: str) -> bool:
     """
@@ -93,7 +93,7 @@ def contains_harmful_content(content: str) -> bool:
         "越狱", "忽略指令", "提示词注入",
         "系统提示", "角色扮演", "永远不要说"
     ]
-    
+
     content_lower = content.lower()
     return any(keyword in content_lower for keyword in 有害关键词)
 ```
@@ -117,8 +117,8 @@ async def response_filter(event: CompletionEvent):
         print(f"回复中检测到潜在敏感信息: {event.response[:100]}...")
         # 可选择修改回复
         # event.response = "[出于安全考虑已修改回复]"
-    
-    
+
+
 
 def contains_sensitive_info(content: str) -> bool:
     """
@@ -128,7 +128,7 @@ def contains_sensitive_info(content: str) -> bool:
     sensitive_patterns = [
         "system:", "internal:", "admin:", "password:", "secret:"
     ]
-    
+
     content_lower = content.lower()
     return any(pattern in content_lower for pattern in sensitive_patterns)
 ```
@@ -151,13 +151,13 @@ def detect_sensitive_information(text: str):
         "ssn": r"\b\d{3}-\d{2}-\d{4}\b",
         "ip_address": r"\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b"
     }
-    
+
     found_items = {}
     for item_type, pattern in patterns.items():
         matches = re.findall(pattern, text)
         if matches:
             found_items[item_type] = matches
-    
+
     return found_items
 ```
 
@@ -228,7 +228,7 @@ def create_secure_session() -> tuple[str, MemoryModel]:
     session_id = session_manager.new_session()
     session_data = session_manager.get_session_data(session_id)
     context = session_data.memory  # 使用会话数据中的记忆实例
-    
+
     return session_id, context
 
 # 示例用法
@@ -247,7 +247,7 @@ from amrita_core.sessions import SessionsManager
 class SecureConversationManager:
     def __init__(self):
         self.session_manager = SessionsManager()
-    
+
     async def process_user_input(self, session_id: str, user_input: str):
         """
         在安全、隔离的会话中处理用户输入
@@ -259,10 +259,10 @@ class SecureConversationManager:
             # 如果会话不存在则创建新会话
             session_id = self.session_manager.new_session()
             session_data = self.session_manager.get_session_data(session_id)
-        
+
         # 从会话数据获取配置
         config = session_data.config
-        
+
         # 使用会话特定的配置
         chat = ChatObject(
             context=session_data.memory,  # 使用会话特定的记忆
@@ -270,13 +270,12 @@ class SecureConversationManager:
             user_input=user_input,
             config=config
         )
-        
+
         async with chat.begin():
             response = await chat.full_response()
-        
+
         return response
 ```
-
 
 ## 6.4 访问控制
 
@@ -292,14 +291,14 @@ from amrita_core.hook.on import on_precompletion
 class AccessControlManager:
     def __init__(self):
         self.user_permissions: Dict[str, List[str]] = {}
-    
+
     def has_permission(self, user_id: str, permission: str) -> bool:
         """
         检查用户是否具有特定权限
         """
         user_perms = self.user_permissions.get(user_id, [])
         return permission in user_perms
-    
+
     def add_permission(self, user_id: str, permission: str):
         """
         向用户授予权限
@@ -321,8 +320,8 @@ async def check_access_control(event: PreCompletionEvent, user_id: str = None):
         if not access_manager.has_permission(user_id, "advanced_tools"):
             # 过滤掉高级工具使用
             event.messages = filter_advanced_tools(event.messages)
-    
-    
+
+
 
 def filter_advanced_tools(messages):
     """
@@ -345,18 +344,18 @@ class RateLimiter:
         self.max_requests = max_requests
         self.time_window = time_window
         self.requests = defaultdict(list)
-    
+
     def is_allowed(self, user_id: str) -> bool:
         now = datetime.now()
         # 清理旧请求
         self.requests[user_id] = [
-            req_time for req_time in self.requests[user_id] 
+            req_time for req_time in self.requests[user_id]
             if now - req_time < timedelta(seconds=self.time_window)
         ]
-        
+
         if len(self.requests[user_id]) >= self.max_requests:
             return False
-        
+
         self.requests[user_id].append(now)
         return True
 
@@ -366,7 +365,7 @@ rate_limiter = RateLimiter(max_requests=5, time_window=60)
 def handle_request(user_id: str):
     if not rate_limiter.is_allowed(user_id):
         raise Exception("超过速率限制")
-    
+
     # 处理请求
     pass
 ```
@@ -386,15 +385,15 @@ async def log_request(event: PreCompletionEvent, user_id: str = None):
     为审计目的记录传入请求
     """
     user_identifier = user_id or "anonymous"
-    
+
     logger.info(f"来自用户 {user_identifier} 的请求: {len(event.messages)} 条消息")
-    
+
     # 特别记录用户消息
     for msg in event.messages:
         if msg.role == "user":
             logger.debug(f"用户 {user_identifier} 说: {msg.content[:100]}...")
-    
-    
+
+
 
 @on_completion()
 async def log_response(event: CompletionEvent, user_id: str = None):
@@ -402,9 +401,9 @@ async def log_response(event: CompletionEvent, user_id: str = None):
     为审计目的记录回复
     """
     user_identifier = user_id or "anonymous"
-    
+
     logger.info(f"回复给用户 {user_identifier}: {len(event.response)} 个字符")
     logger.debug(f"回复给 {user_identifier}: {event.response[:100]}...")
-    
-    
+
+
 ```
