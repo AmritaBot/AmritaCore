@@ -36,6 +36,19 @@ AmritaCore 支持四种不同的策略类别，每种类别都针对特定用例
 - **使用场景**: 需要根据上下文在 RAG 和迭代工具调用之间适应的 agent
 - **上下文**: 具有动态行为适应的完整对话历史
 
+### 统一工具接口
+
+所有 agent 策略都从基类 `AgentStrategy` 继承 `call_tool()` 方法。这提供了一个**统一的工具执行接口**，确保 AmritaCore 中所有策略实现的一致性。
+
+统一工具接口的关键特性：
+
+- **单步执行**: 每次调用只执行一个工具，不修改 agent 的内部上下文
+- **一致的错误处理**: 在管理器中找不到的工具会抛出 `RuntimeError`
+- **标准化的响应格式**: 返回字符串响应或为 None 返回默认消息
+- **ToolContext 集成**: 支持简单的函数调用和具有上下文访问的高级工具实现
+
+这个统一接口保证了无论您实现哪种策略类别，工具调用行为在整个 AmritaCore 生态系统中都保持一致和可预测。
+
 ## 实现指南
 
 ### 创建自定义 Agent 策略
@@ -50,12 +63,12 @@ class MyCustomAgentStrategy(AgentStrategy):
     def __init__(self, ctx):
         super().__init__(ctx)
         # 初始化自定义状态
-        
+
     async def single_execute(self) -> bool:
         # 实现单步执行逻辑
         # 返回 True 继续，返回 False 停止
         return True
-        
+
     @classmethod
     def get_category(cls) -> Literal["agent"]:
         return "agent"
@@ -108,16 +121,16 @@ class RAGStrategy(AgentStrategy):
     async def run(self) -> None:
         # 根据用户查询检索相关文档
         documents = self.retrieve_documents(self.ctx.user_input)
-        
+
         # 使用检索到的文档构建上下文
         rag_context = f"基于以下文档:\n{documents}\n\n用户查询: {self.ctx.user_input}"
-        
+
         # 更新消息上下文
         self.ctx.original_context.train.content += f"\n\n检索到的上下文: {rag_context}"
-        
+
         # 让框架处理其余部分
         pass
-        
+
     @classmethod
     def get_category(cls) -> Literal["rag"]:
         return "rag"

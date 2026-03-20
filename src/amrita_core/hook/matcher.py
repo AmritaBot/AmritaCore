@@ -161,8 +161,7 @@ class DependsFactory(Generic[T]):
 
 
 def Depends(dependency: Callable[..., T | Awaitable[T]]) -> Any:
-    """
-    Dependency injection decorator.
+    """Dependency injection decorator.
 
     Args:
         dependency: The dependency function to inject
@@ -175,15 +174,13 @@ def Depends(dependency: Callable[..., T | Awaitable[T]]) -> Any:
         async def get_example_dependency(...) -> Any | None:
             ...
 
-        @on_precompletion()
         async def a_function_with_dependencies(
             event: PreCompletionEvent,
             dep: ExampleDependency = Depends(get_example_dependency),
         ):
             ...
+        # If DependendsFactory's return is None, this function won't be called.
         ```
-
-        If DependendsFactory's return is None, this function won't be called.
     """
     return DependsFactory[T](dependency)
 

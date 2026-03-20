@@ -36,6 +36,18 @@ AmritaCore supports four distinct strategy categories, each designed for specifi
 - **Use Case**: Agents that need to adapt between RAG and iterative tool calling based on context
 - **Context**: Full conversation history with dynamic behavior adaptation
 
+### Unified Tool Interface
+
+All agent strategies inherit the `call_tool()` method from the base `AgentStrategy` class. This provides a **unified interface for tool execution** that ensures consistency across all strategy implementations in AmritaCore.
+
+Key characteristics of the unified tool interface:
+- **Single-step execution**: Each call executes exactly one tool without modifying the agent's internal context
+- **Consistent error handling**: Tools not found in the manager raise `RuntimeError`
+- **Standardized response format**: Returns string responses or default messages for None returns
+- **ToolContext integration**: Supports both simple function calls and advanced tool implementations with context access
+
+This unified interface guarantees that regardless of which strategy category you implement, tool calling behavior remains consistent and predictable throughout the AmritaCore ecosystem.
+
 ## Implementation Guide
 
 ### Creating Custom Agent Strategies

@@ -129,7 +129,7 @@ async with chat.begin() as chat:...
 
 ```python
 
-# 我们更喜欢使用上下文管理器：
+# 我们更推荐使用上下文管理器：
 async with chat.begin():
     ...
 
@@ -387,7 +387,7 @@ async def process_message(ctx: ToolContext) -> str | None:
     logger.debug(f"[LLM-ProcessMessage] {content}")
 
     # 直接向聊天对象发送消息
-    await ctx.event.chat_object.yield_response(f"{content}\n")
+    await ctx.ctx.chat_object.yield_response(f"{content}\n")
 
     # 返回处理结果
     return f"向用户发送了消息:\n\n```text\n{content}\n```\n"
@@ -398,8 +398,7 @@ async def process_message(ctx: ToolContext) -> str | None:
 - 函数接收 `ToolContext` 对象而不是原始参数
 - `ToolContext` 包含：
   - `ctx.data`: 传递给工具的参数
-  - `ctx.event`: 当前事件，允许访问聊天对象
-  - `ctx.matcher`: 与事件关联的匹配器
+  - `ctx.ctx`: 包含当前执行上下文的 [StrategyContext](../api-reference/classes/StrategyContext.md)，包括对聊天对象的访问
 - 函数可以是同步或异步的
 - 返回类型可以是 `str` 或 `None`
 

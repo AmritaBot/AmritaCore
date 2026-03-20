@@ -143,8 +143,8 @@ class AgentRuntime:
 
 
 def create_agent(
-    url: str,
-    key: str,
+    base_url: str,
+    api_key: str,
     model: str = "auto",
     *,
     train: str | None = None,
@@ -169,7 +169,7 @@ def create_agent(
     Returns:
         AgentRuntime: Configured agent runtime instance
 
-    Examples:
+    Example:
         ```python
         agent = create_agent(
             "https://api.example.com", # Replace with your API URL
@@ -178,6 +178,7 @@ def create_agent(
             model_config={"temperature": 0.7}
         )
         ```
+
     """
     if train is None:
         train = DEFAULT_INSTRUCTIONS
@@ -189,8 +190,8 @@ def create_agent(
 
     preset = ModelPreset(
         name=f"temp_{uuid4().hex[:8]}",
-        base_url=url,
-        api_key=key,
+        base_url=base_url,
+        api_key=api_key,
         config=model_config,
         model=model,
     )

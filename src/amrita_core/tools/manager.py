@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 import re
 import typing
@@ -205,22 +206,22 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
     A decorator that creates a ToolData object based on the function signature and annotations.
     It automatically generates parameter descriptions and metadata.
 
-    Here is an example of how to use this decorator:
+    Example:
 
-    ```python
-    @simple_tool
-    def add(a: int, b: int) -> int:
-        \"""Add two numbers together.
+        ```python
+        @simple_tool
+        def add(a: int, b: int) -> int:
+            \"""Add two numbers together.
 
-        Args:
-            a (int): The first number.
-            b (int): The second number.
+            Args:
+                a (int): The first number.
+                b (int): The second number.
 
-        Returns:
-            int: The sum of the two numbers.
-        \"""
-        return a + b
-    ```
+            Returns:
+                int: The sum of the two numbers.
+            \"""
+            return a + b
+        ```
     """
     signature: inspect.Signature = inspect.signature(func)
     func_desc, param_descriptions = _parse_google_docstring(func.__doc__)
@@ -283,7 +284,7 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
         result = (
             await func(**bound_args.arguments)
             if iscoroutinefunction(func)
-            else func(**bound_args.arguments)
+            else await asyncio.to_thread(func, **bound_args.arguments)
         )
 
         # Convert result to string as expected by the schema

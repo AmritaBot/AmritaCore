@@ -52,6 +52,20 @@ This method gives full control to the strategy implementation for managing tool 
 
 **Note**: This method is used by 'rag' and 'workflow' category strategies. 'agent' and 'agent-mixed' category strategies should implement `single_execute()` instead.
 
+### call_tool(tool_call)
+
+Execute a single tool call without modifying the agent's context.
+
+This is a unified interface for tool execution that processes the given tool call and returns its response. It does not alter the agent's internal state or context beyond what the tool itself might do through the provided ToolContext. This method ensures AmritaCore's tool interface consistency across all strategy implementations.
+
+**Parameters**:
+
+- `tool_call` ([ToolCall](ToolCall.md)): The ToolCall object containing the function name and arguments
+
+**Returns**: str - The string response from the tool execution, or a default message if the tool returns None
+
+**Raises**: RuntimeError - If the requested tool is not found in the tools manager
+
 ### on_limited()
 
 Handle the event when the agent reaches its tool calling limit.
@@ -63,4 +77,5 @@ This method is called when the agent strategy has reached the maximum allowed nu
 Handle exceptions that occur during strategy execution.
 
 **Parameters**:
+
 - `exc` (BaseException): The exception that occurred during execution

@@ -15,7 +15,7 @@ conversation context across multiple turns using the new unified API.
 import asyncio
 
 from amrita_core import create_agent  # Main entry point
-from amrita_core.logger import logger  # Optional logging
+from amrita_core.logging import logger  # Optional logging
 
 
 async def basic_example():

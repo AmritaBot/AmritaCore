@@ -1,6 +1,4 @@
 import json
-import typing
-from collections.abc import Awaitable, Callable
 from typing import Any, Literal
 
 from amrita_core.agent.context import StrategyContext
@@ -162,6 +160,8 @@ class AmritaAgentStrategy(AgentStrategy):
         msg_list = self.ctx.original_context
         if not self.tools:
             return False
+        if config.builtin.tool_calling_mode == "rag" and self.call_count > 1:
+            return False
 
         def stop_running():
             """Mark agent workflow as completed."""
@@ -178,7 +178,7 @@ class AmritaAgentStrategy(AgentStrategy):
             await self._generate_reasoning_msg(self.origin_msg, tools_ctx=self.tools)
         elif config.builtin.tool_calling_mode == "none":
             return False
-        response_msg = await tools_caller(
+        response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             msg_list.unwrap(),
             self.tools,
             tool_choice=(
@@ -219,6 +219,7 @@ class AmritaAgentStrategy(AgentStrategy):
                             func_response = (
                                 "You have indicated readiness to provide the final answer."
                                 + "Please now generate the final, comprehensive response for the user."
+                                + "You should NOT to call ANY tool again."
                             )
                             if "result" in function_args:
                                 debug_log(f"[Done] {function_args['result']}")
@@ -233,41 +234,12 @@ class AmritaAgentStrategy(AgentStrategy):
 
                             stop_running()
                         case _:
-                            if (
-                                tool_data := self.tools_manager.get_tool(function_name)
-                            ) is not None:
-                                if not tool_data.custom_run:
-                                    msg_list.append(
-                                        Message.model_validate(
-                                            response_msg, from_attributes=True
-                                        )
-                                    )
-                                    func_response: str = await typing.cast(
-                                        Callable[[dict[str, Any]], Awaitable[str]],
-                                        tool_data.func,
-                                    )(function_args)
-                                elif (
-                                    tool_response := await typing.cast(
-                                        Callable[[ToolContext], Awaitable[str | None]],
-                                        tool_data.func,
-                                    )(
-                                        ToolContext(
-                                            data=function_args,
-                                            ctx=self.ctx,
-                                        )
-                                    )
-                                ) is None:
-                                    func_response = "(this tool returned no content)"
-                                else:
-                                    msg_list.append(
-                                        Message.model_validate(
-                                            response_msg, from_attributes=True
-                                        )
-                                    )
-                                    func_response = tool_response
-                            else:
-                                raise RuntimeError("Received unexpected response type")
-
+                            func_response = await self.call_tool(tool_call)
+                            msg_list.append(
+                                Message.model_validate(
+                                    response_msg, from_attributes=True
+                                )
+                            )
                 except Continue:
                     continue
                 except Exception as e:
