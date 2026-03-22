@@ -10,6 +10,7 @@
     "docs:preview": "vitepress preview docs"
   },
   "dependencies": {
-    "@vuepress/plugin-palette": "^2.0.0-rc.112"
+    "@vuepress/plugin-palette": "^2.0.0-rc.112",
+    "prettier": "^3.8.1"
   }
 }

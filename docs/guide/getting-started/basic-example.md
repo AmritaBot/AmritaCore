@@ -14,7 +14,7 @@ conversation context across multiple turns using the new unified API.
 
 import asyncio
 
-from amrita_core import create_agent, minimal_init  # Main entry point
+from amrita_core import create_agent  # Main entry point
 from amrita_core.logging import logger  # Optional logging
 
 
@@ -26,8 +26,6 @@ async def basic_example():
     print("🚀 Starting AmritaCore Basic Example (New API)")
     print("-" * 50)
 
-    # Initialize AmritaCore before creating agent
-    await minimal_init()
     # Create an agent with minimal configuration
     # All necessary defaults (system prompt, context handling) are built-in
     agent = create_agent(
@@ -97,8 +95,6 @@ async def minimal_example():
     print("\n🧪 Minimal Example")
     print("-" * 30)
 
-    # Initialize AmritaCore before creating agent
-    await minimal_init()
     # Create an agent with just the required parameters
     agent = create_agent(
         base_url="https://api.example.com",
@@ -108,7 +104,7 @@ async def minimal_example():
     )
 
     # Get a chat object and get the full response (non‑streaming)
-    chat = agent.get_chatobject("Hello! What can you do?")
+    chat = agent.get_chatobject("你好，你能做什么？")
 
     async with chat.begin():
         response = await chat.full_response()
@@ -118,7 +114,7 @@ async def minimal_example():
 
 
 if __name__ == "__main__":
-    # Run examples with proper initialization
+    # No explicit init() needed – create_agent handles everything
     asyncio.run(basic_example())
     asyncio.run(minimal_example())
 
@@ -131,7 +127,7 @@ The new API simplifies configuration:
 
 - **Agent creation**: `create_agent(base_url, api_key, model, model_config)` is the single entry point. It internally sets up default system prompts, context management, and model presets.
 - **Model configuration**: Pass any model parameters (e.g., `temperature`, `stream`) as a dictionary via `model_config`. The `stream` flag controls whether responses are streamed.
-- **Context handling**: The agent automatically retains conversation history. You do **not** need to manage `MemoryModel` or `train` messages manually – they are built in, unless you need to dump or deserialize memory.
+- **Context handling**: The agent automatically retains conversation history. You do **not** need to manage `MemoryModel` or `train` messages manually – they are built in, unless you need to dump  or deserialize memory.
 - **System prompt**: A sensible default system prompt is provided. If you need to customize it, `create_agent` accepts an optional `train` parameter.
 
 ## 2.3.3 Common Issue Troubleshooting

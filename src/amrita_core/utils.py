@@ -51,3 +51,8 @@ def get_current_datetime_timestamp(utc_time: None | datetime = None):
     formatted_weekday = now.strftime("%A")
     formatted_time = now.strftime("%H:%M:%S")
     return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
+
+
+def kw2dict(**kwargs: T) -> dict[str, T]:
+    """Convert keyword arguments to a dictionary"""
+    return kwargs

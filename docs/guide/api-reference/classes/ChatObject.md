@@ -38,6 +38,9 @@ The ChatObject class is the primary interface for conversations with the AI.
 - `config` (AmritaConfig): configuration settings for the chat that overrides the global configuration.
 - `preset` (ModelPreset): model preset for the chat.
 - `auto_create_session` (bool): Whether to automatically create a session if it does not exist (default: False)
+- `train_template` (Template): Jinja2 template used to format system message (default: DEFAULT_TEMPLATE)
+- `jinja2_vars` (dict[str, Any] | None): Variables to be passed to the template system for custom template variables (default: None). **Important**: Keys in this dictionary must NOT match built-in variable names (`train`, `memory`, `chatobj`, `config`) as this would cause a TypeError due to duplicate keyword arguments.
+- `agent_strategy` (type[AgentStrategy]): Agent strategy to be used for execution (default: AmritaAgentStrategy)
 - `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
 - `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
 - `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
@@ -94,6 +97,24 @@ chat_with_event_params = ChatObject(
     hook_kwargs={"custom_key": "custom_value"},
     exception_ignored=(ValueError, TypeError)
 )
+
+# Example with custom Jinja2 variables
+chat_with_jinja2_vars = ChatObject(
+    context=context,
+    session_id="session_123",
+    user_input="Hello!",
+    train=train.model_dump(),
+    jinja2_vars={"custom_role": "AI expert", "company_name": "Amrita Corp"}
+)
+
+# ❌ INVALID - This will cause a TypeError:
+# chat_with_override = ChatObject(
+#     context=context,
+#     session_id="session_123", 
+#     user_input="Hello!",
+#     train=train.model_dump(),
+#     jinja2_vars={"config": {"custom_setting": "value"}}  # ERROR: 'config' is a built-in parameter
+# )
 ```
 
 ## Description
@@ -113,3 +134,13 @@ When no callback is provided, the traditional queue-based streaming mechanism is
 ### Event Parameter Injection
 
 The `hook_args`, `hook_kwargs`, and `exception_ignored` parameters enable custom parameter injection into event handlers. When events like `PreCompletionEvent` or `CompletionEvent` are triggered, these parameters are passed to the registered event handlers, allowing them to access additional context information and customize their behavior based on the specific chat session requirements.
+
+### Jinja2 Template Variables
+
+The `jinja2_vars` parameter allows you to pass custom variables to the Jinja2 template system. These variables are **directly unpacked** using `**self.jinja2_vars` during template rendering, which means:
+
+1. **Direct Variable Access**: Keys in the `jinja2_vars` dictionary become directly accessible as template variables (e.g., `{"role": "expert"}` makes `{{ role }}` available in templates)
+2. **No Variable Override**: **Important**: You CANNOT use keys that match built-in variable names (`train`, `memory`, `chatobj`, `config`) in `jinja2_vars`. Doing so will result in a `TypeError` because Python does not allow duplicate keyword arguments in function calls.
+3. **Reserved Keyword**: The key `'self'` is reserved and cannot be used in `jinja2_vars`
+
+This design provides maximum flexibility for template customization while maintaining safety by preventing accidental conflicts with built-in variables.

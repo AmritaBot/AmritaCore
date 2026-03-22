@@ -79,31 +79,20 @@ class MyCustomAgentStrategy(AgentStrategy):
 AmritaCore 提供了 `AmritaAgentStrategy` 作为内置实现，支持 `"agent-mixed"` 类别：
 
 ```python
-import asyncio
-from amrita_core import create_agent, minimal_init
+from amrita_core import create_agent
 from amrita_core.builtins.agent import AmritaAgentStrategy
 
-async def use_builtin_strategy():
-    # 初始化 AmritaCore
-    await minimal_init()
+# 使用自定义策略创建 agent
+agent = create_agent(
+    url="https://api.example.com",
+    key="your-api-key",
+    strategy=AmritaAgentStrategy
+)
 
-    # 使用自定义策略创建 agent
-    agent = create_agent(
-        url="https://api.example.com",
-        key="your-api-key",
-        strategy=AmritaAgentStrategy
-    )
-
-    # 使用 agent
-    chat = agent.get_chatobject("你能做什么？")
-    async with chat.begin():
-        response = await chat.full_response()
-
-    return response
-
-# 运行示例
-if __name__ == "__main__":
-    asyncio.run(use_builtin_strategy())
+# 使用 agent
+chat = agent.get_chatobject("你能做什么？")
+async with chat.begin():
+    response = await chat.full_response()
 ```
 
 ## 策略上下文

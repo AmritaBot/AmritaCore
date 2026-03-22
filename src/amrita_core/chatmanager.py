@@ -398,6 +398,7 @@ class ChatObject:
     session: SessionData | None  # (lateinit) Session data
     strategy: type[AgentStrategy]
     template: Template
+    jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
     _response_queue: asyncio.Queue[RESPONSE_TYPE]
     _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
     _is_running: bool = False  # Whether it is running
@@ -425,6 +426,7 @@ class ChatObject:
         auto_create_session: bool = False,
         *,
         train_template: Template = DEFAULT_TEMPLATE,
+        jinja2_vars: dict[str, Any] | None = None,
         agent_strategy: type[AgentStrategy] = AmritaAgentStrategy,
         hook_args: tuple[Any, ...] = (),
         hook_kwargs: dict[str, Any] | None = None,
@@ -443,6 +445,7 @@ class ChatObject:
             config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
             preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
+            jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
             train_template (Template, optional): Jinja2 template used to format system message.
             agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
@@ -479,6 +482,9 @@ class ChatObject:
             else PresetManager().get_default_preset()
         )
         self.template = train_template
+        self.jinja2_vars = jinja2_vars or {}
+        if "self" in self.jinja2_vars:
+            raise RuntimeError("'self' is a reserved keyword, please use another name.")
         # Hook args
         self._hook_args = hook_args
         self._hook_kwargs = hook_kwargs or {}
@@ -601,9 +607,13 @@ class ChatObject:
         logger.debug(
             f"Added user message to memory, current message count: {len(data.messages)}"
         )
-        # train,memory,self(ChatObject),config will be given to Jinja2
+        # train,memory,chatobj(ChatObject),config will be given to Jinja2
         self.train.content = await self.template.render_async(
-            train=self.train, memory=self.data, self=self, config=config
+            train=self.train,
+            memory=self.data,
+            chatobj=self,
+            config=config,
+            **self.jinja2_vars,
         )
         debug_log(self.train.content)
         logger.debug("Starting applying memory limitations..")
