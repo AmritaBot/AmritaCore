@@ -61,7 +61,7 @@ AmritaCore 使用 [Jinja2](https://jinja.palletsprojects.com/) 模板来实现�
 
 - **参数**: `jinja2_vars` (dict[str, Any] | None)
 - **描述**: 传递给模板系统的自定义变量字典
-- **限制**: 键必须 NOT 与内置变量名（`train`、`memory`、`chatobj`、`config`）冲突
+- **限制**: 键不得与内置变量名（`train`、`memory`、`chatobj`、`config`）冲突
 
 ## 默认模板
 
