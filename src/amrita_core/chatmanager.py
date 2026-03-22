@@ -609,7 +609,8 @@ class ChatObject:
             f"Added user message to memory, current message count: {len(data.messages)}"
         )
         # train,memory,chatobj(ChatObject),config will be given to Jinja2
-        self.train.content = await self.template.render_async(
+        self.train.content = await asyncio.to_thread(
+            self.template.render,
             train=self.train,
             memory=self.data,
             chatobj=self,
