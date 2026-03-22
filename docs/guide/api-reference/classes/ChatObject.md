@@ -110,7 +110,7 @@ chat_with_jinja2_vars = ChatObject(
 # ❌ INVALID - This will cause a TypeError:
 # chat_with_override = ChatObject(
 #     context=context,
-#     session_id="session_123", 
+#     session_id="session_123",
 #     user_input="Hello!",
 #     train=train.model_dump(),
 #     jinja2_vars={"config": {"custom_setting": "value"}}  # ERROR: 'config' is a built-in parameter
@@ -139,7 +139,7 @@ The `hook_args`, `hook_kwargs`, and `exception_ignored` parameters enable custom
 
 The `jinja2_vars` parameter allows you to pass custom variables to the Jinja2 template system. These variables are **directly unpacked** using `**self.jinja2_vars` during template rendering, which means:
 
-1. **Direct Variable Access**: Keys in the `jinja2_vars` dictionary become directly accessible as template variables (e.g., `{"role": "expert"}` makes `{{ role }}` available in templates)
+1. **Direct Variable Access**: Keys in the `jinja2_vars` dictionary become directly accessible as template variables (e.g., `{"role": "expert"}` makes `role` available in templates)
 2. **No Variable Override**: **Important**: You CANNOT use keys that match built-in variable names (`train`, `memory`, `chatobj`, `config`) in `jinja2_vars`. Doing so will result in a `TypeError` because Python does not allow duplicate keyword arguments in function calls.
 3. **Reserved Keyword**: The key `'self'` is reserved and cannot be used in `jinja2_vars`
 

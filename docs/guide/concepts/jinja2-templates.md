@@ -1,3 +1,5 @@
+<div v-pre >
+
 # Jinja2 Templates
 
 ## Overview
@@ -325,3 +327,5 @@ chat = ChatObject(
 ```
 
 Jinja2 templates in AmritaCore provide a powerful way to create dynamic, context-aware prompts that enhance the AI assistant's capabilities while maintaining flexibility and security. The `jinja2_vars` parameter enables seamless integration of custom business logic and contextual data into your prompt templates, with the important safety constraint that custom variable names must not conflict with built-in variables.
+
+</div>

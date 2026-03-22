@@ -110,7 +110,7 @@ chat_with_jinja2_vars = ChatObject(
 # ❌ 无效 - 这将导致 TypeError：
 # chat_with_override = ChatObject(
 #     context=context,
-#     session_id="session_123", 
+#     session_id="session_123",
 #     user_input="Hello!",
 #     train=train.model_dump(),
 #     jinja2_vars={"config": {"custom_setting": "value"}}  # 错误：'config' 是内置参数
@@ -139,7 +139,7 @@ ChatObject 类负责处理单个聊天会话，包括消息接收、上下文管
 
 `jinja2_vars` 参数允许您向 Jinja2 模板系统传递自定义变量。这些变量在模板渲染期间**直接解包**（使用 `**self.jinja2_vars`），这意味着：
 
-1. **直接变量访问**：`jinja2_vars` 字典中的键可以直接作为模板变量访问（例如，`{"role": "expert"}` 使得 `{{ role }}` 在模板中可用）
+1. **直接变量访问**：`jinja2_vars` 字典中的键可以直接作为模板变量访问（例如，`{"role": "expert"}` 使得 `role` 在模板中可用）
 2. **无变量覆盖**：**重要**：您不能在 `jinja2_vars` 中使用与内置变量名（`train`、`memory`、`chatobj`、`config`）匹配的键。这样做会导致 `TypeError`，因为 Python 不允许在函数调用中使用重复的关键字参数。
 3. **保留关键字**：键 `'self'` 是保留关键字，不能在 `jinja2_vars` 中使用
 
