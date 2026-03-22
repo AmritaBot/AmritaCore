@@ -23,7 +23,7 @@ You are a professional context summarizer, strictly following user instructions 
 User input → Direct summary output
 </FORMATTING>"""
 
-# train,memory,self(ChatObject),config will be given to Jinja2
+# train,memory,chatobj(ChatObject),config will be given to Jinja2
 PROMPT_TEMPLATE: LiteralString = """<SCHEMA>
 {% if config.cookie.enable %}
 <HIDDEN>{{ config.cookie.cookie }}</HIDDEN>

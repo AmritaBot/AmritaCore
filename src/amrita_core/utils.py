@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import TypeVar
+from typing import Any, TypeVar
 
 import pytz
 
@@ -51,3 +51,8 @@ def get_current_datetime_timestamp(utc_time: None | datetime = None):
     formatted_weekday = now.strftime("%A")
     formatted_time = now.strftime("%H:%M:%S")
     return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
+
+
+def kw2dict(**kwargs: Any) -> dict[str, Any]:
+    """Return the keyword arguments as a dictionary."""
+    return kwargs
