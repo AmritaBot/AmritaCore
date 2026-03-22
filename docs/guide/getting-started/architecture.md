@@ -183,4 +183,4 @@ sequenceDiagram
 
 5. **Vendor Neutrality**: The adapter layer ensures that the same agent logic can work with different LLM providers without code changes.
 
-6. **Template Support**: Jinja2 templates enable dynamic prompt construction based on context, memory, and configuration.
+6. **Template Support**: [Jinja2 templates](../../concepts/jinja2-templates.md) enable dynamic prompt construction based on context, memory, and configuration.

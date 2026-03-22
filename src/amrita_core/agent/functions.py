@@ -118,6 +118,7 @@ class AgentRuntime:
             config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
             preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
+            jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
             train_template (Template, optional): Jinja2 template used to format system message.
             agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().

@@ -70,6 +70,10 @@ export default withMermaid({
                 text: "Agent Strategy",
                 link: "/guide/concepts/agent-strategy",
               },
+              {
+                text: "Jinja2 Templates",
+                link: "/guide/concepts/jinja2-templates",
+              },
             ],
           },
           {
@@ -284,6 +288,10 @@ export default withMermaid({
               { text: "工具系统", link: "/zh/guide/concepts/tool" },
               { text: "数据管理", link: "/zh/guide/concepts/management" },
               { text: "Agent 策略", link: "/zh/guide/concepts/agent-strategy" },
+              {
+                text: "Jinja2 模板",
+                link: "/zh/guide/concepts/jinja2-templates",
+              },
             ],
           },
           {
