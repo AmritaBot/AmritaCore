@@ -147,12 +147,13 @@ chat = ChatObject(
 
 ```python
 # 内部渲染代码（仅供参考）
-self.train.content = await self.template.render_async(
+self.train.content = await asyncio.to_thread(
+    self.template.render,
     train=self.train,
     memory=self.data,
     chatobj=self,
     config=config,
-    **self.jinja2_vars,  # 直接解包 - 启用自定义变量但防止冲突
+    **self.jinja2_vars,
 )
 ```
 
