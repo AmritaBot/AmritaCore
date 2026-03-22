@@ -147,12 +147,13 @@ The template rendering occurs during the `_run()` method of `ChatObject`:
 
 ```python
 # Internal rendering code (for reference)
-self.train.content = await self.template.render_async(
+self.train.content = await asyncio.to_thread(
+    self.template.render,
     train=self.train,
     memory=self.data,
     chatobj=self,
     config=config,
-    **self.jinja2_vars,  # Direct unpacking - enables custom variables but prevents conflicts
+    **self.jinja2_vars,
 )
 ```
 
