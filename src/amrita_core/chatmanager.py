@@ -482,9 +482,10 @@ class ChatObject:
             else PresetManager().get_default_preset()
         )
         self.template = train_template
-        self.jinja2_vars = jinja2_vars or {}
-        if "self" in self.jinja2_vars:
-            raise RuntimeError("'self' is a reserved keyword, please use another name.")
+        jinja2_vars = jinja2_vars or {}
+        if any(name in jinja2_vars for name in ("train", "self", "memory", "chatobj")):
+            raise RuntimeError("Received a reserved keyword, please use another name.")
+        self.jinja2_vars = jinja2_vars
         # Hook args
         self._hook_args = hook_args
         self._hook_kwargs = hook_kwargs or {}
