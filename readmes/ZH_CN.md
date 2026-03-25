@@ -181,7 +181,7 @@ async def main():
         model="gpt-4"
     )
 
-    chat = agent.get_chatobject("你好！你能做什么？")
+    chat = agent.get_chatobject("你好！What can you do?")
     async with chat.begin():
         response = await chat.full_response()
         print(response)

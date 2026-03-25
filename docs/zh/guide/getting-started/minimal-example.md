@@ -19,7 +19,7 @@ async def minimal_example():
     )
 
     # 获取用于交互的聊天对象
-    chat = agent.get_chatobject("你好，你能做什么？")
+    chat = agent.get_chatobject("你好，What can you do?")
 
     # 执行交互并获取响应
     async with chat.begin():
@@ -56,7 +56,7 @@ if __name__ == "__main__":
 要运行示例：
 
 1. 安装 AmritaCore
-2. 将 `YOUR_API_ENDPOINT` 和 `YOUR_API_KEY` 替换为实际值
+2. 将 `https://api.example.com` 和 `your-api-key` 替换为实际值
 3. 使用 `python your_script.py` 执行脚本
 
 要进行调试，您可以通过在代码中配置日志记录器来启用详细日志。
