@@ -128,7 +128,7 @@ async def example():
         model="gpt-4",
         model_config={"temperature": 0.7}
     )
-    chat = agent.get_chatobject("你能做什么？")
+    chat = agent.get_chatobject("What can you do?")
     async with chat.begin():
         response = await chat.full_response()
     return response

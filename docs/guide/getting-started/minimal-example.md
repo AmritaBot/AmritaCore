@@ -57,7 +57,7 @@ For most basic use cases, `create_agent` is sufficient and much simpler to use. 
 To run the example:
 
 1. Install AmritaCore
-2. Replace `YOUR_API_ENDPOINT` and `YOUR_API_KEY` with actual values
+2. Replace `https://api.example.com` and `your-api-key` with actual values
 3. Execute the script with `python your_script.py`
 
 For debugging, you can enable verbose logging by configuring the logger in your code.

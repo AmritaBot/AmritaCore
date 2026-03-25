@@ -60,7 +60,7 @@ agent = create_agent(
 )
 
 # 获取用于交互的聊天对象
-chat = agent.get_chatobject("你好，你能做什么？")
+chat = agent.get_chatobject("你好，What can you do?")
 
 # 执行交互
 async with chat.begin():

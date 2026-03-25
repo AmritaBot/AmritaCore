@@ -60,7 +60,7 @@ from amrita_core.builtins.agent import AmritaAgentStrategy
 
 # 创建策略上下文
 ctx = StrategyContext(
-    user_input="你能做什么？",
+    user_input="What can you do?",
     original_context=message_context,
     chat_object=chat_obj
 )
