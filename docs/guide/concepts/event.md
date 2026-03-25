@@ -12,7 +12,7 @@ The [PreCompletionEvent](../api-reference/classes/PreCompletionEvent.md) is trig
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_pre_completion(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
     event.messages.append(Message(role="system", content="Always be helpful"))
@@ -29,7 +29,7 @@ The [CompletionEvent](../api-reference/classes/CompletionEvent.md) is triggered 
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
 
-@on_completion()
+@on_completion().handle()
 async def handle_completion(event: CompletionEvent):
     # Process the response before returning to user
     print(f"Received response: {event.response}")
@@ -44,7 +44,7 @@ The [FallbackContext](../api-reference/classes/FallbackContext.md) is triggered 
 from amrita_core.hook.event import FallbackContext
 from amrita_core.hook.on import on_preset_fallback
 
-@on_preset_fallback()
+@on_preset_fallback().handle()
 async def handle_fallback(event: FallbackContext):
     # Handle LLM request failure
     print(f"LLM request failed with error: {event.exc_info}")
@@ -130,7 +130,7 @@ chat_obj = ChatObject(
 )
 
 # Receive these parameters in event handlers
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_pre_completion(event: PreCompletionEvent, arg1: MyClass, arg2: MyObject, custom_key: str):
     ...
 
@@ -176,7 +176,7 @@ async def get_user_session(session_id: str):
     # Get user session based on session_id
     return user_session
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_with_dependencies(
     event: PreCompletionEvent,
     db_conn = Depends(get_database_connection),
@@ -217,7 +217,7 @@ chat_obj = ChatObject(
     hook_kwargs={"logger_dep": Depends(get_logger)}
 )
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_runtime_deps(
     event: PreCompletionEvent,
     timestamp: MyTimestamp,  # Injected from hook_args
@@ -251,10 +251,10 @@ chatobj = ChatObject(
     ,hook_args=(MyObject(),)
 )
 ...
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_with_dependencies(arg1,):... # This handler will be ignored because arg1 has no type annotation, and there is no such parameter in keyword arguments.
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_with_dependencies(arg1:MyObject):... # Correct, it declares the type annotation for arg1, and there is indeed a MyObject type positional parameter
 
 

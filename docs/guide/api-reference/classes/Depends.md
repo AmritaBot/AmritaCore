@@ -27,7 +27,7 @@ async def get_current_user():
     # Get current user information
     return current_user
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_with_user(
     event: PreCompletionEvent,
     user = Depends(get_current_user)
@@ -48,7 +48,7 @@ async def get_database():
 async def get_logger():
     return logger_instance
 
-@on_completion()
+@on_completion().handle()
 async def handle_with_multiple_deps(
     event: CompletionEvent,
     db = Depends(get_database),
@@ -71,7 +71,7 @@ chat_obj = ChatObject(
     hook_kwargs={"timestamp": runtime_dep}
 )
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_runtime_dep(event, timestamp):
     # timestamp will be automatically injected
     event.messages.append(Message(

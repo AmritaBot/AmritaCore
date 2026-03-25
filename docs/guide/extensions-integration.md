@@ -129,7 +129,7 @@ from amrita_core.hook.event import PreCompletionEvent, CompletionEvent
 from amrita_core.hook.on import on_precompletion, on_completion
 from amrita_core.types import Message
 
-@on_precompletion()
+@on_precompletion().handle()
 async def inject_context(event: PreCompletionEvent):
     """Inject custom context before LLM processing"""
     event.messages.append(Message(
@@ -138,7 +138,7 @@ async def inject_context(event: PreCompletionEvent):
     ))
 
 
-@on_completion()
+@on_completion().handle()
 async def log_response(event: CompletionEvent):
     """Log the response after processing"""
     print(f"Response received: {event.response[:100]}...")
@@ -314,7 +314,7 @@ from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 from amrita_core.types import Message
 
-@on_precompletion()
+@on_precompletion().handle()
 async def security_check(event: PreCompletionEvent):
     """
     Perform security checks before processing

@@ -69,7 +69,7 @@ AmritaCore 提供了一个灵活的内容过滤机制，可以根据特定安全
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def content_filter(event: PreCompletionEvent):
     """
     处理前过滤潜在不安全内容
@@ -106,7 +106,7 @@ def contains_harmful_content(content: str) -> bool:
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
 
-@on_completion()
+@on_completion().handle()
 async def response_filter(event: CompletionEvent):
     """
     过滤 AI 回复中的敏感信息
@@ -310,7 +310,7 @@ class AccessControlManager:
 
 access_manager = AccessControlManager()
 
-@on_precompletion()
+@on_precompletion().handle()
 async def check_access_control(event: PreCompletionEvent, user_id: str = None):
     """
     处理前检查访问权限
@@ -379,7 +379,7 @@ from amrita_core.logging import logger
 from amrita_core.hook.event import PreCompletionEvent, CompletionEvent
 from amrita_core.hook.on import on_precompletion, on_completion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def log_request(event: PreCompletionEvent, user_id: str = None):
     """
     为审计目的记录传入请求
@@ -395,7 +395,7 @@ async def log_request(event: PreCompletionEvent, user_id: str = None):
 
 
 
-@on_completion()
+@on_completion().handle()
 async def log_response(event: CompletionEvent, user_id: str = None):
     """
     为审计目的记录回复
