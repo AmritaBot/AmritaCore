@@ -223,7 +223,7 @@ Pre-completion hooks are executed before sending the request to the LLM:
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def preprocess_request(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
     event.messages.append(Message(role="system", content="Be concise in your response"))
@@ -238,7 +238,7 @@ Post-completion hooks are executed after receiving the response from the LLM:
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
 
-@on_completion()
+@on_completion().handle()
 async def postprocess_response(event: CompletionEvent):
     # Process the response before returning to user
     print(f"Response received: {event.response[:50]}...")

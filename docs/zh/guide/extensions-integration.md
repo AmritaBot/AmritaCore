@@ -129,7 +129,7 @@ from amrita_core.hook.event import PreCompletionEvent, CompletionEvent
 from amrita_core.hook.on import on_precompletion, on_completion
 from amrita_core.types import Message
 
-@on_precompletion()
+@on_precompletion().handle()
 async def inject_context(event: PreCompletionEvent):
     """在LLM处理之前注入自定义上下文"""
     event.messages.append(Message(
@@ -138,7 +138,7 @@ async def inject_context(event: PreCompletionEvent):
     ))
 
 
-@on_completion()
+@on_completion().handle()
 async def log_response(event: CompletionEvent):
     """记录处理后的响应"""
     print(f"收到响应: {event.response[:100]}...")
@@ -314,7 +314,7 @@ from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 from amrita_core.types import Message
 
-@on_precompletion()
+@on_precompletion().handle()
 async def security_check(event: PreCompletionEvent):
     """
     在处理之前执行安全检查

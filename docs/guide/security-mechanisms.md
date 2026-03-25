@@ -69,7 +69,7 @@ AmritaCore provides a flexible content filtering mechanism that can be customize
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def content_filter(event: PreCompletionEvent):
     """
     Filter potentially unsafe content before processing
@@ -106,7 +106,7 @@ Implement custom filtering rules based on your specific requirements:
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
 
-@on_completion()
+@on_completion().handle()
 async def response_filter(event: CompletionEvent):
     """
     Filter the AI's response for sensitive information
@@ -285,7 +285,7 @@ Protect against cross-session contamination:
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def session_isolation_check(event: PreCompletionEvent, session_id: str = None):
     """
     Ensure that session-specific data doesn't leak across sessions
@@ -333,7 +333,7 @@ class AccessControlManager:
 
 access_manager = AccessControlManager()
 
-@on_precompletion()
+@on_precompletion().handle()
 async def check_access_control(event: PreCompletionEvent, user_id: str = None):
     """
     Check access permissions before processing
@@ -402,7 +402,7 @@ from amrita_core.logging import logger
 from amrita_core.hook.event import PreCompletionEvent, CompletionEvent
 from amrita_core.hook.on import on_precompletion, on_completion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def log_request(event: PreCompletionEvent, user_id: str = None):
     """
     Log incoming requests for audit purposes
@@ -418,7 +418,7 @@ async def log_request(event: PreCompletionEvent, user_id: str = None):
 
 
 
-@on_completion()
+@on_completion().handle()
 async def log_response(event: CompletionEvent, user_id: str = None):
     """
     Log responses for audit purposes

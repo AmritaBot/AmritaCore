@@ -12,7 +12,7 @@ AmritaCore 实现了一个事件驱动架构，允许您在处理流水线的各
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_pre_completion(event: PreCompletionEvent):
     # 在发送到 LLM 之前修改消息
     event.messages.append(Message(role="system", content="始终乐于助人"))
@@ -29,7 +29,7 @@ async def handle_pre_completion(event: PreCompletionEvent):
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
 
-@on_completion()
+@on_completion().handle()
 async def handle_completion(event: CompletionEvent):
     # 在返回给用户之前处理响应
     print(f"收到响应: {event.response}")
@@ -44,7 +44,7 @@ async def handle_completion(event: CompletionEvent):
 from amrita_core.hook.event import FallbackContext
 from amrita_core.hook.on import on_preset_fallback
 
-@on_preset_fallback()
+@on_preset_fallback().handle()
 async def handle_fallback(event: FallbackContext):
     # 处理 LLM 请求失败
     print(f"LLM 请求失败，错误信息: {event.exc_info}")
@@ -130,7 +130,7 @@ chat_obj = ChatObject(
 )
 
 # 在事件处理器中接收这些参数
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_pre_completion(event: PreCompletionEvent, arg1: MyClass, arg2: MyObject, custom_key: str):
     ...
 
@@ -176,7 +176,7 @@ async def get_user_session(session_id: str):
     # 根据 session_id 获取用户会话
     return user_session
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_with_dependencies(
     event: PreCompletionEvent,
     db_conn = Depends(get_database_connection),
@@ -217,7 +217,7 @@ chat_obj = ChatObject(
     hook_kwargs={"logger_dep": Depends(get_logger)}
 )
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_runtime_deps(
     event: PreCompletionEvent,
     timestamp: MyTimestamp,  # 从 hook_args 注入
@@ -251,10 +251,10 @@ chatobj = ChatObject(
     ,hook_args=(MyObject(),)
 )
 ...
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_with_dependencies(arg1,):... # 此handler会被忽略，因为arg1没有类型注解，并且关键词参数内也不存在此参数。
 
-@on_precompletion()
+@on_precompletion().handle()
 async def handle_with_dependencies(arg1:MyObject):... # 正确，它声明了arg1的类型注解，并且的确存在一个MyObject类型的位置参数
 
 

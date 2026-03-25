@@ -312,7 +312,7 @@ The `@on_precompletion` decorator registers functions to run before the completi
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def preprocess_request(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
     print(event)
@@ -328,7 +328,7 @@ The `@on_completion` decorator registers functions to run after receiving the co
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
 
-@on_completion()
+@on_completion().handle()
 async def postprocess_response(event: CompletionEvent):
     # Process the response after receiving from LLM
     print(event)

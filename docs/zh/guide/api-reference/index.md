@@ -309,7 +309,7 @@ def my_event_handler(event):
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
-@on_precompletion()
+@on_precompletion().handle()
 async def preprocess_request(event: PreCompletionEvent):
     # 在发送到 LLM 之前修改消息
     print(event)
@@ -325,7 +325,7 @@ async def preprocess_request(event: PreCompletionEvent):
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
 
-@on_completion()
+@on_completion().handle()
 async def postprocess_response(event: CompletionEvent):
     # 在从 LLM 接收后处理响应
     print(event)
