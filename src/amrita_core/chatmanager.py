@@ -685,6 +685,7 @@ class ChatObject:
         debug_log(self.train.content)
         logger.debug("Starting applying memory limitations..")
         async with MemoryLimiter(self.data, self.train, config=config) as lim:
+            await self._wait_for_continue()
             await lim.run_enforce()
             abs_usage = lim.usage
             self.data = lim.memory
@@ -888,6 +889,7 @@ class ChatObject:
         backup = self.context_wrap.copy()
         try:
             for _ in range(1, self.config.function_config.agent_tool_call_limit + 1):
+                await self._wait_for_continue()
                 if not (await strategy.single_execute()):
                     break
             else:
@@ -937,6 +939,7 @@ class ChatObject:
             user_input=self.user_input,
             original_context=messages,
         )
+        await self._wait_for_continue()
         await MatcherManager.trigger_event(
             chat_event,
             self.config,
@@ -982,6 +985,7 @@ class ChatObject:
         self.response = response
         logger.debug("Triggering chat events..")
         chat_event = CompletionEvent(self.user_input, messages, self, response.content)
+        await self._wait_for_continue()
         await MatcherManager.trigger_event(
             chat_event,
             self.config,

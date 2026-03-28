@@ -26,6 +26,8 @@ AmritaCore aims to solve several key challenges in modern AI application develop
 
 7. **Comprehensive Security**: Built-in cookie security detection, session isolation, and content filtering mechanisms to protect against prompt injection and data leakage.
 
+8. **Native Suspend/Resume Support**: Built-in mechanism to pause and resume agent execution flow at any point, enabling interactive applications with real-time user control
+
 ## Core Features
 
 ### Agent Strategy System
