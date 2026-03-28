@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import typing
 from collections.abc import AsyncGenerator, Generator, Sequence
+from io import StringIO
 
 from pydantic import ValidationError
 
@@ -32,13 +33,14 @@ T = typing.TypeVar("T")
 
 
 def text_generator(
-    memory: CONTENT_LIST_TYPE, split_role: bool = False
+    memory: CONTENT_LIST_TYPE, split_role: bool = False, full_message: bool = False
 ) -> Generator[str, None, str]:
     """Generator that yields text content from a list of messages.
 
     Args:
         memory: List of message objects containing content
         split_role: Whether to prepend role-specific prefixes to content
+        full_message: Whether to include full message content in the output
 
     Yields:
         Individual text strings from the message content
@@ -59,21 +61,28 @@ def text_generator(
                 else role_map.get(st["role"], "") + st["content"]
             )
         else:
+            str_tmp = StringIO()
             for s in st["content"]:
                 if s["type"] == "text" and s.get("text") is not None:
-                    yield (
+                    stc: str = (
                         s["text"]
                         if not split_role
                         else role_map.get(st["role"], "") + s["text"]
                     )
+                    if full_message:
+                        str_tmp.write(stc)
+                    else:
+                        yield stc
+            if full_message:
+                yield str_tmp.getvalue()
     return ""
 
 
-async def get_tokens(
+def get_tokens(
     memory: CONTENT_LIST_TYPE,
     response: UniResponse[str, None],
     config: AmritaConfig | None = None,
-) -> UniResponseUsage[int]:
+) -> UniResponseUsage[int] | None:
     """Calculate token counts for messages and response
 
     Args:
@@ -92,8 +101,10 @@ async def get_tokens(
     ):
         return response.usage
     config = config or get_config()
+    if config.function_config.no_tokenizer:
+        return
     it = hybrid_token_count(
-        "".join(list(text_generator(memory))),
+        "".join(text_generator(memory, full_message=True)),
         config.llm.tokens_count_mode,
     )
 

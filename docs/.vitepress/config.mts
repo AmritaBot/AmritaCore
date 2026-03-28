@@ -74,6 +74,10 @@ export default withMermaid({
                 text: "Jinja2 Templates",
                 link: "/guide/concepts/jinja2-templates",
               },
+              {
+                text: "Suspend Mechanism",
+                link: "/guide/concepts/suspend",
+              },
             ],
           },
           {
@@ -291,6 +295,10 @@ export default withMermaid({
               {
                 text: "Jinja2 模板",
                 link: "/zh/guide/concepts/jinja2-templates",
+              },
+              {
+                text: "挂起机制",
+                link: "/zh/guide/concepts/suspend",
               },
             ],
           },

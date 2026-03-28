@@ -500,7 +500,7 @@ class TestChatObjectAdvanced:
         # Try to add one more item - should wait and eventually raise exception after timeout
         with pytest.raises(
             RuntimeError,
-            match="Both primary and overflow queues are full after waiting",
+            match=r"Can't keep up!Is the consumer still running?",
         ):
             await chat_obj._put_to_queue("item5")
 

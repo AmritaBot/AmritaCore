@@ -219,3 +219,16 @@ llm_config = LLMConfig(
     memory_abstract_proportion=0.15  # Summarize when reaching 15% of context length
 )
 ```
+
+### 3.5.6 Suspend and Resume Mechanism
+
+AmritaCore provides a built-in **suspend/resume mechanism** that allows you to pause and resume the execution flow of a `ChatObject` at any point during processing. This feature enables interactive applications where user intervention or external events may require temporary suspension of the agent's workflow.
+
+Key features include:
+
+- Non-blocking suspension without blocking the main event loop
+- Fine-grained control over execution flow
+- Timeout support to prevent indefinite waiting
+- Seamless integration with all agent strategies
+
+For detailed usage examples and advanced scenarios, see the [Suspend and Resume Mechanism](./suspend.md) documentation.
