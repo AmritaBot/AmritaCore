@@ -37,7 +37,7 @@ async def test_chatobject_suspend():
     hd: asyncio.Task[None] = asyncio.create_task(suspend_func())
     try:
         await obj.wait_to_suspend(2)
-        await obj.resume()
+        obj.resume()
         await asyncio.wait_for(hd, 0.2)
         assert suspend, "Suspend not called"
     finally:

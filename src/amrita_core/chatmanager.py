@@ -510,7 +510,12 @@ class ChatObject:
         self._q_tout = queue_timeout
         self._q_ovf_tout = overflow_queue_timeout
 
-    async def _wait_for_continue(self):
+    async def _wait_for_continue(self) -> bool:
+        """Break point for suspend.
+
+        Returns:
+            bool: True if has really waited during runing, False if not.
+        """
         if self.__suspend_signal is None:
             return False
         await asyncio.sleep(0)
@@ -526,6 +531,14 @@ class ChatObject:
             self.__resume_signal = None
 
     async def wait_to_suspend(self, timeout: float | None = None):
+        """Tell chatobject to suspend and wait for it.
+
+        Args:
+            timeout (float | None, optional): Timeout for waiting. Defaults to None.
+
+        Raises:
+            RuntimeError: Raised when already waiting.
+        """
         if self.__suspend_signal is not None:
             if self.__suspend_signal.done():
                 self.__suspend_signal = None
@@ -537,7 +550,8 @@ class ChatObject:
         finally:
             self.__suspend_signal = None
 
-    async def resume(self):
+    def resume(self) -> None:
+        """Resume to run when suspend."""
         if self.__resume_signal and not self.__resume_signal.done():
             self.__resume_signal.set_result(True)
 

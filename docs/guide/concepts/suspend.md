@@ -16,7 +16,7 @@ Basic workflow:
 
 1. Call `await chat.wait_to_suspend(timeout)` **outside** the main `ChatObject` execution context from a separate async task
 2. `ChatObject` will automatically pause when reaching the next `@suspend` decorated method
-3. Resume execution by calling `await chat.resume()`
+3. Resume execution by calling `chat.resume()`
 
 ## Manual Usage of `_wait_for_continue()`
 
@@ -52,7 +52,7 @@ async def main():
         await chat_obj.wait_to_suspend(timeout=5.0)
         print("Chat suspended.")
         await asyncio.sleep(1)
-        await chat_obj.resume()
+        chat_obj.resume()
         print("Chat resumed.")
 
     controller_task = asyncio.create_task(external_controller(chat))
@@ -97,7 +97,7 @@ async def main():
         await chat_obj.wait_to_suspend(timeout=5.0)
         print("Chat suspended, you may inspect or modify states here.")
         # Custom operations: state checking, context modification, external integration
-        await chat_obj.resume()
+        chat_obj.resume()
 
     async with chat.begin():
         controller_task = asyncio.create_task(external_controller(chat))

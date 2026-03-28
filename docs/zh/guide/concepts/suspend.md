@@ -16,7 +16,7 @@ AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `Chat
 
 1. 从 `ChatObject` 执行上下文**外部**，单独异步任务中调用 `await chat.wait_to_suspend(timeout)` 监听挂起状态
 2. `ChatObject` 运行到下一个被 `@suspend` 装饰的方法时自动暂停
-3. 调用 `await chat.resume()` 恢复正常执行流程
+3. 调用 `chat.resume()` 恢复正常执行流程
 
 ## 手动使用 `_wait_for_continue()`
 
@@ -52,7 +52,7 @@ async def main():
         await chat_obj.wait_to_suspend(timeout=5.0)
         print("聊天已挂起！")
         await asyncio.sleep(1)
-        await chat_obj.resume()
+        chat_obj.resume()
         print("聊天已恢复！")
 
     controller_task = asyncio.create_task(external_controller(chat))
@@ -97,7 +97,7 @@ async def main():
         await chat_obj.wait_to_suspend(timeout=5.0)
         print("聊天已挂起，可以在此检查状态")
         # 可执行状态查看、上下文修改、外部联动等自定义逻辑
-        await chat_obj.resume()
+        chat_obj.resume()
 
     async with chat.begin():
         controller_task = asyncio.create_task(external_controller(chat))
