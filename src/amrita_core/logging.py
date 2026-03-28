@@ -69,12 +69,4 @@ logger_id = logger.add(
 )
 """Default log handler id"""
 
-
-def replace_logger_handler(lg: Logger, l_id: int) -> None:
-    """Replace default log handler with given handler id"""
-    global logger, logger_id
-    logger = lg
-    logger_id = l_id
-
-
 __autodoc__ = {"logger_id": False}

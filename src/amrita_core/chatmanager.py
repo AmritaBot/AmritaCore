@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import copy
-from asyncio import Lock, Task
+from asyncio import Lock, Task, iscoroutinefunction
 from collections import defaultdict
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from functools import wraps
 from io import StringIO
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, TypeAlias
+from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 from uuid import uuid4
 
 from jinja2 import Template
@@ -60,6 +62,9 @@ LOCK = Lock()
 
 RESPONSE_TYPE: TypeAlias = str | MessageContent
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
+
+# Type vars
+FUNC_RET_T = TypeVar("FUNC_RET_T")
 
 
 class ChatObjectMeta(BaseModel):
@@ -207,7 +212,7 @@ class MemoryLimiter:
             ]
             logger.debug("Performing context summarization...")
             response = await get_last_response(call_completion(msg_list))
-            usage = await get_tokens(msg_list, response)
+            usage = get_tokens(msg_list, response)
             self.usage = usage
             logger.debug(f"Context summary received: {response.content}")
             self.memory.abstract = response.content
@@ -310,7 +315,7 @@ class MemoryLimiter:
                 Total token count for the messages
             """
             tk_tmp: int = 0
-            for msg in text_generator(memory):
+            for msg in text_generator(memory, full_message=True):
                 tk_tmp += hybrid_token_count(
                     msg,
                     self.config.llm.tokens_count_mode,
@@ -327,7 +332,7 @@ class MemoryLimiter:
             return
         prompt_length = hybrid_token_count(train.content)
         if prompt_length > self.config.llm.session_tokens_windows:
-            print(
+            logger.warning(
                 f"Prompt size too large! It's {prompt_length}>{self.config.llm.session_tokens_windows}! Please adjusts the prompt or settings!"
             )
             return
@@ -369,7 +374,7 @@ class MemoryLimiter:
         """
         del exc_val, exc_tb
         if exc_type is not None:
-            print("An exception occurred, rolling back messages...")
+            logger.warning("An exception occurred, rolling back messages...")
             self.memory.messages = self._copied_messages.messages
             return
 
@@ -401,6 +406,8 @@ class ChatObject:
     jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
     _response_queue: asyncio.Queue[RESPONSE_TYPE]
     _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
+    _q_tout: float
+    _q_ovf_tout: float
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
@@ -411,6 +418,8 @@ class ChatObject:
     _hook_args: tuple[Any, ...]
     _callback_fun: RESPONSE_CALLBACK_TYPE = None
     _callback_lock: Lock
+    __suspend_signal: asyncio.Future | None = None
+    __resume_signal: asyncio.Future | None = None
     _raised_exc: tuple[type[BaseException], ...]
     __done_marker = object()
 
@@ -433,6 +442,8 @@ class ChatObject:
         exception_ignored: tuple[type[BaseException], ...] = (),
         queue_size: int = 25,
         overflow_queue_size: int = 45,
+        queue_timeout: float = 2.0,
+        overflow_queue_timeout: float = 5.0,
     ) -> None:
         """Initialize a chat object
 
@@ -496,6 +507,58 @@ class ChatObject:
         self.stream_id = uuid4().hex
         self._callback_fun = callback
         self._callback_lock = Lock()
+        self._q_tout = queue_timeout
+        self._q_ovf_tout = overflow_queue_timeout
+
+    async def _wait_for_continue(self):
+        if self.__suspend_signal is None:
+            return False
+        await asyncio.sleep(0)
+        if self.__resume_signal is not None and not self.__resume_signal.done():
+            await self.__resume_signal
+            return True
+        try:
+            self.__suspend_signal.set_result(True)
+            self.__resume_signal = asyncio.Future()
+            await self.__resume_signal
+            return True
+        finally:
+            self.__resume_signal = None
+
+    async def wait_to_suspend(self, timeout: float | None = None):
+        if self.__suspend_signal is not None:
+            if self.__suspend_signal.done():
+                self.__suspend_signal = None
+            else:
+                raise RuntimeError("Already watting for suspend!")
+        try:
+            self.__suspend_signal = asyncio.Future()
+            await asyncio.wait_for(self.__suspend_signal, timeout)
+        finally:
+            self.__suspend_signal = None
+
+    async def resume(self):
+        if self.__resume_signal and not self.__resume_signal.done():
+            self.__resume_signal.set_result(True)
+
+    @staticmethod
+    def suspend(
+        func: Callable[..., Any],
+    ) -> Callable[..., Any]:
+        if not iscoroutinefunction(func):
+            raise TypeError(f"{func.__name__} is not a coroutine function.")
+
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            self: ChatObject = args[0]
+            if not isinstance(self, ChatObject):
+                raise TypeError(
+                    f"Unsopported type {type(self).__name__} for the first arg."
+                )
+            await self._wait_for_continue()
+            return await func(*args, **kwargs)
+
+        return wrapper
 
     def get_exception(self) -> BaseException | None:
         """
@@ -567,6 +630,7 @@ class ChatObject:
             self._task = asyncio.create_task(self._entry())
         return self
 
+    @suspend
     async def _entry(self) -> None:
         """Call chat object to process messages"""
         if not self._is_running and not self._is_done:
@@ -592,6 +656,7 @@ class ChatObject:
                 f"ChatObject of {self.stream_id} is already running or done"
             )
 
+    @suspend
     async def _run(self):
         """Run chat processing flow
 
@@ -659,31 +724,23 @@ class ChatObject:
         Args:
             item: Item to put in the queue
         """
-        try:
-            self._response_queue.put_nowait(item)
-        except asyncio.QueueFull:
-            try:
-                self._overflow_queue.put_nowait(item)
-            except asyncio.QueueFull:
-                timeout = 5
-                while timeout > 0:
-                    await asyncio.sleep(1)
-                    timeout -= 1
-                    try:
-                        self._response_queue.put_nowait(item)
-                        return
-                    except asyncio.QueueFull:
-                        try:
-                            self._overflow_queue.put_nowait(item)
-                            return
-                        except asyncio.QueueFull:
-                            continue
+        with contextlib.suppress(asyncio.QueueFull):
+            return self._response_queue.put_nowait(item)
+        with contextlib.suppress(asyncio.QueueFull):
+            return self._overflow_queue.put_nowait(item)
 
-                # After waiting, if still full, raise an exception
-                raise RuntimeError(
-                    "Both primary and overflow queues are full after waiting"
-                )
+        with contextlib.suppress(asyncio.TimeoutError):
+            return await asyncio.wait_for(
+                self._response_queue.put(item), timeout=self._q_tout
+            )
+        with contextlib.suppress(asyncio.TimeoutError):
+            return await asyncio.wait_for(
+                self._overflow_queue.put(item), timeout=self._q_ovf_tout
+            )
 
+        raise RuntimeError("Can't keep up!Is the consumer still running?")
+
+    @suspend
     async def yield_response(self, response: RESPONSE_TYPE) -> None:
         """Send chat model response to the queue allowing both str and MessageContent types.
 
@@ -751,6 +808,16 @@ class ChatObject:
                 builder.write(str(item.get_content()))
         return builder.getvalue()
 
+    async def __get_from(
+        self, queue: asyncio.Queue[RESPONSE_TYPE]
+    ) -> AsyncGenerator[RESPONSE_TYPE, None]:
+        remaining: int = queue.qsize()
+        while remaining > 0 and not queue.empty():
+            item = await queue.get()
+            queue.task_done()
+            remaining -= 1
+            yield item
+
     async def _response_generator(self) -> AsyncGenerator[RESPONSE_TYPE]:
         """Internal method to asynchronously yield items from the queue until done marker is reached.
 
@@ -759,21 +826,17 @@ class ChatObject:
         """
         # Yield from primary queue first
         while True:
-            # Check primary queue first
-            while not self._response_queue.empty():
-                item = await self._response_queue.get()
-                self._response_queue.task_done()
+            async for item in self.__get_from(self._response_queue):
                 if item is self.__done_marker:
                     return
                 yield item
 
             # If primary queue is empty, check overflow queue
             if not self._overflow_queue.empty():
-                item = await self._overflow_queue.get()
-                self._overflow_queue.task_done()
-                if item is self.__done_marker:
-                    return
-                yield item
+                async for item in self.__get_from(self._overflow_queue):
+                    if item is self.__done_marker:
+                        return
+                    yield item
             else:
                 if (
                     self.queue_closed()
@@ -784,6 +847,7 @@ class ChatObject:
                 # Otherwise, wait a bit before checking again
                 await asyncio.sleep(0.01)
 
+    @suspend
     async def _run_strategy(self) -> None:
         """Run workflow of strategy given."""
 
@@ -799,7 +863,10 @@ class ChatObject:
 
             case "rag":
                 context = SendMessageWrap.validate_messages(
-                    [self.train, self.user_message]
+                    [
+                        self.train,
+                        self.user_message,
+                    ]
                 )
             case "workflow":
                 context = self.context_wrap.copy()
@@ -815,6 +882,7 @@ class ChatObject:
             await st.on_exception(e)
         self.context_wrap.extend(ctx.original_context.end_messages)
 
+    @suspend
     async def _run_agent(self, ctx: StrategyContext) -> None:
         strategy = self.strategy(ctx)
         backup = self.context_wrap.copy()
@@ -841,6 +909,7 @@ class ChatObject:
             await strategy.on_exception(e)
             self.context_wrap = backup
 
+    @suspend
     async def _process_chat(
         self,
         send_messages: CONTENT_LIST_TYPE,

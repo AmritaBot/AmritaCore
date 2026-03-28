@@ -1,3 +1,7 @@
+import asyncio
+
+import pytest
+
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import AmritaConfig
 from amrita_core.sessions import SessionsManager
@@ -5,6 +9,39 @@ from amrita_core.types import (
     MemoryModel,
     ModelPreset,
 )
+
+
+@pytest.mark.asyncio
+async def test_chatobject_suspend():
+    obj = ChatObject(
+        train={"role": "system", "content": "system message"},
+        user_input="hello from user",
+        context=MemoryModel(),
+        session_id="session-id",
+        config=AmritaConfig(),
+        preset=ModelPreset(
+            model="gpt-3.5-turbo",
+            name="session-default",
+            api_key="fake-key",
+        ),
+    )
+    suspend = False
+
+    async def suspend_func():
+        nonlocal suspend
+        while True:
+            if await obj._wait_for_continue():
+                break
+        suspend = True
+
+    hd: asyncio.Task[None] = asyncio.create_task(suspend_func())
+    try:
+        await obj.wait_to_suspend(2)
+        await obj.resume()
+        await asyncio.wait_for(hd, 0.2)
+        assert suspend, "Suspend not called"
+    finally:
+        hd.cancel()
 
 
 def test_chatobject_uses_session_memory_config_and_default_preset():

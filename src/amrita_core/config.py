@@ -37,6 +37,10 @@ class FunctionConfig(BaseModel):
         default=False,
         description="Whether to use minimal context, i.e. system prompt + user's last message (disabling this option will use all context from the message list, which may consume a large amount of Tokens during Agent workflow execution; enabling this option may effectively reduce token usage)",
     )
+    no_tokenizer: bool = Field(
+        default=False,
+        description="Disabile built-in tokenizer when response not returning a token count.",
+    )
 
     agent_tool_call_limit: int = Field(
         default=10, description="Tool call limit in calling tools."
