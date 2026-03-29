@@ -153,7 +153,7 @@ class AmritaAgentStrategy(AgentStrategy):
     @override
     async def on_exception(self, exc: BaseException) -> None:
         """No action to do, because we had already handled the exception in the agent strategy"""
-        raise NotImplementedError
+        return None
 
     async def single_execute(
         self,
