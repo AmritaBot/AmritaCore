@@ -7,7 +7,6 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Literal
 
 from amrita_core.agent.context import StrategyContext
-from amrita_core.logging import logger
 from amrita_core.protocol import MessageWithMetadata
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.tools.manager import ToolsManager
@@ -17,6 +16,12 @@ from amrita_core.types import Message, ToolCall
 if TYPE_CHECKING:
     from amrita_core.chatmanager import ChatObject
     from amrita_core.tools.manager import MultiToolsManager
+
+
+class NoExceptionHandler(Exception):
+    """Raised by strategies that intentionally do not handle exceptions."""
+
+    pass
 
 
 class AgentStrategy(ABC):
@@ -192,10 +197,7 @@ class AgentStrategy(ABC):
         )
 
     async def on_exception(self, exc: BaseException) -> None:
-        logger.warning("An exception occurred: %s", exc)
-        self.ctx.original_context.append(
-            Message(role="user", content=f"An exception occurred: {exc!s}")
-        )
+        raise NoExceptionHandler
 
     @classmethod
     @abstractmethod

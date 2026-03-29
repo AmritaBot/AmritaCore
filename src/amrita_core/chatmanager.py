@@ -20,7 +20,7 @@ from pytz import utc
 from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
-from amrita_core.agent.strategy import AgentStrategy
+from amrita_core.agent.strategy import AgentStrategy, NoExceptionHandler
 from amrita_core.builtins.agent import AmritaAgentStrategy
 from amrita_core.consts import ABSTRACT_INSTRUCTION, DEFAULT_TEMPLATE
 from amrita_core.hook.exception import FallbackFailed
@@ -894,7 +894,7 @@ class ChatObject:
         except Exception as e:
             if isinstance(e, self._raised_exc):
                 raise
-            with contextlib.suppress(NotImplementedError):
+            with contextlib.suppress(NoExceptionHandler):
                 await st.on_exception(e)
         self.context_wrap.extend(ctx.original_context.end_messages)
 
