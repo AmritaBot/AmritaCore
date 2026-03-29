@@ -18,6 +18,12 @@ if TYPE_CHECKING:
     from amrita_core.tools.manager import MultiToolsManager
 
 
+class NoExceptionHandler(Exception):
+    """Raised by strategies that intentionally do not handle exceptions."""
+
+    pass
+
+
 class AgentStrategy(ABC):
     """
     Abstract base class for agent strategies that define how an agent should execute its workflow.
@@ -191,9 +197,7 @@ class AgentStrategy(ABC):
         )
 
     async def on_exception(self, exc: BaseException) -> None:
-        self.ctx.original_context.append(
-            Message(role="user", content=f"An exception occurred: {exc}")
-        )
+        raise NoExceptionHandler
 
     @classmethod
     @abstractmethod

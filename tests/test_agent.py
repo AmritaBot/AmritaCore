@@ -14,7 +14,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from amrita_core.agent.context import StrategyContext
-from amrita_core.agent.strategy import AgentStrategy
+from amrita_core.agent.strategy import AgentStrategy, NoExceptionHandler
 from amrita_core.builtins.agent import AmritaAgentStrategy
 from amrita_core.builtins.consts import (
     AGENT_PROCESS_TOOLS,
@@ -206,17 +206,8 @@ async def test_agent_strategy_on_limited(mock_strategy_context):
 async def test_agent_strategy_on_exception(mock_strategy_context):
     """Test AgentStrategy.on_exception method."""
     strategy = ConcreteAgentStrategyForTesting(mock_strategy_context)
-    test_exception = ValueError("Test error")
-
-    # Call on_exception
-    await strategy.on_exception(test_exception)
-
-    # Verify message was appended to context
-    assert len(mock_strategy_context.original_context.end_messages) == 1
-    appended_message = mock_strategy_context.original_context.end_messages[0]
-    assert isinstance(appended_message, Message)
-    assert appended_message.role == "user"
-    assert "An exception occurred: Test error" in appended_message.content
+    with pytest.raises(NoExceptionHandler):
+        await strategy.on_exception(Exception())
 
 
 def test_strategy_context_with_complex_user_input(create_send_message_wrap):
