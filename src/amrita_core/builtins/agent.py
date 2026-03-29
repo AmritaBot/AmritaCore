@@ -1,12 +1,13 @@
 import json
 from typing import Any, Literal
 
+from typing_extensions import override
+
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
 from amrita_core.builtins.consts import BUILTIN_TOOLS_NAME
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.hook.event import CompletionEvent
-from amrita_core.hook.exception import MatcherException as ProcEXC
 from amrita_core.hook.on import on_completion
 from amrita_core.libchat import (
     tools_caller,
@@ -31,9 +32,6 @@ from .tools import (
 )
 
 posthook = on_completion(block=False, priority=10)
-
-
-class Continue(BaseException): ...
 
 
 @on_tools(
@@ -152,6 +150,11 @@ class AmritaAgentStrategy(AgentStrategy):
             else:
                 raise ValueError("Reasoning tool has no content!")
 
+    @override
+    async def on_exception(self, exc: BaseException) -> None:
+        """No action to do, because we had already handled the exception in the agent strategy"""
+        raise NotImplementedError
+
     async def single_execute(
         self,
     ) -> bool:
@@ -207,13 +210,12 @@ class AmritaAgentStrategy(AgentStrategy):
                         },
                     )
                 )
-                err: Exception | None = None
                 try:
                     match function_name:
                         case REASONING_TOOL.function.name:
                             logger.debug("Generating task summary and reason.")
                             await self._append_reasoning(response=response_msg)
-                            raise Continue()
+                            return True
                         case STOP_TOOL.function.name:
                             logger.info("Agent work has been terminated.")
                             func_response = (
@@ -240,13 +242,8 @@ class AmritaAgentStrategy(AgentStrategy):
                                     response_msg, from_attributes=True
                                 )
                             )
-                except Continue:
-                    continue
-                except Exception as e:
-                    err = e
-                    if isinstance(e, ProcEXC):
-                        raise
-                    logger.error(f"Function {function_name} execution failed: {e}")
+                except Exception as err:
+                    logger.error(f"Function {function_name} execution failed: {err}")
                     if (
                         config.builtin.tool_calling_mode == "agent"
                         and function_name not in BUILTIN_TOOLS_NAME
@@ -268,11 +265,11 @@ class AmritaAgentStrategy(AgentStrategy):
                         ToolResult(
                             role="tool",
                             name=function_name,
-                            content=f"ERR: Tool {function_name} execution failed\n{e!s}",
+                            content=f"ERR: Tool {function_name} execution failed\n{err!s}",
                             tool_call_id=tool_call.id,
                         )
                     )
-                    continue
+
                 else:
                     logger.debug(f"Function {function_name} returned: {func_response}")
 

@@ -7,6 +7,7 @@ from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Literal
 
 from amrita_core.agent.context import StrategyContext
+from amrita_core.logging import logger
 from amrita_core.protocol import MessageWithMetadata
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.tools.manager import ToolsManager
@@ -191,8 +192,9 @@ class AgentStrategy(ABC):
         )
 
     async def on_exception(self, exc: BaseException) -> None:
+        logger.warning("An exception occurred: %s", exc)
         self.ctx.original_context.append(
-            Message(role="user", content=f"An exception occurred: {exc}")
+            Message(role="user", content=f"An exception occurred: {exc!s}")
         )
 
     @classmethod

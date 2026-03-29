@@ -894,7 +894,8 @@ class ChatObject:
         except Exception as e:
             if isinstance(e, self._raised_exc):
                 raise
-            await st.on_exception(e)
+            with contextlib.suppress(NotImplementedError):
+                await st.on_exception(e)
         self.context_wrap.extend(ctx.original_context.end_messages)
 
     @suspend
