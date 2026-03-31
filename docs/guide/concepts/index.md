@@ -68,7 +68,7 @@ The `enable_memory_abstract` property enables automatic summarization of convers
 ```python
 llm_config = LLMConfig(
     enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # Summarize proportion when reaching the limit of tokens.
+    memory_abstract_proportion=0.15  # Summarize a portion of the conversation when reaching the token limit.
 )
 ```
 
@@ -216,7 +216,7 @@ The memory summarization mechanism automatically compresses conversation history
 # Configured via LLMConfig
 llm_config = LLMConfig(
     enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # Summarize proportion when reaching the limit of tokens.
+    memory_abstract_proportion=0.15  # Summarize a portion of the conversation when reaching the token limit.
 )
 ```
 

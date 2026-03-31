@@ -440,7 +440,7 @@ from amrita_core.config import LLMConfig
 # 启用记忆摘要
 llm_config = LLMConfig(
     enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # 在上下文长度达到限制时时进行摘要的消息占比
+    memory_abstract_proportion=0.15  # 在上下文长度达到限制时进行摘要的消息占比
 )
 ```
 

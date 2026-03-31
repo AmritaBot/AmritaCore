@@ -438,7 +438,7 @@ from amrita_core.config import LLMConfig
 # Enable memory summarization
 llm_config = LLMConfig(
     enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # Summarize proportion when reaching the limit of tokens.
+    memory_abstract_proportion=0.15  # Summarize a portion of the conversation when reaching the token limit.
 )
 ```
 
