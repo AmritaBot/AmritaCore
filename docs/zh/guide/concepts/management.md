@@ -60,7 +60,69 @@ preset = ModelPreset(
 )
 ```
 
-## 3.2.5 TextContent 文本内容
+## 3.2.5 PresetManager 预设管理（推荐实践）
+
+**推荐使用 [PresetManager](../api-reference/classes/PresetManager.md) 来管理您所有的预设。** PresetManager 提供集中管理、验证和自动 fallback 机制。
+
+### 为什么使用 PresetManager？
+
+1. **集中管理**: 所有预设存储在一个地方
+2. **自动 Fallback**: 如果未选择预设，自动使用默认预设
+3. **验证**: 防止重复名称并验证配置
+4. **测试**: 内置测试功能以验证预设功能
+5. **单例模式**: 确保整个应用程序中的状态一致
+
+### 基本用法
+
+```python
+from amrita_core.preset import PresetManager
+from amrita_core.types import ModelPreset, ModelConfig
+
+# 初始化管理器（单例）
+manager = PresetManager()
+
+# 添加预设
+manager.add_preset(ModelPreset(
+    model="gpt-3.5-turbo",
+    name="fast",
+    api_key="sk-xxx",
+    config=ModelConfig(stream=True)
+))
+
+manager.add_preset(ModelPreset(
+    model="gpt-4",
+    name="smart",
+    api_key="sk-xxx"
+))
+
+# 设置默认预设（可选但推荐）
+manager.set_default_preset("fast")
+
+# 获取预设 - 如果未指定将自动 fallback 到默认值
+preset = manager.get_preset("smart")  # 特定预设
+default = manager.get_default_preset()  # 默认预设（自动 fallback）
+```
+
+### 自动 Fallback 行为
+
+当您调用 `get_default_preset()` 但未设置默认值时：
+
+- 如果通过 `set_default_preset()` 设置了默认值，返回该预设
+- 如果**未设置默认值**，从可用预设中自动随机选择一个预设
+- 这确保您的应用程序永远不会因为缺少预设配置而失败
+
+```python
+manager = PresetManager()
+manager.add_preset(preset1)
+manager.add_preset(preset2)
+
+# 未设置默认值 - 将自动 fallback 到随机预设
+default = manager.get_default_preset()  # 返回 preset1 或 preset2
+```
+
+完整的 API 参考请见 [PresetManager](../api-reference/classes/PresetManager.md)。
+
+## 3.2.6 TextContent 文本内容
 
 [TextContent](../api-reference/classes/TextContent.md) 类表示消息中的文本内容：
 
@@ -71,7 +133,7 @@ from amrita_core.types import TextContent
 content = TextContent(text="这是实际的消息文本")
 ```
 
-## 3.2.6 UniResponse 统一响应
+## 3.2.7 UniResponse 统一响应
 
 [UniResponse](../api-reference/classes/UniResponse.md) 类为响应提供统一格式：
 
@@ -82,7 +144,7 @@ from amrita_core.types import UniResponse
 response = UniResponse(content="响应内容", usage=...)
 ```
 
-## 3.2.7 对话状态管理
+## 3.2.8 对话状态管理
 
 对话状态通过 MemoryModel 和 ChatObject 类管理：
 
@@ -108,6 +170,6 @@ await chat.begin()
 updated_context = chat.data
 ```
 
-## 3.2.8 会话隔离
+## 3.2.9 会话隔离
 
 此处请见[安全控制](../security-mechanisms.md)第6.3章。

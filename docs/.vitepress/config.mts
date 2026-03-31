@@ -176,6 +176,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ModelPreset",
               },
               {
+                text: "PresetManager",
+                link: "/guide/api-reference/classes/PresetManager",
+              },
+              {
                 text: "StrategyContext",
                 link: "/guide/api-reference/classes/StrategyContext",
               },
@@ -393,6 +397,10 @@ export default withMermaid({
               {
                 text: "ModelPreset",
                 link: "/zh/guide/api-reference/classes/ModelPreset",
+              },
+              {
+                text: "PresetManager",
+                link: "/zh/guide/api-reference/classes/PresetManager",
               },
               {
                 text: "StrategyContext",

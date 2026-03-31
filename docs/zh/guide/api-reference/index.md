@@ -39,7 +39,7 @@ asyncio.run(main())
 
 **使用注意事项**:
 
-- 必须在 `init()`) 和 `set_config()` 之后调用
+- 必须在 `init()` 和 `set_config()` 之后调用
 - 应该被等待，因为它是一个异步函数
 
 ### 7.1.3 set_config() - 设置配置

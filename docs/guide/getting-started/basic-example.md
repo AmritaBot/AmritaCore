@@ -140,7 +140,7 @@ The new API simplifies configuration:
 **Solution**: Verify that `base_url` and `api_key` are correct and that your network can reach the endpoint.
 
 **Issue**: High token usage in long conversations  
-**Solution**: The agent automatically applies memory abstraction (if enabled in your backend) to summarize old messages. You can also adjust the `max_tokens` parameter in `model_config` to limit response length.
+**Solution**: The agent automatically applies memory abstraction (if enabled in your backend) to summarize old messages. You can also adjust the `max_tokens` parameter in `LLM_Config` to limit response length.
 
 **Issue**: Slow responses  
 **Solution**: Check network latency. For faster responses, consider using a smaller model or reducing `temperature` (which may make output more deterministic and slightly faster). Streaming (`stream=True`) also lets you start displaying text earlier.

@@ -438,7 +438,7 @@ from amrita_core.config import LLMConfig
 # Enable memory summarization
 llm_config = LLMConfig(
     enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # Summarize at 15% of context length
+    memory_abstract_proportion=0.15  # Summarize proportion when reaching the limit of tokens.
 )
 ```
 
@@ -512,19 +512,7 @@ last_resp = get_last_response(chat_object)
 print(last_resp)
 ```
 
-### 4.6.4 get_tokens() Getting Token Usage
-
-Monitor token usage:
-
-```python
-from amrita_core.libchat import get_tokens
-
-# Get token count
-tokens_used = get_tokens()
-print(f"Tokens used: {tokens_used}")
-```
-
-### 4.6.5 Debugging Tips
+### 4.6.4 Debugging Tips
 
 - Enable debug logging during development
 - Monitor token usage to prevent exceeding limits
