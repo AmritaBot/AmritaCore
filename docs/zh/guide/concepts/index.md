@@ -219,7 +219,7 @@ await chat.begin()
 # 通过 LLMConfig 配置
 llm_config = LLMConfig(
     enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # 达到上下文的 15% 时进行摘要
+    memory_abstract_proportion=0.15  # 在上下文长度达到限制时进行摘要的消息占比
 )
 ```
 

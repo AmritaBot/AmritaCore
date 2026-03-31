@@ -440,7 +440,7 @@ from amrita_core.config import LLMConfig
 # 启用记忆摘要
 llm_config = LLMConfig(
     enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # 在上下文长度的 15% 时进行摘要
+    memory_abstract_proportion=0.15  # 在上下文长度达到限制时进行摘要的消息占比
 )
 ```
 
@@ -514,19 +514,7 @@ last_resp = get_last_response(chat_object)
 print(last_resp)
 ```
 
-### 4.6.4 get_tokens() 获取Token使用情况
-
-监控Token使用情况：
-
-```python
-from amrita_core.libchat import get_tokens
-
-# 获取Token计数
-tokens_used = get_tokens()
-print(f"使用的Token: {tokens_used}")
-```
-
-### 4.6.5 调试技巧
+### 4.6.4 调试技巧
 
 - 在开发期间启用调试日志
 - 监控Token使用情况以防止超出限制
