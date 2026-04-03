@@ -98,6 +98,10 @@ export default withMermaid({
                 text: "Jinja2 Templates",
                 link: "/guide/extensions-integration/jinja2-templates",
               },
+              {
+                text: "MCP Server Integration",
+                link: "/guide/extensions-integration/mcp-server-integration",
+              },
             ],
           },
           {
@@ -178,6 +182,18 @@ export default withMermaid({
               {
                 text: "PresetManager",
                 link: "/guide/api-reference/classes/PresetManager",
+              },
+              {
+                text: "MultiClientManager",
+                link: "/guide/api-reference/classes/MultiClientManager",
+              },
+              {
+                text: "MCPClient",
+                link: "/guide/api-reference/classes/MCPClient",
+              },
+              {
+                text: "ClientManager",
+                link: "/guide/api-reference/classes/ClientManager",
               },
               {
                 text: "StrategyContext",
@@ -401,6 +417,18 @@ export default withMermaid({
               {
                 text: "PresetManager",
                 link: "/zh/guide/api-reference/classes/PresetManager",
+              },
+              {
+                text: "MultiClientManager",
+                link: "/zh/guide/api-reference/classes/MultiClientManager",
+              },
+              {
+                text: "MCPClient",
+                link: "/zh/guide/api-reference/classes/MCPClient",
+              },
+              {
+                text: "ClientManager",
+                link: "/zh/guide/api-reference/classes/ClientManager",
               },
               {
                 text: "StrategyContext",

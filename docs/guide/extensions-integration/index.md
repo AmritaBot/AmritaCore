@@ -229,6 +229,8 @@ Real-world MCP use cases:
 3. **API Integration**: Connecting to third-party APIs
 4. **IoT Devices**: Interfacing with physical devices
 
+For detailed information about MCP server integration, architecture, and how to create your own MCP servers, see [MCP Server Integration](./mcp-server-integration.md).
+
 ## 5.3 Custom Extension Development
 
 ### 5.3.1 Creating Custom Tools
