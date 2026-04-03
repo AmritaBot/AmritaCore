@@ -96,7 +96,7 @@ export default withMermaid({
               },
               {
                 text: "Jinja2 Templates",
-                link: "/guide/concepts/jinja2-templates",
+                link: "/guide/extensions-integration/jinja2-templates",
               },
             ],
           },
@@ -322,7 +322,7 @@ export default withMermaid({
               },
               {
                 text: "Jinja2 模板",
-                link: "/zh/guide/concepts/jinja2-templates",
+                link: "/zh/guide/extensions-integration/jinja2-templates",
               },
             ],
           },
