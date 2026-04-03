@@ -69,7 +69,7 @@ _All other methods are inherited from [`MultiClientManager`](MultiClientManager.
 - `initialize_all()` - Connect to all registered servers
 - `update_tools(client)` - Update tools from a client
 - `unregister_client(script_name)` - Remove a server
-- `reinitalize_all()` - Refresh all connections
+- `reinitialize_all()` - Refresh all connections
 
 See [`MultiClientManager`](MultiClientManager.md) documentation for detailed method descriptions.
 
@@ -114,7 +114,7 @@ async def main():
     await manager.unregister_client("/path/to/old-server.mcp")
 
     # Reinitialize all (refresh connections)
-    await manager.reinitalize_all()
+    await manager.reinitialize_all()
 
 asyncio.run(main())
 ```

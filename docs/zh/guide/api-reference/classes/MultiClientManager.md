@@ -203,14 +203,14 @@ await manager.update_tools(existing_client)
 await manager.unregister_client("/path/to/remove.mcp")
 ```
 
-### `async reinitalize_all() -> None`
+### `async reinitialize_all() -> None`
 
 重新初始化所有已注册的客户端（用于在故障后刷新连接）。
 
 **示例：**
 
 ```python
-await manager.reinitalize_all()
+await manager.reinitialize_all()
 ```
 
 ### `_tools_wrapper(tool_name: str) -> Callable[[dict[str, Any]], Awaitable[str]]`
@@ -310,7 +310,7 @@ async def main():
     await manager.unregister_client("/path/to/old-server.mcp")
 
     # 刷新所有连接（例如在网络问题后）
-    await manager.reinitalize_all()
+    await manager.reinitialize_all()
 
     # 手动客户端管理
     custom_client = manager.get_client_by_script("/special/server.mcp")
@@ -327,7 +327,7 @@ MultiClientManager 包含强大的错误处理机制：
 - **服务器初始化失败**: 记录错误并继续其他服务器（除非 `fail_then_raise=True`）
 - **工具执行错误**: 由各个 MCPClient 实例处理，返回结构化错误 JSON
 - **重复工具名称**: 自动重映射并记录警告日志
-- **连接丢失**: 通过 `reinitalize_all()` 在下次工具调用时自动重试
+- **连接丢失**: 通过 `reinitialize_all()` 在下次工具调用时自动重试
 - **线程安全违规**: 通过异步锁机制防止
 
 ## 与 ClientManager 的关系

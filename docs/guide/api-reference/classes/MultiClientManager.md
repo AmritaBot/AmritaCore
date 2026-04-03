@@ -203,14 +203,14 @@ Unregisters an MCP server and removes all its tools from the tools manager.
 await manager.unregister_client("/path/to/remove.mcp")
 ```
 
-### `async reinitalize_all() -> None`
+### `async reinitialize_all() -> None`
 
 Reinitializes all registered clients (useful for refreshing connections after failures).
 
 **Example:**
 
 ```python
-await manager.reinitalize_all()
+await manager.reinitialize_all()
 ```
 
 ### `_tools_wrapper(tool_name: str) -> Callable[[dict[str, Any]], Awaitable[str]]`
@@ -310,7 +310,7 @@ async def main():
     await manager.unregister_client("/path/to/old-server.mcp")
 
     # Refresh all connections (e.g., after network issues)
-    await manager.reinitalize_all()
+    await manager.reinitialize_all()
 
     # Manual client management
     custom_client = manager.get_client_by_script("/special/server.mcp")
@@ -327,7 +327,7 @@ MultiClientManager includes robust error handling:
 - **Server initialization failure**: Logs error and continues with other servers (unless `fail_then_raise=True`)
 - **Tool execution errors**: Handled by individual MCPClient instances, returns structured error JSON
 - **Duplicate tool names**: Automatically remapped with warning logs
-- **Connection loss**: Automatic retry on next tool call via `reinitalize_all()`
+- **Connection loss**: Automatic retry on next tool call via `reinitialize_all()`
 - **Thread safety violations**: Prevented by async lock mechanism
 
 ## Relationship with ClientManager

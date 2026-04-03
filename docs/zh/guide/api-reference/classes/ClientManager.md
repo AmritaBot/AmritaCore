@@ -69,7 +69,7 @@ _所有其他方法都继承自 [`MultiClientManager`](MultiClientManager.md)：
 - `initialize_all()` - 连接到所有已注册的服务器
 - `update_tools(client)` - 更新客户端的工具
 - `unregister_client(script_name)` - 移除服务器
-- `reinitalize_all()` - 刷新所有连接
+- `reinitialize_all()` - 刷新所有连接
 
 详细方法说明请参阅 [`MultiClientManager`](MultiClientManager.md) 文档。
 
@@ -114,7 +114,7 @@ async def main():
     await manager.unregister_client("/path/to/old-server.mcp")
 
     # 重新初始化所有（刷新连接）
-    await manager.reinitalize_all()
+    await manager.reinitialize_all()
 
 asyncio.run(main())
 ```
