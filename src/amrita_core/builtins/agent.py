@@ -203,7 +203,7 @@ class ReActAgentStrategy(AgentStrategy):
                                 "<BEGIN_OF_INSTRUCTIONS>\n"
                                 + "You have indicated readiness to provide the final answer. "
                                 + "Please now generate the final, comprehensive response for the user."
-                                + "You must NOT to call any tools again."
+                                + "You must NOT call any tools again."
                                 + "\n<END_OF_INSTRUCTIONS>"
                             )
                             if "result" in function_args:
