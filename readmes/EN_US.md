@@ -194,4 +194,4 @@ if __name__ == "__main__":
 
 ## Documentation
 
-Please view [official documentation](https://amrita-core.suggar.top) for comprehensive guides, API references, and examples.
+Please view [official documentation](https://core.amritabot.com) for comprehensive guides, API references, and examples.

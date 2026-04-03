@@ -5,12 +5,16 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 export default withMermaid({
   lastUpdated: true,
   ignoreDeadLinks: true,
+  sitemap: {
+    hostname: "https://core.amritabot.com",
+  },
   locales: {
     root: {
       label: "English",
       lang: "en-US",
-      title: "Amrita",
-      description: "Amrita Core",
+      title: "AmritaCore - Next-Gen AI Agent Framework",
+      description:
+        "AmritaCore is a lightweight, high-performance Python framework for building AI agents with streaming output, tool integration, MCP support, and event-driven architecture. Perfect for LLM-based applications.",
       head: [
         // Icon
         [
@@ -18,6 +22,45 @@ export default withMermaid({
           {
             rel: "icon",
             href: "/Amrita.png",
+          },
+        ],
+        // SEO Meta Tags
+        [
+          "meta",
+          {
+            name: "keywords",
+            content:
+              "AI agent, Python framework, LLM, language model, streaming, MCP, tool calling, async, DeepSeek, OpenAI, Claude, artificial intelligence",
+          },
+        ],
+        ["meta", { name: "author", content: "Project.Amrita" }],
+        [
+          "meta",
+          {
+            property: "og:title",
+            content: "AmritaCore - Next-Generation AI Agent Framework",
+          },
+        ],
+        [
+          "meta",
+          {
+            property: "og:description",
+            content:
+              "Build powerful AI agents with streaming output, tool integration, and event-driven architecture using Python",
+          },
+        ],
+        ["meta", { property: "og:type", content: "website" }],
+        ["meta", { name: "twitter:card", content: "summary" }],
+        [
+          "meta",
+          { name: "twitter:title", content: "AmritaCore - AI Agent Framework" },
+        ],
+        [
+          "meta",
+          {
+            name: "twitter:description",
+            content:
+              "Lightweight Python framework for building AI agents with streaming, tools, and MCP support",
           },
         ],
       ],
@@ -252,14 +295,54 @@ export default withMermaid({
     zh: {
       label: "简体中文",
       lang: "zh-CN",
-      title: "Amrita",
-      description: "Amrita 核心",
+      title: "AmritaCore - 下一代 AI 智能体框架",
+      description:
+        "AmritaCore 是一个轻量级、高性能的 Python 框架，用于构建具有流式输出、工具集成、MCP 支持和事件驱动架构的 AI 智能体。适用于基于 LLM 的应用开发。",
       head: [
         [
           "link",
           {
             rel: "icon",
             href: "/Amrita.png",
+          },
+        ],
+        // SEO Meta Tags
+        [
+          "meta",
+          {
+            name: "keywords",
+            content:
+              "AI 智能体，Python 框架，大语言模型，LLM,流式输出，MCP，工具调用，异步，DeepSeek，OpenAI，Claude，人工智能",
+          },
+        ],
+        ["meta", { name: "author", content: "Project.Amrita" }],
+        [
+          "meta",
+          {
+            property: "og:title",
+            content: "AmritaCore - 下一代 AI 智能体框架",
+          },
+        ],
+        [
+          "meta",
+          {
+            property: "og:description",
+            content:
+              "使用 Python 构建强大的 AI 智能体，支持流式输出、工具集成和事件驱动架构",
+          },
+        ],
+        ["meta", { property: "og:type", content: "website" }],
+        ["meta", { name: "twitter:card", content: "summary" }],
+        [
+          "meta",
+          { name: "twitter:title", content: "AmritaCore - AI 智能体框架" },
+        ],
+        [
+          "meta",
+          {
+            name: "twitter:description",
+            content:
+              "轻量级 Python 框架，支持流式输出、工具调用和 MCP 协议的 AI 智能体开发",
           },
         ],
       ],

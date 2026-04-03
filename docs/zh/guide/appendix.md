@@ -54,7 +54,7 @@ AI 系统保留和访问先前交互信息的机制。AmritaCore 的记忆系统
 
 ### 9.2.2 官方网站
 
-- **网站**：[https://amrita-core.suggar.top](https://amrita-core.suggar.top)（即此页面）
+- **网站**：[https://core.amritabot.com](https://core.amritabot.com)（即此页面）
 - **文档**：全面的指南和教程
 - **社区论坛**：与其他用户和开发人员联系
 
@@ -97,11 +97,11 @@ AI 系统保留和访问先前交互信息的机制。AmritaCore 的记忆系统
 5. 指定您的环境（操作系统、Python 版本、AmritaCore 版本）
 6. 包括任何相关的错误消息
 
-### 9.3.3 许可证信息 (MIT-3.0)
+### 9.3.3 许可证信息 (MIT)
 
 AmritaCore 根据 MIT 许可证发布。
 
-**许可**
+#### 许可
 
 允许任何使用本软件的人，包括商业用途，在 MIT 许可下使用。
 
