@@ -75,9 +75,9 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 
 AmritaCore includes a comprehensive intelligent agent system capable of autonomously using tools to complete tasks.
 
-### 9.3.1 AmritaAgentStrategy
+### 9.3.1 ReActAgentStrategy
 
-The `AmritaAgentStrategy` is the built-in agent strategy that implements the `"agent-mixed"` category, supporting both retrieval-augmented generation (RAG) and iterative tool calling within the same execution framework.
+The `ReActAgentStrategy` is the built-in agent strategy that implements the `"agent-mixed"` category, supporting both retrieval-augmented generation (RAG) and iterative tool calling within the same execution framework.
 
 **Key Features**:
 

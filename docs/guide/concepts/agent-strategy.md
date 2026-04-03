@@ -76,12 +76,12 @@ class MyCustomAgentStrategy(AgentStrategy):
 
 ### Using Built-in Strategies
 
-AmritaCore provides the `AmritaAgentStrategy` as a built-in implementation that supports the `"agent-mixed"` category:
+AmritaCore provides the `ReActAgentStrategy` as a built-in implementation that supports the `"agent-mixed"` category:
 
 ```python
 import asyncio
 from amrita_core import create_agent, minimal_init
-from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.builtins.agent import ReActAgentStrategy
 
 async def use_builtin_strategy():
     # Initialize AmritaCore
@@ -91,7 +91,7 @@ async def use_builtin_strategy():
     agent = create_agent(
         url="https://api.example.com",
         key="your-api-key",
-        strategy=AmritaAgentStrategy
+        strategy=ReActAgentStrategy
     )
 
     # Use the agent
@@ -119,7 +119,7 @@ The `StrategyContext` provides all necessary information for strategy execution:
 1. **Choose the Right Category**: Select the strategy category that best matches your use case
 2. **Leverage Framework Features**: Use built-in features like tool calling limits, error handling, and response streaming
 3. **Handle Errors Gracefully**: Implement proper error handling in your strategy methods
-4. **Use Built-in Strategies When Possible**: Start with `AmritaAgentStrategy` before creating custom implementations
+4. **Use Built-in Strategies When Possible**: Start with `ReActAgentStrategy` before creating custom implementations
 5. **Test Thoroughly**: Ensure your strategy handles edge cases and error conditions properly
 
 ## Example: Custom RAG Strategy

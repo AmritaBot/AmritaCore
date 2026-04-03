@@ -1,6 +1,6 @@
-# AmritaAgentStrategy
+# ReActAgentStrategy
 
-AmritaAgentStrategy 是用于在 RAG 和 Agent 模式下执行 agent 的策略。
+ReActAgentStrategy 是用于在 RAG 和 Agent 模式下执行 agent 的策略。
 
 该策略实现了 'agent-mixed' 类别，允许在同一执行框架内动态处理检索增强生成场景和标准迭代工具调用 agent。
 
@@ -56,7 +56,7 @@ AmritaAgentStrategy 是用于在 RAG 和 Agent 模式下执行 agent 的策略�
 
 ```python
 from amrita_core.agent.context import StrategyContext
-from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.builtins.agent import ReActAgentStrategy
 
 # 创建策略上下文
 ctx = StrategyContext(
@@ -66,6 +66,6 @@ ctx = StrategyContext(
 )
 
 # 创建并使用策略
-strategy = AmritaAgentStrategy(ctx)
+strategy = ReActAgentStrategy(ctx)
 should_continue = await strategy.single_execute()
 ```

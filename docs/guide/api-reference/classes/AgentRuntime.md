@@ -19,7 +19,7 @@ This class encapsulates the complexity of ChatObject and provides a simplified A
 
 - `config` ([AmritaConfig](AmritaConfig.md)): Amrita configuration object containing global configuration settings
 - `preset` ([ModelPreset](ModelPreset.md)): Model preset configuration defining basic model parameters and settings
-- `strategy` (type[AgentStrategy], optional): Agent strategy class, defaults to AmritaAgentStrategy
+- `strategy` (type[AgentStrategy], optional): Agent strategy class, defaults to ReActAgentStrategy
 - `template` (Template | str, optional): Train template to render system role message, defaults to DEFAULT_TEMPLATE
 - `session` (SessionData | str | None, optional): Session data or session ID string for restoring existing sessions. If None, a new session will be created
 - `train` (dict[str, str] | Message[str] | None, optional): Training data (system prompts), can be in dictionary format or as a Message object

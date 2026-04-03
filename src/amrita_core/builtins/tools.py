@@ -1,7 +1,12 @@
+from amrita_core.config import get_config
+from amrita_core.logging import logger
+from amrita_core.protocol import MessageWithMetadata
+from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
     FunctionPropertySchema,
+    ToolContext,
     ToolFunctionSchema,
 )
 
@@ -62,3 +67,19 @@ REASONING_TOOL = ToolFunctionSchema(
     ),
     strict=True,
 )
+
+
+@on_tools(
+    data=PROCESS_MESSAGE_TOOL,
+    custom_run=True,
+    enable_if=lambda: get_config().function_config.agent_middle_message,
+)
+async def _(ctx: ToolContext) -> str | None:
+    msg: str = ctx.data["content"]
+    logger.debug(f"[LLM-ProcessMessage] {msg}")
+    await ctx.ctx.chat_object.yield_response(
+        MessageWithMetadata(
+            content=msg, metadata={"type": "middle_message", "content": msg}
+        )
+    )
+    return f"Sent a message to user:\n\n```text\n{msg}\n```\n"

@@ -76,12 +76,12 @@ class MyCustomAgentStrategy(AgentStrategy):
 
 ### 使用内置策略
 
-AmritaCore 提供了 `AmritaAgentStrategy` 作为内置实现，支持 `"agent-mixed"` 类别：
+AmritaCore 提供了 `ReActAgentStrategy` 作为内置实现，支持 `"agent-mixed"` 类别：
 
 ```python
 import asyncio
 from amrita_core import create_agent, minimal_init
-from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.builtins.agent import ReActAgentStrategy
 
 async def use_builtin_strategy():
     # 初始化 AmritaCore
@@ -91,7 +91,7 @@ async def use_builtin_strategy():
     agent = create_agent(
         url="https://api.example.com",
         key="your-api-key",
-        strategy=AmritaAgentStrategy
+        strategy=ReActAgentStrategy
     )
 
     # 使用 agent
@@ -119,7 +119,7 @@ if __name__ == "__main__":
 1. **选择正确的类别**: 选择最适合您用例的策略类别
 2. **利用框架功能**: 使用内置功能如工具调用限制、错误处理和响应流
 3. **优雅地处理错误**: 在策略方法中实现适当的错误处理
-4. **尽可能使用内置策略**: 在创建自定义实现之前，先从 `AmritaAgentStrategy` 开始
+4. **尽可能使用内置策略**: 在创建自定义实现之前，先从 `ReActAgentStrategy` 开始
 5. **彻底测试**: 确保您的策略能正确处理边缘情况和错误条件
 
 ## 示例：自定义 RAG 策略

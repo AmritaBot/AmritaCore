@@ -56,7 +56,7 @@ AmritaCore implements a flexible Agent Strategy architecture with four execution
 
 - Dynamic mode switching based on context requirements
 - Combines RAG and iterative tool calling capabilities
-- Implemented by the built-in `AmritaAgentStrategy`
+- Implemented by the built-in `ReActAgentStrategy`
 
 ### Configuration System
 

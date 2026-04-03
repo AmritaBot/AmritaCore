@@ -7,6 +7,7 @@ AmritaCore provides an explicit, lightweight suspend mechanism that allows exter
 - Interactive debugging with state inspection between processing steps
 - Custom flow control in complex multi-agent systems
 - Coordination with external systems that require synchronization points
+- **Tagged breakpoint control**: Use tags to mark specific breakpoints for precise flow control
 
 ## How It Works
 
@@ -17,6 +18,89 @@ Basic workflow:
 1. Call `await chat.wait_to_suspend(timeout)` **outside** the main `ChatObject` execution context from a separate async task
 2. `ChatObject` will automatically pause when reaching the next `@suspend` decorated method
 3. Resume execution by calling `chat.resume()`
+
+## Using Tags for Breakpoint Control
+
+AmritaCore supports adding unique identifiers to suspend points using the `tag` parameter, enabling precise breakpoint control:
+
+### Basic Usage
+
+```python
+from amrita_core import ChatObject
+from amrita_core.types import MemoryModel, Message
+
+context = MemoryModel()
+train = Message(content="You are a helpful assistant.", role="system")
+
+chat = ChatObject(
+    context=context,
+    session_id="session_123",
+    user_input="Hello!",
+    train=train.model_dump()
+)
+
+# External controller listens for a specific tagged breakpoint
+async def external_controller(chat_obj):
+    # Wait for the "single_tool_call" breakpoint
+    await chat_obj.wait_to_suspend(timeout=5.0, tag="single_tool_call")
+    print("Suspended before tool call!")
+    
+    # Can inspect or modify state here
+    # ...
+    
+    chat_obj.resume()
+
+# Start controller task
+controller_task = asyncio.create_task(external_controller(chat))
+```
+
+### Using Tags in Custom Functions
+
+Use the `@ChatObject.suspend_with_tag` decorator to add tagged suspend points to your custom functions:
+
+```python
+from amrita_core import ChatObject
+
+class MyAgent:
+    @ChatObject.suspend_with_tag("before_api_call")
+    async def call_external_api(self, chat_obj: ChatObject, url: str):
+        """Suspends before calling external API (if external listener is waiting for this tag)"""
+        # If external code called wait_to_suspend(tag="before_api_call")
+        # Code will pause here until resume() is called
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                return await response.json()
+    
+    @ChatObject.suspend_with_tag("after_response")
+    async def post_process_response(self, chat_obj: ChatObject, response: str):
+        """Suspends after processing response"""
+        # Post-processing logic
+        print(f"Processing response: {response}")
+```
+
+### Tag Matching Rules
+
+1. **Exact Match**: `wait_to_suspend(tag="xxx")` only matches functions decorated with `@ChatObject.suspend_with_tag("xxx")`
+2. **Untagged Suspend**: `wait_to_suspend()` or `wait_to_suspend(tag=None)` matches all functions decorated with `@suspend`
+3. **Priority**: Tagged suspend takes precedence over untagged suspend
+
+```python
+# Example: Multi-breakpoint control flow
+async def multi_breakpoint_controller(chat_obj):
+    # Wait for first breakpoint
+    await chat_obj.wait_to_suspend(tag="step1")
+    print("Step 1 completed")
+    
+    # Continue waiting for second breakpoint
+    await chat_obj.wait_to_suspend(tag="step2")
+    print("Step 2 completed")
+    
+    # Finally wait for any breakpoint
+    await chat_obj.wait_to_suspend()  # Matches any suspend-decorated method
+    print("Any step completed")
+    
+    chat_obj.resume()
+```
 
 ## Manual Usage of `_wait_for_continue()`
 
@@ -75,6 +159,7 @@ asyncio.run(main())
 - You can insert custom suspend points anywhere in your business logic
 - It returns immediately without blocking if no suspend is pending
 - Implemented with async signal scheduling, isolated from main business flow
+- **Tag parameter passing**: Can pass tag parameter when manually calling: `await chat_obj._wait_for_continue(tag="custom_tag")`
 
 ## Standard Usage Example
 
@@ -115,6 +200,7 @@ asyncio.run(main())
 
 - Control interfaces must be called from a separate concurrent task outside the main `ChatObject` async context
 - The timeout parameter in `wait_to_suspend` prevents infinite blocking
+- **Tag parameter helps precise positioning**: Use tags in complex flows to accurately control specific breakpoints
 - This is a low-level capability intended for framework extension, advanced debugging, and custom workflow orchestration
 
 ## When Not to Use This Feature
