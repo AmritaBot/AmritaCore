@@ -19,7 +19,7 @@ AgentRuntime 类是 ChatObject 的高级包装器，提供可重用的 agent 操
 
 - `config` ([AmritaConfig](AmritaConfig.md)): 包含全局配置设置的 Amrita 配置对象
 - `preset` ([ModelPreset](ModelPreset.md)): 定义基本模型参数和设置的模型预设配置
-- `strategy` (type[AgentStrategy], 可选): agent 策略类，默认为 AmritaAgentStrategy
+- `strategy` (type[AgentStrategy], 可选): agent 策略类，默认为 ReActAgentStrategy
 - `template` (Template | str, 可选): 用于渲染系统角色消息的训练模板，默认为 DEFAULT_TEMPLATE
 - `session` (SessionData | str | None, 可选): 用于恢复现有会话的会话数据或会话 ID 字符串。如果为 None，则会创建新会话
 - `train` (dict[str, str] | Message[str] | None, 可选): 训练数据（系统提示），可以是字典格式或 Message 对象

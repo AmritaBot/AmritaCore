@@ -75,9 +75,9 @@ AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapt
 
 AmritaCore 包含一个全面的智能体系统，能够自主使用工具完成任务。
 
-### 9.3.1 AmritaAgentStrategy
+### 9.3.1 ReActAgentStrategy
 
-`AmritaAgentStrategy` 是内置的Agent策略，实现了 `"agent-mixed"` 类别，支持在同一执行框架内同时处理检索增强生成（RAG）和迭代工具调用。
+`ReActAgentStrategy` 是内置的Agent策略，实现了 `"agent-mixed"` 类别，支持在同一执行框架内同时处理检索增强生成（RAG）和迭代工具调用。
 
 **关键特性**：
 

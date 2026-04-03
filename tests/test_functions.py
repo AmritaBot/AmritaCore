@@ -131,13 +131,13 @@ def test_agent_runtime_no_session_property(mock_config, mock_preset):
 
 def test_agent_runtime_set_strategy(mock_config, mock_preset):
     """Test AgentRuntime set_strategy method."""
-    from amrita_core.builtins.agent import AmritaAgentStrategy
+    from amrita_core.builtins.agent import ReActAgentStrategy
 
     runtime = AgentRuntime(
         config=mock_config, train=TEST_TRAIN, preset=mock_preset, no_session=True
     )
 
-    MockStrategy = type("MockStrategy", (AmritaAgentStrategy,), {})
+    MockStrategy = type("MockStrategy", (ReActAgentStrategy,), {})
 
     runtime.set_strategy(MockStrategy)
     assert runtime.strategy == MockStrategy

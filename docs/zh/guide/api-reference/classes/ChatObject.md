@@ -40,7 +40,7 @@ ChatObject 类是与 AI 进行对话的主要接口。
 - `auto_create_session` (bool): 如果会话不存在，是否自动创建（默认：False）
 - `train_template` (Template): 用于格式化系统消息的 Jinja2 模板（默认：DEFAULT_TEMPLATE）
 - `jinja2_vars` (dict[str, Any] | None): 传递给模板系统的变量，用于自定义模板变量（默认：None）。**重要**：此字典中的键必须 NOT 与内置变量名（`train`、`memory`、`chatobj`、`config`）匹配，否则会导致 TypeError，因为重复的关键字参数在 Python 中是不允许的。
-- `agent_strategy` (type[AgentStrategy]): 用于执行的 Agent 策略（默认：AmritaAgentStrategy）
+- `agent_strategy` (type[AgentStrategy]): 用于执行的 Agent 策略（默认：ReActAgentStrategy）
 - `hook_args` (tuple[Any, ...]): 触发事件时传递给事件处理器的位置参数（默认：空元组）
 - `hook_kwargs` (dict[str, Any] | None): 触发事件时传递给事件处理器的关键字参数（默认：None）
 - `exception_ignored` (tuple[type[BaseException], ...]): 在事件处理器中应该被忽略并重新抛出的异常类型（默认：空元组）

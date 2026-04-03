@@ -1,6 +1,6 @@
-# AmritaAgentStrategy
+# ReActAgentStrategy
 
-The AmritaAgentStrategy is a strategy for executing an agent in RAG and Agent mode.
+The ReActAgentStrategy is a strategy for executing an agent in RAG and Agent mode.
 
 This strategy implements the 'agent-mixed' category, allowing it to dynamically handle both retrieval-augmented generation scenarios and standard iterative tool calling agents within the same execution framework.
 
@@ -56,7 +56,7 @@ The 'agent-mixed' category allows the strategy to dynamically handle both retrie
 
 ```python
 from amrita_core.agent.context import StrategyContext
-from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.builtins.agent import ReActAgentStrategy
 
 # Create strategy context
 ctx = StrategyContext(
@@ -66,6 +66,6 @@ ctx = StrategyContext(
 )
 
 # Create and use the strategy
-strategy = AmritaAgentStrategy(ctx)
+strategy = ReActAgentStrategy(ctx)
 should_continue = await strategy.single_execute()
 ```

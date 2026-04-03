@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from jinja2 import Template
 
-from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import get_config
 from amrita_core.consts import DEFAULT_INSTRUCTIONS, DEFAULT_TEMPLATE
@@ -43,7 +43,7 @@ class AgentRuntime:
         config: AmritaConfig,
         preset: ModelPreset,
         train: dict[str, str] | Message[str],
-        strategy: type[AgentStrategy] = AmritaAgentStrategy,
+        strategy: type[AgentStrategy] = ReActAgentStrategy,
         template: Template | str = DEFAULT_TEMPLATE,
         session: SessionData | str | None = None,
         no_session: bool = False,
@@ -55,7 +55,7 @@ class AgentRuntime:
             config (AmritaConfig): Amrita configuration object containing global configuration settings.
             preset (ModelPreset): Model preset configuration defining basic model parameters and settings.
             train (Message[str] | dict[str,str]): System prompt for agent.
-            strategy (type[AgentStrategy], optional): Agent strategy class, defaults to AmritaAgentStrategy.
+            strategy (type[AgentStrategy], optional): Agent strategy class, defaults to ReActAgentStrategy.
             template (Template | str, optional): Train template to render system role message.
             session (SessionData | str | None, optional): Session data or session ID string for restoring
                 existing sessions. If None, a new session will be created.
@@ -120,7 +120,7 @@ class AgentRuntime:
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
             jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
             train_template (Template, optional): Jinja2 template used to format system message.
-            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
+            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to ReActAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().\n            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.

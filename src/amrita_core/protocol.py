@@ -80,6 +80,12 @@ class MessageWithMetadata(MessageContent):
     """Message with additional metadata"""
 
     def __init__(self, content: str, metadata: dict[str, Any]):
+        """Constructor of MessageWith Metadata
+
+        Args:
+            content (str): Message content
+            metadata (dict[str, Any]): Metadata, normally has "type", "extra_type"(optional), "content" fields, but can be customized
+        """
         super().__init__("metadata")
         self.content = content
         self.metadata = metadata

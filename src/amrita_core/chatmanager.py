@@ -21,7 +21,7 @@ from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy, NoExceptionHandler
-from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.consts import ABSTRACT_INSTRUCTION, DEFAULT_TEMPLATE
 from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
@@ -436,7 +436,7 @@ class ChatObject:
         *,
         train_template: Template = DEFAULT_TEMPLATE,
         jinja2_vars: dict[str, Any] | None = None,
-        agent_strategy: type[AgentStrategy] = AmritaAgentStrategy,
+        agent_strategy: type[AgentStrategy] = ReActAgentStrategy,
         hook_args: tuple[Any, ...] = (),
         hook_kwargs: dict[str, Any] | None = None,
         exception_ignored: tuple[type[BaseException], ...] = (),
@@ -458,7 +458,7 @@ class ChatObject:
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
             jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
             train_template (Template, optional): Jinja2 template used to format system message.
-            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to AmritaAgentStrategy.
+            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to ReActAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
@@ -900,8 +900,8 @@ class ChatObject:
 
     @suspend
     async def _run_agent(self, ctx: StrategyContext) -> None:
-        strategy = self.strategy(ctx)
-        backup = self.context_wrap.copy()
+        strategy: AgentStrategy = self.strategy(ctx)
+        backup: SendMessageWrap = self.context_wrap.copy()
         try:
             for _ in range(1, self.config.function_config.agent_tool_call_limit + 1):
                 await self._wait_for_continue()

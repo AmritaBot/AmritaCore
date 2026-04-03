@@ -80,6 +80,10 @@ class BuiltinAgentConfig(BaseModel):
         default=False,
         description="Whether to hide the thought process in built-in agent strategy",
     )
+    loop_reasoning_trigger: int = Field(
+        default=5,
+        description="How many times to repeat reasoning before giving up",
+    )
 
 
 class LLMConfig(BaseModel):

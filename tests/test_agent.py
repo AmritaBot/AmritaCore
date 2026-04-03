@@ -3,7 +3,7 @@ Unit tests for AmritaCore Agent Strategy system.
 
 This module tests the new Agent Strategy architecture including:
 - AgentStrategy abstract base class
-- AmritaAgentStrategy implementation
+- ReActAgentStrategy implementation
 - StrategyContext data class
 - Built-in constants and tools
 """
@@ -15,7 +15,7 @@ import pytest
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy, NoExceptionHandler
-from amrita_core.builtins.agent import AmritaAgentStrategy
+from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.builtins.consts import (
     AGENT_PROCESS_TOOLS,
     BUILTIN_TOOLS_NAME,
@@ -162,10 +162,10 @@ def test_agent_strategy_initialization(mock_strategy_context):
 
 
 def test_amrita_agent_strategy_initialization(mock_strategy_context):
-    """Test AmritaAgentStrategy initialization."""
-    strategy = AmritaAgentStrategy(mock_strategy_context)
+    """Test ReActAgentStrategy initialization."""
+    strategy = ReActAgentStrategy(mock_strategy_context)
 
-    # Test attributes specific to AmritaAgentStrategy
+    # Test attributes specific to ReActAgentStrategy
     assert strategy.agent_last_step is None
     assert strategy.call_count == 1
     assert isinstance(strategy.tools, list)
@@ -173,8 +173,8 @@ def test_amrita_agent_strategy_initialization(mock_strategy_context):
 
 
 def test_amrita_agent_strategy_category():
-    """Test that AmritaAgentStrategy returns correct category."""
-    assert AmritaAgentStrategy.get_category() == "agent-mixed"
+    """Test that ReActAgentStrategy returns correct category."""
+    assert ReActAgentStrategy.get_category() == "agent-mixed"
 
 
 @pytest.mark.asyncio
@@ -233,7 +233,7 @@ def test_strategy_context_with_complex_user_input(create_send_message_wrap):
     )
 
     # Test that origin_msg is correctly extracted
-    strategy = AmritaAgentStrategy(ctx)
+    strategy = ReActAgentStrategy(ctx)
     assert strategy.origin_msg == "Complex user input"
 
 
@@ -241,12 +241,12 @@ def test_strategy_context_with_complex_user_input(create_send_message_wrap):
 async def test_amrita_agent_strategy_single_execute_no_tools(
     mock_strategy_context, mock_config
 ):
-    """Test AmritaAgentStrategy single_execute with no tools available."""
+    """Test ReActAgentStrategy single_execute with no tools available."""
     # Configure to have no tools
     mock_config.builtin.tool_calling_mode = "none"
     mock_strategy_context.chat_object.config = mock_config
 
-    strategy = AmritaAgentStrategy(mock_strategy_context)
+    strategy = ReActAgentStrategy(mock_strategy_context)
     strategy.tools = []  # No tools available
 
     result = await strategy.single_execute()
@@ -257,7 +257,7 @@ async def test_amrita_agent_strategy_single_execute_no_tools(
 async def test_amrita_agent_strategy_single_execute_with_tool_calls(
     mock_strategy_context, mock_config
 ):
-    """Test AmritaAgentStrategy single_execute with successful tool calls."""
+    """Test ReActAgentStrategy single_execute with successful tool calls."""
     from amrita_core.types import ToolCall, UniResponse
 
     # Configure for agent mode
@@ -279,7 +279,7 @@ async def test_amrita_agent_strategy_single_execute_with_tool_calls(
     )
 
     with patch("amrita_core.builtins.agent.tools_caller", return_value=mock_response):
-        strategy = AmritaAgentStrategy(mock_strategy_context)
+        strategy = ReActAgentStrategy(mock_strategy_context)
         fun = strategy.tools_manager.get_tool
         try:
             # Add a mock tool
@@ -302,7 +302,7 @@ async def test_amrita_agent_strategy_single_execute_with_tool_calls(
 async def test_amrita_agent_strategy_single_execute_stop_tool(
     mock_strategy_context, mock_config
 ):
-    """Test AmritaAgentStrategy single_execute with STOP tool."""
+    """Test ReActAgentStrategy single_execute with STOP tool."""
     from amrita_core.types import ToolCall, UniResponse
 
     # Configure for agent mode
@@ -323,7 +323,7 @@ async def test_amrita_agent_strategy_single_execute_stop_tool(
     )
 
     with patch("amrita_core.builtins.agent.tools_caller", return_value=mock_response):
-        strategy = AmritaAgentStrategy(mock_strategy_context)
+        strategy = ReActAgentStrategy(mock_strategy_context)
         strategy.tools = [STOP_TOOL.model_dump()]
 
         result = await strategy.single_execute()
@@ -334,7 +334,7 @@ async def test_amrita_agent_strategy_single_execute_stop_tool(
 async def test_amrita_agent_strategy_single_execute_tool_error(
     mock_strategy_context, mock_config
 ):
-    """Test AmritaAgentStrategy single_execute with tool execution error."""
+    """Test ReActAgentStrategy single_execute with tool execution error."""
     from amrita_core.types import ToolCall, UniResponse
 
     # Configure for agent mode with error notification
@@ -389,7 +389,7 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
         with patch(
             "amrita_core.builtins.agent.tools_caller", return_value=mock_response
         ):
-            strategy = AmritaAgentStrategy(mock_strategy_context)
+            strategy = ReActAgentStrategy(mock_strategy_context)
             strategy.tools = [{"name": "failing_tool", "description": "Failing tool"}]
 
             result = await strategy.single_execute()

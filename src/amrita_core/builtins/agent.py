@@ -6,18 +6,14 @@ from typing_extensions import override
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
 from amrita_core.builtins.consts import BUILTIN_TOOLS_NAME
-from amrita_core.config import AmritaConfig, get_config
-from amrita_core.hook.event import CompletionEvent
-from amrita_core.hook.on import on_completion
 from amrita_core.libchat import (
     tools_caller,
 )
 from amrita_core.logging import debug_log, logger
 from amrita_core.protocol import MessageWithMetadata
-from amrita_core.tools.manager import on_tools
-from amrita_core.tools.models import ToolContext
 from amrita_core.types import (
     Message,
+    SendMessageWrap,
     TextContent,
     ToolCall,
     ToolResult,
@@ -26,33 +22,14 @@ from amrita_core.types import (
 
 from .tools import (
     PROCESS_MESSAGE,
-    PROCESS_MESSAGE_TOOL,
     REASONING_TOOL,
     STOP_TOOL,
 )
 
-posthook = on_completion(block=False, priority=10)
 
-
-@on_tools(
-    data=PROCESS_MESSAGE_TOOL,
-    custom_run=True,
-    enable_if=lambda: get_config().function_config.agent_middle_message,
-)
-async def _(ctx: ToolContext) -> str | None:
-    msg: str = ctx.data["content"]
-    logger.debug(f"[LLM-ProcessMessage] {msg}")
-    await ctx.ctx.chat_object.yield_response(
-        MessageWithMetadata(
-            content=msg, metadata={"type": "middle_message", "content": msg}
-        )
-    )
-    return f"Sent a message to user:\n\n```text\n{msg}\n```\n"
-
-
-class AmritaAgentStrategy(AgentStrategy):
+class ReActAgentStrategy(AgentStrategy):
     """
-    Amrita Agent Strategy is a strategy for executing an agent in RAG and Agent mode.
+    ReAct Strategy is a strategy for executing an agent in RAG and Agent mode.
 
     This strategy implements the 'agent-mixed' category, allowing it to dynamically handle
     both retrieval-augmented generation scenarios and standard iterative tool calling agents
@@ -63,6 +40,7 @@ class AmritaAgentStrategy(AgentStrategy):
     call_count = 1
     tools: list[Any]
     origin_msg = ""
+    reasoning_pc = 0
 
     def __init__(self, ctx: StrategyContext) -> None:
         super().__init__(ctx)
@@ -119,7 +97,8 @@ class AmritaAgentStrategy(AgentStrategy):
     async def _append_reasoning(
         self, response: UniResponse[None, list[ToolCall] | None]
     ):
-        msg = self.ctx.get_original_context()
+        self.reasoning_pc += 1
+        msg: SendMessageWrap = self.ctx.get_original_context()
 
         tool_calls: list[ToolCall] | None = response.tool_calls
         if tool_calls:
@@ -160,7 +139,7 @@ class AmritaAgentStrategy(AgentStrategy):
     ) -> bool:
         suggested_stop: bool = False
         config = self.chat_object.config
-        msg_list = self.ctx.original_context
+        msg_list: SendMessageWrap = self.ctx.original_context
         if not self.tools:
             return False
         if config.builtin.tool_calling_mode == "rag" and self.call_count > 1:
@@ -217,11 +196,15 @@ class AmritaAgentStrategy(AgentStrategy):
                             await self._append_reasoning(response=response_msg)
                             return True
                         case STOP_TOOL.function.name:
+                            self.agent_last_step = "Stopped"
+                            self.reasoning_pc = 0
                             logger.info("Agent work has been terminated.")
                             func_response = (
-                                "You have indicated readiness to provide the final answer. "
+                                "<BEGIN_OF_INSTRUCTIONS>\n"
+                                + "You have indicated readiness to provide the final answer. "
                                 + "Please now generate the final, comprehensive response for the user."
-                                + "You must NOT call any tools again."
+                                + "You must NOT to call any tools again."
+                                + "\n<END_OF_INSTRUCTIONS>"
                             )
                             if "result" in function_args:
                                 debug_log(f"[Done] {function_args['result']}")
@@ -236,6 +219,7 @@ class AmritaAgentStrategy(AgentStrategy):
 
                             stop_running()
                         case _:
+                            self.reasoning_pc = 0
                             func_response = await self.call_tool(tool_call)
                             msg_list.append(
                                 Message.model_validate(
@@ -283,7 +267,30 @@ class AmritaAgentStrategy(AgentStrategy):
                     result_msg_list.append(msg)
                 finally:
                     self.call_count += 1
-
+                    if self.reasoning_pc > config.builtin.loop_reasoning_trigger:
+                        prompt = f"Loop reasoning triggered. Trying to give up the tool call at ChatObject `{self.chat_object.stream_id}`."
+                        logger.error(prompt)
+                        self.ctx.original_context.append(
+                            Message(
+                                role="user",
+                                content="<BEGIN_OF_EXTRA>\n\n"
+                                + "You had called too many duplicate reasoning, which may indicate that you are stuck in a loop."
+                                + "Please try to give up the current tool calling and directly answer the user query based on the information you have."
+                                + "\n\n<END_OF_EXTRA>\n"
+                            )
+                        )
+                        await self.chat_object.yield_response(
+                            MessageWithMetadata(
+                                content=prompt,
+                                metadata={
+                                    "type": "error",
+                                    "extra_type": "loop_reasoning",
+                                    "chat_object_id": self.chat_object.stream_id,
+                                    "content": prompt,
+                                },
+                            )
+                        )
+                        return False
                 # Send tool call info to user
                 if config.builtin.agent_tool_call_notice == "notify":
                     for rslt in result_msg_list:
@@ -313,23 +320,6 @@ class AmritaAgentStrategy(AgentStrategy):
         return "agent-mixed"
 
 
-@posthook.handle()
-async def cookie(event: CompletionEvent, config: AmritaConfig):
-    response = event.get_model_response()
-    if config.cookie.enable_cookie:
-        if cookie := config.cookie.cookie:
-            if cookie in response:
-                await event.chat_object.yield_response(
-                    response=MessageWithMetadata(
-                        "Some error occurred, please try again later.",
-                        metadata={
-                            "type": "error",
-                            "extra_type": "cookie",
-                            "content": "Some error occurred, please try again later.",
-                        },
-                    )
-                )
-                await event.chat_object.set_queue_done()
+AmritaAgentStrategy = ReActAgentStrategy  # Alias for backward compatibility
 
-
-__all__ = ["PROCESS_MESSAGE"]
+__all__ = ["PROCESS_MESSAGE"]  # backward compatibility

@@ -56,7 +56,7 @@ AmritaCore 实现了灵活的Agent策略架构，包含四种执行类别：
 
 - 基于上下文需求的动态模式切换
 - 结合RAG和迭代工具调用能力
-- 由内置的 `AmritaAgentStrategy` 实现
+- 由内置的 `ReActAgentStrategy` 实现
 
 ### 配置系统
 
