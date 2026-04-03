@@ -10,7 +10,7 @@ from typing import Any, overload
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
-from typing_extensions import Self
+from typing_extensions import Self, deprecated
 
 from amrita_core.logging import logger
 
@@ -304,12 +304,17 @@ class MultiClientManager:
                 server_script = str(client.server_script)
                 self.script_to_clients[server_script] = client
 
-    async def reinitalize_all(self):
+    async def reinitialize_all(self):
+        """Reinitialize all MCP Servers"""
         async with self._lock:
             for client in deepcopy(self.clients):
                 await self.unregister_client(client.server_script, False)
                 self.register_only(client=client)
                 await self._load_this(client, fail_then_raise=False)
+
+    @deprecated("This is a typo issue, please use `initialize_this` instead.")
+    def reinitalize_all(self):
+        return self.reinitialize_all()
 
     async def initialize_all(self, lock: bool = True):
         """Connect to all MCP Servers"""

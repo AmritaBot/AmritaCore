@@ -50,7 +50,7 @@ The mission of AmritaCore is to democratize the development of intelligent agent
 
 ## 📖 Documentation
 
-Please view [Docs](https://amrita-core.suggar.top) for more information.
+Please view [Docs](https://core.amritabot.com) for more information.
 
 ## 🛠️ Quick Start
 

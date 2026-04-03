@@ -229,6 +229,8 @@ config = AmritaConfig(
 3. **API 集成**: 连接到第三方 API
 4. **物联网设备**: 与物理设备接口
 
+有关 MCP 服务集成、架构以及如何创建您自己的 MCP 服务器的详细信息，请参阅 [MCP 服务集成](./mcp-server-integration.md)。
+
 ## 5.3 自定义扩展开发
 
 ### 5.3.1 创建自定义工具
