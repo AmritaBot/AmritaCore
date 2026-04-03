@@ -71,10 +71,6 @@ export default withMermaid({
                 link: "/guide/concepts/agent-strategy",
               },
               {
-                text: "Jinja2 Templates",
-                link: "/guide/concepts/jinja2-templates",
-              },
-              {
                 text: "Suspend Mechanism",
                 link: "/guide/concepts/suspend",
               },
@@ -97,6 +93,10 @@ export default withMermaid({
               {
                 text: "Extensions & Integration",
                 link: "/guide/extensions-integration",
+              },
+              {
+                text: "Jinja2 Templates",
+                link: "/guide/extensions-integration/jinja2-templates",
               },
             ],
           },
@@ -297,10 +297,6 @@ export default withMermaid({
               { text: "数据管理", link: "/zh/guide/concepts/management" },
               { text: "Agent 策略", link: "/zh/guide/concepts/agent-strategy" },
               {
-                text: "Jinja2 模板",
-                link: "/zh/guide/concepts/jinja2-templates",
-              },
-              {
                 text: "挂起机制",
                 link: "/zh/guide/concepts/suspend",
               },
@@ -323,6 +319,10 @@ export default withMermaid({
               {
                 text: "扩展与集成",
                 link: "/zh/guide/extensions-integration",
+              },
+              {
+                text: "Jinja2 模板",
+                link: "/zh/guide/extensions-integration/jinja2-templates",
               },
             ],
           },
