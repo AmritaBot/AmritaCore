@@ -203,15 +203,14 @@ Unregisters an MCP server and removes all its tools from the tools manager.
 await manager.unregister_client("/path/to/remove.mcp")
 ```
 
-### `async reinitalize_all() -> None`
+### `async reinitialize_all() -> None`
 
 Reinitializes all registered clients (useful for refreshing connections after failures).
 
 **Example:**
 
 ```python
-await manager.reinitalize_all()
-```
+await manager.reinitialize_all()
 
 ### `_tools_wrapper(tool_name: str) -> Callable[[dict[str, Any]], Awaitable[str]]`
 
