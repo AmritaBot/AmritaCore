@@ -276,7 +276,7 @@ class ReActAgentStrategy(AgentStrategy):
                                 content="<BEGIN_OF_EXTRA>\n\n"
                                 + "You had called too many duplicate reasoning, which may indicate that you are stuck in a loop."
                                 + "Please try to give up the current tool calling and directly answer the user query based on the information you have."
-                                + "\n\n<END_OF_EXTRA>\n"
+                                + "\n\n<END_OF_EXTRA>\n",
                             )
                         )
                         await self.chat_object.yield_response(

@@ -54,6 +54,83 @@ ChatObject 类是与 AI 进行对话的主要接口。
 - `full_response()`: 返回完整响应
 - `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: 设置用于响应处理的回调函数
 - `yield_response(response: RESPONSE_TYPE)`: 将响应发送到队列或回调函数
+- `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`: **（高级功能）** 等待挂起信号，支持按标签匹配断点
+- `resume()`: **（高级功能）** 恢复被挂起的执行流程
+- `_wait_for_continue(tag: str | None = None)`: **（高级功能）** 手动挂起点，可配合外部控制器使用
+
+### 挂起与恢复方法详解
+
+#### `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`
+
+在外部独立任务中调用此方法，等待 `ChatObject` 运行到下一个挂起点时暂停其执行。
+
+**参数：**
+
+- `timeout` (float): 等待超时时间（秒），默认 5.0 秒，防止无限阻塞
+- `tag` (str | None): 可选的标签过滤器
+  - `None`（默认）：匹配所有被 `@suspend` 装饰的方法
+  - `str`：只匹配被 `@ChatObject.suspend_with_tag(tag)` 装饰的方法
+
+**异常：**
+
+- `asyncio.TimeoutError`: 如果超过指定时间仍未触发挂起
+
+**示例：**
+
+```python
+# 等待任意挂起点
+await chat.wait_to_suspend(timeout=3.0)
+
+# 等待特定标签的挂起点
+await chat.wait_to_suspend(timeout=5.0, tag="single_tool_call")
+```
+
+#### `resume()`
+
+恢复被挂起的 `ChatObject` 执行流程。调用后会继续执行直到下一个挂起点或完成当前操作。
+
+**示例：**
+
+```python
+async def controller(chat_obj):
+    await chat_obj.wait_to_suspend(tag="checkpoint")
+    print("已挂起，检查状态...")
+    # 执行检查或修改操作
+    chat_obj.resume()  # 恢复执行
+```
+
+#### `_wait_for_continue(tag: str | None = None)`
+
+手动挂起点，通常在自定义函数内部使用，配合外部控制器实现精细的流程控制。
+
+**参数：**
+
+- `tag` (str | None): 可选的标签，用于精确匹配外部控制器的 `wait_to_suspend(tag=...)` 调用
+
+**行为：**
+
+- 如果外部没有调用 `wait_to_suspend()` 或匹配的标签，此方法立即返回，不阻塞执行
+- 如果外部正在等待匹配的标签，此方法会阻塞直到 `resume()` 被调用
+
+**示例：**
+
+```python
+from amrita_core import ChatObject
+
+class MyProcessor:
+    async def process_data(self, chat_obj: ChatObject, data: dict):
+        # 处理前
+        await chat_obj._wait_for_continue(tag="before_process")
+
+        result = await self.do_processing(data)
+
+        # 处理后
+        await chat_obj._wait_for_continue(tag="after_process")
+
+        return result
+```
+
+**详细说明请参阅**：[挂起与恢复机制](../concepts/suspend.md)
 
 ## 示例
 

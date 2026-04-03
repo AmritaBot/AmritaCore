@@ -420,6 +420,7 @@ class ChatObject:
     _callback_lock: Lock
     __suspend_signal: asyncio.Future | None = None
     __resume_signal: asyncio.Future | None = None
+    _suspend_tags: tuple[str, ...] | None = None
     _raised_exc: tuple[type[BaseException], ...]
     __done_marker = object()
 
@@ -510,14 +511,22 @@ class ChatObject:
         self._q_tout = queue_timeout
         self._q_ovf_tout = overflow_queue_timeout
 
-    async def _wait_for_continue(self) -> bool:
+    async def _wait_for_continue(self, tag: str | None = None) -> bool:
         """Break point for suspend.
+
+        Args:
+            tag (str): Tag for break point.
 
         Returns:
             bool: True if has really waited during runing, False if not.
         """
         if self.__suspend_signal is None:
             return False
+        elif (
+            self._suspend_tags
+        ):  # When tags filter exists, only suspend when tag matches
+            if tag is None or tag not in self._suspend_tags:
+                return False
         await asyncio.sleep(0)
         if self.__resume_signal is not None and not self.__resume_signal.done():
             await self.__resume_signal
@@ -530,11 +539,12 @@ class ChatObject:
         finally:
             self.__resume_signal = None
 
-    async def wait_to_suspend(self, timeout: float | None = None):
+    async def wait_to_suspend(self, timeout: float | None = None, *tags: str):
         """Tell chatobject to suspend and wait for it.
 
         Args:
             timeout (float | None, optional): Timeout for waiting. Defaults to None.
+            *tags (str): Tags to wait for (filter break points).
 
         Raises:
             RuntimeError: Raised when already waiting.
@@ -545,31 +555,57 @@ class ChatObject:
             else:
                 raise RuntimeError("Already watting for suspend!")
         try:
+            self._suspend_tags = tags
             self.__suspend_signal = asyncio.Future()
             await asyncio.wait_for(self.__suspend_signal, timeout)
         finally:
             self.__suspend_signal = None
+            self._suspend_tags = None
 
     def resume(self) -> None:
         """Resume to run when suspend."""
         if self.__resume_signal and not self.__resume_signal.done():
             self.__resume_signal.set_result(True)
+            self._suspend_tags = None
 
     @staticmethod
-    def suspend(
-        func: Callable[..., Any],
-    ) -> Callable[..., Any]:
+    def suspend_with_tag(tag: str):
+        """Decorator for suspend with tag filter.Used in inner function.
+
+        Args:
+            tag (str): Tag for break point.
+        """
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            return ChatObject.suspend(func, tag)
+
+        return decorator
+
+    @staticmethod
+    def suspend(func: Callable[..., Any], tag: str | None = None) -> Callable[..., Any]:
+        """Decorator for suspend.(Only be used for a time-costy function)"""
         if not iscoroutinefunction(func):
             raise TypeError(f"{func.__name__} is not a coroutine function.")
-
         @wraps(func)
         async def wrapper(*args, **kwargs):
-            self: ChatObject = args[0]
-            if not isinstance(self, ChatObject):
+            chat_object = None
+            for arg in args:
+                if isinstance(arg, ChatObject):
+                    chat_object = arg
+                    break
+            if chat_object is None:
+                for value in kwargs.values():
+                    if isinstance(value, ChatObject):
+                        chat_object = value
+                        break
+            if chat_object is None:
                 raise TypeError(
-                    f"Unsopported type {type(self).__name__} for the first arg."
+                    f"No ChatObject parameter found in function '{func.__name__}'. "
+                    f"Args types: {[type(a).__name__ for a in args]}, "
+                    f"Kwargs keys: {list(kwargs.keys())}"
                 )
-            await self._wait_for_continue()
+
+            await chat_object._wait_for_continue(tag)
             return await func(*args, **kwargs)
 
         return wrapper
@@ -699,7 +735,7 @@ class ChatObject:
         debug_log(self.train.content)
         logger.debug("Starting applying memory limitations..")
         async with MemoryLimiter(self.data, self.train, config=config) as lim:
-            await self._wait_for_continue()
+            await self._wait_for_continue("memory_limiting")
             await lim.run_enforce()
             abs_usage = lim.usage
             self.data = lim.memory
@@ -904,7 +940,7 @@ class ChatObject:
         backup: SendMessageWrap = self.context_wrap.copy()
         try:
             for _ in range(1, self.config.function_config.agent_tool_call_limit + 1):
-                await self._wait_for_continue()
+                await self._wait_for_continue("single_tool_call")
                 if not (await strategy.single_execute()):
                     break
             else:
@@ -954,7 +990,7 @@ class ChatObject:
             user_input=self.user_input,
             original_context=messages,
         )
-        await self._wait_for_continue()
+        await self._wait_for_continue("matcher_call::pre_completion")
         await MatcherManager.trigger_event(
             chat_event,
             self.config,
@@ -1000,7 +1036,7 @@ class ChatObject:
         self.response = response
         logger.debug("Triggering chat events..")
         chat_event = CompletionEvent(self.user_input, messages, self, response.content)
-        await self._wait_for_continue()
+        await self._wait_for_continue("matcher_call::post_completion")
         await MatcherManager.trigger_event(
             chat_event,
             self.config,

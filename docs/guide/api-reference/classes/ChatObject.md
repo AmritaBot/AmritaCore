@@ -49,11 +49,88 @@ The ChatObject class is the primary interface for conversations with the AI.
 
 ## Methods
 
-- `begin()`: Executes the conversation
+- `begin()`: Execute the conversation
 - `get_response_generator()`: Returns an async generator for streaming responses
 - `full_response()`: Returns the complete response
-- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: Sets a callback function for response handling
-- `yield_response(response: RESPONSE_TYPE)`: Sends a response to the queue or callback
+- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: Set a callback function for response handling
+- `yield_response(response: RESPONSE_TYPE)`: Yield response to queue or callback function
+- `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`: **(Advanced)** Wait for suspend signal with optional tag matching
+- `resume()`: **(Advanced)** Resume suspended execution flow
+- `_wait_for_continue(tag: str | None = None)`: **(Advanced)** Manual suspend point for use with external controllers
+
+### Suspend & Resume Methods Details
+
+#### `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`
+
+Call this method from an external independent task to pause `ChatObject` execution when it reaches the next suspend point.
+
+**Parameters:**
+
+- `timeout` (float): Timeout in seconds, default 5.0, prevents infinite blocking
+- `tag` (str | None): Optional tag filter
+  - `None` (default): Matches all methods decorated with `@suspend`
+  - `str`: Only matches methods decorated with `@ChatObject.suspend_with_tag(tag)`
+
+**Exceptions:**
+
+- `asyncio.TimeoutError`: Raised if suspend is not triggered within the specified timeout
+
+**Example:**
+
+```python
+# Wait for any suspend point
+await chat.wait_to_suspend(timeout=3.0)
+
+# Wait for a specific tagged suspend point
+await chat.wait_to_suspend(timeout=5.0, tag="single_tool_call")
+```
+
+#### `resume()`
+
+Resumes the suspended `ChatObject` execution flow. Continues execution until the next suspend point or completes the current operation.
+
+**Example:**
+
+```python
+async def controller(chat_obj):
+    await chat_obj.wait_to_suspend(tag="checkpoint")
+    print("Suspended, inspecting state...")
+    # Perform inspection or modification
+    chat_obj.resume()  # Resume execution
+```
+
+#### `_wait_for_continue(tag: str | None = None)`
+
+Manual suspend point, typically used inside custom functions to enable fine-grained flow control with external controllers.
+
+**Parameters:**
+
+- `tag` (str | None): Optional tag for precise matching with external controller's `wait_to_suspend(tag=...)` call
+
+**Behavior:**
+
+- Returns immediately without blocking if no external `wait_to_suspend()` call is pending or tags don't match
+- Blocks until `resume()` is called if external controller is waiting for a matching tag
+
+**Example:**
+
+```python
+from amrita_core import ChatObject
+
+class MyProcessor:
+    async def process_data(self, chat_obj: ChatObject, data: dict):
+        # Before processing
+        await chat_obj._wait_for_continue(tag="before_process")
+
+        result = await self.do_processing(data)
+
+        # After processing
+        await chat_obj._wait_for_continue(tag="after_process")
+
+        return result
+```
+
+**For detailed documentation, see**: [Suspend & Resume Mechanism](../concepts/suspend.md)
 
 ## Example
 
