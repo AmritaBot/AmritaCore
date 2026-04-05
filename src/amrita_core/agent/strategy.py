@@ -199,6 +199,10 @@ class AgentStrategy(ABC):
     async def on_exception(self, exc: BaseException) -> None:
         raise NoExceptionHandler
 
+    async def on_post_process(self) -> None:
+        """Used to process after all steps(Only when successful and in agent/agent-mixed mode)"""
+        pass
+
     @classmethod
     @abstractmethod
     def get_category(cls) -> Literal["agent", "workflow", "rag", "agent-mixed"]:
