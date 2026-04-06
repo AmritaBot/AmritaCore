@@ -11,7 +11,6 @@ from typing_extensions import Self, override
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
-from amrita_core.builtins.consts import BUILTIN_TOOLS_NAME
 from amrita_core.libchat import (
     tools_caller,
 )
@@ -26,6 +25,7 @@ from amrita_core.types import (
     UniResponse,
 )
 
+from .consts import BUILTIN_TOOLS_NAME, HYBRID_TEMPLATE, REASONING_TEMPLATE
 from .tools import (
     PROCESS_MESSAGE,
     REASONING_TOOL,
@@ -75,26 +75,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     origin_instruction: str = ""
     reasoning_pc = 0
     _suggested_stop: bool = False  # Flag to switch tool_choice from required to auto
-    _reasoning_template = Template(""""
-    Please analyze the task requirements based on the user input above,summarize the current step's purpose and reasons, and execute accordingly.
-    If no task needs to be performed, no description is needed;
-    please analyze according to the character tone set in <ROLE_SETTINGS> (if present).
-    {% if last_step %}
-    Your previous task was:
-
-    ```text
-    {{last_step}}
-    ```
-    {% endif %}
-    {% if original_msg %}
-    <INPUT>
-    {{original_msg}}
-    </INPUT>
-    {% endif %}
-    <ROLE_SETTINGS>
-    {{stg.ctx.get_original_context().train.content}}
-    </ROLE_SETTINGS>
-    """)
+    _reasoning_template = REASONING_TEMPLATE
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -450,8 +431,11 @@ class NoActionAgentStrategy(AgentStrategy):
         cls,
     ) -> Literal["workflow"]:
         return "workflow"
+
+
 # TODO: Resolve https://github.com/AmritaBot/AmritaCore/issues/20
 # class CompatibleReActAgentStrategy(BaseReActAgentStrategy):
+
 
 class HybridReActAgentStrategy(BaseReActAgentStrategy):
     """**Hybrid ReAct Agent Strategy optimized for Mixture of Experts (MoE) architecture models.**
@@ -535,16 +519,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         # Standalone closing tags
         (re.compile(r"</(?i:TOOL_CALL|TOOL_RESULT|PARAMS|PARAM)>", re.IGNORECASE), ""),
     ]
-    _tool_call_jinja2: Template = Template("""<TOOL_CALL name="{{tool_name}}">
-        <PARAMS>
-            {% for key,value in params.items() %}
-            <PARAM name="{{key}}">{{value}}</PARAM>
-            {% endfor %}
-        </PARAMS>
-    </TOOL_CALL>
-    <TOOL_RESULT name="{{tool_name}}">
-    {{result}}
-    </TOOL_RESULT>""")
+    _tool_call_jinja2: Template = HYBRID_TEMPLATE
     _process_message: list[str]
 
     def __init__(self, *args, **kwargs):
@@ -620,6 +595,25 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
     async def _handle_loop_reasoning_cleanup(self, prompt: str):
         """Hybrid strategy: clear _process_message when loop is detected."""
         self._process_message = []
+
+    @override
+    async def _build_stop_response_and_append(
+        self,
+        function_args: dict[str, Any],
+        response_msg: UniResponse[None, list[ToolCall] | None],
+    ):
+        """Hybrid strategy: append stop instructions as user message with XML-like format.
+
+        Unlike ReActAgentStrategy which adds an assistant message, Hybrid strategy
+        adds the stop instructions as a user message to maintain consistency with
+        its context-based integration approach.
+        """
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content=self._build_stop_response(function_args),
+            )
+        )
 
     @override
     async def on_post_process(self) -> None:

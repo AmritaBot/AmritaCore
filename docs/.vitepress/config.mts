@@ -443,7 +443,6 @@ export default withMermaid({
                 text: "MCP 服务器集成",
                 link: "/zh/guide/extensions-integration/mcp-server-integration",
               },
-              ,
             ],
           },
           {
