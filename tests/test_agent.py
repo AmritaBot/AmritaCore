@@ -39,7 +39,6 @@ from amrita_core.types import (
     SendMessageWrap,
     TextContent,
     ToolCall,
-    ToolResult,
     UniResponse,
 )
 
@@ -523,10 +522,12 @@ async def test_template_method_execute_tool_loop_no_calls(mock_strategy_context)
     """Test _execute_tool_loop returns False when no tool calls."""
     strategy = ReActAgentStrategy(mock_strategy_context)
 
-    mock_response = UniResponse(content=None, tool_calls=None, usage=None)
-    msg_list = mock_strategy_context.original_context
-
-    result = await strategy._execute_tool_loop(mock_response, msg_list, lambda: False)
+    mock_response: UniResponse[None, list[ToolCall] | None] = UniResponse(
+        content=None, tool_calls=[], usage=None
+    )
+    result = await strategy._execute_tool_loop(
+        mock_response,
+    )
     assert result is False
 
 
@@ -554,7 +555,7 @@ async def test_hybrid_vs_react_append_difference(mock_strategy_context, mock_con
     mock_strategy_context.chat_object.config = mock_config
 
     # Mock a successful tool call
-    mock_response: UniResponse[None, list[ToolCall]] = UniResponse(
+    mock_response: UniResponse[None, list[ToolCall] | None] = UniResponse(
         content=None,
         tool_calls=[
             ToolCall(
@@ -587,23 +588,23 @@ async def test_hybrid_vs_react_append_difference(mock_strategy_context, mock_con
         data=ToolFunctionSchema(function=tool_def, type="function", strict=False),
         custom_run=False,
     )
-
-    manager = ToolsManager()
-    manager.register_tool(tool_data)
+    react_strategy = ReActAgentStrategy(mock_strategy_context)
+    react_strategy.tools = [{"name": "test_tool"}]
+    original_get_tool = react_strategy.tools_manager.get_tool
 
     try:
-        # Test ReAct strategy - should append Message + ToolResult objects
-        react_strategy = ReActAgentStrategy(mock_strategy_context)
-        react_strategy.tools = [{"name": "test_tool"}]
+        # Mock the tools manager to return our tool
+        react_strategy.tools_manager.get_tool = MagicMock(return_value=tool_data)
 
-        initial_count = len(mock_strategy_context.original_context.memory)
+        initial_count = len(mock_strategy_context.original_context.end_messages)
         await react_strategy._execute_tool_loop(
-            mock_response, mock_strategy_context.original_context, lambda: False
+            mock_response,
         )
-        react_count = len(mock_strategy_context.original_context.memory)
+        react_count = len(mock_strategy_context.original_context.end_messages)
 
-        # ReAct should add both assistant message and tool result
-        assert react_count > initial_count
+        # ReAct should add both assistant message and tool result (2 messages to end_messages)
+        assert react_count == initial_count + 2
 
     finally:
-        manager.remove_tool("test_tool")
+        # Restore original get_tool method to avoid polluting other tests
+        react_strategy.tools_manager.get_tool = original_get_tool

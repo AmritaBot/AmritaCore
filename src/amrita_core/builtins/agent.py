@@ -136,7 +136,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     original_msg=original_msg,
                 ),
             ),
-            *self.ctx.original_context.unwrap(exclude_system=True),
+            *self.ctx.message.unwrap(exclude_system=True),
         ]
         response: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             reasoning_msg,
@@ -178,7 +178,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if self.reasoning_pc > config.builtin.loop_reasoning_trigger:
             prompt = f"Loop reasoning triggered. Trying to give up the tool call at ChatObject `{self.chat_object.stream_id}`."
             logger.error(prompt)
-            self.ctx.original_context.append(
+            self.ctx.message.append(
                 Message(
                     role="user",
                     content="<BEGIN_OF_EXTRA>\n\n"
@@ -222,7 +222,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _build_stop_response_and_append(
         self,
         function_args: dict[str, Any],
-        msg_list: SendMessageWrap,
         response_msg: UniResponse[None, list[ToolCall] | None],
     ):
         """Build stop response and append to message list (strategy-specific).
@@ -247,7 +246,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """Append tool result to context (strategy-specific).
 
         Subclasses must implement this to define how tool results are added to context.
-        Subclasses should use self.ctx.original_context to access the message list.
+        Subclasses should use self.ctx.message to access the message list.
 
         Args:
             tool_call: The tool call object
@@ -269,8 +268,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _execute_tool_loop(
         self,
         response_msg: UniResponse[None, list[ToolCall] | None],
-        msg_list: SendMessageWrap,
-        suggested_stop_callback: Callable[[], bool],
     ) -> bool:
         """Execute the main tool calling loop with strategy-specific behaviors.
 
@@ -279,8 +276,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         Args:
             response_msg: The response from tools_caller containing tool calls
-            msg_list: The message list/context to work with
-            suggested_stop_callback: Callback to check if stop was requested
 
         Returns:
             True if execution should continue, False if it should stop
@@ -320,7 +315,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         logger.info("Agent work has been terminated.")
                         func_response = self._build_stop_response(function_args)
                         await self._build_stop_response_and_append(
-                            function_args, msg_list, response_msg
+                            function_args, response_msg
                         )
                     case _:
                         self.reasoning_pc = 0
@@ -555,13 +550,13 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         super().__init__(*args, **kwargs)
         self.origin_msg = self._sanitize(self.origin_msg)
         self._process_message = []
-        if isinstance(self.ctx.original_context.user_query.content, list):
-            for content in self.ctx.original_context.user_query.content:
+        if isinstance(self.ctx.message.user_query.content, list):
+            for content in self.ctx.message.user_query.content:
                 if isinstance(content, TextContent):
                     content.text = self._sanitize(content.text)
         else:
-            self.ctx.original_context.user_query.content = self._sanitize(
-                self.ctx.original_context.user_query.content
+            self.ctx.message.user_query.content = self._sanitize(
+                self.ctx.message.user_query.content
             )
 
     def _sanitize(self, text: str) -> str:
@@ -598,9 +593,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
             if reasoning := args.get("content"):
                 self.agent_last_step = reasoning
                 content: str = reasoning
-                self.ctx.original_context.append(
-                    Message(role="assistant", content=content)
-                )
+                self.ctx.message.append(Message(role="assistant", content=content))
                 logger.debug(f"[AmritaAgent] {reasoning}")
                 if not self.chat_object.config.builtin.agent_reasoning_hide:
                     await self.chat_object.yield_response(
@@ -631,7 +624,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
     async def on_post_process(self) -> None:
         if self.call_count < 2:
             return
-        self.ctx.original_context.append(
+        self.ctx.message.append(
             Message(
                 role="user",
                 content="<END_OF_PROCESS>\n"
@@ -644,7 +637,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         self,
     ) -> bool:
         config = self.chat_object.config
-        msg_list: SendMessageWrap = self.ctx.original_context
+        msg_list: SendMessageWrap = self.ctx.message
         if not self.tools:
             return False
         if config.builtin.tool_calling_mode == "rag" and self.call_count > 1:
@@ -675,13 +668,11 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         )
 
         # Use template method for common execution flow
-        should_continue = await self._execute_tool_loop(
-            response_msg, msg_list, lambda: self._suggested_stop
-        )
+        should_continue = await self._execute_tool_loop(response_msg)
 
         if should_continue and self._process_message:
             # Hybrid strategy: merge all process messages into a single user message
-            self.ctx.original_context.append(
+            self.ctx.message.append(
                 Message(
                     role="user",
                     content=("\n".join(self._process_message)),
@@ -764,11 +755,12 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
     async def _build_stop_response_and_append(
         self,
         function_args: dict[str, Any],
-        msg_list: SendMessageWrap,
         response_msg: UniResponse[None, list[ToolCall] | None],
     ):
         """ReAct strategy: append assistant message before stop."""
-        msg_list.append(Message.model_validate(response_msg, from_attributes=True))
+        self.ctx.message.append(
+            Message.model_validate(response_msg, from_attributes=True)
+        )
 
     @override
     async def _append_tool_result_to_context(
@@ -783,7 +775,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         assistant message with tool_calls must be followed by corresponding tool messages.
         """
         # First, append the assistant message containing the tool_calls
-        msg_list = self.ctx.original_context
+        msg_list = self.ctx.message
         msg_list.append(Message.model_validate(response_msg, from_attributes=True))
         msg_list.append(
             ToolResult(
@@ -814,7 +806,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             tool_call_id: ID of the tool call
             original_exception: The original exception object for type-based handling
         """
-        self.ctx.original_context.append(
+        self.ctx.message.append(
             ToolResult(
                 role="tool",
                 name=function_name,
@@ -827,7 +819,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         self,
     ) -> bool:
         config = self.chat_object.config
-        msg_list: SendMessageWrap = self.ctx.original_context
+        msg_list: SendMessageWrap = self.ctx.message
         if not self.tools:
             return False
         if config.builtin.tool_calling_mode == "rag" and self.call_count > 1:
@@ -858,7 +850,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
 
         # Use template method for common execution flow
         return await self._execute_tool_loop(
-            response_msg, msg_list, lambda: self._suggested_stop
+            response_msg,
         )
 
     @classmethod

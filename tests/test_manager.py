@@ -180,11 +180,10 @@ def test_python_type_to_json_type():
 def test_on_tools_decorator():
     # Clean up ToolsManager before test
     manager = ToolsManager()
-    manager._models.clear()
-    manager._disabled_tools.clear()
+    manager._instance = None
 
     function_def = FunctionDefinitionSchema(
-        name="decorated_tool",
+        name="decorated_tool1",
         description="A decorated tool",
         parameters=FunctionParametersSchema(type="object", properties={}),
     )
@@ -193,11 +192,11 @@ def test_on_tools_decorator():
     async def test_function(params):
         return "result"
 
-    tool = manager.get_tool("decorated_tool")
+    tool = manager.get_tool("decorated_tool1")
     assert tool is not None
-    assert tool.data.function.name == "decorated_tool"
+    assert tool.data.function.name == "decorated_tool1"
 
-    manager.remove_tool("decorated_tool")
+    manager.remove_tool("decorated_tool1")
 
 
 @pytest.mark.asyncio
@@ -208,7 +207,7 @@ async def test_simple_tool_decorator():
     manager._disabled_tools.clear()
 
     @simple_tool
-    def add_numbers(a: int, b: int) -> int:
+    def add_number(a: int, b: int) -> int:
         """Add two numbers together.
 
         Args:
@@ -220,10 +219,10 @@ async def test_simple_tool_decorator():
         """
         return a + b
 
-    tool = manager.get_tool("add_numbers")
+    tool = manager.get_tool("add_number")
 
     if tool is not None:
         result = await tool.func({"a": 5, "b": 3})  # type: ignore
         assert result == "8"  # Note: simple_tool converts result to string
 
-    manager.remove_tool("add_numbers")
+    manager.remove_tool("add_number")
