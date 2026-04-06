@@ -44,10 +44,10 @@ async def external_controller(chat_obj):
     # Wait for the "single_tool_call" breakpoint
     await chat_obj.wait_to_suspend(timeout=5.0, tag="single_tool_call")
     print("Suspended before tool call!")
-    
+
     # Can inspect or modify state here
     # ...
-    
+
     chat_obj.resume()
 
 # Start controller task
@@ -70,7 +70,7 @@ class MyAgent:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 return await response.json()
-    
+
     @ChatObject.suspend_with_tag("after_response")
     async def post_process_response(self, chat_obj: ChatObject, response: str):
         """Suspends after processing response"""
@@ -90,15 +90,15 @@ async def multi_breakpoint_controller(chat_obj):
     # Wait for first breakpoint
     await chat_obj.wait_to_suspend(tag="step1")
     print("Step 1 completed")
-    
+
     # Continue waiting for second breakpoint
     await chat_obj.wait_to_suspend(tag="step2")
     print("Step 2 completed")
-    
+
     # Finally wait for any breakpoint
     await chat_obj.wait_to_suspend()  # Matches any suspend-decorated method
     print("Any step completed")
-    
+
     chat_obj.resume()
 ```
 

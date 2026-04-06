@@ -933,6 +933,8 @@ class ChatObject:
                 raise
             with contextlib.suppress(NoExceptionHandler):
                 await st.on_exception(e)
+        else:
+            await st.on_post_process()
         self.context_wrap.extend(ctx.original_context.end_messages)
 
     @suspend

@@ -44,10 +44,10 @@ async def external_controller(chat_obj):
     # 等待名为 "single_tool_call" 的断点
     await chat_obj.wait_to_suspend(timeout=5.0, tag="single_tool_call")
     print("在工具调用前挂起！")
-    
+
     # 可以在此检查或修改状态
     # ...
-    
+
     chat_obj.resume()
 
 # 启动控制器任务
@@ -70,7 +70,7 @@ class MyAgent:
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 return await response.json()
-    
+
     @ChatObject.suspend_with_tag("after_response")
     async def post_process_response(self, chat_obj: ChatObject, response: str):
         """处理响应后会挂起"""
@@ -90,15 +90,15 @@ async def multi_breakpoint_controller(chat_obj):
     # 先等待第一个断点
     await chat_obj.wait_to_suspend(tag="step1")
     print("步骤 1 完成")
-    
+
     # 继续等待第二个断点
     await chat_obj.wait_to_suspend(tag="step2")
     print("步骤 2 完成")
-    
+
     # 最后等待任意断点
     await chat_obj.wait_to_suspend()  # 匹配任何 suspend 装饰的方法
     print("任意步骤完成")
-    
+
     chat_obj.resume()
 ```
 

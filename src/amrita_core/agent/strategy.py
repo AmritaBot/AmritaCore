@@ -200,7 +200,7 @@ class AgentStrategy(ABC):
         raise NoExceptionHandler
 
     async def on_post_process(self) -> None:
-        """Used to process after all steps(Only when successful and in agent/agent-mixed mode)"""
+        """Used to process after all steps are completed successfully"""
         pass
 
     @classmethod

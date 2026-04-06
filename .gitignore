@@ -352,3 +352,8 @@ vite.config.ts.timestamp-*
 
 # Pytest
 test-results.xml
+
+# Other
+
+/patch.diff
+.env.*

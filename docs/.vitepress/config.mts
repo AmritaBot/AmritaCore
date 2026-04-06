@@ -183,8 +183,16 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/BaseModel",
               },
               {
+                text: "BaseReActAgentStrategy",
+                link: "/guide/api-reference/classes/BaseReActAgentStrategy",
+              },
+              {
                 text: "ChatObject",
                 link: "/guide/api-reference/classes/ChatObject",
+              },
+              {
+                text: "ClientManager",
+                link: "/guide/api-reference/classes/ClientManager",
               },
               {
                 text: "Depends",
@@ -195,6 +203,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/DependsFactory",
               },
               {
+                text: "FallbackContext",
+                link: "/guide/api-reference/classes/FallbackContext",
+              },
+              {
                 text: "Function",
                 link: "/guide/api-reference/classes/Function",
               },
@@ -203,8 +215,8 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/FunctionDefinitionSchema",
               },
               {
-                text: "FallbackContext",
-                link: "/guide/api-reference/classes/FallbackContext",
+                text: "HybridReActAgentStrategy",
+                link: "/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
                 text: "MemoryModel",
@@ -223,20 +235,24 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ModelPreset",
               },
               {
-                text: "PresetManager",
-                link: "/guide/api-reference/classes/PresetManager",
+                text: "MCPClient",
+                link: "/guide/api-reference/classes/MCPClient",
               },
               {
                 text: "MultiClientManager",
                 link: "/guide/api-reference/classes/MultiClientManager",
               },
               {
-                text: "MCPClient",
-                link: "/guide/api-reference/classes/MCPClient",
+                text: "NoActionAgentStrategy",
+                link: "/guide/api-reference/classes/NoActionAgentStrategy",
               },
               {
-                text: "ClientManager",
-                link: "/guide/api-reference/classes/ClientManager",
+                text: "PresetManager",
+                link: "/guide/api-reference/classes/PresetManager",
+              },
+              {
+                text: "ReActAgentStrategy",
+                link: "/guide/api-reference/classes/ReActAgentStrategy",
               },
               {
                 text: "StrategyContext",
@@ -423,6 +439,11 @@ export default withMermaid({
                 text: "Jinja2 模板",
                 link: "/zh/guide/extensions-integration/jinja2-templates",
               },
+              {
+                text: "MCP 服务器集成",
+                link: "/zh/guide/extensions-integration/mcp-server-integration",
+              },
+              ,
             ],
           },
           {
@@ -458,8 +479,16 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/BaseModel",
               },
               {
+                text: "BaseReActAgentStrategy",
+                link: "/zh/guide/api-reference/classes/BaseReActAgentStrategy",
+              },
+              {
                 text: "ChatObject",
                 link: "/zh/guide/api-reference/classes/ChatObject",
+              },
+              {
+                text: "ClientManager",
+                link: "/zh/guide/api-reference/classes/ClientManager",
               },
               {
                 text: "Depends",
@@ -482,6 +511,10 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
               },
               {
+                text: "HybridReActAgentStrategy",
+                link: "/zh/guide/api-reference/classes/HybridReActAgentStrategy",
+              },
+              {
                 text: "MemoryModel",
                 link: "/zh/guide/api-reference/classes/MemoryModel",
               },
@@ -498,20 +531,24 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/ModelPreset",
               },
               {
-                text: "PresetManager",
-                link: "/zh/guide/api-reference/classes/PresetManager",
+                text: "MCPClient",
+                link: "/zh/guide/api-reference/classes/MCPClient",
               },
               {
                 text: "MultiClientManager",
                 link: "/zh/guide/api-reference/classes/MultiClientManager",
               },
               {
-                text: "MCPClient",
-                link: "/zh/guide/api-reference/classes/MCPClient",
+                text: "NoActionAgentStrategy",
+                link: "/zh/guide/api-reference/classes/NoActionAgentStrategy",
               },
               {
-                text: "ClientManager",
-                link: "/zh/guide/api-reference/classes/ClientManager",
+                text: "PresetManager",
+                link: "/zh/guide/api-reference/classes/PresetManager",
+              },
+              {
+                text: "ReActAgentStrategy",
+                link: "/zh/guide/api-reference/classes/ReActAgentStrategy",
               },
               {
                 text: "StrategyContext",

@@ -85,7 +85,45 @@ import asyncio
 asyncio.run(load_amrita())
 ```
 
-## 4.2 Conversation Interaction Flow
+## 4.2 Agent Strategy Lifecycle Methods
+
+Agent strategies in AmritaCore implement several lifecycle methods that are called at different points during execution.
+
+### 4.2.1 on_post_process() Post-Process Hook
+
+The `on_post_process()` method is a **post-execution hook** that is called after all agent steps complete successfully. This hook is invoked for **all strategy categories** (`"agent"`, `"rag"`, `"workflow"`, `"agent-mixed"`).
+
+**Purpose**: This hook allows strategies to perform final context modifications, add completion instructions, or perform cleanup operations before the final response is generated.
+
+**Usage Example**:
+
+```python
+async def on_post_process(self) -> None:
+    """Called after successful agent execution"""
+    if self.call_count >= 2:  # Only if tools were actually called
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content="<END_OF_PROCESS>\nPlease answer me directly by the informations we got before.\n<END_OF_PROCESS>"
+            )
+        )
+```
+
+**Key Characteristics**:
+
+- Called only on successful execution (no exceptions occurred)
+- Available for **all strategy categories**
+- Can modify the conversation context before final completion
+- Useful for adding final instructions or context summarization
+
+### 4.2.2 Other Lifecycle Methods
+
+- **`run()`**: Main execution method for `"workflow"` and `"rag"` categories
+- **`single_execute()`**: Single-step execution method for `"agent"` and `"agent-mixed"` categories
+- **`on_exception()`**: Called when an exception occurs during execution
+- **`on_limited()`**: Called when execution limits are reached (e.g., maximum tool calls)
+
+## 4.3 Conversation Interaction Flow
 
 ### 4.2.1 Creating ChatObject Conversation Objects
 
@@ -200,7 +238,7 @@ async with ChatObject(
 context = chat.data
 ```
 
-## 4.3 Event Processing Implementation
+## 4.4 Event Processing Implementation
 
 ### 4.3.1 @on_event Event Listeners
 
@@ -252,7 +290,7 @@ async def postprocess_response(event: CompletionEvent):
 - Ensure event handlers are async when performing async operations
 - Return the event object from handlers to continue the chain
 
-## 4.4 Tool Calling Implementation
+## 4.5 Tool Calling Implementation
 
 ### 4.4.1 Tool Registration Example
 
@@ -400,7 +438,7 @@ In custom run mode:
 - Functions can be synchronous or asynchronous
 - Return type can be `str` or `None`
 
-## 4.5 Memory Management
+## 4.6 Memory Management
 
 ### 4.5.1 MemoryModel Memory Structure
 
@@ -468,7 +506,7 @@ long_convo_config = AmritaConfig(
 - Implement session cleanup strategies
 - Monitor token usage regularly
 
-## 4.6 Logging and Debugging
+## 4.7 Logging and Debugging
 
 ### 4.6.1 Logger Logging System
 

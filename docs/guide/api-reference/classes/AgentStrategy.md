@@ -79,3 +79,25 @@ Handle exceptions that occur during strategy execution.
 **Parameters**:
 
 - `exc` (BaseException): The exception that occurred during execution
+
+### on_post_process()
+
+Post-execution hook that is called after all agent steps complete successfully.
+
+This method is invoked for **all strategy categories** (`"agent"`, `"rag"`, `"workflow"`, `"agent-mixed"`), and only when execution completes without exceptions.
+
+**Returns**: None
+
+**Usage**: This hook can be used to perform final context modifications, add completion instructions, or perform cleanup operations before the final response is generated.
+
+```python
+async def on_post_process(self) -> None:
+    """Called after successful agent execution"""
+    if self.call_count >= 2:  # Only if tools were actually called
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content="<END_OF_PROCESS>\nPlease answer me directly by the informations we got before.\n<END_OF_PROCESS>"
+            )
+        )
+```
