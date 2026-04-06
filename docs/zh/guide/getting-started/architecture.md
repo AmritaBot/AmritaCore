@@ -183,4 +183,4 @@ sequenceDiagram
 
 5. **厂商无关性**: 适配器层确保相同的agent逻辑可以与不同的LLM提供商配合工作而无需代码更改。
 
-6. **模板支持**: [Jinja2模板](/zh/guide/concepts/jinja2-templates)基于上下文、记忆和配置启用动态提示构建。
+6. **模板支持**: [Jinja2模板](/zh/guide/extensions-integration/jinja2-templates)基于上下文、记忆和配置启用动态提示构建。

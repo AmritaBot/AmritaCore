@@ -79,3 +79,25 @@ AgentStrategy 抽象基类定义了 agent 应如何执行其工作流。
 **参数**:
 
 - `exc` (BaseException): 执行期间发生的异常
+
+### on_post_process()
+
+执行后钩子，在所有 agent 步骤成功完成后调用。
+
+此方法对**所有策略类别**（`"agent"`、`"rag"`、`"workflow"`、`"agent-mixed"`）都可用，且仅在执行成功完成（无异常发生）时调用。
+
+**返回**: None
+
+**用法**: 此钩子可用于在生成最终响应之前执行最终上下文修改、添加完成指令或执行清理操作。
+
+```python
+async def on_post_process(self) -> None:
+    """在成功 agent 执行后调用"""
+    if self.call_count >= 2:  # 仅在实际调用了工具时
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我。\n<END_OF_PROCESS>"
+            )
+        )
+```

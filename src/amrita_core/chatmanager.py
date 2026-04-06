@@ -586,6 +586,7 @@ class ChatObject:
         """Decorator for suspend.(Only be used for a time-costy function)"""
         if not iscoroutinefunction(func):
             raise TypeError(f"{func.__name__} is not a coroutine function.")
+
         @wraps(func)
         async def wrapper(*args, **kwargs):
             chat_object = None
@@ -910,7 +911,7 @@ class ChatObject:
                     else self.context_wrap.copy()
                 )
                 ctx = StrategyContext(self.user_input, context, self)
-                await self._run_agent(ctx)
+                return await self._run_agent(ctx)
 
             case "rag":
                 context = SendMessageWrap.validate_messages(
@@ -932,6 +933,8 @@ class ChatObject:
                 raise
             with contextlib.suppress(NoExceptionHandler):
                 await st.on_exception(e)
+        else:
+            await st.on_post_process()
         self.context_wrap.extend(ctx.original_context.end_messages)
 
     @suspend
@@ -945,6 +948,7 @@ class ChatObject:
                     break
             else:
                 await strategy.on_limited()
+            await strategy.on_post_process()
             self.context_wrap.extend(strategy.ctx.original_context.end_messages)
 
         except Exception as e:

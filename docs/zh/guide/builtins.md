@@ -49,23 +49,24 @@ AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapt
 
 **功能特性**：
 
-- **API调用**: 异步调用OpenAI兼容API获取聊天回复
-- **流式响应**: 支持流式响应以实现实时内容输出，并包含用量统计
+- **API调用**: 异步调用OpenAI兼容API以获取聊天响应
+- **流式响应**: 支持流式响应，实现实时内容输出和使用统计
 - **工具调用**: 完全支持OpenAI的函数调用功能，具有适当的工具选择处理
-- **用量统计**: 跟踪API调用用量信息，包括令牌计数
+- **使用统计**: 跟踪API调用使用信息，包括令牌计数
 - **错误处理**: 具有可配置重试逻辑的健壮错误处理
 
 **支持的协议**: `"openai"`, `"__main__"`
 
 ### 9.2.2 AnthropicAdapter (实验性)
 
-`AnthropicAdapter` 提供对Anthropic Claude模型的实验性支持。
+`AnthropicAdapter` 为Anthropic的Claude模型提供实验性支持。
 
 **功能特性**：
 
 - **API调用**: 异步调用Anthropic API
 - **流式响应**: 支持带有消息流处理的流式响应
-- **令牌跟踪**: 针对Anthropic用量模型的正确输入/输出令牌跟踪
+- **令牌跟踪**: 为Anthropic的使用模型提供适当的输入/输出令牌跟踪
+- **消息过滤**: 自动过滤无效消息（content=None的assistant消息和所有tool消息），以符合Anthropic API要求
 
 **支持的协议**: `"anthropic"`, `"claude"`
 
@@ -73,146 +74,125 @@ AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapt
 
 ## 9.3 内置Agent系统
 
-AmritaCore 包含一个全面的智能体系统，能够自主使用工具完成任务。
+AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完成任务。该系统通过**模板方法模式**架构得到了显著增强，提供了统一的执行流程，同时允许策略特定的自定义。
 
-### 9.3.1 ReActAgentStrategy
+### 9.3.1 BaseReActAgentStrategy (抽象基类)
 
-`ReActAgentStrategy` 是内置的Agent策略，实现了 `"agent-mixed"` 类别，支持在同一执行框架内同时处理检索增强生成（RAG）和迭代工具调用。
+`BaseReActAgentStrategy` 是实现ReAct风格Agent模板方法模式的抽象基类。它提供共享功能包括：
 
-**关键特性**：
+- **工具调用编排**和执行流程控制
+- **推理消息生成**和处理
+- **循环检测和恢复机制**（检测过多的重复推理调用）
+- **工具调用通知处理**，具有可配置的用户通知
+- **通用错误处理模式**，具有适当的异常管理
+- **统一的停止状态管理**，通过 `_suggested_stop` 标志
+
+这个抽象类定义了所有ReAct风格策略继承的通用执行框架，确保行为一致性，同时通过抽象方法允许自定义。
+
+### 9.3.2 ReActAgentStrategy
+
+`ReActAgentStrategy` 是标准实现，继承自 `BaseReActAgentStrategy` 并实现 `"agent-mixed"` 类别，支持在同一执行框架内同时进行检索增强生成（RAG）和迭代工具调用。
+
+**主要特性**：
 
 - **动态模式切换**: 根据配置自动在RAG和Agent模式之间适应
 - **内置工具集成**: 无缝集成所有内置工具（`STOP_TOOL`、`REASONING_TOOL`、`PROCESS_MESSAGE`）
-- **推理支持**: 可选的推理步骤生成（在工具执行前）
-- **错误处理**: 具有用户通知的全面错误处理
+- **标准ToolCall-ToolResult配对**: 严格遵守OpenAI兼容的消息格式
+- **推理支持**: 可选的推理步骤生成，用于工具执行前
+- **错误处理**: 全面的错误处理，具有用户通知
 - **会话管理**: 具有内存保留的完整会话状态管理
 
 **配置选项**：
 
 - **工具调用模式**: 通过 `config.builtin.tool_calling_mode` 配置（`"agent"`、`"rag"`、`"none"`）
-- **思维模式**: 通过 `config.builtin.agent_thought_mode` 配置（`"reasoning"`、`"reasoning-required"` 等）
+- **思维模式**: 通过 `config.builtin.agent_thought_mode` 配置（`"reasoning"`、`"reasoning-required"`等）
 - **工具调用限制**: 通过调用计数自动防止无限循环
 - **中间消息**: 控制处理消息和推理步骤的可见性
 - **错误通知**: 可配置的错误报告给用户
 
-### 9.3.2 Agent工作流程
+### 9.3.3 HybridReActAgentStrategy
 
-内置Agent系统遵循以下增强的工作流程：
+`HybridReActAgentStrategy` 是一种专门针对**混合专家（MoE）架构模型**优化的Agent策略。它解决了某些MoE模型在区分工具和完成标识符时内部状态机的模糊性问题。
 
-1. **初始化**: 使用 `create_agent()` 或 `AgentRuntime` 创建Agent
-2. **上下文设置**: 使用系统提示和内存初始化对话上下文
-3. **模式检测**: 根据配置确定执行模式（RAG vs Agent）
-4. **推理阶段** (可选): 如果启用了思维模式，则生成推理步骤
-5. **工具选择**: 根据当前情况和可用工具选择适当的工具
-6. **工具执行**: 执行选定的工具并进行适当的错误处理
-7. **结果处理**: 处理工具结果并更新对话上下文
-8. **迭代控制**: 管理迭代限制和终止条件
-9. **结束**: 使用 `STOP_TOOL` 结束任务或提供最终响应
+**关键特性**：
 
-### 9.3.3 核心API函数
+- **ToolCall触发**: 通过标准ToolCall机制启动工具执行
+- **基于上下文的集成**: 将工具结果作为纯文本消息附加，而不是结构化的ToolResult对象，避免MoE模型状态模糊
+- **XML标签格式**: 使用 `<TOOL_CALL>` 和 `<TOOL_RESULT>` XML标签表示工具交互
+- **MoE特定优化**: 解决MoE模型在区分工具调用状态和完成状态时遇到的问题
 
-AmritaCore 提供了用于简化Agent创建的高级工厂函数：
+**工具函数模式**：
 
-#### create_agent()
+```xml
+<!-- 工具调用 -->
+<TOOL_CALL name="tool">
+    <PARAMS>
+        <!-- 参数作为键值对传递 -->
+        <PARAM name="param1">value1</PARAM>
+    </PARAMS>
+</TOOL_CALL>
 
-一个工厂函数，使用最少的参数创建 `AgentRuntime` 实例：
-
-```python
-from amrita_core import create_agent, minimal_init
-
-async def example():
-    await minimal_init()
-    agent = create_agent(
-        base_url="https://api.example.com",
-        api_key="your-api-key",
-        model="gpt-4",
-        model_config={"temperature": 0.7}
-    )
-    chat = agent.get_chatobject("What can you do?")
-    async with chat.begin():
-        response = await chat.full_response()
-    return response
+<!-- 工具结果 -->
+<TOOL_RESULT name="tool">
+   工具执行结果内容
+</TOOL_RESULT>
 ```
 
-**参数**：
+**已知限制和安全考虑**：
 
-- `base_url`: API端点URL
-- `api_key`: 认证API密钥
-- `model`: 模型名称（默认为"auto"）
-- `train`: 自定义系统提示（可选）
-- `model_config`: 模型配置参数
-- `config`: Amrita配置对象（可选）
+- **提示注入风险**: 将工具结果作为纯 `user` 消息附加可能会在工具输出不可信或未清理时使模型暴露于注入攻击
+- **最小化清理**: 此策略仅提供基本的标签对转义，**不执行**语义级过滤或内容验证
+- **安全责任**: 用户**必须**在生产环境中为工具结果实现全面的输入验证、语义分析和内容清理
 
-#### AgentRuntime
+### 9.3.4 NoActionAgentStrategy
 
-提供对Agent配置完全控制的底层运行时类：
+`NoActionAgentStrategy` 是一个简单的工作流策略，不执行任何操作。当需要放弃工具调用过程时可以使用。
 
-```python
-from amrita_core import AgentRuntime, minimal_init
-from amrita_core.config import get_config
-from amrita_core.types import ModelPreset, ModelConfig
+- **类别**: `"workflow"`
+- **用例**: 当您需要完全跳过工具执行时
+- **实现**: 空的 `run()` 方法，立即返回
 
-async def advanced_example():
-    await minimal_init()
-    config = get_config()
-    preset = ModelPreset(
-        name="custom_preset",
-        base_url="https://api.example.com",
-        api_key="your-api-key",
-        model="gpt-4",
-        config=ModelConfig(temperature=0.7, stream=True)
-    )
+### 9.3.5 Agent工作流和模板方法模式
 
-    agent = AgentRuntime(
-        config=config,
-        preset=preset,
-        train={"content": "你是一个乐于助人的助手。", "role": "system"}
-    )
+内置Agent系统遵循使用模板方法模式的增强工作流：
 
-    chat = agent.get_chatobject("你好！")
-    async with chat.begin():
-        async for chunk in chat.get_response_generator():
-            print(chunk, end="")
-```
+1. **初始化**: 使用用户输入和对话历史创建策略上下文
+2. **工具准备**: 根据配置确定可用工具
+3. **推理阶段**（可选）: 如果配置了，则生成推理步骤
+4. **工具执行循环**：
+   - 基于模型决策调用工具
+   - 根据策略特定逻辑处理结果
+   - 循环检测防止无限推理循环
+5. **后处理**: 调用 `on_post_process()` 钩子进行最终上下文修改
+6. **完成**: 生成最终响应
 
-## 9.4 内置安全特性
+模板方法模式确保步骤1-4和6在所有策略中遵循一致的流程，而步骤5（结果处理）和错误处理则根据策略实现进行自定义。
 
-### 9.4.1 Cookie安全检测
+### 9.3.6 策略选择指南
 
-AmritaCore 包含内置的Cookie安全检测，以防止提示注入攻击：
+根据您的用例选择合适的内置策略：
 
-- **自动Cookie生成**: 为每个会话自动生成唯一Cookie
-- **泄露检测**: 监控响应中是否存在Cookie，以指示潜在的注入攻击
-- **自动响应阻止**: 阻止包含Cookie的响应并返回错误消息
+- **标准LLM提供商**（OpenAI、Anthropic等）: 使用 `ReActAgentStrategy`
+- **MoE架构模型**（Mixtral、Qwen-MoE等）: 使用 `HybridReActAgentStrategy`
+- **跳过工具执行**: 使用 `NoActionAgentStrategy`
+- **自定义行为**: 扩展 `BaseReActAgentStrategy` 或实现您自己的 `AgentStrategy`
 
-### 9.4.2 会话隔离
+## 9.4 内置事件钩子
 
-内置的会话管理确保不同用户或对话之间的完全隔离：
+AmritaCore为常见场景提供内置事件钩子：
 
-- **SessionsManager**: 管理会话生命周期的单例类
-- **SessionData**: 每个会话的配置、工具和内存
-- **自动清理**: 会话在不再需要时自动清理
+### 9.4.1 Cookie安全钩子
 
-## 9.5 内置事件系统
+Cookie安全钩子自动检测模型响应中是否出现敏感Cookie值，并终止会话以防止数据泄露。
 
-AmritaCore 提供了一个全面的事件驱动架构，具有内置的事件处理器：
+- **激活**: 当 `config.cookie.enable_cookie = True` 时启用
+- **检测**: 扫描模型响应中的配置Cookie值
+- **响应**: 检测到时终止会话并返回通用错误消息
 
-### 9.5.1 PreCompletionEvent
+### 9.4.2 后处理钩子
 
-在向LLM发送请求之前触发，允许修改消息和切换预设。
+`on_post_process()` 钩子在策略执行成功后调用，可用于最终上下文修改或清理操作。
 
-### 9.5.2 CompletionEvent
-
-在从LLM接收响应后触发，支持响应处理和安全检查。
-
-### 9.5.3 FallbackContext
-
-处理LLM请求失败，具有自动重试逻辑和预设回退机制。
-
-### 9.5.4 内置事件处理器
-
-- **Cookie安全处理器**: 自动检查响应中的Cookie泄露
-- **工具调用通知**: 提供工具执行状态的实时反馈
-- **错误传播**: 确保跨执行管道的适当错误处理
-
-这些内置功能为开发复杂的AI代理提供了坚实的基础，同时保持安全性、性能和可扩展性。
+- **时机**: 在所有工具执行成功完成后调用
+- **适用性**: 对**所有策略类别**（`"agent"`、`"rag"`、`"workflow"`、`"agent-mixed"`）都可用
+- **用例**: 添加最终指令、上下文摘要或清理操作

@@ -66,6 +66,7 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 - **API Calls**: Asynchronous calls to the Anthropic API
 - **Streaming Responses**: Supports streaming with message stream handling
 - **Token Tracking**: Proper input/output token tracking for Anthropic's usage model
+- **Message Filtering**: Automatically filters out invalid messages (assistant messages with `content=None` and all tool messages) to comply with Anthropic API requirements
 
 **Supported Protocols**: `"anthropic"`, `"claude"`
 
@@ -73,16 +74,30 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 
 ## 9.3 Built-in Agent System
 
-AmritaCore includes a comprehensive intelligent agent system capable of autonomously using tools to complete tasks.
+AmritaCore includes a comprehensive intelligent agent system capable of autonomously using tools to complete tasks. The system has been significantly enhanced with a **template method pattern** architecture that provides unified execution flow while allowing strategy-specific customization.
 
-### 9.3.1 ReActAgentStrategy
+### 9.3.1 BaseReActAgentStrategy (Abstract Base Class)
 
-The `ReActAgentStrategy` is the built-in agent strategy that implements the `"agent-mixed"` category, supporting both retrieval-augmented generation (RAG) and iterative tool calling within the same execution framework.
+`BaseReActAgentStrategy` is the abstract base class that implements the template method pattern for ReAct-style agents. It provides shared functionality including:
+
+- **Tool calling orchestration** and execution flow control
+- **Reasoning message generation** and processing
+- **Loop detection and recovery mechanisms** (detects excessive duplicate reasoning calls)
+- **Tool call notification handling** with configurable user notifications
+- **Common error handling patterns** with proper exception management
+- **Unified stop state management** via the `_suggested_stop` flag
+
+This abstract class defines the common execution framework that all ReAct-style strategies inherit from, ensuring consistent behavior while allowing customization through abstract methods.
+
+### 9.3.2 ReActAgentStrategy
+
+The `ReActAgentStrategy` is the standard implementation that inherits from `BaseReActAgentStrategy` and implements the `"agent-mixed"` category, supporting both retrieval-augmented generation (RAG) and iterative tool calling within the same execution framework.
 
 **Key Features**:
 
 - **Dynamic Mode Switching**: Automatically adapts between RAG and agent modes based on configuration
 - **Built-in Tool Integration**: Seamlessly integrates with all built-in tools (`STOP_TOOL`, `REASONING_TOOL`, `PROCESS_MESSAGE`)
+- **Standard ToolCall-ToolResult Pairing**: Maintains strict adherence to OpenAI-compatible message formats
 - **Reasoning Support**: Optional reasoning step generation before tool execution
 - **Error Handling**: Comprehensive error handling with user notifications
 - **Session Management**: Full session state management with memory retention
@@ -95,124 +110,89 @@ The `ReActAgentStrategy` is the built-in agent strategy that implements the `"ag
 - **Intermediate Messages**: Controls visibility of processing messages and reasoning steps
 - **Error Notifications**: Configurable error reporting to users
 
-### 9.3.2 Agent Workflow
+### 9.3.3 HybridReActAgentStrategy
 
-The built-in agent system follows this enhanced workflow:
+`HybridReActAgentStrategy` is a specialized agent strategy **optimized for Mixture of Experts (MoE) architecture models**. It addresses the ambiguity in internal state machines of certain MoE models when distinguishing between Tool and Completion identifiers.
 
-1. **Initialization**: Create agent with `create_agent()` or `AgentRuntime`
-2. **Context Setup**: Initialize conversation context with system prompt and memory
-3. **Mode Detection**: Determine execution mode (RAG vs Agent) based on configuration
-4. **Reasoning Phase** (Optional): Generate reasoning step if thought mode is enabled
-5. **Tool Selection**: Select appropriate tools based on current situation and available tools
-6. **Tool Execution**: Execute selected tools with proper error handling
-7. **Result Processing**: Process tool results and update conversation context
-8. **Iteration Control**: Manage iteration limits and termination conditions
-9. **Completion**: Use `STOP_TOOL` to end the task or provide final response
+**Key Characteristics**:
 
-### 9.3.3 Core API Functions
+- **ToolCall Triggering**: Initiates tool execution through standard ToolCall mechanisms
+- **Context-Based Integration**: Appends tool results as plain text messages rather than structured ToolResult objects, avoiding MoE model state ambiguity
+- **XML Tag Format**: Uses `<TOOL_CALL>` and `<TOOL_RESULT>` XML tags to represent tool interactions
+- **MoE-Specific Optimization**: Resolves issues where MoE models struggle to differentiate between tool invocation states and completion states
 
-AmritaCore provides high-level factory functions for simplified agent creation:
+**Tool Function Schema**:
 
-#### create_agent()
+```xml
+<!-- Tool Call -->
+<TOOL_CALL name="tool">
+    <PARAMS>
+        <!-- Parameters are passed as key-value pairs -->
+        <PARAM name="param1">value1</PARAM>
+    </PARAMS>
+</TOOL_CALL>
 
-A factory function that creates an `AgentRuntime` instance with minimal parameters:
-
-```python
-from amrita_core import create_agent, minimal_init
-
-async def example():
-    await minimal_init()
-    agent = create_agent(
-        base_url="https://api.example.com",
-        api_key="your-api-key",
-        model="gpt-4",
-        model_config={"temperature": 0.7}
-    )
-    chat = agent.get_chatobject("What can you do?")
-    async with chat.begin():
-        response = await chat.full_response()
-    return response
+<!-- Tool Result -->
+<TOOL_RESULT name="tool">
+   Tool execution result content
+</TOOL_RESULT>
 ```
 
-**Parameters**:
+**Known Limitations and Security Considerations**:
 
-- `base_url`: API endpoint URL
-- `api_key`: Authentication API key
-- `model`: Model name (defaults to "auto")
-- `train`: Custom system prompt (optional)
-- `model_config`: Model configuration parameters
-- `config`: Amrita configuration object (optional)
+- **Prompt Injection Risk**: Appending tool results as plain `user` messages may expose the model to injection attacks if tool outputs are untrusted or unsanitized
+- **Minimal Sanitization**: This strategy only provides basic tag pair escaping and does **NOT** perform semantic-level filtering or content validation
+- **Security Responsibility**: Users **MUST** implement comprehensive input validation, semantic analysis, and content sanitization for tool results in production environments
 
-#### AgentRuntime
+### 9.3.4 NoActionAgentStrategy
 
-The underlying runtime class that provides full control over agent configuration:
+`NoActionAgentStrategy` is a simple workflow strategy that performs no action. It can be used to give up the tool calling process when needed.
 
-```python
-from amrita_core import AgentRuntime, minimal_init
-from amrita_core.config import get_config
-from amrita_core.types import ModelPreset, ModelConfig
+- **Category**: `"workflow"`
+- **Use Case**: When you need to skip tool execution entirely
+- **Implementation**: Empty `run()` method that returns immediately
 
-async def advanced_example():
-    await minimal_init()
-    config = get_config()
-    preset = ModelPreset(
-        name="custom_preset",
-        base_url="https://api.example.com",
-        api_key="your-api-key",
-        model="gpt-4",
-        config=ModelConfig(temperature=0.7, stream=True)
-    )
+### 9.3.5 Agent Workflow and Template Method Pattern
 
-    agent = AgentRuntime(
-        config=config,
-        preset=preset,
-        train={"content": "You are a helpful assistant.", "role": "system"}
-    )
+The built-in agent system follows an enhanced workflow using the template method pattern:
 
-    chat = agent.get_chatobject("Hello!")
-    async with chat.begin():
-        async for chunk in chat.get_response_generator():
-            print(chunk, end="")
-```
+1. **Initialization**: Strategy context is created with user input and conversation history
+2. **Tool Preparation**: Available tools are determined based on configuration
+3. **Reasoning Phase** (optional): If configured, reasoning step is generated
+4. **Tool Execution Loop**:
+   - Tools are called based on model decisions
+   - Results are processed according to strategy-specific logic
+   - Loop detection prevents infinite reasoning cycles
+5. **Post-Processing**: The `on_post_process()` hook is called for final context modifications
+6. **Completion**: Final response is generated
 
-## 9.4 Built-in Security Features
+The template method pattern ensures that steps 1-4 and 6 follow a consistent flow across all strategies, while step 5 (result processing) and error handling are customized per strategy implementation.
 
-### 9.4.1 Cookie Security Detection
+### 9.3.6 Strategy Selection Guidelines
 
-AmritaCore includes built-in cookie security detection to prevent prompt injection attacks:
+Choose the appropriate built-in strategy based on your use case:
 
-- **Automatic Cookie Generation**: Unique cookies are automatically generated for each session
-- **Leakage Detection**: Monitors responses for cookie presence indicating potential injection
-- **Automatic Response Blocking**: Blocks responses containing cookies and returns error messages
+- **Standard LLM Providers** (OpenAI, Anthropic, etc.): Use `ReActAgentStrategy`
+- **MoE Architecture Models** (Mixtral, Qwen-MoE, etc.): Use `HybridReActAgentStrategy`
+- **Skip Tool Execution**: Use `NoActionAgentStrategy`
+- **Custom Behavior**: Extend `BaseReActAgentStrategy` or implement your own `AgentStrategy`
 
-### 9.4.2 Session Isolation
+## 9.4 Built-in Event Hooks
 
-Built-in session management ensures complete isolation between different users or conversations:
+AmritaCore provides built-in event hooks for common scenarios:
 
-- **SessionsManager**: Singleton class managing session lifecycle
-- **SessionData**: Per-session configuration, tools, and memory
-- **Automatic Cleanup**: Sessions are automatically cleaned up when no longer needed
+### 9.4.1 Cookie Security Hook
 
-## 9.5 Built-in Event System
+The cookie security hook automatically detects if sensitive cookie values appear in model responses and terminates the session to prevent data leakage.
 
-AmritaCore provides a comprehensive event-driven architecture with built-in event handlers:
+- **Activation**: Enabled when `config.cookie.enable_cookie = True`
+- **Detection**: Scans model responses for configured cookie values
+- **Response**: Terminates session and returns generic error message on detection
 
-### 9.5.1 PreCompletionEvent
+### 9.4.2 Post-Process Hook
 
-Triggered before sending requests to LLM, allowing message modification and preset switching.
+The `on_post_process()` hook is called after successful strategy execution and can be used for final context modifications or cleanup operations.
 
-### 9.5.2 CompletionEvent
-
-Triggered after receiving responses from LLM, enabling response processing and security checks.
-
-### 9.5.3 FallbackContext
-
-Handles LLM request failures with automatic retry logic and preset fallback mechanisms.
-
-### 9.5.4 Built-in Event Handlers
-
-- **Cookie Security Handler**: Automatically checks for cookie leaks in responses
-- **Tool Call Notifications**: Provides real-time feedback on tool execution status
-- **Error Propagation**: Ensures proper error handling across the execution pipeline
-
-These built-in capabilities provide a solid foundation for developing sophisticated AI agents while maintaining security, performance, and extensibility.
+- **Timing**: Called after all tool executions complete successfully
+- **Applicability**: Available for **all strategy categories** (`"agent"`, `"rag"`, `"workflow"`, `"agent-mixed"`)
+- **Use Cases**: Adding final instructions, context summarization, or cleanup operations

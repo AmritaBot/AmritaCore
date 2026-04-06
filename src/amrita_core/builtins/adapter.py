@@ -59,6 +59,16 @@ class AnthropicAdapter(ModelAdapter):
         )
         stream = preset_config.stream
         messages = model_dump(messages)
+        msg_to_remove: list[dict] = []
+        msg: dict[str, Any]
+        for msg in messages:
+            match msg.get("role", ""):
+                case "assistant":
+                    if msg.get("content") is None:
+                        msg_to_remove.append(msg)
+                case "tool":
+                    msg_to_remove.append(msg)
+        messages = [i for i in messages if all(i is not a for a in msg_to_remove)]
         text_resp = StringIO()
         if stream:
             async with client.messages.stream(

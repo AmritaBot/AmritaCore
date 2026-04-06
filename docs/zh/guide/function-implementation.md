@@ -4,32 +4,32 @@
 
 ### 4.1.1 init() 初始化函数
 
-`init()` 函数初始化 AmritaCore 的核心组件，必须在任何其他操作之前调用：
+`init()` 函数初始化AmritaCore的核心组件，在执行任何其他操作之前必须调用：
 
 ```python
 from amrita_core import init
 
-# 初始化 AmritaCore
+# 初始化AmritaCore
 init()
 ```
 
-此函数执行几个关键任务：
+此函数执行几项关键任务：
 
-- 设置内部日志
-- 初始化 Jieba 用于文本处理（如果可用）
+- 设置内部日志记录
+- 初始化Jieba进行文本处理（如果可用）
 - 加载内置模块
 - 准备核心框架以供使用
 
 ### 4.1.2 load_amrita() 异步加载
 
-`load_amrita()` 函数异步加载 AmritaCore 组件，特别是在启用 MCP 客户端功能时：
+`load_amrita()` 函数异步加载AmritaCore组件，特别是当启用了MCP客户端功能时：
 
 ```python
 import asyncio
 from amrita_core import load_amrita
 
 async def main():
-    # 加载 AmritaCore 组件
+    # 加载AmritaCore组件
     await load_amrita()
 
 asyncio.run(main())
@@ -39,7 +39,7 @@ asyncio.run(main())
 
 #### 4.1.3.1 set_config() 设置配置
 
-`set_config()` 函数将配置应用到 AmritaCore：
+`set_config()` 函数将配置应用到AmritaCore：
 
 ```python
 from amrita_core.config import AmritaConfig, set_config
@@ -49,41 +49,42 @@ config = AmritaConfig()
 set_config(config)
 ```
 
-#### 4.1.3.2 get_config() 检索配置
+## 4.2 Agent策略生命周期方法
 
-`get_config()` 函数检索当前 AmritaCore 配置：
+AmritaCore中的Agent策略实现了几个在执行过程中不同点被调用的生命周期方法。
 
-```python
-from amrita_core.config import get_config
+### 4.2.1 on_post_process() 后处理钩子
 
-# 检索当前配置
-current_config = get_config()
-print(current_config.function_config.use_minimal_context)
-```
+`on_post_process()` 方法是一个**执行后钩子**，在所有Agent步骤成功完成后调用。此钩子对**所有策略类别**（`"agent"`、`"rag"`、`"workflow"`、`"agent-mixed"`）都可用。
 
-### 4.1.4 初始化过程详情
+**目的**: 此钩子允许策略在生成最终响应之前执行最终上下文修改、添加完成指令或执行清理操作。
 
-初始化过程涉及：
+**使用示例**:
+``python
+async def on_post_process(self) -> None:
+"""在成功Agent执行后调用"""
+if self.call_count >= 2: # 仅在实际调用了工具时
+self.ctx.message.append(
+Message(
+role="user",
+content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我。\n<END_OF_PROCESS>"
+)
+)
 
-1. 调用 `init()` 准备核心组件
-2. 使用 `set_config()` 设置所需配置
-3. 使用 `load_amrita()` 加载附加组件
+````
 
-```python
-from amrita_core import init, load_amrita
-from amrita_core.config import AmritaConfig, set_config
+**关键特性**:
+- 仅在成功执行时调用（未发生异常）
+- 对**所有策略类别**都可用
+- 可以在最终完成之前修改对话上下文
+- 适用于添加最终指令或上下文摘要
 
-# 步骤 1: 初始化核心组件
-init()
+### 4.2.2 其他生命周期方法
 
-# 步骤 2: 设置配置
-config = AmritaConfig()
-set_config(config)
-
-# 步骤 3: 加载附加组件
-import asyncio
-asyncio.run(load_amrita())
-```
+- **`run()`**: `"workflow"` 和 `"rag"` 类别的主要执行方法
+- **`single_execute()`**: `"agent"` 和 `"agent-mixed"` 类别的单步执行方法
+- **`on_exception()`**: 执行期间发生异常时调用
+- **`on_limited()`**: 达到执行限制时调用（例如，最大工具调用次数）
 
 ## 4.2 对话交互流程
 
@@ -108,7 +109,7 @@ chat = ChatObject(
     user_input="你好，你怎么样？",
     train=train.model_dump()
 )
-```
+````
 
 ### 4.2.2 begin() 执行对话
 
@@ -127,7 +128,7 @@ async with chat.begin() as chat:...
 
 #### 用作上下文管理器（推荐）
 
-```python
+```
 
 # 我们更推荐使用上下文管理器：
 async with chat.begin():
@@ -184,7 +185,7 @@ await chat.begin()
 5. 处理响应
 6. 更新上下文以进行后续交互
 
-```python
+```
 # 完整对话生命周期
 context = MemoryModel()
 train = Message(content="你是一个乐于助人的助手。", role="system")
