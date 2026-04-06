@@ -106,7 +106,7 @@ class AgentRuntime:
         """
         self.strategy = strategy
 
-    def get_chatobject(self, input: USER_INPUT, **kwargs) -> ChatObject:
+    def get_chatobject(self, user_input: USER_INPUT, **kwargs) -> ChatObject:
         """Get a chat object
 
         Args:
@@ -131,7 +131,7 @@ class AgentRuntime:
         """
         return ChatObject(
             train=self.train,
-            user_input=input,
+            user_input=user_input,
             context=self.context,
             session_id=self.session_id,
             config=self.config,

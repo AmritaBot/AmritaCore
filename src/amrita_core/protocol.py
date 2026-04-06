@@ -186,6 +186,8 @@ class ModelAdapter:
     ) -> UniResponse[None, list[ToolCall] | None]:
         raise NotImplementedError
 
+    # TODO: Add embedding/reranker support.
+
     @staticmethod
     @abstractmethod
     def get_adapter_protocol() -> str | tuple[str, ...]: ...
