@@ -59,6 +59,9 @@ class RawMessageContent(MessageContent, ABC):
     def get_content(self):
         return self.raw_data
 
+    def __str__(self) -> str:
+        return str(self.raw_data)
+
 
 class StringMessageContent(MessageContent):
     """String type message content implementation"""
@@ -140,7 +143,8 @@ class ImageMessage(MessageContent):
         image_type = get_image_format(self.image)
         if not image_type:
             return "[Unsupported image format]"
-        return f"![](data:image/{image_type};base64,{self.image.decode('utf-8')})"
+        base64_data = base64.b64encode(self.image).decode("utf-8")
+        return f"![](data:image/{image_type};base64,{base64_data})"
 
     async def save_to(self, path: Path, headers: dict | None = None):
         async with aiofiles.open(path, "wb") as f:

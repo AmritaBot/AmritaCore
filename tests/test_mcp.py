@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -69,6 +70,32 @@ class TestMCPClient:
             )
             mock_close.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_simple_call_with_exception(self, mcp_client):
+        """Test simple_call when exception occurs"""
+        with (
+            patch.object(mcp_client, "_connect"),
+            patch.object(mcp_client, "_close"),
+        ):
+            mock_client = AsyncMock()
+            mock_client.call_tool.side_effect = Exception("Test error")
+            mcp_client.mcp_client = mock_client
+
+            result = await mcp_client.simple_call("test_tool", {"param": "value"})
+
+            # Should return JSON error response
+            error_data = json.loads(result)
+            assert error_data["success"] is False
+            assert "Test error" in error_data["error"]
+
+    @pytest.mark.asyncio
+    async def test_connect_already_connected(self, mcp_client):
+        """Test _connect when already connected"""
+        mcp_client.mcp_client = AsyncMock()
+
+        with pytest.raises(RuntimeError, match="MCP Server is already connected!"):
+            await mcp_client._connect()
+
 
 class TestMultiClientManager:
     @pytest.fixture
@@ -115,6 +142,14 @@ class TestMultiClientManager:
         assert len(manager.clients) == 1
         assert manager.clients[0] == client
 
+    def test_register_only_without_args(self):
+        """Test register_only without required arguments"""
+        manager = MultiClientManager()
+        with pytest.raises(
+            ValueError, match="Please provide MCP Server script or MCP Client"
+        ):
+            manager.register_only()  # type: ignore
+
     @pytest.mark.asyncio
     async def test_initialize_this(self):
         manager = MultiClientManager()
@@ -128,6 +163,12 @@ class TestMultiClientManager:
         # Test tools wrapper
         wrapper = manager._tools_wrapper("test_tool")
         assert callable(wrapper)
+
+    @pytest.mark.asyncio
+    async def test_get_client_by_tool_name_not_found(self, manager):
+        """Test get_client_by_tool_name when tool doesn't exist"""
+        with pytest.raises(RuntimeError, match="Tool not found: nonexistent_tool"):
+            await manager.get_client_by_tool_name("nonexistent_tool")
 
 
 class TestClientManager:
