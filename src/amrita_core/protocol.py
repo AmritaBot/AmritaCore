@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import base64
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Iterable
+from collections.abc import AsyncGenerator, Iterable, Sequence
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Literal, TypedDict
+from typing import TYPE_CHECKING, Any, Literal, TypedDict
 
 import aiofiles
 import aiohttp
@@ -18,7 +18,7 @@ from amrita_core.threadsafe import ContextThreadsafe
 
 from .logging import logger
 from .tools.models import ToolChoice, ToolFunctionSchema
-from .types import ModelPreset, ToolCall, UniResponse
+from .types import EmbeddingChunk, ModelPreset, ToolCall, UniResponse
 
 
 def get_image_format(file: Path | bytes):
@@ -158,6 +158,11 @@ class ImageMessage(MessageContent):
 
 
 COMPLETION_RETURNING = MessageContent | str | UniResponse[str, None]
+ADAPTER_TYPE = Literal[
+    "text-gen",
+    "embed",
+    # "rerank",
+]
 
 
 @dataclass
@@ -178,7 +183,10 @@ class ModelAdapter:
     async def call_api(
         self, messages: Iterable, **kwargs
     ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
-        yield ""
+        if TYPE_CHECKING:
+            yield ""
+        else:
+            raise NotImplementedError
 
     async def call_tools(
         self,
@@ -188,14 +196,19 @@ class ModelAdapter:
     ) -> UniResponse[None, list[ToolCall] | None]:
         raise NotImplementedError
 
-    # TODO: Add embedding/reranker support.
+    async def call_embed(
+        self, texts: Iterable[str], **kwargs
+    ) -> Sequence[EmbeddingChunk]:
+        raise NotImplementedError
+
+    # TODO: Add reranker support.
 
     @staticmethod
     @abstractmethod
     def get_adapter_protocol() -> str | tuple[str, ...]: ...
 
     @staticmethod
-    def get_type() -> Literal["text-gen", "embed", "rerank"]:
+    def get_type() -> ADAPTER_TYPE | tuple[ADAPTER_TYPE, ...]:
         return "text-gen"
 
     @property

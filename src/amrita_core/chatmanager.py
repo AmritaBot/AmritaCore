@@ -221,7 +221,9 @@ class MemoryLimiter:
             ]
             logger.debug("Performing context summarization...")
             response = await get_last_response(call_completion(msg_list))
-            usage = get_tokens(msg_list, response)
+            usage = get_tokens(
+                msg_list, response
+            )  # Well, this is just a rough calculation.
             self.usage = usage
             logger.debug(f"Context summary received: {response.content}")
             self.memory.abstract = response.content

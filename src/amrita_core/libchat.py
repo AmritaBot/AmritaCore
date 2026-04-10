@@ -172,10 +172,16 @@ async def _call_with_reflection(
         Result of the call function
     """
     adapter_class = AdapterManager().safe_get_adapter(preset.protocol)
+
     if adapter_class:
+        if "text-gen" not in (ada_tp := adapter_class.get_type()):
+            raise RuntimeError(
+                f"Invalid adapter type for text-gen when using adapter: {adapter_class.__name__}, this adapter only supports {ada_tp}."
+            )
         debug_log(
             f"Using adapter {adapter_class.__name__} to handle protocol {preset.protocol}"
         )
+
     else:
         raise ValueError(f"Undefined protocol adapter: {preset.protocol}")
 
