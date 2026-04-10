@@ -114,17 +114,6 @@ class TestImageMessage:
         msg = ImageMessage(unsupported_data)
         assert msg.get_content() == "[Unsupported image format]"
 
-    # Skip complex curl tests for now as they require more sophisticated mocking
-    @pytest.mark.skip(reason="Complex aiohttp mocking requires more setup")
-    @pytest.mark.asyncio
-    async def test_image_message_curl_image(self):
-        pass
-
-    @pytest.mark.skip(reason="Complex aiohttp mocking requires more setup")
-    @pytest.mark.asyncio
-    async def test_image_message_curl_image_error(self):
-        pass
-
     @pytest.mark.asyncio
     async def test_image_message_save_to(self, tmp_path, sample_image_bytes):
         """Test ImageMessage save_to method"""

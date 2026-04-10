@@ -6,7 +6,7 @@ from collections.abc import AsyncGenerator, Iterable
 from dataclasses import dataclass, field
 from io import BytesIO
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 import aiofiles
 import aiohttp
@@ -14,6 +14,7 @@ import filetype
 from filetype.types.base import Type
 
 from amrita_core.config import AmritaConfig, get_config
+from amrita_core.threadsafe import ContextThreadsafe
 
 from .logging import logger
 from .tools.models import ToolChoice, ToolFunctionSchema
@@ -169,10 +170,11 @@ class ModelAdapter:
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
-        if not getattr(cls, "__abstract__", False):
+        if not getattr(cls, "__abstract__", False) and not getattr(
+            cls, "__no_register__", False
+        ):
             AdapterManager().register_adapter(cls)
 
-    @abstractmethod
     async def call_api(
         self, messages: Iterable, **kwargs
     ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
@@ -192,13 +194,17 @@ class ModelAdapter:
     @abstractmethod
     def get_adapter_protocol() -> str | tuple[str, ...]: ...
 
+    @staticmethod
+    def get_type() -> Literal["text-gen", "embed", "rerank"]:
+        return "text-gen"
+
     @property
     def protocol(self):
         """Get model protocol adapter"""
         return self.get_adapter_protocol()
 
 
-class AdapterManager:
+class AdapterManager(ContextThreadsafe):
     __instance = None
     _adapter_class: dict[str, type[ModelAdapter]]
 

@@ -4,6 +4,8 @@ import typing
 
 from typing_extensions import Self
 
+from amrita_core.threadsafe import ContextThreadsafe
+
 from .logging import debug_log, logger
 from .protocol import AdapterManager
 from .tokenizer import hybrid_token_count
@@ -38,7 +40,7 @@ class PresetReport(BaseModel):
     time_used: float
 
 
-class MultiPresetManager:
+class MultiPresetManager(ContextThreadsafe):
     """
     MultiPresetManager is a class that manages presets.
     """

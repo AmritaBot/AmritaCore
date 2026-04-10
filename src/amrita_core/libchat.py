@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import AsyncGenerator, Generator, Sequence
+from collections.abc import AsyncGenerator, Callable, Generator, Sequence
 from io import StringIO
 
 from pydantic import ValidationError
@@ -243,12 +243,12 @@ async def call_completion(
     preset = preset or PresetManager().get_default_preset()
     config = config or get_config()
 
-    async def _call_api(adapter: ModelAdapter, messages: CONTENT_LIST_TYPE):
-        async def inner():
-            async for i in adapter.call_api([(i.model_dump()) for i in messages]):
-                yield i
-
-        return inner
+    async def _call_api(
+        adapter: ModelAdapter, messages: CONTENT_LIST_TYPE
+    ) -> Callable[
+        [], AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any]
+    ]:
+        return lambda: adapter.call_api([(i.model_dump()) for i in messages])
 
     # Call adapter to get chat response
     response = await _call_with_reflection(preset, _call_api, config, messages)

@@ -405,7 +405,9 @@ class ChatObject:
     template: Template
     jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
     _response_queue: asyncio.Queue[RESPONSE_TYPE]
-    _overflow_queue: asyncio.Queue[RESPONSE_TYPE]
+    _overflow_queue: asyncio.Queue[
+        RESPONSE_TYPE
+    ]  # Note: Size of this queue should be far smaller than the queue size of response_queue
     _q_tout: float
     _q_ovf_tout: float
     _is_running: bool = False  # Whether it is running
@@ -441,8 +443,8 @@ class ChatObject:
         hook_args: tuple[Any, ...] = (),
         hook_kwargs: dict[str, Any] | None = None,
         exception_ignored: tuple[type[BaseException], ...] = (),
-        queue_size: int = 25,
-        overflow_queue_size: int = 45,
+        queue_size: int = 45,
+        overflow_queue_size: int = 15,
         queue_timeout: float = 2.0,
         overflow_queue_timeout: float = 5.0,
     ) -> None:
@@ -463,8 +465,8 @@ class ChatObject:
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
-            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.
-            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 45.
+            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 45.
+            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 15.
         """
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
@@ -567,6 +569,18 @@ class ChatObject:
         if self.__resume_signal and not self.__resume_signal.done():
             self.__resume_signal.set_result(True)
             self._suspend_tags = None
+
+    @staticmethod
+    def monitoring(func: Callable[..., Any]):
+        """Decorator for monitoring.This decorator will ONLY BE USED in ChatObject."""
+
+        @wraps(func)
+        def inner(*args, **kwargs):
+            self: ChatObject = args[0]  # This is Self
+            self.last_call = datetime.now(utc)
+            return func(*args, **kwargs)
+
+        return inner
 
     @staticmethod
     def suspend_with_tag(tag: str):
@@ -681,6 +695,7 @@ class ChatObject:
             self._task = asyncio.create_task(self._entry())
         return self
 
+    @monitoring
     @suspend
     async def _entry(self) -> None:
         """Call chat object to process messages"""
@@ -690,7 +705,6 @@ class ChatObject:
 
             try:
                 self._is_running = True
-                self.last_call = datetime.now(utc)
                 await chat_manager.add_chat_object(self)
 
                 await self._run()
@@ -861,9 +875,9 @@ class ChatObject:
         return builder.getvalue()
 
     async def __get_from(
-        self, queue: asyncio.Queue[RESPONSE_TYPE]
+        self, queue: asyncio.Queue[RESPONSE_TYPE], max_step: int
     ) -> AsyncGenerator[RESPONSE_TYPE, None]:
-        remaining: int = queue.qsize()
+        remaining: int = min(max_step, queue.qsize())
         while remaining > 0 and not queue.empty():
             item = await queue.get()
             queue.task_done()
@@ -878,14 +892,18 @@ class ChatObject:
         """
         # Yield from primary queue first
         while True:
-            async for item in self.__get_from(self._response_queue):
+            primary_size, overflow_size = (
+                self._response_queue.qsize(),
+                self._overflow_queue.qsize(),
+            )
+            async for item in self.__get_from(self._response_queue, primary_size):
                 if item is self.__done_marker:
                     return
                 yield item
 
             # If primary queue is empty, check overflow queue
             if not self._overflow_queue.empty():
-                async for item in self.__get_from(self._overflow_queue):
+                async for item in self.__get_from(self._overflow_queue, overflow_size):
                     if item is self.__done_marker:
                         return
                     yield item
@@ -966,6 +984,7 @@ class ChatObject:
             await strategy.on_exception(e)
             self.context_wrap = backup
 
+    @monitoring
     @suspend
     async def _process_chat(
         self,
@@ -980,7 +999,6 @@ class ChatObject:
         Returns:
             Model response
         """
-        self.last_call = datetime.now(utc)
 
         data = self.data
         logger.debug(
@@ -1065,6 +1083,7 @@ class ChatObject:
         logger.debug("Chat processing completed")
         return response
 
+    @monitoring
     def _prepare_send_messages(
         self,
     ) -> list:
@@ -1073,7 +1092,6 @@ class ChatObject:
         Returns:
             Prepared message list to send
         """
-        self.last_call = datetime.now(utc)
         logger.debug("Preparing messages to send..")
         train: Message[str] = Message[str].model_validate(self.train)
         data = self.data

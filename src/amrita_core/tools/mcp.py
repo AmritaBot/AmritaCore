@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+import contextlib
 import json
 import random
 from asyncio import Lock
@@ -13,6 +16,7 @@ from mcp.types import TextContent
 from typing_extensions import Self, deprecated
 
 from amrita_core.logging import logger
+from amrita_core.threadsafe import ContextThreadsafe
 
 from .manager import MultiToolsManager, ToolsManager
 from .models import (
@@ -55,6 +59,15 @@ class MCPClient:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self._close()
+
+    async def bound_to(self, tm: ClientManager):
+        try:
+            tm.register_only(client=self)
+            await tm._load_this(self)
+        except Exception:
+            with contextlib.suppress(Exception):
+                await tm.unregister_client(self.server_script)
+            raise
 
     async def simple_call(self, tool_name: str, data: dict[str, Any]) -> str:
         """Call MCP tool
@@ -140,7 +153,7 @@ class MCPClient:
             self.mcp_client = None
 
 
-class MultiClientManager:
+class MultiClientManager(ContextThreadsafe):
     clients: list[MCPClient]
     script_to_clients: dict[str, MCPClient]
     name_to_clients: dict[str, MCPClient]  # Map from FunctionName to MCPClient
