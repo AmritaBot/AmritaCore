@@ -8,6 +8,7 @@ from collections import defaultdict
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from functools import wraps
 from io import StringIO
 from types import TracebackType
@@ -65,6 +66,14 @@ RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 
 # Type vars
 FUNC_RET_T = TypeVar("FUNC_RET_T")
+
+
+# Built-in break points
+class SuspendEnum(str, Enum):
+    MEMORY = "ChatObject::memory_limiting"
+    SINGLE_TOOL = "ChatObject::single_tool_call"
+    PRECOMPLE = "matcher_call::pre_completion"
+    COMPLE = "matcher_call::post_completion"
 
 
 class ChatObjectMeta(BaseModel):
@@ -750,7 +759,7 @@ class ChatObject:
         debug_log(self.train.content)
         logger.debug("Starting applying memory limitations..")
         async with MemoryLimiter(self.data, self.train, config=config) as lim:
-            await self._wait_for_continue("memory_limiting")
+            await self._wait_for_continue(SuspendEnum.MEMORY.value)
             await lim.run_enforce()
             abs_usage = lim.usage
             self.data = lim.memory
@@ -961,7 +970,7 @@ class ChatObject:
         backup: SendMessageWrap = self.context_wrap.copy()
         try:
             for _ in range(1, self.config.function_config.agent_tool_call_limit + 1):
-                await self._wait_for_continue("single_tool_call")
+                await self._wait_for_continue(SuspendEnum.SINGLE_TOOL.value)
                 if not (await strategy.single_execute()):
                     break
             else:
@@ -1012,7 +1021,7 @@ class ChatObject:
             user_input=self.user_input,
             original_context=messages,
         )
-        await self._wait_for_continue("matcher_call::pre_completion")
+        await self._wait_for_continue(SuspendEnum.PRECOMPLE.value)
         await MatcherManager.trigger_event(
             chat_event,
             self.config,
@@ -1058,7 +1067,7 @@ class ChatObject:
         self.response = response
         logger.debug("Triggering chat events..")
         chat_event = CompletionEvent(self.user_input, messages, self, response.content)
-        await self._wait_for_continue("matcher_call::post_completion")
+        await self._wait_for_continue(SuspendEnum.COMPLE.value)
         await MatcherManager.trigger_event(
             chat_event,
             self.config,

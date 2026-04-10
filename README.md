@@ -22,7 +22,7 @@
 
 </center>
 
-AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. Think of it as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
+AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. **AmritaCore is designed to be interactive-first**, enabling real-time, responsive agent applications through its native async streaming architecture. Think of it as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
 
 ## 🚀 What is AmritaCore?
 

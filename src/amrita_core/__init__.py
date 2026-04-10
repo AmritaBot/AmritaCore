@@ -1,6 +1,6 @@
 from .agent.functions import AgentRuntime, create_agent
 from .agent.strategy import AgentStrategy
-from .chatmanager import ChatManager, ChatObject, ChatObjectMeta
+from .chatmanager import ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
 from .config import AmritaConfig, get_config, set_config
 from .hook.event import BaseEvent, CompletionEvent, EventTypeEnum, PreCompletionEvent
 from .hook.matcher import MatcherManager
@@ -60,6 +60,7 @@ __all__ = [
     "PresetManager",
     "PresetReport",
     "SessionsManager",
+    "SuspendEnum",
     "TextContent",
     "ToolCall",
     "ToolContext",
