@@ -1,7 +1,8 @@
 import asyncio
+from abc import ABC
 
 
-class ContextThreadsafe:
+class ContextThreadsafe(ABC):
     """Add a optional async-context lock for thread-safe in python 3.14+ (No GIL versions)"""
 
     _ctx_lock: asyncio.Lock
