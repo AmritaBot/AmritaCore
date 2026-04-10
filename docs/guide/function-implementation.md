@@ -525,20 +525,7 @@ logger.debug("Processing message: %s", user_input)
 logger.error("Failed to process request: %s", error)
 ```
 
-### 4.6.2 debug_log Debug Logging
-
-The `debug_log` decorator is deprecated in favor of the standard logger:
-
-```python
-# Use logger instead of debug_log
-from amrita_core.logging import logger
-
-def my_function(param):
-    logger.debug(f"Processing parameter: {param}")
-    # Function implementation
-```
-
-### 4.6.3 get_last_response() Getting Last Response
+### 4.6.2 get_last_response() Getting Last Response
 
 Retrieve the last response from a conversation:
 
@@ -550,7 +537,7 @@ last_resp = get_last_response(chat_object)
 print(last_resp)
 ```
 
-### 4.6.4 Debugging Tips
+### 4.6.3 Debugging Tips
 
 - Enable debug logging during development
 - Monitor token usage to prevent exceeding limits

@@ -1,8 +1,8 @@
-# AmritaCore - Proj.Amrita 智能体核心模块
+# AmritaCore - 基础设施定位的轻量级Agent框架
 
 ## 项目概述
 
-AmritaCore 是 Proj.Amrita 的智能体（Agent）核心模块，是一个轻量级的 Python 库，专注于提供可扩展、可维护的智能体核心实现。它作为项目的核心Agent组件，承担主要的逻辑或控制功能，为各种智能体应用场景提供坚实的基础。
+AmritaCore 是一个**基础设施定位的轻量级Agent框架**，作为智能体开发的基础构建块。可以将其视为为AI智能体提供essential "操作系统"能力的框架——提供核心原语和抽象，使开发者能够构建健壮、生产就绪的智能体应用，而无需重型框架的开销。
 
 ## Why AmritaCore?
 

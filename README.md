@@ -22,15 +22,15 @@
 
 </center>
 
-AmritaCore is the intelligent agent core module of Proj.Amrita, serving as the primary logical or control component of the project. It provides a flexible and extensible framework for implementing AI agents with advanced capabilities.
+AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. Think of it as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
 
 ## 🚀 What is AmritaCore?
 
-AmritaCore is a next-generation agent framework designed to simplify the creation and deployment of intelligent agents. Built with modern Python technologies, it provides a comprehensive solution for implementing AI-powered applications with features like event-driven architecture, tool integration, and multi-modal support.
+AmritaCore is **not a replacement for existing frameworks** like LangChain or LlamaIndex. Instead, it is a **lightweight, infrastructure-focused agent framework** designed to provide the essential building blocks for AI agent development. Built with modern Python technologies, it delivers fundamental components needed for AI-powered applications with features like event-driven architecture, tool integration, and multi-modal support – all while maintaining minimal dependencies and maximum performance.
 
 ## 🎯 Mission and Value Proposition
 
-The mission of AmritaCore is to democratize the development of intelligent agents by providing a powerful yet accessible framework. Our core value propositions include:
+The mission of AmritaCore is to provide a lightweight yet powerful foundation for agent development that prioritizes simplicity, performance, and flexibility. Our core value propositions include:
 
 - **Stream-based Design**: All message outputs are designed as asynchronous streams for real-time responses
 - **Security**: Built-in cookie security detection to ensure session safety

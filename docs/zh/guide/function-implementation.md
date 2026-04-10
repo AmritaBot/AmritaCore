@@ -60,20 +60,22 @@ AmritaCore中的Agent策略实现了几个在执行过程中不同点被调用�
 **目的**: 此钩子允许策略在生成最终响应之前执行最终上下文修改、添加完成指令或执行清理操作。
 
 **使用示例**:
-``python
+
+```python
 async def on_post_process(self) -> None:
 """在成功Agent执行后调用"""
 if self.call_count >= 2: # 仅在实际调用了工具时
 self.ctx.message.append(
 Message(
 role="user",
-content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我。\n<END_OF_PROCESS>"
+content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我。\n</END_OF_PROCESS>"
 )
 )
 
-````
+```
 
 **关键特性**:
+
 - 仅在成功执行时调用（未发生异常）
 - 对**所有策略类别**都可用
 - 可以在最终完成之前修改对话上下文
@@ -109,7 +111,7 @@ chat = ChatObject(
     user_input="你好，你怎么样？",
     train=train.model_dump()
 )
-````
+```
 
 ### 4.2.2 begin() 执行对话
 
@@ -128,7 +130,7 @@ async with chat.begin() as chat:...
 
 #### 用作上下文管理器（推荐）
 
-```
+```python
 
 # 我们更推荐使用上下文管理器：
 async with chat.begin():
@@ -185,7 +187,7 @@ await chat.begin()
 5. 处理响应
 6. 更新上下文以进行后续交互
 
-```
+```python
 # 完整对话生命周期
 context = MemoryModel()
 train = Message(content="你是一个乐于助人的助手。", role="system")
@@ -490,20 +492,7 @@ logger.debug("处理消息: %s", user_input)
 logger.error("处理请求失败: %s", error)
 ```
 
-### 4.6.2 debug_log 调试日志
-
-`debug_log` 装饰器已弃用，推荐使用标准日志记录器：
-
-```python
-# 使用 logger 而不是 debug_log
-from amrita_core.logging import logger
-
-def my_function(param):
-    logger.debug(f"处理参数: {param}")
-    # 函数实现
-```
-
-### 4.6.3 get_last_response() 获取最后响应
+### 4.6.2 get_last_response() 获取最后响应
 
 从对话中检索最后的响应：
 
@@ -515,7 +504,7 @@ last_resp = get_last_response(chat_object)
 print(last_resp)
 ```
 
-### 4.6.4 调试技巧
+### 4.6.3 调试技巧
 
 - 在开发期间启用调试日志
 - 监控Token使用情况以防止超出限制
