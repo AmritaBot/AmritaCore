@@ -38,7 +38,7 @@ Your previous task was:
 {% endif %}
 {% if original_msg %}
 <INPUT>
-{{original_msg}}
+{{original_msg|escape}}
 </INPUT>
 {% endif %}
 <ROLE_SETTINGS>
