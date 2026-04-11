@@ -161,6 +161,49 @@ chat_obj = ChatObject(
 
 AmritaCore 提供了强大的依赖注入系统，允许事件处理器声明它们所需的依赖项，系统会自动解析并注入这些依赖。
 
+### 什么是依赖注入？
+
+**依赖注入（Dependency Injection, DI）** 是一种设计模式，对象从外部源接收其依赖项，而不是在内部创建它们。在 AmritaCore 的上下文中：
+
+- **依赖项** 是您的事件处理器需要的资源（如数据库连接、API 客户端、配置对象等）
+- **注入** 意味着 AmritaCore 在调用处理器函数时自动提供这些资源
+- **优势**：
+  - 您的处理器函数不需要知道如何创建或管理这些资源
+  - 资源可以轻松地共享、缓存或模拟（mock）
+  - 代码变得更易于测试和维护
+  - 复杂的设置逻辑集中在依赖函数中
+
+相比于手动创建和传递资源：
+
+```python
+# 不使用 DI - 手动资源管理
+def get_database_connection():
+    return create_db_connection()
+
+def get_user_session(session_id):
+    return load_user_session(session_id)
+
+# 处理器需要手动调用这些函数
+async def handle_pre_completion(event: PreCompletionEvent):
+    db_conn = get_database_connection()
+    user_session = get_user_session(event.chat_object.session_id)
+    # ... 使用资源
+```
+
+使用 AmritaCore 的 DI 系统，您只需声明需要什么：
+
+```python
+# 使用 DI - 自动资源注入
+@on_precompletion().handle()
+async def handle_with_dependencies(
+    event: PreCompletionEvent,
+    db_conn = Depends(get_database_connection),
+    user_session = Depends(get_user_session)
+):
+    # 资源会自动提供！
+    # ... 直接使用资源
+```
+
 ### Depends 装饰器
 
 使用 `Depends` 装饰器来声明依赖项：
@@ -190,6 +233,63 @@ async def handle_with_dependencies(
         content=f"用户信息: {user_data.name}"
     ))
 ```
+
+### 依赖注入用于授权和验证
+
+**重要**: 如果任何依赖函数返回 `None`，**整个事件处理器将被自动跳过**。这种行为使得依赖注入非常适合用于**授权和权限验证**。
+
+#### 权限验证示例
+
+您可以使用依赖注入来实现权限检查：
+
+```python
+async def require_admin_permission(session_id: str):
+    """仅对管理员用户返回值的依赖项"""
+    user = get_user_from_session(session_id)
+    if user.is_admin:
+        return user  # 管理员用户 - 允许处理器执行
+    else:
+        return None  # 非管理员用户 - 跳过此处理器
+
+async def validate_api_key(api_key: str):
+    """验证 API 密钥的依赖项"""
+    if is_valid_api_key(api_key):
+        return api_key  # 有效密钥 - 允许处理器执行
+    else:
+        return None  # 无效密钥 - 跳过此处理器
+
+# 此处理器仅对具有有效 API 密钥的管理员用户执行
+@on_precompletion().handle()
+async def admin_only_handler(
+    event: PreCompletionEvent,
+    admin_user = Depends(require_admin_permission),
+    valid_key = Depends(validate_api_key)
+):
+    # 只有当两个依赖都成功时，此代码才会运行
+    event.messages.append(Message(
+        role="system",
+        content="管理员模式已激活"
+    ))
+```
+
+在此示例中：
+
+- 如果 `require_admin_permission()` 返回 `None`（非管理员用户），处理器将被跳过
+- 如果 `validate_api_key()` 返回 `None`（无效密钥），处理器将被跳过
+- 只有当**两个依赖都成功**时，处理器才会执行
+
+这种模式允许您：
+
+- **实现细粒度的访问控制**，而不会使处理器逻辑变得混乱
+- **轻松链接多个验证检查**
+- **默认安全失败**（任何验证失败都会跳过处理器）
+- **将授权逻辑与业务逻辑分离**
+
+::: tip
+对于授权场景，当验证失败时，始终从依赖函数返回 `None`。返回任何其他假值（如 `False` 或空字符串）仍会导致处理器执行。
+
+此外，对于运行时依赖，请保证它非空，否则将以抛出异常结束事件处理。
+:::
 
 ### 并发依赖解析
 
@@ -256,7 +356,7 @@ async def handle_with_dependencies(arg1,):... # 此handler会被忽略，因为a
 
 @on_precompletion().handle()
 async def handle_with_dependencies(arg1:MyObject):... # 正确，它声明了arg1的类型注解，并且的确存在一个MyObject类型的位置参数
-
+```
 
 :::
 
@@ -268,4 +368,3 @@ async def handle_with_dependencies(arg1:MyObject):... # 正确，它声明了arg
 - **错误处理**: 在依赖函数中适当处理错误，返回 `None` 表示依赖不可用
 
 这个依赖注入系统使得事件处理器可以专注于业务逻辑，而不需要关心依赖的获取和管理，同时保持高性能和类型安全。
-```
