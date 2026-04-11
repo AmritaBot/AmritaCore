@@ -163,7 +163,7 @@ async with chat.begin() as chat:...
 
 #### 用作上下文管理器（推荐）
 
-```
+```python
 
 # 我们更推荐使用上下文管理器：
 async with chat.begin():
@@ -210,7 +210,7 @@ await asyncio.wait_for(self._send_stream.send(item), timeout=self._q_tout)
 
 AmritaCore支持响应回调以实现实时交互：
 
-```
+```python
 async def response_callback(message):
     print(message)
 
@@ -235,7 +235,7 @@ await chat.begin()
 5. 处理响应
 6. 更新上下文以进行后续交互
 
-```
+```python
 # 完整对话生命周期
 context = MemoryModel()
 train = Message(content="你是一个乐于助人的助手。", role="system")

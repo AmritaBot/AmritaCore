@@ -144,7 +144,7 @@ class MyProcessor:
 
 ## Example
 
-```
+```python
 from amrita_core import ChatObject
 from amrita_core.types import MemoryModel, Message
 

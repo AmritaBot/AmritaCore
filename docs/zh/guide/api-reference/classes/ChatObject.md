@@ -124,7 +124,7 @@ async def controller(chat_obj):
 
 **示例:**
 
-```
+```python
 from amrita_core import ChatObject
 
 class MyProcessor:
@@ -144,7 +144,7 @@ class MyProcessor:
 
 ## 示例
 
-```
+```python
 from amrita_core import ChatObject
 from amrita_core.types import MemoryModel, Message
 
