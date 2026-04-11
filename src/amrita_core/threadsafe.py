@@ -1,23 +1,13 @@
-import threading
-from abc import ABC
+import asyncio
 
 
-class ContextThreadsafe(ABC):
-    _ctx_lock: threading.Lock  # Thread-safe for python 3.14+ (No GIL versions)
+class ContextThreadsafe:
+    """Add a optional async-context lock for thread-safe."""
 
-    def __init__(self):
-        self._ctx_lock = threading.Lock()
+    _lock = asyncio.Lock()
 
     async def __aenter__(self):
-        self._ctx_lock.acquire()
-        return self
+        await self._lock.acquire()
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self._ctx_lock.release()
-
-    def __enter__(self):
-        self._ctx_lock.acquire()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._ctx_lock.release()
+        self._lock.release()
