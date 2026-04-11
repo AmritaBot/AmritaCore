@@ -8,6 +8,7 @@ dependencies = [
     "aiofiles>=25.1.0",
     "aiohttp>=3.13.3",
     "anthropic>=0.84.0",
+    "anyio>=4.12.1",
     "fastmcp>=3.2.0", # Updated, see https://github.com/advisories/GHSA-rww4-4w9c-7733 for details.
     "filetype>=1.2.0",
     "jieba>=0.42.1",

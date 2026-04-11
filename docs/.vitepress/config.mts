@@ -259,6 +259,14 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/StrategyContext",
               },
               {
+                text: "SuspendEnum",
+                link: "/guide/api-reference/classes/SuspendEnum",
+              },
+              {
+                text: "EmbeddingChunk",
+                link: "/guide/api-reference/classes/EmbeddingChunk",
+              },
+              {
                 text: "TextContent",
                 link: "/guide/api-reference/classes/TextContent",
               },
@@ -552,6 +560,14 @@ export default withMermaid({
               {
                 text: "StrategyContext",
                 link: "/zh/guide/api-reference/classes/StrategyContext",
+              },
+              {
+                text: "SuspendEnum",
+                link: "/zh/guide/api-reference/classes/SuspendEnum",
+              },
+              {
+                text: "EmbeddingChunk",
+                link: "/zh/guide/api-reference/classes/EmbeddingChunk",
               },
               {
                 text: "TextContent",

@@ -98,3 +98,96 @@ Tools are automatically discovered and registered when modules are imported:
 # When you import modules containing @on_tools decorated functions
 from . import my_tools  # Tools are automatically registered; make sure they are only imported once.
 ```
+
+## 3.4.4 Embedding Support (Version 0.8.0+)
+
+Starting from version 0.8.0, AmritaCore provides built-in support for embedding generation through the adapter system.
+
+### Adapter Types
+
+AmritaCore adapters now support multiple types through the [`ADAPTER_TYPE`](../api-reference/classes/ADAPTER_TYPE.md) enumeration:
+
+- **`"text-gen"`**: Traditional text generation/completion (default)
+- **`"embed"`**: Embedding vector generation
+- **`"rerank"`**: Reranking functionality (planned for future versions)
+
+### Embedding Adapter Implementation
+
+To create an embedding adapter, extend [`ModelAdapter`](../api-reference/classes/ModelAdapter.md) and implement the required methods:
+
+```python
+from amrita_core.protocol import ModelAdapter
+from amrita_core.types import EmbeddingChunk
+
+class MyEmbeddingAdapter(ModelAdapter):
+    @staticmethod
+    def get_adapter_protocol() -> str:
+        return "my-embedding-protocol"
+
+    @staticmethod
+    def get_type() -> str:
+        return "embed"
+
+    async def call_embed(self, texts: Iterable[str], **kwargs) -> Sequence[EmbeddingChunk]:
+        """Generate embeddings for the given texts"""
+        embeddings = []
+        for idx, text in enumerate(texts):
+            # Your embedding logic here
+            embedding_vector = self._generate_embedding(text)
+            embeddings.append(
+                EmbeddingChunk(embedding=embedding_vector, index=idx)
+            )
+        return embeddings
+
+    def _generate_embedding(self, text: str) -> list[float]:
+        # Implement your embedding generation logic
+        pass
+```
+
+### Using Embedding Adapters
+
+Embedding adapters can be used through the standard preset system:
+
+```python
+from amrita_core.preset import PresetManager, ModelPreset
+from amrita_core.libchat import call_completion
+
+# Create a preset for your embedding adapter
+preset = ModelPreset(
+    protocol="my-embedding-protocol",
+    model="embedding-model-v1",
+    # ... other configuration
+)
+
+# Register the preset
+PresetManager().register_preset("embedding-preset", preset)
+
+# Use the embedding adapter
+texts = ["Hello world", "How are you?"]
+embeddings = await call_completion(preset=preset, messages=texts)
+```
+
+**Note**: The `call_completion` function automatically detects the adapter type and calls the appropriate method (`call_api` for `"text-gen"` or `call_embed` for `"embed"`).
+
+### EmbeddingChunk Structure
+
+The [`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) class represents a single embedding result:
+
+- **`embedding`**: `Sequence[float]` - The embedding vector as a sequence of floats
+- **`index`**: `int` - The original index of the text in the input sequence
+
+This structure maintains compatibility with OpenAI's embedding response format while providing type safety.
+
+### Type Safety and Validation
+
+AmritaCore includes automatic type validation for adapter usage:
+
+```python
+# This will raise a RuntimeError if the adapter doesn't support "text-gen"
+response = await call_completion(preset=text_gen_preset, messages=["Hello"])
+
+# This will work correctly with embedding adapters
+embeddings = await call_completion(preset=embedding_preset, messages=["Hello"])
+```
+
+The framework validates that the adapter type matches the intended usage, preventing accidental misuse of embedding adapters for text generation and vice versa.

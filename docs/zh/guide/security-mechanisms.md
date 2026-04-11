@@ -1,3 +1,5 @@
+<div v-pre >
+
 # 安全机制
 
 ## 6.1 Cookie 安全检测
@@ -59,9 +61,111 @@ chat = ChatObject(
 )
 ```
 
-## 6.2 内容过滤
+## 6.2 模板安全增强（0.8.0+版本）
 
-### 6.2.1 内容过滤机制
+### 6.2.1 Jinja2模板转义
+
+从0.8.0版本开始，AmritaCore自动对Jinja2模板中的用户提供的内容应用HTML转义，以**防止用户输入破坏系统消息的结构化格式**。
+
+**增强的模板安全性**：
+
+```jinja2
+{% if original_msg %}
+<INPUT>
+{{original_msg|escape}}  {# 自动应用转义 #}
+</INPUT>
+{% endif %}
+```
+
+现在 `|escape` 过滤器会自动应用于系统消息模板中的 `original_msg` 变量，确保任何包含特殊字符（如 `<`、`>`、`{`、`}` 等）的用户输入在包含到提示中之前都被正确转义。这可以防止：
+
+- **模板结构损坏**：包含花括号 `{{}}` 或其他Jinja2语法的用户输入不会干扰模板渲染
+- **XML/HTML结构破坏**：特殊字符如 `<` 和 `>` 不会破坏系统消息中使用的类XML结构
+- **意外的模板执行**：防止用户提供的内容被解释为模板代码
+
+**安全影响**：
+
+- 维护系统消息结构的完整性
+- 当用户输入包含模板语法时，防止模板注入
+- 确保无论用户输入内容如何，都能保持可预测的提示格式
+- 向后兼容 - 现有模板继续按预期工作
+
+### 6.2.2 适配器类型安全验证
+
+AmritaCore现在包含内置的适配器使用类型安全验证，以防止意外误用适配器。
+
+**自动类型验证**：
+
+```python
+from amrita_core.libchat import call_completion
+
+# 如果适配器不支持 "text-gen"，这将引发 RuntimeError
+response = await call_completion(preset=text_gen_preset, messages=["Hello"])
+
+# 嵌入适配器被验证仅用于嵌入调用
+embeddings = await call_completion(preset=embedding_preset, messages=["Hello"])
+```
+
+**验证逻辑**：
+
+- 当使用 `call_completion()` 进行文本生成时，系统验证适配器是否支持 `"text-gen"` 类型
+- 如果嵌入专用适配器用于文本生成，则会抛出带有清晰错误消息的 `RuntimeError`
+- 这可以防止静默失败和适配器误用时的混淆行为
+
+**示例错误消息**：
+
+```shell
+RuntimeError: Invalid adapter type for text-gen when using adapter: MyEmbeddingAdapter, this adapter only supports embed.
+```
+
+### 6.2.3 安全模板使用的最佳实践
+
+在AmritaCore中使用自定义Jinja2模板时，请遵循以下安全最佳实践：
+
+1. **使用内置转义**：依赖AmritaCore对用户提供的内容进行自动转义
+2. **验证模板变量**：确保自定义模板变量不包含可执行代码
+3. **避免原始HTML**：除非完全控制内容，否则不要使用 `|safe` 过滤器
+4. **使用恶意输入测试**：始终使用潜在的恶意输入测试模板，以验证转义是否正常工作
+
+**安全的自定义模板示例**：
+
+```python
+from jinja2 import Template
+
+# 安全模板 - 用户内容将被转义
+safe_template = Template("""
+SYSTEM: {{ role_instructions }}
+USER INPUT: {{ user_input|escape }}
+CONTEXT: {{ context_summary|escape }}
+""")
+
+# 可放心使用 - 转义已自动处理
+rendered = safe_template.render(
+    role_instructions="You are a helpful assistant",
+    user_input="<script>alert('xss')</script>",  # 将被转义
+    context_summary="Previous conversation context"
+)
+```
+
+**模板变量命名安全**：
+如 [Jinja2模板变量安全](../extensions-integration/jinja2-templates.md#template-variable-naming-safety) 部分所述，避免使用与内置参数（`train`、`memory`、`chatobj`、`config`）冲突的变量名，以防止由于重复关键字参数导致的 `TypeError`。
+
+### 6.2.4 综合安全架构
+
+AmritaCore的安全增强功能协同工作，提供纵深防御：
+
+| 安全层         | 提供的保护         | 版本添加 |
+| -------------- | ------------------ | -------- |
+| Cookie检测     | 提示注入检测       | 0.5.0+   |
+| 模板转义       | 提示中的XSS防护    | 0.8.0+   |
+| 适配器类型验证 | 防止适配器误用     | 0.8.0+   |
+| 会话隔离       | 防止跨会话数据泄露 | 0.5.0+   |
+
+这些层确保AmritaCore应用程序在保持易用性和开发人员生产力的同时，能够抵御常见攻击向量。
+
+## 6.3 内容过滤
+
+### 6.3.1 内容过滤机制
 
 AmritaCore 提供了一个灵活的内容过滤机制，可以根据特定安全要求进行自定义。框架默认不包含内置内容过滤器，但提供了实现自定义过滤的钩子：
 
@@ -98,7 +202,7 @@ def contains_harmful_content(content: str) -> bool:
     return any(keyword in content_lower for keyword in 有害关键词)
 ```
 
-### 6.2.2 自定义过滤规则
+### 6.3.2 自定义过滤规则
 
 根据您的特定要求实现自定义过滤规则：
 
@@ -133,7 +237,7 @@ def contains_sensitive_info(content: str) -> bool:
     return any(pattern in content_lower for pattern in sensitive_patterns)
 ```
 
-### 6.2.3 敏感信息检测
+### 6.3.3 敏感信息检测
 
 实现敏感信息检测以防止数据泄露：
 
@@ -161,9 +265,9 @@ def detect_sensitive_information(text: str):
     return found_items
 ```
 
-## 6.3 会话隔离
+## 6.4 会话隔离
 
-### 6.3.1 会话管理器 (SessionsManager)
+### 6.4.1 会话管理器 (SessionsManager)
 
 AmritaCore 通过 SessionsManager 类实现了一个强大的会话隔离机制，该类是一个单例类，用于管理不同会话的工具、配置和预设，确保各个会话之间的状态相互独立。
 
@@ -211,7 +315,7 @@ session_data.config = new_config
 session_manager.drop_session(session_id)
 ```
 
-### 6.3.2 会话ID管理
+### 6.4.2 会话ID管理
 
 正确的会话管理对于维持不同用户或对话之间的隔离至关重要：
 
@@ -235,7 +339,7 @@ def create_secure_session() -> tuple[str, MemoryModel]:
 session_id, context = create_secure_session()
 ```
 
-### 6.3.3 数据隔离保证
+### 6.4.3 数据隔离保证
 
 通过 SessionsManager 正确分离对话上下文来确保数据隔离：
 
@@ -277,9 +381,9 @@ class SecureConversationManager:
         return response
 ```
 
-## 6.4 访问控制
+## 6.5 访问控制
 
-### 6.4.1 权限机制
+### 6.5.1 权限机制
 
 虽然 AmritaCore 本身没有实现完整的权限系统，但它提供了与外部访问控制机制集成的钩子：
 
@@ -331,7 +435,7 @@ def filter_advanced_tools(messages):
     return messages
 ```
 
-### 6.4.2 访问限制
+### 6.5.2 访问限制
 
 实现速率限制和访问约束：
 
@@ -370,7 +474,7 @@ def handle_request(user_id: str):
     pass
 ```
 
-### 6.4.3 审计日志
+### 6.5.3 审计日志
 
 实现审计日志以跟踪与安全相关的事件：
 
@@ -407,3 +511,5 @@ async def log_response(event: CompletionEvent, user_id: str = None):
 
 
 ```
+
+</div>

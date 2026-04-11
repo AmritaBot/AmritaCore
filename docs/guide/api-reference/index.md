@@ -345,11 +345,13 @@ AmritaCore provides several predefined types for consistency:
 - [BaseModel](classes/BaseModel.md): Base class for all data models
 - [Depends](classes/Depends.md): Dependency injection decorator for declaring event handler dependencies
 - [DependsFactory](classes/DependsFactory.md): Dependency factory class for wrapping and resolving dependency functions
+- [EmbeddingChunk](classes/EmbeddingChunk.md): Represents an embedding vector returned by embedding adapter
 - [Function](classes/Function.md): Represents a callable function in the tool system
 - [FunctionDefinitionSchema](classes/FunctionDefinitionSchema.md): Schema for function parameters
 - [MemoryModel](classes/MemoryModel.md): Stores conversation history
 - [ModelConfig](classes/ModelConfig.md): Model-specific configuration
 - [ModelPreset](classes/ModelPreset.md): Complete configuration for a specific model
+- [SuspendEnum](classes/SuspendEnum.md): Standardized breakpoint tags for suspend/resume mechanism
 - [TextContent](classes/TextContent.md): Represents text content within messages
 - [ToolCall](classes/ToolCall.md): Represents an invocation of a tool
 - [ToolContext](classes/ToolContext.md): Provides context for tool execution

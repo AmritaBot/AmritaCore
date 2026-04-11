@@ -85,8 +85,41 @@ content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我�
 
 - **`run()`**: `"workflow"` 和 `"rag"` 类别的主要执行方法
 - **`single_execute()`**: `"agent"` 和 `"agent-mixed"` 类别的单步执行方法
-- **`on_exception()`**: 执行期间发生异常时调用
-- **`on_limited()`**: 达到执行限制时调用（例如，最大工具调用次数）
+- **`on_exception(exc: BaseException)`**: 在执行过程中发生异常时调用。**从0.8.0版本开始，默认实现不再抛出 `NoExceptionHandler` 异常，而是静默通过（pass）。** 自定义策略应重写此方法以实现特定的错误处理逻辑。
+- **`on_limited()`**: 当达到执行限制时调用（例如，最大工具调用次数）
+
+#### 异常处理最佳实践
+
+从0.8.0版本开始，[AgentStrategy](../api-reference/classes/AgentStrategy.md) 中的默认 `on_exception()` 方法不再默认抛出异常。此更改为自定义错误处理提供了更大的灵活性：
+
+```python
+from amrita_core.agent.strategy import AgentStrategy
+
+class CustomAgentStrategy(AgentStrategy):
+    async def on_exception(self, exc: BaseException) -> None:
+        """自定义异常处理逻辑"""
+        # 记录异常
+        logger.error(f"Agent执行失败: {exc}")
+
+        # 可选择性地重新抛出特定异常
+        if isinstance(exc, ValueError):
+            raise exc
+
+        # 或者优雅地处理并继续
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content="处理过程中发生错误。请重试。"
+            )
+        )
+```
+
+**重要说明**：
+
+- 默认行为现在是**静默失败处理** - 异常被捕获但不会重新抛出
+- 自定义策略应在 `on_exception()` 中实现自己的错误处理逻辑
+- 如果需要旧的行为（重新抛出异常），在自定义实现中显式调用 `raise exc`
+- 此更改提高了生产环境中优雅错误处理的健壮性
 
 ## 4.2 对话交互流程
 

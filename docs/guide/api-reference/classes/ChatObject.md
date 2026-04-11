@@ -44,8 +44,8 @@ The ChatObject class is the primary interface for conversations with the AI.
 - `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
 - `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
 - `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
-- `queue_size` (int): Size of the primary response queue (default: 25)
-- `overflow_queue_size` (int): Size of the overflow queue (default: 45)
+- `queue_size` (int): Size of the primary response queue (default: **45**)
+- `overflow_queue_size` (int): Size of the overflow queue (default: **15**)
 
 ## Methods
 
@@ -66,10 +66,15 @@ Call this method from an external independent task to pause `ChatObject` executi
 
 **Parameters:**
 
-- `timeout` (float): Timeout in seconds, default 5.0, prevents infinite blocking
-- `tag` (str | None): Optional tag filter
-  - `None` (default): Matches all methods decorated with `@suspend`
-  - `str`: Only matches methods decorated with `@ChatObject.suspend_with_tag(tag)`
+- `*tags` (str): Optional tag filter (passed as positional arguments)
+  - No tags (default): Matches all methods decorated with `@suspend`
+  - Single tag string: Only matches methods decorated with `@ChatObject.suspend_with_tag(tag)`
+  - **Standard tags**: Use [SuspendEnum](SuspendEnum.md) values for built-in breakpoints:
+    - `SuspendEnum.MEMORY.value`: Before memory summarization
+    - `SuspendEnum.SINGLE_TOOL.value`: Before each tool call
+    - `SuspendEnum.PRECOMPLE.value`: Before model completion
+    - `SuspendEnum.COMPLE.value`: After model completion
+- `timeout` (float): Timeout in seconds, prevents infinite blocking
 
 **Exceptions:**
 
@@ -78,11 +83,16 @@ Call this method from an external independent task to pause `ChatObject` executi
 **Example:**
 
 ```python
+from amrita_core import SuspendEnum
+
 # Wait for any suspend point
 await chat.wait_to_suspend(timeout=3.0)
 
-# Wait for a specific tagged suspend point
-await chat.wait_to_suspend(timeout=5.0, tag="single_tool_call")
+# Wait for a specific standardized suspend point
+await chat.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
+
+# Wait for custom tag
+await chat.wait_to_suspend("custom_tag", timeout=2.0)
 ```
 
 #### `resume()`
@@ -93,7 +103,7 @@ Resumes the suspended `ChatObject` execution flow. Continues execution until the
 
 ```python
 async def controller(chat_obj):
-    await chat_obj.wait_to_suspend(tag="checkpoint")
+    await chat_obj.wait_to_suspend("checkpoint")
     print("Suspended, inspecting state...")
     # Perform inspection or modification
     chat_obj.resume()  # Resume execution
@@ -105,7 +115,7 @@ Manual suspend point, typically used inside custom functions to enable fine-grai
 
 **Parameters:**
 
-- `tag` (str | None): Optional tag for precise matching with external controller's `wait_to_suspend(tag=...)` call
+- `tag` (str | None): Optional tag for precise matching with external controller's `wait_to_suspend(...)` call
 
 **Behavior:**
 

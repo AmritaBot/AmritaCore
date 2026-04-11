@@ -552,12 +552,12 @@ class ChatObject:
         finally:
             self.__resume_signal = None
 
-    async def wait_to_suspend(self, timeout: float | None = None, *tags: str):
+    async def wait_to_suspend(self, *tags: str, timeout: float | None = None):
         """Tell chatobject to suspend and wait for it.
 
         Args:
-            timeout (float | None, optional): Timeout for waiting. Defaults to None.
             *tags (str): Tags to wait for (filter break points).
+            timeout (float | None, optional): Timeout for waiting. Defaults to None.
 
         Raises:
             RuntimeError: Raised when already waiting.

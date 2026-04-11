@@ -120,8 +120,41 @@ async def on_post_process(self) -> None:
 
 - **`run()`**: Main execution method for `"workflow"` and `"rag"` categories
 - **`single_execute()`**: Single-step execution method for `"agent"` and `"agent-mixed"` categories
-- **`on_exception()`**: Called when an exception occurs during execution
+- **`on_exception(exc: BaseException)`**: Called when an exception occurs during execution. **Starting from version 0.8.0, the default implementation does nothing (passes silently) instead of raising `NoExceptionHandler`.** Custom strategies should override this method to implement specific error handling logic.
 - **`on_limited()`**: Called when execution limits are reached (e.g., maximum tool calls)
+
+#### Exception Handling Best Practices
+
+Since version 0.8.0, the default `on_exception()` method in [AgentStrategy](../api-reference/classes/AgentStrategy.md) no longer raises exceptions by default. This change provides more flexibility for custom error handling:
+
+```python
+from amrita_core.agent.strategy import AgentStrategy
+
+class CustomAgentStrategy(AgentStrategy):
+    async def on_exception(self, exc: BaseException) -> None:
+        """Custom exception handling logic"""
+        # Log the exception
+        logger.error(f"Agent execution failed: {exc}")
+
+        # Optionally re-raise specific exceptions
+        if isinstance(exc, ValueError):
+            raise exc
+
+        # Or handle gracefully and continue
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content="An error occurred during processing. Please try again."
+            )
+        )
+```
+
+**Important Notes**:
+
+- The default behavior is now **silent failure handling** - exceptions are caught but not re-raised
+- Custom strategies should implement their own error handling logic in `on_exception()`
+- If you need the old behavior (re-raising exceptions), explicitly call `raise exc` in your custom implementation
+- This change improves robustness for production environments where graceful error handling is preferred
 
 ## 4.3 Conversation Interaction Flow
 

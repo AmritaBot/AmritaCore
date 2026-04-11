@@ -285,3 +285,73 @@ config = AmritaConfig(
 - [Extensions and Integration Index](./index.md) - Overview of all extension mechanisms
 
 - [`ClientManager` API Reference](../api-reference/classes/ClientManager.md) - Complete API documentation
+
+## New MCP Client Binding Method (Version 0.8.0+)
+
+Starting from version 0.8.0, AmritaCore provides a simplified method to bind MCP clients directly to the client manager using the `bound_to()` method.
+
+### Using bound_to() Method
+
+The [`bound_to()`](../api-reference/classes/MCPClient.md#bound_to) method provides a more direct and controlled way to register MCP clients:
+
+```python
+from amrita_core.tools.mcp import MCPClient, ClientManager
+
+async def setup_mcp_client():
+    # Create MCP client
+    client = MCPClient(server_script="/path/to/weather.mcp")
+
+    # Get the global client manager
+    manager = ClientManager()
+
+    # Bind client directly to manager
+    await client.bound_to(manager)
+
+    print("MCP client successfully bound to manager!")
+```
+
+**Advantages of `bound_to()`:**
+
+- **Atomic Operation**: The binding operation is atomic - either fully succeeds or fully rolls back on failure
+- **Error Safety**: If registration fails, the client is automatically unregistered to prevent partial state
+- **Direct Control**: Provides explicit control over client registration without going through script initialization
+- **Thread Safety**: The operation is thread-safe due to the new [ContextThreadsafe](../api-reference/classes/ContextThreadsafe.md) base class
+
+### Comparison: Traditional vs New Approach
+
+| Feature            | Traditional (`initialize_scripts_all`)  | New (`bound_to`)           |
+| ------------------ | --------------------------------------- | -------------------------- |
+| **Use Case**       | Bulk initialization from config/scripts | Direct client binding      |
+| **Control Level**  | High-level, configuration-driven        | Low-level, programmatic    |
+| **Error Handling** | Per-script error handling               | Atomic rollback on failure |
+| **Flexibility**    | Limited to script-based setup           | Full programmatic control  |
+
+### Complete Example with Error Handling
+
+```python
+import asyncio
+from amrita_core.tools.mcp import MCPClient, ClientManager
+
+async def robust_mcp_setup():
+    client = MCP_client(server_script="./weather-service.mcp")
+    manager = ClientManager()
+
+    try:
+        # Attempt to bind client
+        await client.bound_to(manager)
+        print("✅ MCP client bound successfully")
+
+        # Use the client
+        tools = client.get_tools()
+        print(f"Available tools: {[tool.function.name for tool in tools]}")
+
+    except Exception as e:
+        print(f"❌ Failed to bind MCP client: {e}")
+        # Client is automatically cleaned up on failure
+        raise
+
+# Run the example
+asyncio.run(robust_mcp_setup())
+```
+
+**Note**: The `bound_to()` method is particularly useful when you need to dynamically register MCP clients at runtime or when implementing custom MCP client management logic.

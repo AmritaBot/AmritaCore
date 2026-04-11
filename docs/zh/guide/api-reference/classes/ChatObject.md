@@ -30,89 +30,99 @@ ChatObject 类是与 AI 进行对话的主要接口。
 
 ## 构造函数参数
 
-- `context` ([MemoryModel](MemoryModel.md)): 对话的记忆上下文
+- `context` ([MemoryModel](MemoryModel.md)): 对话的内存上下文
 - `session_id` (str): 会话的唯一标识符
-- `user_input` (str): 用户的输入消息
-- `train` (dict): AI 的训练/提示数据
-- `callback` (RESPONSE_CALLBACK_TYPE): 可选的回调函数，用于直接处理响应（适用于 Web 场景）
-- `config` (AmritaConfig): 覆盖全局配置的聊天配置设置
+- `user_input` (str): 用户输入消息
+- `train` (dict): AI的训练/提示数据
+- `callback` (RESPONSE_CALLBACK_TYPE): 可选的回调函数，用于直接处理响应（适用于Web场景）
+- `config` (AmritaConfig): 聊天的配置设置，覆盖全局配置
 - `preset` (ModelPreset): 聊天的模型预设
-- `auto_create_session` (bool): 如果会话不存在，是否自动创建（默认：False）
-- `train_template` (Template): 用于格式化系统消息的 Jinja2 模板（默认：DEFAULT_TEMPLATE）
-- `jinja2_vars` (dict[str, Any] | None): 传递给模板系统的变量，用于自定义模板变量（默认：None）。**重要**：此字典中的键必须 NOT 与内置变量名（`train`、`memory`、`chatobj`、`config`）匹配，否则会导致 TypeError，因为重复的关键字参数在 Python 中是不允许的。
-- `agent_strategy` (type[AgentStrategy]): 用于执行的 Agent 策略（默认：ReActAgentStrategy）
+- `auto_create_session` (bool): 如果会话不存在是否自动创建（默认：False）
+- `train_template` (Template): 用于格式化系统消息的Jinja2模板（默认：DEFAULT_TEMPLATE）
+- `jinja2_vars` (dict[str, Any] | None): 传递给模板系统的变量，用于自定义模板变量（默认：None）。**重要**：此字典中的键不能与内置变量名（`train`、`memory`、`chatobj`、`config`）匹配，否则会导致TypeError，因为函数调用中不允许重复的关键字参数。
+- `agent_strategy` (type[AgentStrategy]): 用于执行的Agent策略（默认：ReActAgentStrategy）
 - `hook_args` (tuple[Any, ...]): 触发事件时传递给事件处理器的位置参数（默认：空元组）
 - `hook_kwargs` (dict[str, Any] | None): 触发事件时传递给事件处理器的关键字参数（默认：None）
-- `exception_ignored` (tuple[type[BaseException], ...]): 在事件处理器中应该被忽略并重新抛出的异常类型（默认：空元组）
-- `queue_size` (int): 主响应队列的大小（默认：25）
-- `overflow_queue_size` (int): 溢出队列的大小（默认：45）
+- `exception_ignored` (tuple[type[BaseException], ...]): 在事件处理器中应该被忽略并再次抛出的异常类型（默认：空元组）
+- `queue_size` (int): 主响应队列的大小（默认：**45**）
+- `overflow_queue_size` (int): 溢出队列的大小（默认：**15**）
 
 ## 方法
 
 - `begin()`: 执行对话
 - `get_response_generator()`: 返回用于流式响应的异步生成器
 - `full_response()`: 返回完整响应
-- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: 设置用于响应处理的回调函数
-- `yield_response(response: RESPONSE_TYPE)`: 将响应发送到队列或回调函数
-- `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`: **（高级功能）** 等待挂起信号，支持按标签匹配断点
-- `resume()`: **（高级功能）** 恢复被挂起的执行流程
-- `_wait_for_continue(tag: str | None = None)`: **（高级功能）** 手动挂起点，可配合外部控制器使用
+- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: 设置响应处理的回调函数
+- `yield_response(response: RESPONSE_TYPE)`: 将响应推送到队列或回调函数
+- `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`: **(高级)** 等待挂起信号，可选择标签匹配
+- `resume()`: **(高级)** 恢复挂起的执行流程
+- `_wait_for_continue(tag: str | None = None)`: **(高级)** 与外部控制器配合使用的手动挂起点
 
-### 挂起与恢复方法详解
+### 挂起与恢复方法详情
 
 #### `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`
 
-在外部独立任务中调用此方法，等待 `ChatObject` 运行到下一个挂起点时暂停其执行。
+从外部独立任务中调用此方法，当`ChatObject`到达下一个挂起点时暂停执行。
 
-**参数：**
+**参数:**
 
-- `timeout` (float): 等待超时时间（秒），默认 5.0 秒，防止无限阻塞
-- `tag` (str | None): 可选的标签过滤器
-  - `None`（默认）：匹配所有被 `@suspend` 装饰的方法
-  - `str`：只匹配被 `@ChatObject.suspend_with_tag(tag)` 装饰的方法
+- `*tags` (str): 可选的标签过滤器（作为位置参数传递）
+  - 无标签（默认）: 匹配所有使用`@suspend`装饰的方法
+  - 单个标签字符串: 仅匹配使用`@ChatObject.suspend_with_tag(tag)`装饰的方法
+  - **标准标签**: 使用[SuspendEnum](SuspendEnum.md)值来指定内置断点：
+    - `SuspendEnum.MEMORY.value`: 内存摘要前
+    - `SuspendEnum.SINGLE_TOOL.value`: 每次工具调用前
+    - `SuspendEnum.PRECOMPLE.value`: 模型完成前
+    - `SuspendEnum.COMPLE.value`: 模型完成后
+- `timeout` (float): 超时时间（秒），防止无限阻塞
 
-**异常：**
+**异常:**
 
-- `asyncio.TimeoutError`: 如果超过指定时间仍未触发挂起
+- `asyncio.TimeoutError`: 如果在指定超时时间内未触发挂起，则抛出此异常
 
-**示例：**
+**示例:**
 
 ```python
+from amrita_core import SuspendEnum
+
 # 等待任意挂起点
 await chat.wait_to_suspend(timeout=3.0)
 
-# 等待特定标签的挂起点
-await chat.wait_to_suspend(timeout=5.0, tag="single_tool_call")
+# 等待特定的标准挂起点
+await chat.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
+
+# 等待自定义标签
+await chat.wait_to_suspend("custom_tag", timeout=2.0)
 ```
 
 #### `resume()`
 
-恢复被挂起的 `ChatObject` 执行流程。调用后会继续执行直到下一个挂起点或完成当前操作。
+恢复挂起的`ChatObject`执行流程。继续执行直到下一个挂起点或完成当前操作。
 
-**示例：**
+**示例:**
 
 ```python
 async def controller(chat_obj):
-    await chat_obj.wait_to_suspend(tag="checkpoint")
-    print("已挂起，检查状态...")
-    # 执行检查或修改操作
+    await chat_obj.wait_to_suspend("checkpoint")
+    print("已挂起，正在检查状态...")
+    # 执行检查或修改
     chat_obj.resume()  # 恢复执行
 ```
 
 #### `_wait_for_continue(tag: str | None = None)`
 
-手动挂起点，通常在自定义函数内部使用，配合外部控制器实现精细的流程控制。
+与外部控制器配合使用的手动挂起点，通常在自定义函数内部使用以实现细粒度的流程控制。
 
-**参数：**
+**参数:**
 
-- `tag` (str | None): 可选的标签，用于精确匹配外部控制器的 `wait_to_suspend(tag=...)` 调用
+- `tag` (str | None): 可选的标签，用于精确匹配外部控制器的`wait_to_suspend(...)`调用
 
-**行为：**
+**行为:**
 
-- 如果外部没有调用 `wait_to_suspend()` 或匹配的标签，此方法立即返回，不阻塞执行
-- 如果外部正在等待匹配的标签，此方法会阻塞直到 `resume()` 被调用
+- 如果没有外部`wait_to_suspend()`调用等待或标签不匹配，则立即返回而不阻塞
+- 如果外部控制器正在等待匹配的标签，则阻塞直到调用`resume()`
 
-**示例：**
+**示例:**
 
 ```python
 from amrita_core import ChatObject
