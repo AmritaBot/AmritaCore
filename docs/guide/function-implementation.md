@@ -120,8 +120,41 @@ async def on_post_process(self) -> None:
 
 - **`run()`**: Main execution method for `"workflow"` and `"rag"` categories
 - **`single_execute()`**: Single-step execution method for `"agent"` and `"agent-mixed"` categories
-- **`on_exception()`**: Called when an exception occurs during execution
+- **`on_exception(exc: BaseException)`**: Called when an exception occurs during execution. **Starting from version 0.8.0, the default implementation does nothing (passes silently) instead of raising `NoExceptionHandler`.** Custom strategies should override this method to implement specific error handling logic.
 - **`on_limited()`**: Called when execution limits are reached (e.g., maximum tool calls)
+
+#### Exception Handling Best Practices
+
+Since version 0.8.0, the default `on_exception()` method in [AgentStrategy](../api-reference/classes/AgentStrategy.md) no longer raises exceptions by default. This change provides more flexibility for custom error handling:
+
+```python
+from amrita_core.agent.strategy import AgentStrategy
+
+class CustomAgentStrategy(AgentStrategy):
+    async def on_exception(self, exc: BaseException) -> None:
+        """Custom exception handling logic"""
+        # Log the exception
+        logger.error(f"Agent execution failed: {exc}")
+
+        # Optionally re-raise specific exceptions
+        if isinstance(exc, ValueError):
+            raise exc
+
+        # Or handle gracefully and continue
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content="An error occurred during processing. Please try again."
+            )
+        )
+```
+
+**Important Notes**:
+
+- The default behavior is now **silent failure handling** - exceptions are caught but not re-raised
+- Custom strategies should implement their own error handling logic in `on_exception()`
+- If you need the old behavior (re-raising exceptions), explicitly call `raise exc` in your custom implementation
+- This change improves robustness for production environments where graceful error handling is preferred
 
 ## 4.3 Conversation Interaction Flow
 
@@ -182,7 +215,7 @@ print(response)
 
 ### 4.2.4 Streaming Response Processing
 
-AmritaCore supports streaming responses for real-time interaction:
+AmritaCore uses **AnyIO memory object streams** for streaming responses, which provides built-in backpressure handling starting from version 0.8.0:
 
 ```python
 # Process streaming responses
@@ -190,6 +223,20 @@ async for message in chat.get_response_generator():
     content = message if isinstance(message, str) else message.get_content()
     print(content, end="")
 ```
+
+**Backpressure Mechanism Changes (Version 0.8.0+)**:
+
+- **Before 0.8.0**: Used dual queues with overflow mechanism (`queue_size` and `overflow_queue_size`)
+- **After 0.8.0**: Uses single AnyIO memory object stream with automatic backpressure
+- **Benefits**: Simpler implementation, better memory efficiency, and more reliable flow control
+
+The `_put_to_queue()` method now uses AnyIO's `send()` method with timeout:
+
+```python
+await asyncio.wait_for(self._send_stream.send(item), timeout=self._q_tout)
+```
+
+When the buffer is full, the producer automatically waits until space becomes available, eliminating the need for complex overflow logic.
 
 ### 4.2.5 Response Callback
 
@@ -525,20 +572,7 @@ logger.debug("Processing message: %s", user_input)
 logger.error("Failed to process request: %s", error)
 ```
 
-### 4.6.2 debug_log Debug Logging
-
-The `debug_log` decorator is deprecated in favor of the standard logger:
-
-```python
-# Use logger instead of debug_log
-from amrita_core.logging import logger
-
-def my_function(param):
-    logger.debug(f"Processing parameter: {param}")
-    # Function implementation
-```
-
-### 4.6.3 get_last_response() Getting Last Response
+### 4.6.2 get_last_response() Getting Last Response
 
 Retrieve the last response from a conversation:
 
@@ -550,7 +584,7 @@ last_resp = get_last_response(chat_object)
 print(last_resp)
 ```
 
-### 4.6.4 Debugging Tips
+### 4.6.3 Debugging Tips
 
 - Enable debug logging during development
 - Monitor token usage to prevent exceeding limits

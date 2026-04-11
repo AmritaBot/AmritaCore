@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from amrita_core.agent.context import StrategyContext
-from amrita_core.agent.strategy import AgentStrategy, NoExceptionHandler
+from amrita_core.agent.strategy import AgentStrategy
 from amrita_core.builtins.agent import (
     BaseReActAgentStrategy,
     HybridReActAgentStrategy,
@@ -216,8 +216,9 @@ async def test_agent_strategy_on_limited(mock_strategy_context):
 async def test_agent_strategy_on_exception(mock_strategy_context):
     """Test AgentStrategy.on_exception method."""
     strategy = ConcreteAgentStrategyForTesting(mock_strategy_context)
-    with pytest.raises(NoExceptionHandler):
-        await strategy.on_exception(Exception())
+    await strategy.on_exception(
+        Exception()
+    )  # It should not raise any exceptions in default case.
 
 
 def test_strategy_context_with_complex_user_input(create_send_message_wrap):

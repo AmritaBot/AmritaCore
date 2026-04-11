@@ -9,6 +9,8 @@ from typing import Any, get_args, get_origin, get_type_hints, overload
 
 from typing_extensions import Self
 
+from amrita_core.threadsafe import ContextThreadsafe
+
 from .models import (
     JSON_OBJECT_TYPE,
     FunctionDefinitionSchema,
@@ -22,13 +24,14 @@ from .models import (
 T = typing.TypeVar("T")
 
 
-class MultiToolsManager:
+class MultiToolsManager(ContextThreadsafe):
     _models: dict[str, ToolData]
     _disabled_tools: set[
         str
     ]  # Disabled tools, has_tool and get_tool will not return disabled tools
 
     def __init__(self):
+        super().__init__()
         self._models = {}
         self._disabled_tools = set()
 

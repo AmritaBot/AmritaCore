@@ -44,8 +44,8 @@ The ChatObject class is the primary interface for conversations with the AI.
 - `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
 - `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
 - `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
-- `queue_size` (int): Size of the primary response queue (default: 25)
-- `overflow_queue_size` (int): Size of the overflow queue (default: 45)
+- `queue_size` (int): Size of the primary response queue (default: **45**)
+- `overflow_queue_size` (int): Size of the overflow queue (default: **15**)
 
 ## Methods
 
@@ -66,10 +66,15 @@ Call this method from an external independent task to pause `ChatObject` executi
 
 **Parameters:**
 
-- `timeout` (float): Timeout in seconds, default 5.0, prevents infinite blocking
-- `tag` (str | None): Optional tag filter
-  - `None` (default): Matches all methods decorated with `@suspend`
-  - `str`: Only matches methods decorated with `@ChatObject.suspend_with_tag(tag)`
+- `*tags` (str): Optional tag filter (passed as positional arguments)
+  - No tags (default): Matches all methods decorated with `@suspend`
+  - Single tag string: Only matches methods decorated with `@ChatObject.suspend_with_tag(tag)`
+  - **Standard tags**: Use [SuspendEnum](SuspendEnum.md) values for built-in breakpoints:
+    - `SuspendEnum.MEMORY.value`: Before memory summarization
+    - `SuspendEnum.SINGLE_TOOL.value`: Before each tool call
+    - `SuspendEnum.PRECOMPLE.value`: Before model completion
+    - `SuspendEnum.COMPLE.value`: After model completion
+- `timeout` (float): Timeout in seconds, prevents infinite blocking
 
 **Exceptions:**
 
@@ -78,11 +83,16 @@ Call this method from an external independent task to pause `ChatObject` executi
 **Example:**
 
 ```python
+from amrita_core import SuspendEnum
+
 # Wait for any suspend point
 await chat.wait_to_suspend(timeout=3.0)
 
-# Wait for a specific tagged suspend point
-await chat.wait_to_suspend(timeout=5.0, tag="single_tool_call")
+# Wait for a specific standardized suspend point
+await chat.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
+
+# Wait for custom tag
+await chat.wait_to_suspend("custom_tag", timeout=2.0)
 ```
 
 #### `resume()`
@@ -93,7 +103,7 @@ Resumes the suspended `ChatObject` execution flow. Continues execution until the
 
 ```python
 async def controller(chat_obj):
-    await chat_obj.wait_to_suspend(tag="checkpoint")
+    await chat_obj.wait_to_suspend("checkpoint")
     print("Suspended, inspecting state...")
     # Perform inspection or modification
     chat_obj.resume()  # Resume execution
@@ -105,7 +115,7 @@ Manual suspend point, typically used inside custom functions to enable fine-grai
 
 **Parameters:**
 
-- `tag` (str | None): Optional tag for precise matching with external controller's `wait_to_suspend(tag=...)` call
+- `tag` (str | None): Optional tag for precise matching with external controller's `wait_to_suspend(...)` call
 
 **Behavior:**
 
@@ -221,3 +231,42 @@ The `jinja2_vars` parameter allows you to pass custom variables to the Jinja2 te
 3. **Reserved Keyword**: The key `'self'` is reserved and cannot be used in `jinja2_vars`
 
 This design provides maximum flexibility for template customization while maintaining safety by preventing accidental conflicts with built-in variables.
+
+### Parameters
+
+- **`train`** (`dict[str, str] | Message[str]`): System message or training data that defines the agent's behavior
+- **`user_input`** (`str | list[TextContent | ImageContent]`): User's input message
+- **`context`** (`MemoryModel | None`): Conversation memory context (optional)
+- **`session_id`** (`str`): Unique identifier for the conversation session
+- **`callback`** (`Callable[[str | MessageContent], Awaitable[Any]] | None`, optional): Async callback function that receives response chunks as they are generated. Defaults to `None`.
+- **`config`** (`AmritaConfig | None`, optional): Configuration for this chat instance. Defaults to global config.
+- **`preset`** (`ModelPreset | None`, optional): Model preset configuration. Defaults to session or global default.
+- **`auto_create_session`** (`bool`, optional): Whether to automatically create a session if it doesn't exist. Defaults to `False`.
+- **`train_template`** (`Template`, optional): Jinja2 template for formatting system messages. Defaults to built-in template.
+- **`jinja2_vars`** (`dict[str, Any] | None`, optional): Variables to pass to the Jinja2 template system.
+- **`agent_strategy`** (`type[AgentStrategy]`, optional): Agent execution strategy. Defaults to `ReActAgentStrategy`.
+- **`hook_args`** (`tuple[Any, ...]`, optional): Arguments passed to matcher functions. Defaults to empty tuple.
+- **`hook_kwargs`** (`dict[str, Any] | None`, optional): Keyword arguments passed to matcher functions.
+- **`exception_ignored`** (`tuple[type[BaseException], ...]`, optional): Exception types that should be re-raised if they occur in matcher functions.
+- **`queue_size`** (`int`, optional): Maximum buffer size for the response stream. **Starting from version 0.8.0, this uses AnyIO's memory object stream with built-in backpressure instead of the previous dual-queue overflow mechanism.** Defaults to `45`.
+- **`queue_timeout`** (`float | None`, optional): Timeout for queue operations in seconds. If `None`, operations will wait indefinitely. Defaults to `10.0`.
+
+### Streaming Response Processing
+
+AmritaCore uses **AnyIO memory object streams** for streaming responses, which provides built-in backpressure handling:
+
+```python
+# Process streaming responses
+async for message in chat.get_response_generator():
+    content = message if isinstance(message, str) else message.get_content()
+    print(content, end="")
+```
+
+**Key Features of AnyIO Backpressure**:
+
+- **Automatic Flow Control**: When the consumer is slower than the producer, the producer automatically waits
+- **Single Buffer**: Uses a single buffer instead of dual queues with overflow
+- **Memory Efficient**: Built-in buffer size limits prevent unbounded memory growth
+- **Timeout Safety**: Queue operations respect the `queue_timeout` parameter
+
+**Note**: The previous `overflow_queue_size` parameter has been removed in version 0.8.0. All backpressure is now handled by AnyIO's single-stream mechanism.

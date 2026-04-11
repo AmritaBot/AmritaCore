@@ -253,7 +253,14 @@ USER_INPUT = Sequence[Content] | str | None
 
 _T = typing.TypeVar("_T", bound=USER_INPUT)
 
+
 # Yes,but we followed the same naming convention as OpenAI, because it's widely used and easy to understand.
+class EmbeddingChunk(BaseModel):
+    """Represents an embedding vector returned by embedding adapter."""
+
+    embedding: Sequence[float]
+
+    index: int
 
 
 class Message(BaseModel, Generic[_T]):

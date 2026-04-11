@@ -1,3 +1,5 @@
+<div v-pre >
+
 # Security Mechanisms
 
 ## 6.1 Cookie Security Detection
@@ -161,7 +163,109 @@ def detect_sensitive_information(text: str):
     return found_items
 ```
 
-## 6.3 Session Isolation
+## 6.3 Template Security Enhancements (Version 0.8.0+)
+
+### 6.3.1 Jinja2 Template Escaping
+
+Starting from version 0.8.0, AmritaCore automatically applies HTML escaping to user-provided content in Jinja2 templates to **prevent user input from breaking the structured format of system messages**.
+
+**Enhanced Template Safety**:
+
+```jinja2
+{% if original_msg %}
+<INPUT>
+{{original_msg|escape}}  {# Automatic escaping applied here #}
+</INPUT>
+{% endif %}
+```
+
+The `|escape` filter is now automatically applied to the `original_msg` variable in system message templates, ensuring that any user input containing special characters (like `<`, `>`, `{`, `}`, etc.) is properly escaped before being included in prompts. This prevents:
+
+- **Template Structure Corruption**: User input with curly braces `{{}}` or other Jinja2 syntax won't interfere with template rendering
+- **XML/HTML Structure Breakage**: Special characters like `<` and `>` won't break the XML-like structure used in system messages
+- **Unintended Template Execution**: Prevents user-provided content from being interpreted as template code
+
+**Security Impact**:
+
+- Maintains the integrity of system message structure
+- Prevents template injection when user input contains template syntax
+- Ensures predictable prompt formatting regardless of user input content
+- Backward compatible - existing templates continue to work as expected
+
+### 6.3.2 Adapter Type Safety Validation
+
+AmritaCore now includes built-in type safety validation for adapter usage to prevent accidental misuse of adapters.
+
+**Automatic Type Validation**:
+
+```python
+from amrita_core.libchat import call_completion
+
+# This will raise RuntimeError if adapter doesn't support "text-gen"
+response = await call_completion(preset=text_gen_preset, messages=["Hello"])
+
+# Embedding adapters are validated to only be used for embedding calls
+embeddings = await call_completion(preset=embedding_preset, messages=["Hello"])
+```
+
+**Validation Logic**:
+
+- When using `call_completion()` for text generation, the system validates that the adapter supports `"text-gen"` type
+- If an embedding-only adapter is used for text generation, a `RuntimeError` is raised with clear error message
+- This prevents silent failures and confusing behavior when adapters are misused
+
+**Example Error Message**:
+
+```shell
+RuntimeError: Invalid adapter type for text-gen when using adapter: MyEmbeddingAdapter, this adapter only supports embed.
+```
+
+### 6.3.3 Best Practices for Secure Template Usage
+
+When working with custom Jinja2 templates in AmritaCore, follow these security best practices:
+
+1. **Use Built-in Escaping**: Rely on AmritaCore's automatic escaping for user-provided content
+2. **Validate Template Variables**: Ensure custom template variables don't contain executable code
+3. **Avoid Raw HTML**: Never use the `|safe` filter unless you have complete control over the content
+4. **Test with Malicious Input**: Always test templates with potentially malicious input to verify escaping works correctly
+
+**Safe Custom Template Example**:
+
+```python
+from jinja2 import Template
+
+# Safe template - user content will be escaped
+safe_template = Template("""
+SYSTEM: {{ role_instructions }}
+USER INPUT: {{ user_input|escape }}
+CONTEXT: {{ context_summary|escape }}
+""")
+
+# Use with confidence - escaping is handled automatically
+rendered = safe_template.render(
+    role_instructions="You are a helpful assistant",
+    user_input="<script>alert('xss')</script>",  # Will be escaped
+    context_summary="Previous conversation context"
+)
+```
+
+**Template Variable Naming Security**:
+As documented in the [Jinja2 Template Variables Safety](../extensions-integration/jinja2-templates.md#template-variable-naming-safety) section, avoid using variable names that conflict with built-in parameters (`train`, `memory`, `chatobj`, `config`) to prevent `TypeError` due to duplicate keyword arguments.
+
+### 6.3.4 Comprehensive Security Architecture
+
+AmritaCore's security enhancements work together to provide defense in depth:
+
+| Security Layer          | Protection Provided                 | Version Added |
+| ----------------------- | ----------------------------------- | ------------- |
+| Cookie Detection        | Prompt injection detection          | 0.5.0+        |
+| Template Escaping       | XSS prevention in prompts           | 0.8.0+        |
+| Adapter Type Validation | Prevents adapter misuse             | 0.8.0+        |
+| Session Isolation       | Prevents cross-session data leakage | 0.5.0+        |
+
+These layers ensure that AmritaCore applications remain secure against common attack vectors while maintaining ease of use and developer productivity.
+
+## 6.4 Session Isolation
 
 ### 6.3.1 SessionsManager (Session Manager)
 
@@ -300,7 +404,7 @@ async def session_isolation_check(event: PreCompletionEvent, session_id: str = N
 
 ```
 
-## 6.4 Access Control
+## 6.5 Access Control
 
 ### 6.4.1 Permission Mechanisms
 
@@ -430,3 +534,5 @@ async def log_response(event: CompletionEvent, user_id: str = None):
 
 
 ```
+
+</div>

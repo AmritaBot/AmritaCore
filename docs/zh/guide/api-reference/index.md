@@ -337,21 +337,23 @@ async def postprocess_response(event: CompletionEvent):
 
 ### 7.4.1 预定义类型
 
-AmritaCore 提供了几个预定义类型以确保一致性:
+AmritaCore 提供了多种预定义类型以确保一致性：
 
 - [BaseModel](classes/BaseModel.md): 所有数据模型的基类
-- [Depends](classes/Depends.md): 依赖注入装饰器，用于声明事件处理器依赖
-- [DependsFactory](classes/DependsFactory.md): 依赖工厂类，用于包装和解析依赖函数
-- [Function](classes/Function.md): 在工具系统中表示一个可调用函数
+- [Depends](classes/Depends.md): 用于声明事件处理程序依赖项的依赖注入装饰器
+- [DependsFactory](classes/DependsFactory.md): 用于包装和解析依赖函数的依赖工厂类
+- [EmbeddingChunk](classes/EmbeddingChunk.md): 表示嵌入适配器返回的嵌入向量
+- [Function](classes/Function.md): 表示工具系统中的可调用函数
 - [FunctionDefinitionSchema](classes/FunctionDefinitionSchema.md): 函数参数的模式
 - [MemoryModel](classes/MemoryModel.md): 存储对话历史
 - [ModelConfig](classes/ModelConfig.md): 模型特定配置
 - [ModelPreset](classes/ModelPreset.md): 特定模型的完整配置
+- [SuspendEnum](classes/SuspendEnum.md): 用于挂起/恢复机制的标准化断点标签
 - [TextContent](classes/TextContent.md): 表示消息中的文本内容
 - [ToolCall](classes/ToolCall.md): 表示工具的调用
 - [ToolContext](classes/ToolContext.md): 为工具执行提供上下文
 - [ToolResult](classes/ToolResult.md): 表示工具调用的结果
-- [ToolsManager](classes/ToolsManager.md): 管理注册的工具
+- [ToolsManager](classes/ToolsManager.md): 管理已注册的工具
 - [UniResponse](classes/UniResponse.md): 响应的统一格式
 - [UniResponseUsage](classes/UniResponseUsage.md): 响应的使用统计
 

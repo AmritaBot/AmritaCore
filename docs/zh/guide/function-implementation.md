@@ -60,20 +60,22 @@ AmritaCore中的Agent策略实现了几个在执行过程中不同点被调用�
 **目的**: 此钩子允许策略在生成最终响应之前执行最终上下文修改、添加完成指令或执行清理操作。
 
 **使用示例**:
-``python
+
+```python
 async def on_post_process(self) -> None:
 """在成功Agent执行后调用"""
 if self.call_count >= 2: # 仅在实际调用了工具时
 self.ctx.message.append(
 Message(
 role="user",
-content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我。\n<END_OF_PROCESS>"
+content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我。\n</END_OF_PROCESS>"
 )
 )
 
-````
+```
 
 **关键特性**:
+
 - 仅在成功执行时调用（未发生异常）
 - 对**所有策略类别**都可用
 - 可以在最终完成之前修改对话上下文
@@ -83,8 +85,41 @@ content="<END_OF_PROCESS>\n请根据我们之前获得的信息直接回答我�
 
 - **`run()`**: `"workflow"` 和 `"rag"` 类别的主要执行方法
 - **`single_execute()`**: `"agent"` 和 `"agent-mixed"` 类别的单步执行方法
-- **`on_exception()`**: 执行期间发生异常时调用
-- **`on_limited()`**: 达到执行限制时调用（例如，最大工具调用次数）
+- **`on_exception(exc: BaseException)`**: 在执行过程中发生异常时调用。**从0.8.0版本开始，默认实现不再抛出 `NoExceptionHandler` 异常，而是静默通过（pass）。** 自定义策略应重写此方法以实现特定的错误处理逻辑。
+- **`on_limited()`**: 当达到执行限制时调用（例如，最大工具调用次数）
+
+#### 异常处理最佳实践
+
+从0.8.0版本开始，[AgentStrategy](../api-reference/classes/AgentStrategy.md) 中的默认 `on_exception()` 方法不再默认抛出异常。此更改为自定义错误处理提供了更大的灵活性：
+
+```python
+from amrita_core.agent.strategy import AgentStrategy
+
+class CustomAgentStrategy(AgentStrategy):
+    async def on_exception(self, exc: BaseException) -> None:
+        """自定义异常处理逻辑"""
+        # 记录异常
+        logger.error(f"Agent执行失败: {exc}")
+
+        # 可选择性地重新抛出特定异常
+        if isinstance(exc, ValueError):
+            raise exc
+
+        # 或者优雅地处理并继续
+        self.ctx.message.append(
+            Message(
+                role="user",
+                content="处理过程中发生错误。请重试。"
+            )
+        )
+```
+
+**重要说明**：
+
+- 默认行为现在是**静默失败处理** - 异常被捕获但不会重新抛出
+- 自定义策略应在 `on_exception()` 中实现自己的错误处理逻辑
+- 如果需要旧的行为（重新抛出异常），在自定义实现中显式调用 `raise exc`
+- 此更改提高了生产环境中优雅错误处理的健壮性
 
 ## 4.2 对话交互流程
 
@@ -109,7 +144,7 @@ chat = ChatObject(
     user_input="你好，你怎么样？",
     train=train.model_dump()
 )
-````
+```
 
 ### 4.2.2 begin() 执行对话
 
@@ -128,7 +163,7 @@ async with chat.begin() as chat:...
 
 #### 用作上下文管理器（推荐）
 
-```
+```python
 
 # 我们更推荐使用上下文管理器：
 async with chat.begin():
@@ -148,7 +183,7 @@ print(response)
 
 ### 4.2.4 流式响应处理
 
-AmritaCore 支持流式响应以实现实时交互：
+AmritaCore从0.8.0版本开始使用**AnyIO内存对象流**进行流式响应，提供内置的背压处理：
 
 ```python
 # 处理流式响应
@@ -157,14 +192,29 @@ async for message in chat.get_response_generator():
     print(content, end="")
 ```
 
-## 4.2.5 回调函数风格处理
+**背压机制变更（0.8.0+版本）**：
 
-AmritaCore 支持响应回调，用于防止队列溢出与延迟：
+- **0.8.0之前**：使用带溢出机制的双队列（`queue_size` 和 `overflow_queue_size`）
+- **0.8.0之后**：使用带自动背压的单个AnyIO内存对象流
+- **优势**：实现更简单、内存效率更高、流量控制更可靠
+
+现在 [_put_to_queue()](file:///home/johnrichard/LiteSuggarDEV/AmritaCore/src/amrita_core/chatmanager.py#L793-L799) 方法使用AnyIO的 `send()` 方法并带有超时：
 
 ```python
-async def callback(message):
+await asyncio.wait_for(self._send_stream.send(item), timeout=self._q_tout)
+```
+
+当缓冲区满时，生产者会自动等待直到有空间可用，消除了对复杂溢出逻辑的需求。
+
+### 4.2.5 响应回调
+
+AmritaCore支持响应回调以实现实时交互：
+
+```python
+async def response_callback(message):
     print(message)
-chat.set_callback_func(callback)
+
+chat.set_callback_func(response_callback)
 await chat.begin()
 ```
 
@@ -185,7 +235,7 @@ await chat.begin()
 5. 处理响应
 6. 更新上下文以进行后续交互
 
-```
+```python
 # 完整对话生命周期
 context = MemoryModel()
 train = Message(content="你是一个乐于助人的助手。", role="system")
@@ -490,20 +540,7 @@ logger.debug("处理消息: %s", user_input)
 logger.error("处理请求失败: %s", error)
 ```
 
-### 4.6.2 debug_log 调试日志
-
-`debug_log` 装饰器已弃用，推荐使用标准日志记录器：
-
-```python
-# 使用 logger 而不是 debug_log
-from amrita_core.logging import logger
-
-def my_function(param):
-    logger.debug(f"处理参数: {param}")
-    # 函数实现
-```
-
-### 4.6.3 get_last_response() 获取最后响应
+### 4.6.2 get_last_response() 获取最后响应
 
 从对话中检索最后的响应：
 
@@ -515,7 +552,7 @@ last_resp = get_last_response(chat_object)
 print(last_resp)
 ```
 
-### 4.6.4 调试技巧
+### 4.6.3 调试技巧
 
 - 在开发期间启用调试日志
 - 监控Token使用情况以防止超出限制

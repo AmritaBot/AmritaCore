@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import AsyncGenerator, Generator, Sequence
+from collections.abc import AsyncGenerator, Callable, Generator, Sequence
 from io import StringIO
 
 from pydantic import ValidationError
@@ -172,10 +172,16 @@ async def _call_with_reflection(
         Result of the call function
     """
     adapter_class = AdapterManager().safe_get_adapter(preset.protocol)
+
     if adapter_class:
+        if "text-gen" not in (ada_tp := adapter_class.get_type()):
+            raise RuntimeError(
+                f"Invalid adapter type for text-gen when using adapter: {adapter_class.__name__}, this adapter only supports {ada_tp}."
+            )
         debug_log(
             f"Using adapter {adapter_class.__name__} to handle protocol {preset.protocol}"
         )
+
     else:
         raise ValueError(f"Undefined protocol adapter: {preset.protocol}")
 
@@ -243,12 +249,12 @@ async def call_completion(
     preset = preset or PresetManager().get_default_preset()
     config = config or get_config()
 
-    async def _call_api(adapter: ModelAdapter, messages: CONTENT_LIST_TYPE):
-        async def inner():
-            async for i in adapter.call_api([(i.model_dump()) for i in messages]):
-                yield i
-
-        return inner
+    async def _call_api(
+        adapter: ModelAdapter, messages: CONTENT_LIST_TYPE
+    ) -> Callable[
+        [], AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any]
+    ]:
+        return lambda: adapter.call_api([(i.model_dump()) for i in messages])
 
     # Call adapter to get chat response
     response = await _call_with_reflection(preset, _call_api, config, messages)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, TypeVar
+from typing import Any, Generic, TypeVar
 
 import pytz
 
@@ -56,3 +56,10 @@ def get_current_datetime_timestamp(utc_time: None | datetime = None):
 def kw2dict(**kwargs: Any) -> dict[str, Any]:
     """Return the keyword arguments as a dictionary."""
     return kwargs
+
+
+class Ref(Generic[T]):
+    value: T
+
+    def __init__(self, value: T) -> None:
+        self.value = value

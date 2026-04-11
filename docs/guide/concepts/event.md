@@ -161,6 +161,49 @@ Function signatures cannot use `*args` or `**kwargs`, as they may prevent Amrita
 
 AmritaCore provides a powerful dependency injection system that allows event handlers to declare their required dependencies, and the system automatically resolves and injects these dependencies.
 
+### What is Dependency Injection?
+
+**Dependency Injection (DI)** is a design pattern where objects receive their dependencies from an external source rather than creating them internally. In AmritaCore's context:
+
+- **Dependencies** are resources your event handler needs (like database connections, API clients, configuration objects, etc.)
+- **Injection** means AmritaCore automatically provides these resources to your handler function when it's called
+- **Benefits**:
+  - Your handler functions don't need to know how to create or manage these resources
+  - Resources can be shared, cached, or mocked easily
+  - Code becomes more testable and maintainable
+  - Complex setup logic is centralized in dependency functions
+
+Instead of manually creating and passing resources like this:
+
+```python
+# Without DI - Manual resource management
+def get_database_connection():
+    return create_db_connection()
+
+def get_user_session(session_id):
+    return load_user_session(session_id)
+
+# Handler would need to call these functions manually
+async def handle_pre_completion(event: PreCompletionEvent):
+    db_conn = get_database_connection()
+    user_session = get_user_session(event.chat_object.session_id)
+    # ... use resources
+```
+
+With AmritaCore's DI system, you simply declare what you need:
+
+```python
+# With DI - Automatic resource injection
+@on_precompletion().handle()
+async def handle_with_dependencies(
+    event: PreCompletionEvent,
+    db_conn = Depends(get_database_connection),
+    user_session = Depends(get_user_session)
+):
+    # Resources are automatically provided!
+    # ... use resources directly
+```
+
 ### Depends Decorator
 
 Use the `Depends` decorator to declare dependencies:
@@ -190,6 +233,63 @@ async def handle_with_dependencies(
         content=f"User info: {user_data.name}"
     ))
 ```
+
+### Dependency Injection for Authorization and Validation
+
+**Important**: If any dependency function returns `None` or raises an exception (that is not in the `exception_ignored` list), **the entire event handler will be automatically skipped**. This behavior makes dependency injection perfect for **authorization and permission validation**.
+
+#### Permission Validation Example
+
+You can use dependency injection to implement permission checks:
+
+```python
+async def require_admin_permission(session_id: str):
+    """Dependency that only returns a value for admin users"""
+    user = get_user_from_session(session_id)
+    if user.is_admin:
+        return user  # Admin user - allow handler to proceed
+    else:
+        return None  # Non-admin user - skip this handler
+
+async def validate_api_key(api_key: str):
+    """Dependency that validates API key"""
+    if is_valid_api_key(api_key):
+        return api_key  # Valid key - allow handler to proceed
+    else:
+        return None  # Invalid key - skip this handler
+
+# This handler will ONLY execute for admin users with valid API keys
+@on_precompletion().handle()
+async def admin_only_handler(
+    event: PreCompletionEvent,
+    admin_user = Depends(require_admin_permission),
+    valid_key = Depends(validate_api_key)
+):
+    # This code only runs if BOTH dependencies succeed
+    event.messages.append(Message(
+        role="system",
+        content="Admin mode activated"
+    ))
+```
+
+In this example:
+
+- If `require_admin_permission()` returns `None` (non-admin user), the handler is skipped
+- If `validate_api_key()` returns `None` (invalid key), the handler is skipped
+- Only when **both dependencies succeed** will the handler execute
+
+This pattern allows you to:
+
+- **Implement fine-grained access control** without cluttering your handler logic
+- **Chain multiple validation checks** easily
+- **Fail securely** by default (handlers are skipped on any validation failure)
+- **Keep authorization logic separate** from business logic
+
+::: tip
+For authorization scenarios, always return `None` from your dependency function when validation fails. Returning any other falsy value (like `False` or empty string) will still cause the handler to execute.
+
+**Note**: If any runtime dependency returns `None`, the event processing pipeline will end up with an exception.
+:::
 
 ### Concurrent Dependency Resolution
 
@@ -257,6 +357,7 @@ async def handle_with_dependencies(arg1,):... # This handler will be ignored bec
 @on_precompletion().handle()
 async def handle_with_dependencies(arg1:MyObject):... # Correct, it declares the type annotation for arg1, and there is indeed a MyObject type positional parameter
 
+```
 
 :::
 
@@ -268,4 +369,4 @@ async def handle_with_dependencies(arg1:MyObject):... # Correct, it declares the
 - **Error Handling**: Appropriately handle errors in dependency functions, returning `None` to indicate dependency unavailability
 
 This dependency injection system allows event handlers to focus on business logic without worrying about dependency acquisition and management, while maintaining high performance and type safety.
-```
+`

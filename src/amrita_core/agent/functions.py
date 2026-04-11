@@ -124,7 +124,7 @@ class AgentRuntime:
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().\n            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.
-            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 45.
+            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 15.
 
         Returns:
             ChatObject: A chat object

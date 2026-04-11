@@ -1,8 +1,8 @@
-# AmritaCore - Proj.Amrita Agent Core Module
+# AmritaCore - Infrastructure-Level Lightweight Agent Framework
 
 ## Project Overview
 
-AmritaCore is the agent (Agent) core module of Proj.Amrita, a lightweight Python library focused on providing scalable and maintainable agent core implementations. As the core agent component of the project, it undertakes the main logical or control functions, providing a solid foundation for various agent application scenarios.
+AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. Think of it as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
 
 ## Why AmritaCore?
 

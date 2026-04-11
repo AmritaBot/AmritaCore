@@ -280,6 +280,76 @@ config = AmritaConfig(
 - 在 MCP 服务器中实现适当的错误处理
 - 记录工具调用以便调试
 
+## 新的MCP客户端绑定方法（0.8.0+版本）
+
+从0.8.0版本开始，AmritaCore提供了使用 `bound_to()` 方法直接将MCP客户端绑定到客户端管理器的简化方法。
+
+### 使用 bound_to() 方法
+
+[`bound_to()`](../api-reference/classes/MCPClient.md#bound_to) 方法提供了一种更直接、更受控的方式来注册MCP客户端：
+
+```python
+from amrita_core.tools.mcp import MCPClient, ClientManager
+
+async def setup_mcp_client():
+    # 创建MCP客户端
+    client = MCPClient(server_script="/path/to/weather.mcp")
+
+    # 获取全局客户端管理器
+    manager = ClientManager()
+
+    # 直接将客户端绑定到管理器
+    await client.bound_to(manager)
+
+    print("MCP客户端成功绑定到管理器！")
+```
+
+**`bound_to()` 的优势：**
+
+- **原子操作**：绑定操作是原子的 - 要么完全成功，要么在失败时完全回滚
+- **错误安全**：如果注册失败，客户端会自动注销以防止部分状态
+- **直接控制**：提供对客户端注册的显式控制，无需通过脚本初始化
+- **线程安全**：由于新的 [ContextThreadsafe](../api-reference/classes/ContextThreadsafe.md) 基类，该操作是线程安全的
+
+### 对比：传统方法 vs 新方法
+
+| 特性         | 传统方法 (`initialize_scripts_all`) | 新方法 (`bound_to`) |
+| ------------ | ----------------------------------- | ------------------- |
+| **使用场景** | 从配置/脚本批量初始化               | 直接客户端绑定      |
+| **控制级别** | 高级别，配置驱动                    | 低级别，编程控制    |
+| **错误处理** | 每脚本错误处理                      | 失败时原子回滚      |
+| **灵活性**   | 限于基于脚本的设置                  | 完全的编程控制      |
+
+### 带错误处理的完整示例
+
+```python
+import asyncio
+from amrita_core.tools.mcp import MCPClient, ClientManager
+
+async def robust_mcp_setup():
+    client = MCPClient(server_script="./weather-service.mcp")
+    manager = ClientManager()
+
+    try:
+        # 尝试绑定客户端
+        await client.bound_to(manager)
+        print("✅ MCP客户端绑定成功")
+
+        # 使用客户端
+        tools = client.get_tools()
+        print(f"可用工具: {[tool.function.name for tool in tools]}")
+
+    except Exception as e:
+        print(f"❌ 绑定MCP客户端失败: {e}")
+        # 客户端在失败时会自动清理
+        raise
+
+# 运行示例
+asyncio.run(robust_mcp_setup())
+```
+
+**注意**：当需要在运行时动态注册MCP客户端或实现自定义MCP客户端管理逻辑时，`bound_to()` 方法特别有用。
+
 ## 相关文档
 
 - [扩展与集成索引](./index.md) - 所有扩展机制概览

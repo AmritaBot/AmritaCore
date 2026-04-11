@@ -9,6 +9,22 @@ AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `Chat
 - 与需要同步卡点的外部系统协同工作
 - **带标签的断点控制**：通过 tag 标记特定断点，实现精确的流程控制
 
+## 标准断点标签
+
+从 0.8.0 版本开始，AmritaCore 通过 `SuspendEnum` 枚举提供了**标准化的断点标签**。这些内置标签对应 ChatObject 生命周期中的关键执行点：
+
+```python
+from amrita_core import SuspendEnum
+
+# 可用的标准断点标签：
+SuspendEnum.MEMORY        # "ChatObject::memory_limiting" - 内存摘要前
+SuspendEnum.SINGLE_TOOL   # "ChatObject::single_tool_call" - 每次工具调用前
+SuspendEnum.PRECOMPLE     # "matcher_call::pre_completion" - 模型完成前
+SuspendEnum.COMPLE        # "matcher_call::post_completion" - 模型完成后
+```
+
+**推荐**：使用这些标准标签而不是自定义字符串标签，以获得更好的可维护性和兼容性。
+
 ## 工作原理
 
 `ChatObject` 的核心生命周期方法（`_entry`、`_run`、`_run_strategy` 等）均被 `@suspend` 装饰器托管，执行前会自动检测挂起信号。
@@ -23,10 +39,10 @@ AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `Chat
 
 AmritaCore 支持使用 tag 参数为挂起点添加唯一标识，实现精确的断点控制：
 
-### 基本用法
+### 使用标准标签的基本用法
 
 ```python
-from amrita_core import ChatObject
+from amrita_core import ChatObject, SuspendEnum
 from amrita_core.types import MemoryModel, Message
 
 context = MemoryModel()
@@ -39,10 +55,10 @@ chat = ChatObject(
     train=train.model_dump()
 )
 
-# 外部控制器监听特定 tag 的断点
+# 外部控制器监听特定的标准断点
 async def external_controller(chat_obj):
-    # 等待名为 "single_tool_call" 的断点
-    await chat_obj.wait_to_suspend(timeout=5.0, tag="single_tool_call")
+    # 等待标准的 "single_tool_call" 断点
+    await chat_obj.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
     print("在工具调用前挂起！")
 
     # 可以在此检查或修改状态
@@ -54,9 +70,7 @@ async def external_controller(chat_obj):
 controller_task = asyncio.create_task(external_controller(chat))
 ```
 
-### 在自定义函数中使用 Tag
-
-使用 `@ChatObject.suspend_with_tag` 装饰器为自定义函数添加带标签的挂起点：
+### 在自定义函数中使用标签
 
 ```python
 from amrita_core import ChatObject
@@ -64,39 +78,39 @@ from amrita_core import ChatObject
 class MyAgent:
     @ChatObject.suspend_with_tag("before_api_call")
     async def call_external_api(self, chat_obj: ChatObject, url: str):
-        """调用外部 API 前会挂起（如果外部监听了该 tag）"""
-        # 如果外部调用了 wait_to_suspend(tag="single_tool_call")
-        # 代码会在这里暂停，直到 resume() 被调用
+        """在调用外部API前挂起（如果外部监听器正在等待此标签）"""
+        # 如果外部调用了 wait_to_suspend("before_api_call")
+        # 代码将在此处暂停，直到调用 resume()
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 return await response.json()
 
     @ChatObject.suspend_with_tag("after_response")
     async def post_process_response(self, chat_obj: ChatObject, response: str):
-        """处理响应后会挂起"""
+        """在处理响应后挂起"""
         # 后处理逻辑
-        print(f"处理响应：{response}")
+        print(f"处理响应: {response}")
 ```
 
-### Tag 匹配规则
+### 标签匹配规则
 
-1. **精确匹配**：`wait_to_suspend(tag="xxx")` 只会匹配 `@ChatObject.suspend_with_tag("xxx")` 装饰的函数
-2. **无标签挂起**：`wait_to_suspend()` 或 `wait_to_suspend(tag=None)` 会匹配所有被 `@suspend` 装饰的函数
-3. **优先级**：带标签的挂起优先于无标签挂起
+1. **精确匹配**：`wait_to_suspend("xxx")` 只会匹配 `@ChatObject.suspend_with_tag("xxx")` 装饰的函数
+2. **无标签挂起**：`wait_to_suspend()` 会匹配所有被 `@suspend` 装饰的函数
+3. **优先级**：带标签的挂起优先于无标签的挂起
 
 ```python
-# 示例：多个断点的控制流程
+# 示例：多断点控制流程
 async def multi_breakpoint_controller(chat_obj):
-    # 先等待第一个断点
-    await chat_obj.wait_to_suspend(tag="step1")
-    print("步骤 1 完成")
+    # 等待第一个断点
+    await chat_obj.wait_to_suspend("step1")
+    print("步骤1完成")
 
     # 继续等待第二个断点
-    await chat_obj.wait_to_suspend(tag="step2")
-    print("步骤 2 完成")
+    await chat_obj.wait_to_suspend("step2")
+    print("步骤2完成")
 
     # 最后等待任意断点
-    await chat_obj.wait_to_suspend()  # 匹配任何 suspend 装饰的方法
+    await chat_obj.wait_to_suspend()  # 匹配任何被 suspend 装饰的方法
     print("任意步骤完成")
 
     chat_obj.resume()
@@ -180,9 +194,10 @@ async def main():
     # 外部并发控制逻辑
     async def external_controller(chat_obj):
         await chat_obj.wait_to_suspend(timeout=5.0)
-        print("聊天已挂起，可以在此检查状态")
-        # 可执行状态查看、上下文修改、外部联动等自定义逻辑
+        print("聊天已挂起。")
+        await asyncio.sleep(1)
         chat_obj.resume()
+        print("聊天已恢复。")
 
     async with chat.begin():
         controller_task = asyncio.create_task(external_controller(chat))

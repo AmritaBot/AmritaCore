@@ -22,15 +22,15 @@
 
 </center>
 
-AmritaCore is the intelligent agent core module of Proj.Amrita, serving as the primary logical or control component of the project. It provides a flexible and extensible framework for implementing AI agents with advanced capabilities.
+AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. **AmritaCore is designed to be interactive-first**, enabling real-time, responsive agent applications through its native async streaming architecture. Think of it as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
 
 ## 🚀 What is AmritaCore?
 
-AmritaCore is a next-generation agent framework designed to simplify the creation and deployment of intelligent agents. Built with modern Python technologies, it provides a comprehensive solution for implementing AI-powered applications with features like event-driven architecture, tool integration, and multi-modal support.
+AmritaCore is **not a replacement for existing frameworks** like LangChain or LlamaIndex. Instead, it is a **lightweight, infrastructure-focused agent framework** designed to provide the essential building blocks for AI agent development. Built with modern Python technologies, it delivers fundamental components needed for AI-powered applications with features like event-driven architecture, tool integration, and multi-modal support – all while maintaining minimal dependencies and maximum performance.
 
 ## 🎯 Mission and Value Proposition
 
-The mission of AmritaCore is to democratize the development of intelligent agents by providing a powerful yet accessible framework. Our core value propositions include:
+The mission of AmritaCore is to provide a lightweight yet powerful foundation for agent development that prioritizes simplicity, performance, and flexibility. Our core value propositions include:
 
 - **Stream-based Design**: All message outputs are designed as asynchronous streams for real-time responses
 - **Security**: Built-in cookie security detection to ensure session safety
@@ -64,7 +64,7 @@ We welcome contributions! Please see our contribution guidelines for more inform
 
 This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
 
-**Significants**
+### Notes
 
 All versions of AmritaCore are released under the MIT License (Although the past versions are released under the AGPLv3 License, when this readme is created, we will release all versions under the MIT License).
 
@@ -74,3 +74,8 @@ All versions of AmritaCore are released under the MIT License (Although the past
 - [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) - Code of conduct
 - [ZH-CN.md](./readmes/ZH_CN.md)
 - [EN-US.md](./readmes/EN_US.md)
+
+## Unstable Features
+
+- `Python 3.14+ Supporting`: we are not sure if it will work well on Python 3.14+(No GIL Version).
+- `Anthropic Supporting`: It's now only supports Completion, function calling is not supported yet.

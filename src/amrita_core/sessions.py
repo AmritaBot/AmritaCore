@@ -9,6 +9,7 @@ from typing_extensions import Self
 
 from amrita_core.config import AmritaConfig
 from amrita_core.preset import MultiPresetManager
+from amrita_core.threadsafe import ContextThreadsafe
 from amrita_core.tools.mcp import MultiClientManager as ClientManager
 from amrita_core.types import MemoryModel
 
@@ -38,7 +39,7 @@ class SessionData:
     config: AmritaConfig = field(default_factory=AmritaConfig)
 
 
-class SessionsManager:
+class SessionsManager(ContextThreadsafe):
     """Session manager for managing tools, configurations, and presets for different sessions.
 
     This manager uses singleton pattern to ensure only one instance exists throughout the application,

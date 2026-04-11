@@ -4,26 +4,30 @@
 
 ### 1.1.1 What is AmritaCore?
 
-AmritaCore is the intelligent agent core module of Proj.Amrita, serving as the primary logical or control component of the project. It provides a comprehensive and extensible framework for developing AI-powered agents with advanced capabilities such as event-driven architecture, tool integration, and sophisticated memory management.
+AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. **AmritaCore is designed to be interactive-first**, enabling real-time, responsive agent applications through its native async streaming architecture.
 
-AmritaCore is designed to simplify the creation and deployment of intelligent agents, abstracting away the complexities of communication protocols, context management, and external service integration. It offers developers a clean API to focus on agent logic rather than infrastructure concerns.
+Think of AmritaCore as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
+
+**AmritaCore is not a replacement for existing frameworks** like LangChain or LlamaIndex. Instead, it is a **lightweight, infrastructure-focused agent framework** designed to provide the essential building blocks for AI agent development.
 
 ### 1.1.2 Project Background and Mission
 
-The mission of AmritaCore is to democratize the development of intelligent agents by providing a powerful yet accessible framework. As AI applications grow increasingly complex, there's a need for standardized approaches to handle:
+The mission of AmritaCore is to provide a lightweight yet powerful foundation for agent development that prioritizes simplicity, performance, and flexibility. As AI applications demand real-time responsiveness and efficient resource utilization, there's a need for frameworks that:
 
-- Event-driven interactions
-- Tool integration
-- Context and memory management
-- Security considerations
-- Multi-modal inputs and outputs
+- Deliver **stream-based design** for real-time responses
+- Ensure **security** with built-in cookie security detection
+- Maintain **vendor agnostic** approach for high portability
+- Enable **extensibility** through integrated MCP client support
+- Provide **minimal dependencies** and **maximum performance**
 
-AmritaCore addresses these challenges with a modular architecture that allows for both simple and sophisticated implementations.
+AmritaCore addresses these requirements with a focused architecture that emphasizes core capabilities while avoiding unnecessary complexity.
 
 ### 1.1.3 Core Value Propositions
 
-- **Flexibility**: Adaptable to various use cases from simple chatbots to complex decision-making systems
-- **Scalability**: Designed to handle varying loads with appropriate context management
-- **Security**: Built-in mechanisms for secure sessions and prompt injection protection
-- **Extensibility**: Easy to extend with custom tools and event handlers
-- **Portability**: Vendor-agnostic approach allowing deployment across different platforms
+- **Stream-based Design**: All message outputs are designed as asynchronous streams for real-time responses
+- **Lightweight Architecture**: Minimal dependencies and maximum performance for resource-constrained environments
+- **Interactive-First**: Native async streaming architecture optimized for real-time, responsive applications
+- **Infrastructure-Level**: Provides essential "operating system" capabilities for AI agents
+- **Security**: Built-in cookie security detection to ensure session safety
+- **Vendor Agnostic**: Data types and conversation management independent of specific providers
+- **Extensibility**: Integrated MCP client in extension mechanisms for enhanced system scalability
