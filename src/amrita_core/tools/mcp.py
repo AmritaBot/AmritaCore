@@ -168,7 +168,7 @@ class MultiClientManager(ContextThreadsafe):
     _is_initialized = False  # Whether ToolsMapping is ready
 
     def __init__(self, tools_manager: MultiToolsManager | None = None) -> None:
-        self._initted = True
+        super().__init__()
         self.tools_manager = tools_manager or self.tools_manager
         self.clients = []
         self.name_to_clients = {}

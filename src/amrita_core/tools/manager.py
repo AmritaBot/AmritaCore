@@ -31,6 +31,7 @@ class MultiToolsManager(ContextThreadsafe):
     ]  # Disabled tools, has_tool and get_tool will not return disabled tools
 
     def __init__(self):
+        super().__init__()
         self._models = {}
         self._disabled_tools = set()
 

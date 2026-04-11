@@ -49,6 +49,7 @@ class MultiPresetManager(ContextThreadsafe):
     _presets: dict[str, ModelPreset]
 
     def __init__(self) -> None:
+        super().__init__()
         self._presets = {}
 
     def set_default_preset(self, preset: ModelPreset | str) -> None:
