@@ -124,7 +124,7 @@ async def controller(chat_obj):
 
 **示例:**
 
-```python
+```
 from amrita_core import ChatObject
 
 class MyProcessor:
@@ -144,7 +144,7 @@ class MyProcessor:
 
 ## 示例
 
-```python
+```
 from amrita_core import ChatObject
 from amrita_core.types import MemoryModel, Message
 
@@ -231,3 +231,23 @@ ChatObject 类负责处理单个聊天会话，包括消息接收、上下文管
 3. **保留关键字**：键 `'self'` 是保留关键字，不能在 `jinja2_vars` 中使用
 
 这种设计为模板自定义提供了最大的灵活性，同时通过防止与内置变量的意外冲突来保持安全性。
+
+### 流式响应处理
+
+AmritaCore使用**AnyIO内存对象流**进行流式响应，提供内置的背压处理：
+
+```python
+# 处理流式响应
+async for message in chat.get_response_generator():
+    content = message if isinstance(message, str) else message.get_content()
+    print(content, end="")
+```
+
+**AnyIO背压的关键特性**：
+
+- **自动流量控制**：当消费者比生产者慢时，生产者会自动等待
+- **单缓冲区**：使用单个缓冲区而不是带溢出的双队列
+- **内存高效**：内置缓冲区大小限制防止无界内存增长
+- **超时安全**：队列操作遵循 `queue_timeout` 参数
+
+**注意**：在0.8.0版本中已移除之前的 `overflow_queue_size` 参数。所有背压现在都由AnyIO的单流机制处理。

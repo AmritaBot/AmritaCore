@@ -143,6 +143,7 @@ class TestCallWithReflection:
         mock_adapter_instance = AsyncMock()
         mock_adapter.return_value = mock_adapter_instance
         mock_adapter_instance.some_method = AsyncMock(return_value="test_result")
+        mock_adapter.get_type.return_value = "text-gen"
         return mock_adapter
 
     @pytest.mark.asyncio

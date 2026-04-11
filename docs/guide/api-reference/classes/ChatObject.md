@@ -144,7 +144,7 @@ class MyProcessor:
 
 ## Example
 
-```python
+```
 from amrita_core import ChatObject
 from amrita_core.types import MemoryModel, Message
 
@@ -231,3 +231,42 @@ The `jinja2_vars` parameter allows you to pass custom variables to the Jinja2 te
 3. **Reserved Keyword**: The key `'self'` is reserved and cannot be used in `jinja2_vars`
 
 This design provides maximum flexibility for template customization while maintaining safety by preventing accidental conflicts with built-in variables.
+
+### Parameters
+
+- **`train`** (`dict[str, str] | Message[str]`): System message or training data that defines the agent's behavior
+- **`user_input`** (`str | list[TextContent | ImageContent]`): User's input message
+- **`context`** (`MemoryModel | None`): Conversation memory context (optional)
+- **`session_id`** (`str`): Unique identifier for the conversation session
+- **`callback`** (`Callable[[str | MessageContent], Awaitable[Any]] | None`, optional): Async callback function that receives response chunks as they are generated. Defaults to `None`.
+- **`config`** (`AmritaConfig | None`, optional): Configuration for this chat instance. Defaults to global config.
+- **`preset`** (`ModelPreset | None`, optional): Model preset configuration. Defaults to session or global default.
+- **`auto_create_session`** (`bool`, optional): Whether to automatically create a session if it doesn't exist. Defaults to `False`.
+- **`train_template`** (`Template`, optional): Jinja2 template for formatting system messages. Defaults to built-in template.
+- **`jinja2_vars`** (`dict[str, Any] | None`, optional): Variables to pass to the Jinja2 template system.
+- **`agent_strategy`** (`type[AgentStrategy]`, optional): Agent execution strategy. Defaults to `ReActAgentStrategy`.
+- **`hook_args`** (`tuple[Any, ...]`, optional): Arguments passed to matcher functions. Defaults to empty tuple.
+- **`hook_kwargs`** (`dict[str, Any] | None`, optional): Keyword arguments passed to matcher functions.
+- **`exception_ignored`** (`tuple[type[BaseException], ...]`, optional): Exception types that should be re-raised if they occur in matcher functions.
+- **`queue_size`** (`int`, optional): Maximum buffer size for the response stream. **Starting from version 0.8.0, this uses AnyIO's memory object stream with built-in backpressure instead of the previous dual-queue overflow mechanism.** Defaults to `45`.
+- **`queue_timeout`** (`float | None`, optional): Timeout for queue operations in seconds. If `None`, operations will wait indefinitely. Defaults to `10.0`.
+
+### Streaming Response Processing
+
+AmritaCore uses **AnyIO memory object streams** for streaming responses, which provides built-in backpressure handling:
+
+```python
+# Process streaming responses
+async for message in chat.get_response_generator():
+    content = message if isinstance(message, str) else message.get_content()
+    print(content, end="")
+```
+
+**Key Features of AnyIO Backpressure**:
+
+- **Automatic Flow Control**: When the consumer is slower than the producer, the producer automatically waits
+- **Single Buffer**: Uses a single buffer instead of dual queues with overflow
+- **Memory Efficient**: Built-in buffer size limits prevent unbounded memory growth
+- **Timeout Safety**: Queue operations respect the `queue_timeout` parameter
+
+**Note**: The previous `overflow_queue_size` parameter has been removed in version 0.8.0. All backpressure is now handled by AnyIO's single-stream mechanism.

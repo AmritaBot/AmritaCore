@@ -163,7 +163,7 @@ async with chat.begin() as chat:...
 
 #### 用作上下文管理器（推荐）
 
-```python
+```
 
 # 我们更推荐使用上下文管理器：
 async with chat.begin():
@@ -183,7 +183,7 @@ print(response)
 
 ### 4.2.4 流式响应处理
 
-AmritaCore 支持流式响应以实现实时交互：
+AmritaCore从0.8.0版本开始使用**AnyIO内存对象流**进行流式响应，提供内置的背压处理：
 
 ```python
 # 处理流式响应
@@ -192,14 +192,29 @@ async for message in chat.get_response_generator():
     print(content, end="")
 ```
 
-## 4.2.5 回调函数风格处理
+**背压机制变更（0.8.0+版本）**：
 
-AmritaCore 支持响应回调，用于防止队列溢出与延迟：
+- **0.8.0之前**：使用带溢出机制的双队列（`queue_size` 和 `overflow_queue_size`）
+- **0.8.0之后**：使用带自动背压的单个AnyIO内存对象流
+- **优势**：实现更简单、内存效率更高、流量控制更可靠
+
+现在 [_put_to_queue()](file:///home/johnrichard/LiteSuggarDEV/AmritaCore/src/amrita_core/chatmanager.py#L793-L799) 方法使用AnyIO的 `send()` 方法并带有超时：
 
 ```python
-async def callback(message):
+await asyncio.wait_for(self._send_stream.send(item), timeout=self._q_tout)
+```
+
+当缓冲区满时，生产者会自动等待直到有空间可用，消除了对复杂溢出逻辑的需求。
+
+### 4.2.5 响应回调
+
+AmritaCore支持响应回调以实现实时交互：
+
+```
+async def response_callback(message):
     print(message)
-chat.set_callback_func(callback)
+
+chat.set_callback_func(response_callback)
 await chat.begin()
 ```
 
@@ -220,7 +235,7 @@ await chat.begin()
 5. 处理响应
 6. 更新上下文以进行后续交互
 
-```python
+```
 # 完整对话生命周期
 context = MemoryModel()
 train = Message(content="你是一个乐于助人的助手。", role="system")

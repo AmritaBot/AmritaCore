@@ -15,6 +15,9 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 from uuid import uuid4
 
+import anyio
+from anyio import create_memory_object_stream
+from anyio.abc import ObjectReceiveStream, ObjectSendStream
 from jinja2 import Template
 from pydantic import BaseModel, Field
 from pytz import utc
@@ -415,12 +418,9 @@ class ChatObject:
     strategy: type[AgentStrategy]
     template: Template
     jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
-    _response_queue: asyncio.Queue[RESPONSE_TYPE]
-    _overflow_queue: asyncio.Queue[
-        RESPONSE_TYPE
-    ]  # Note: Size of this queue should be far smaller than the queue size of response_queue
-    _q_tout: float
-    _q_ovf_tout: float
+    _send_stream: ObjectSendStream
+    _receive_stream: ObjectReceiveStream
+    _q_tout: float | None
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
@@ -455,9 +455,7 @@ class ChatObject:
         hook_kwargs: dict[str, Any] | None = None,
         exception_ignored: tuple[type[BaseException], ...] = (),
         queue_size: int = 45,
-        overflow_queue_size: int = 15,
-        queue_timeout: float = 2.0,
-        overflow_queue_timeout: float = 5.0,
+        queue_timeout: float | None = 10.0,
     ) -> None:
         """Initialize a chat object
 
@@ -477,7 +475,6 @@ class ChatObject:
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
             queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 45.
-            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 15.
         """
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
@@ -515,14 +512,14 @@ class ChatObject:
         self._hook_args = hook_args
         self._hook_kwargs = hook_kwargs or {}
 
-        # Initialize async queue for streaming responses
-        self._response_queue = asyncio.Queue(queue_size)
-        self._overflow_queue = asyncio.Queue(overflow_queue_size)
+        # Initialize for streaming responses
+        self._send_stream, self._receive_stream = create_memory_object_stream(
+            max_buffer_size=queue_size
+        )
         self.stream_id = uuid4().hex
         self._callback_fun = callback
         self._callback_lock = Lock()
         self._q_tout = queue_timeout
-        self._q_ovf_tout = overflow_queue_timeout
 
     async def _wait_for_continue(self, tag: str | None = None) -> bool:
         """Break point for suspend.
@@ -552,7 +549,7 @@ class ChatObject:
         finally:
             self.__resume_signal = None
 
-    async def wait_to_suspend(self, *tags: str, timeout: float | None = None):
+    async def wait_to_suspend(self, *tags: str, timeout: float | None = None):  # noqa: ASYNC109
         """Tell chatobject to suspend and wait for it.
 
         Args:
@@ -793,7 +790,12 @@ class ChatObject:
     async def set_queue_done(self) -> None:
         """Mark the response queue as done by putting the done marker"""
         if not self.queue_closed():
-            await self._put_to_queue(self.__done_marker)
+            try:
+                await self._put_to_queue(self.__done_marker)
+            except anyio.BrokenResourceError:
+                self._queue_done = True
+            else:
+                self._queue_done = True
 
     async def _put_to_queue(self, item):
         """Put an item to the queue, using overflow mechanism if primary queue is full
@@ -801,21 +803,8 @@ class ChatObject:
         Args:
             item: Item to put in the queue
         """
-        with contextlib.suppress(asyncio.QueueFull):
-            return self._response_queue.put_nowait(item)
-        with contextlib.suppress(asyncio.QueueFull):
-            return self._overflow_queue.put_nowait(item)
-
-        with contextlib.suppress(asyncio.TimeoutError):
-            return await asyncio.wait_for(
-                self._response_queue.put(item), timeout=self._q_tout
-            )
-        with contextlib.suppress(asyncio.TimeoutError):
-            return await asyncio.wait_for(
-                self._overflow_queue.put(item), timeout=self._q_ovf_tout
-            )
-
-        raise RuntimeError("Can't keep up!Is the consumer still running?")
+        with anyio.fail_after(self._q_tout):
+            await self._send_stream.send(item)
 
     @suspend
     async def yield_response(self, response: RESPONSE_TYPE) -> None:
@@ -885,48 +874,20 @@ class ChatObject:
                 builder.write(str(item.get_content()))
         return builder.getvalue()
 
-    async def __get_from(
-        self, queue: asyncio.Queue[RESPONSE_TYPE], max_step: int
-    ) -> AsyncGenerator[RESPONSE_TYPE, None]:
-        remaining: int = min(max_step, queue.qsize())
-        while remaining > 0 and not queue.empty():
-            item = await queue.get()
-            queue.task_done()
-            remaining -= 1
-            yield item
-
     async def _response_generator(self) -> AsyncGenerator[RESPONSE_TYPE]:
         """Internal method to asynchronously yield items from the queue until done marker is reached.
 
         Yields:
             Items from the response queue until the done marker is encountered
         """
-        # Yield from primary queue first
-        while True:
-            primary_size, overflow_size = (
-                self._response_queue.qsize(),
-                self._overflow_queue.qsize(),
-            )
-            async for item in self.__get_from(self._response_queue, primary_size):
+        try:
+            async for item in self._receive_stream:
                 if item is self.__done_marker:
                     return
                 yield item
-
-            # If primary queue is empty, check overflow queue
-            if not self._overflow_queue.empty():
-                async for item in self.__get_from(self._overflow_queue, overflow_size):
-                    if item is self.__done_marker:
-                        return
-                    yield item
-            else:
-                if (
-                    self.queue_closed()
-                    and self._response_queue.empty()
-                    and self._overflow_queue.empty()
-                ):
-                    break
-                # Otherwise, wait a bit before checking again
-                await asyncio.sleep(0.01)
+        finally:
+            self._queue_done = True
+            await self._send_stream.aclose()
 
     @suspend
     async def _run_strategy(self) -> None:

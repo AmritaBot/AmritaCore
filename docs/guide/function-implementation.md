@@ -215,7 +215,7 @@ print(response)
 
 ### 4.2.4 Streaming Response Processing
 
-AmritaCore supports streaming responses for real-time interaction:
+AmritaCore uses **AnyIO memory object streams** for streaming responses, which provides built-in backpressure handling starting from version 0.8.0:
 
 ```python
 # Process streaming responses
@@ -223,6 +223,20 @@ async for message in chat.get_response_generator():
     content = message if isinstance(message, str) else message.get_content()
     print(content, end="")
 ```
+
+**Backpressure Mechanism Changes (Version 0.8.0+)**:
+
+- **Before 0.8.0**: Used dual queues with overflow mechanism (`queue_size` and `overflow_queue_size`)
+- **After 0.8.0**: Uses single AnyIO memory object stream with automatic backpressure
+- **Benefits**: Simpler implementation, better memory efficiency, and more reliable flow control
+
+The `_put_to_queue()` method now uses AnyIO's `send()` method with timeout:
+
+```python
+await asyncio.wait_for(self._send_stream.send(item), timeout=self._q_tout)
+```
+
+When the buffer is full, the producer automatically waits until space becomes available, eliminating the need for complex overflow logic.
 
 ### 4.2.5 Response Callback
 

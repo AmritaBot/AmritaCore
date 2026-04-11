@@ -464,47 +464,6 @@ class TestChatObjectAdvanced:
         SessionsManager._instance = None
 
     @pytest.mark.asyncio
-    async def test_put_to_queue_overflow(self):
-        """Test putting items to queue with overflow mechanism"""
-        session_id = "test-session-overflow"
-        sm = SessionsManager()
-        sm.init_session(session_id)
-
-        train = {"role": "system", "content": "system message"}
-        user_input = "test input"
-        context = MemoryModel()
-
-        config = AmritaConfig()
-        # Small queue sizes to trigger overflow
-        default_preset = ModelPreset(
-            model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
-        )
-
-        chat_obj = ChatObject(
-            train=train,
-            user_input=user_input,
-            context=context,
-            session_id=session_id,
-            config=config,
-            preset=default_preset,
-            queue_size=2,  # Very small primary queue
-            overflow_queue_size=2,  # Very small overflow queue
-        )
-
-        # Fill both queues
-        await chat_obj._put_to_queue("item1")
-        await chat_obj._put_to_queue("item2")
-        await chat_obj._put_to_queue("item3")  # Should go to overflow
-        await chat_obj._put_to_queue("item4")  # Should go to overflow
-
-        # Try to add one more item - should wait and eventually raise exception after timeout
-        with pytest.raises(
-            RuntimeError,
-            match=r"Can't keep up!Is the consumer still running?",
-        ):
-            await chat_obj._put_to_queue("item5")
-
-    @pytest.mark.asyncio
     async def test_yield_response_with_callback(self):
         """Test yield_response with callback function"""
         session_id = "test-session-callback"
