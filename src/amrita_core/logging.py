@@ -1,20 +1,41 @@
 # ref: https://github.com/NoneBot/NoneBot2/blob/main/nonebot/log.py
 from __future__ import annotations
 
+import atexit
 import inspect
 import logging
 import os
 import sys
 from typing import TYPE_CHECKING, Protocol
 
-import loguru
+from loguru import _defaults as _lg_def
+from loguru import _logger as _lg_log
+
+from amrita_core.utils import Ref
 
 if TYPE_CHECKING:
     from loguru import Logger, Record
 
-logger: Logger = loguru.logger
+
+logger: Logger = _lg_log.Logger(
+    core=_lg_log.Core(),
+    exception=None,
+    depth=0,
+    record=False,
+    lazy=False,
+    colors=False,
+    raw=False,
+    capture=True,
+    patchers=[],
+    extra={},
+)  # pyright: ignore[reportAssignmentType]
 
 debug: bool = False
+
+if _lg_def.LOGURU_AUTOINIT and sys.stderr:
+    logger.add(sys.stderr)
+
+atexit.register(logger.remove)
 
 
 class ToStringAble(Protocol):
@@ -60,13 +81,17 @@ default_format: str = (
 """Default log format"""
 
 logger.remove()
-logger_id = logger.add(
-    sys.stdout,
-    level=0,
-    diagnose=False,
-    filter=default_filter,
-    format=default_format,
+logger_id: Ref[int] = Ref(
+    logger.add(
+        sys.stdout,
+        level=0,
+        diagnose=False,
+        filter=default_filter,
+        format=default_format,
+    )
 )
 """Default log handler id"""
 
 __autodoc__ = {"logger_id": False}
+
+__all__ = ["debug_log", "logger", "logger_id"]
