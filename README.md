@@ -74,3 +74,8 @@ All versions of AmritaCore are released under the MIT License (Although the past
 - [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) - Code of conduct
 - [ZH-CN.md](./readmes/ZH_CN.md)
 - [EN-US.md](./readmes/EN_US.md)
+
+## Unstable Features
+
+- `Python 3.14+ Supporting`: we are not sure if it will work well on Python 3.14+(No GIL Version).
+- `Anthropic Supporting`: It's now only supports Completion, function calling is not supported yet.
