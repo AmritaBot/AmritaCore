@@ -227,6 +227,9 @@ class AdapterManager(ContextThreadsafe):
             cls.__instance._adapter_class = {}
         return cls.__instance
 
+    def __init__(self):
+        super().__init__()
+
     def get_adapters(self) -> dict[str, type[ModelAdapter]]:
         """Get all registered adapters"""
         return self._adapter_class
