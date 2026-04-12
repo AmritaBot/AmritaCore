@@ -61,23 +61,21 @@ class AsyncLockThreadsafe:
         asynchronously.
         """
         current_tid = threading.get_ident()
-
-        try:
-            self._meta_lock.acquire()
+        with self._meta_lock:
             if self._owner_thread_id is None or self._owner_thread_id == current_tid:
                 self._owner_thread_id = current_tid
-                self._meta_lock.release()
-                await self._async_lock.acquire()
+                take_async = True
             else:
-                self._meta_lock.release()
-                await asyncio.to_thread(self._thread_lock.acquire)
-                self._meta_lock.acquire()
+                take_async = False
+
+        if take_async:
+            await self._async_lock.acquire()
+        else:
+            await asyncio.to_thread(self._thread_lock.acquire)
+            with self._meta_lock:
                 self._owner_thread_id = current_tid
                 self._is_thread_locked = True
-                self._meta_lock.release()
-        finally:
-            if self._meta_lock.locked():
-                self._meta_lock.release()
+
 
     def release(self) -> None:
         """
