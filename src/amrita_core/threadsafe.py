@@ -76,3 +76,22 @@ class AsyncLockThreadsafe:
 
     async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
         self.release()
+
+class ContextThreadsafe:
+    """
+    Provides an optional async context manager for thread-safe operations.
+
+    This class wraps AsyncLockThreadsafe to provide a convenient context manager
+    interface for ensuring thread safety in async code.
+    """
+
+    _ctx_lock: AsyncLockThreadsafe
+
+    def __init__(self):
+        self._ctx_lock = AsyncLockThreadsafe()
+
+    async def __aenter__(self):
+        await self._ctx_lock.acquire()
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        self._ctx_lock.release()
