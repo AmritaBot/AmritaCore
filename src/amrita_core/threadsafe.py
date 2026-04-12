@@ -90,9 +90,10 @@ class AsyncLockThreadsafe:
             RuntimeError: If called from a thread that does not own the lock.
         """
         current_tid = threading.get_ident()
-        if self._owner_thread_id != current_tid:
-            raise RuntimeError("Lock released by non-owner thread")
+
         with self._meta_lock:
+            if self._owner_thread_id != current_tid:
+                raise RuntimeError("Lock released by non-owner thread")
             if self._is_thread_locked:
                 self._is_thread_locked = False
                 self._thread_lock.release()
