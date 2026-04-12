@@ -3,13 +3,13 @@ from __future__ import annotations
 import contextlib
 import json
 import random
-from asyncio import Lock
 from collections.abc import Awaitable, Callable, Iterable
 from contextlib import nullcontext
 from copy import deepcopy
 from pathlib import Path
 from typing import Any, overload
 
+import aiologic
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
@@ -164,7 +164,7 @@ class MultiClientManager(ContextThreadsafe):
         str, str
     ]  # Reverse mapping (remapped_name->original_name)
     tools_manager: MultiToolsManager = ToolsManager()
-    _lock: Lock
+    _lock: aiologic.Lock
     _is_initialized = False  # Whether ToolsMapping is ready
 
     def __init__(self, tools_manager: MultiToolsManager | None = None) -> None:
@@ -175,7 +175,7 @@ class MultiClientManager(ContextThreadsafe):
         self.tools_remapping = {}
         self.reversed_remappings = {}
         self.script_to_clients = {}
-        self._lock = Lock()
+        self._lock = aiologic.Lock()
 
     def get_client_by_script(self, server_script: MCP_SERVER_SCRIPT_TYPE) -> MCPClient:
         """Get MCP Client (without operating stored MCP Server)
