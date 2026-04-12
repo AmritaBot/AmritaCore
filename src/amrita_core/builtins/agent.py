@@ -84,8 +84,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         config = self.chat_object.config
         if config.builtin.tool_calling_mode == "agent":
             self.tools.append(STOP_TOOL.model_dump())
-            if config.builtin.agent_thought_mode.startswith("reasoning"):
-                self.tools.append(REASONING_TOOL.model_dump())
         self.tools.extend(self.tools_manager.tools_meta_dict().values())
         self.origin_msg: str = (
             "".join(
@@ -650,10 +648,13 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
             )
         elif config.builtin.tool_calling_mode == "none":
             return False
+        tools = self.tools.copy()
+        if config.builtin.agent_thought_mode.startswith("reasoning"):
+            tools.append(REASONING_TOOL.model_dump())
 
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             msg_list.unwrap(),
-            self.tools,
+            tools,
             tool_choice=(
                 "required"
                 if (config.llm.require_tools and not self._suggested_stop)
@@ -832,9 +833,12 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
         elif config.builtin.tool_calling_mode == "none":
             return False
+        tools = self.tools.copy()
+        if config.builtin.agent_thought_mode.startswith("reasoning"):
+            tools.append(REASONING_TOOL.model_dump())
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             msg_list.unwrap(),
-            self.tools,
+            tools,
             tool_choice=(
                 "required"
                 if (config.llm.require_tools and not self._suggested_stop)

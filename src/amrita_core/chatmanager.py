@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
-from asyncio import Lock, Task, iscoroutinefunction
+from asyncio import Task, iscoroutinefunction
 from collections import defaultdict
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from dataclasses import dataclass, field
@@ -15,6 +15,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
 from uuid import uuid4
 
+import aiologic
 import anyio
 from anyio import create_memory_object_stream
 from anyio.abc import ObjectReceiveStream, ObjectSendStream
@@ -62,7 +63,7 @@ if TYPE_CHECKING:
     from .sessions import SessionData
 
 # Global lock for thread-safe operations in the chat manager
-LOCK = Lock()
+LOCK = aiologic.Lock()
 
 RESPONSE_TYPE: TypeAlias = str | MessageContent
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
@@ -430,7 +431,7 @@ class ChatObject:
     _hook_kwargs: dict[str, Any]
     _hook_args: tuple[Any, ...]
     _callback_fun: RESPONSE_CALLBACK_TYPE = None
-    _callback_lock: Lock
+    _callback_lock: aiologic.Lock
     __suspend_signal: asyncio.Future | None = None
     __resume_signal: asyncio.Future | None = None
     _suspend_tags: tuple[str, ...] | None = None
@@ -518,7 +519,7 @@ class ChatObject:
         )
         self.stream_id = uuid4().hex
         self._callback_fun = callback
-        self._callback_lock = Lock()
+        self._callback_lock = aiologic.Lock()
         self._q_tout = queue_timeout
 
     async def _wait_for_continue(self, tag: str | None = None) -> bool:
