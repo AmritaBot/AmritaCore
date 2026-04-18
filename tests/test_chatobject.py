@@ -1,5 +1,3 @@
-
-
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import AmritaConfig
 from amrita_core.sessions import SessionsManager
