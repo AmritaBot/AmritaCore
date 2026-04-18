@@ -151,7 +151,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """Check if loop reasoning threshold has been exceeded and build prompt.
 
         Returns:
-            Tuple of (is_loop_detected, prompt_message)
+            Prompt message if loop is detected, None otherwise
         """
         config = self.chat_object.config
         if self.reasoning_pc > config.builtin.loop_reasoning_trigger:
@@ -202,6 +202,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         self,
         function_args: dict[str, Any],
         response_msg: UniResponse[None, list[ToolCall] | None],
+        function_name: str,
+        function_call_id: str,
+        function_response: str,
     ):
         """Build stop response and append to message list (strategy-specific).
 
@@ -210,8 +213,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         Args:
             function_args: Arguments passed to the stop tool
-            msg_list: The message list to append results to
             response_msg: The original response message
+            function_name: Name of the function being called
+            function_call_id: ID of the function call
+            function_response: Response from the function
         """
         pass
 
@@ -294,7 +299,11 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         logger.info("Agent work has been terminated.")
                         func_response = self._build_stop_response(function_args)
                         await self._build_stop_response_and_append(
-                            function_args, response_msg
+                            function_args,
+                            response_msg,
+                            function_name,
+                            tool_call.id,
+                            func_response,
                         )
                     case _:
                         self.reasoning_pc = 0
@@ -599,6 +608,9 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         self,
         function_args: dict[str, Any],
         response_msg: UniResponse[None, list[ToolCall] | None],
+        function_name: str,
+        function_call_id: str,
+        function_response: str,
     ):
         """Hybrid strategy: append stop instructions as user message with XML-like format.
 
@@ -752,10 +764,21 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         self,
         function_args: dict[str, Any],
         response_msg: UniResponse[None, list[ToolCall] | None],
+        function_name: str,
+        function_call_id: str,
+        function_response: str,
     ):
         """ReAct strategy: append assistant message before stop."""
         self.ctx.message.append(
             Message.model_validate(response_msg, from_attributes=True)
+        )
+        self.ctx.message.append(
+            ToolResult(
+                role="tool",
+                tool_call_id=function_call_id,
+                name=function_name,
+                content=function_response,
+            )
         )
 
     @override
