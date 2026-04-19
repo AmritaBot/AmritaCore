@@ -93,7 +93,10 @@ def gather_usage(
             continue
         u.prompt_tokens += n2zero(usage.prompt_tokens)
         u.completion_tokens += n2zero(usage.completion_tokens)
-        u.total_tokens += usage.total_tokens or n2zero(usage.prompt_tokens) + n2zero(
-            usage.completion_tokens
-        )
+        if usage.total_tokens is not None:
+            u.total_tokens += usage.total_tokens
+        else:
+            u.total_tokens += n2zero(usage.prompt_tokens) + n2zero(
+                usage.completion_tokens
+            )
     return u
