@@ -72,19 +72,25 @@ class Ref(Generic[T]):
 
 
 def gather_usage(
+    base: UniResponseUsage[int],
     *args: UniResponseUsage[int]
     | UniResponseUsage[None]
-    | UniResponseUsage[int | None],
+    | UniResponseUsage[int | None]
+    | None,
 ) -> UniResponseUsage[int]:
     """Gather usages
 
+    Args:
+        base(UniResponseUsage[int]): Base object of usage.
+        *args: Usages to gather.
+
     Returns:
-        UniResponseUsage[int]: the gathered usage
+        UniResponseUsage[int]: the gathered usage (base)
     """
-    u: UniResponseUsage[int] = UniResponseUsage(
-        prompt_tokens=0, completion_tokens=0, total_tokens=0
-    )
+    u = base
     for usage in args:
+        if usage is None:
+            continue
         u.prompt_tokens += n2zero(usage.prompt_tokens)
         u.completion_tokens += n2zero(usage.completion_tokens)
         u.total_tokens += usage.total_tokens or n2zero(usage.prompt_tokens) + n2zero(

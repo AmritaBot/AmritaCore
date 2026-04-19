@@ -28,6 +28,7 @@ from amrita_core.types import (
     ToolResult,
     UniResponse,
 )
+from amrita_core.utils import gather_usage
 
 from .consts import (
     BUILTIN_TOOLS_NAME,
@@ -159,6 +160,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 if isinstance(chunk, str)
                 else chunk
             ),
+        )
+        self.chat_object.extra_usage = gather_usage(
+            self.chat_object.extra_usage, ct.usage
         )
         return ct
 
