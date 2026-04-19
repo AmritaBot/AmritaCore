@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from abc import ABC, abstractmethod
@@ -12,11 +13,14 @@ from typing_extensions import Self, override
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
 from amrita_core.libchat import (
+    call_completion,
+    get_last_response,
     tools_caller,
 )
 from amrita_core.logging import debug_log, logger
 from amrita_core.protocol import MessageWithMetadata
 from amrita_core.types import (
+    CONTENT_LIST_TYPE_ITEM,
     Message,
     SendMessageWrap,
     TextContent,
@@ -25,7 +29,12 @@ from amrita_core.types import (
     UniResponse,
 )
 
-from .consts import BUILTIN_TOOLS_NAME, HYBRID_TEMPLATE, REASONING_TEMPLATE
+from .consts import (
+    BUILTIN_TOOLS_NAME,
+    HYBRID_TEMPLATE,
+    REASONING_CONTENT_TEMPLATE,
+    REASONING_TEMPLATE,
+)
 from .tools import (
     PROCESS_MESSAGE,
     REASONING_TOOL,
@@ -75,7 +84,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     origin_instruction: str = ""
     reasoning_pc = 0
     _suggested_stop: bool = False  # Flag to switch tool_choice from required to auto
-    _reasoning_template = REASONING_TEMPLATE
+    _reasoning_tool_template: Template = REASONING_TEMPLATE
+    _reasoning_content_template: Template = REASONING_CONTENT_TEMPLATE
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -95,21 +105,82 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             else ctx.original_context.user_query.content
         )
 
+    async def _generate_reasoning_content(
+        self, tool_call: ToolCall, reasoning_trigger_msg: list[CONTENT_LIST_TYPE_ITEM]
+    ) -> UniResponse[str, None]:
+        tools = [
+            {
+                "name": tool["function"]["name"],
+                "description": tool["function"]["description"],
+            }
+            for tool in self.tools
+        ]
+        resp_msg: dict[str, Any] = json.loads(tool_call.function.arguments)
+        last_step: str = resp_msg["last_step"]
+        summary: str = resp_msg["summary"]
+
+        await self.chat_object.yield_response(
+            MessageWithMetadata(
+                summary,
+                {
+                    "type": "reasoning",
+                    "extra_type": "pre_resolve",
+                    "last_strp": last_step,
+                    "summary": summary,
+                },
+            )
+        )
+        reasoning_trigger_msg[0] = Message(
+            role="system",
+            content=await asyncio.to_thread(
+                self._reasoning_content_template.render,
+                tools=tools,
+                last_step=last_step,
+                summary=summary,
+                stg=self,
+            ),
+        )
+        ct: UniResponse[str, None] = await get_last_response(
+            call_completion(
+                reasoning_trigger_msg,
+                preset=self.ctx.chat_object.preset,
+                config=self.chat_object.config,
+            ),
+            yield_to=self.ctx.chat_object,
+            yield_to_wrapper=lambda chunk: (
+                MessageWithMetadata(
+                    chunk,
+                    metadata={
+                        "type": "text",
+                        "extra_type": "reasoning_chunk",
+                        "content": chunk,
+                    },
+                )
+                if isinstance(chunk, str)
+                else chunk
+            ),
+        )
+        return ct
+
     async def _generate_reasoning_msg(
         self,
         tools_ctx: list[dict[str, Any]],
         /,
         then: Callable[
-            [Self, UniResponse[None, list[ToolCall] | None]],
+            [
+                Self,
+                ToolCall,  # trigger_response
+                UniResponse[str, None],  # tool_response
+            ],
             Awaitable[Any],
         ],
     ):
-        last_step = self.agent_last_step
+        last_step = self.agent_last_step or "No previous step"
         original_msg = self.origin_msg
-        reasoning_msg = [
+        reasoning_trigger_msg: list[CONTENT_LIST_TYPE_ITEM] = [
             Message(
                 role="system",
-                content=self._reasoning_template.render(
+                content=self._reasoning_tool_template.render(
                     stg=self,
                     last_step=last_step,
                     original_msg=original_msg,
@@ -117,13 +188,19 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             ),
             *self.ctx.message.unwrap(exclude_system=True),
         ]
-        response: UniResponse[None, list[ToolCall] | None] = await tools_caller(
-            reasoning_msg,
+        tool_response: UniResponse[None, list[ToolCall] | None] = await tools_caller(
+            reasoning_trigger_msg,
             [REASONING_TOOL.model_dump(), *tools_ctx],
             tool_choice=REASONING_TOOL,
             preset=self.ctx.chat_object.preset,
         )
-        await then(self, response)
+        assert tool_response.tool_calls, "No tool calls returned."
+        tool_call: ToolCall = tool_response.tool_calls[0]
+        response = await self._generate_reasoning_content(
+            tool_call, reasoning_trigger_msg
+        )
+
+        await then(self, tool_call, response)
 
     @staticmethod
     def _build_stop_response(function_args: dict[str, Any]) -> str:
@@ -290,7 +367,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 match function_name:
                     case REASONING_TOOL.function.name:
                         logger.debug("Generating task summary and reason.")
-                        await self._append_reasoning(response=response_msg)
+                        content: UniResponse[
+                            str, None
+                        ] = await self._generate_reasoning_content(
+                            tool_call, self.ctx.original_context.unwrap()
+                        )
+                        await self._append_reasoning(tool_call, content)
                         return True
                     case STOP_TOOL.function.name:
                         self.agent_last_step = "Stopped"
@@ -344,7 +426,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                                 "type": "error",
                                 "extra_type": "loop_reasoning",
                                 "chat_object_id": self.chat_object.stream_id,
-                                "content": prompt,
+                                "error": prompt,
                             },
                         )
                     )
@@ -367,7 +449,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     @abstractmethod
     async def _append_reasoning(
-        self, response: UniResponse[None, list[ToolCall] | None]
+        self, tool_call: ToolCall, reasoning_content: UniResponse[str, None]
     ):
         """Append reasoning content to context (strategy-specific).
 
@@ -559,34 +641,17 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
             result=response,
         )
 
+    @override
     async def _append_reasoning(
-        self, response: UniResponse[None, list[ToolCall] | None]
+        self,
+        tool_call: ToolCall,
+        reasoning_content: UniResponse[str, None],
     ):
         """Hybrid strategy specific reasoning handler that appends to assistant message."""
         self.reasoning_pc += 1
-        tool_calls: list[ToolCall] | None = response.tool_calls
-        if tool_calls:
-            for tool in tool_calls:
-                if tool.function.name == REASONING_TOOL.function.name:
-                    break
-            else:
-                raise ValueError(f"No reasoning tool found in response \n\n{response}")
-
-            args = json.loads(tool.function.arguments)
-            if reasoning := args.get("content"):
-                self.agent_last_step = reasoning
-                content: str = reasoning
-                self.ctx.message.append(Message(role="assistant", content=content))
-                logger.debug(f"[AmritaAgent] {reasoning}")
-                if not self.chat_object.config.builtin.agent_reasoning_hide:
-                    await self.chat_object.yield_response(
-                        response=MessageWithMetadata(
-                            content=content,
-                            metadata={"type": "reasoning", "content": reasoning},
-                        )
-                    )
-            else:
-                raise ValueError("Reasoning tool has no content!")
+        self.ctx.message.append(
+            Message(role="assistant", content=reasoning_content.content)
+        )
 
     @override
     async def _append_tool_result_to_context(
@@ -723,41 +788,25 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
       with standard LLM providers.
     """
 
+    @override
     async def _append_reasoning(
-        self, response: UniResponse[None, list[ToolCall] | None]
+        self,
+        tool_call: ToolCall,
+        reasoning_content: UniResponse[str, None],
     ):
         """ReAct strategy specific reasoning handler with ToolCall-ToolResult pairing."""
         self.reasoning_pc += 1
         msg: SendMessageWrap = self.ctx.get_original_context()
 
-        tool_calls: list[ToolCall] | None = response.tool_calls
-        if tool_calls:
-            for tool in tool_calls:
-                if tool.function.name == REASONING_TOOL.function.name:
-                    break
-            else:
-                raise ValueError(f"No reasoning tool found in response \n\n{response}")
-            if reasoning := json.loads(tool.function.arguments).get("content"):
-                msg.append(Message.model_validate(response, from_attributes=True))
-                msg.append(
-                    ToolResult(
-                        role="tool",
-                        name=tool.function.name,
-                        content=reasoning,
-                        tool_call_id=tool.id,
-                    )
-                )
-                self.agent_last_step = reasoning
-                logger.debug(f"[AmritaAgent] {reasoning}")
-                if not self.chat_object.config.builtin.agent_reasoning_hide:
-                    await self.chat_object.yield_response(
-                        response=MessageWithMetadata(
-                            content=f"<think>\n{reasoning}\n</think>",
-                            metadata={"type": "reasoning", "content": reasoning},
-                        )
-                    )
-            else:
-                raise ValueError("Reasoning tool has no content!")
+        msg.append(Message(role="assistant", content=None, tool_calls=[tool_call]))
+        msg.append(
+            ToolResult(
+                role="tool",
+                name=tool_call.function.name,
+                content=reasoning_content.content,
+                tool_call_id=tool_call.id,
+            )
+        )
 
     @override
     async def _build_stop_response_and_append(

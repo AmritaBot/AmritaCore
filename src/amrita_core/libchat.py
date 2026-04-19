@@ -7,6 +7,7 @@ from io import StringIO
 from pydantic import ValidationError
 
 from amrita_core.preset import PresetManager
+from amrita_core.streaming import SuspendObjectStream
 
 from .config import AmritaConfig, get_config
 from .logging import debug_log
@@ -30,6 +31,8 @@ from .types import (
 )
 
 T = typing.TypeVar("T")
+
+RESPONSE_TYPE: typing.TypeAlias = str | MessageContent
 
 
 def text_generator(
@@ -273,7 +276,9 @@ async def call_completion(
 
 
 async def get_last_response(
-    generator: AsyncGenerator[str | MessageContent | UniResponse[str, None], None],
+    generator: AsyncGenerator[RESPONSE_TYPE | UniResponse[str, None], None],
+    yield_to: SuspendObjectStream[RESPONSE_TYPE] | None = None,
+    yield_to_wrapper: Callable[[RESPONSE_TYPE], RESPONSE_TYPE] | None = None,
 ) -> UniResponse[str, None]:
     """Extract the last UniResponse from a response generator.
 
@@ -286,9 +291,15 @@ async def get_last_response(
     Raises:
         RuntimeError: If no response is found in the generator
     """
-    ls: list[UniResponse[str, None]] = [
-        i async for i in generator if isinstance(i, UniResponse)
-    ]
-    if len(ls) == 0:
+    resp: UniResponse[str, None] | None = None
+    async for chunk in generator:
+        if isinstance(chunk, UniResponse):
+            resp = chunk
+        elif yield_to is not None:
+            await yield_to.yield_response(
+                chunk if not yield_to_wrapper else yield_to_wrapper(chunk)
+            )
+
+    if resp is None:
         raise RuntimeError("No response found in generator.")
-    return ls[-1]
+    return resp

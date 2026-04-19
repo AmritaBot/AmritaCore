@@ -57,12 +57,19 @@ REASONING_TOOL = ToolFunctionSchema(
         parameters=FunctionParametersSchema(
             type="object",
             properties={
-                "content": FunctionPropertySchema(
-                    description="What you should do next",
+                "last_step": FunctionPropertySchema(
+                    description="The last step you took (if there are no steps that you had done, please leave this blank).",
+                    type="string",
+                    default="(No last step)",
+                ),
+                "summary": FunctionPropertySchema(
+                    description="What are you thinking about (not thinking content)",
                     type="string",
                 ),
             },
-            required=["content"],
+            required=[
+                "summary",
+            ],
         ),
     ),
     strict=True,

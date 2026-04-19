@@ -12,7 +12,7 @@ from enum import Enum
 from functools import wraps
 from io import StringIO
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
 import aiologic
@@ -29,12 +29,18 @@ from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
 from amrita_core.streaming import SuspendObjectStream
-from amrita_core.utils import get_current_datetime_timestamp
+from amrita_core.utils import gather_usage, get_current_datetime_timestamp
 
 from .config import AmritaConfig, get_config
 from .hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
 from .hook.matcher import MatcherManager
-from .libchat import call_completion, get_last_response, get_tokens, text_generator
+from .libchat import (
+    RESPONSE_TYPE,
+    call_completion,
+    get_last_response,
+    get_tokens,
+    text_generator,
+)
 from .logging import debug_log, logger
 from .protocol import MessageContent, MessageWithMetadata
 from .sessions import SessionsManager
@@ -63,7 +69,7 @@ if TYPE_CHECKING:
 # Global lock for thread-safe operations in the chat manager
 LOCK = aiologic.Lock()
 
-RESPONSE_TYPE: TypeAlias = str | MessageContent
+
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 
 # Type vars
@@ -411,6 +417,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
     last_call: datetime  # Last internal function call time
     session_id: str  # Session ID
     response: UniResponse[str, None]  # (lateinit) Response
+    extra_usage: UniResponseUsage[int]
     preset: ModelPreset  # preset used in this call
     config: AmritaConfig  # config used in this call
     session: SessionData | None  # (lateinit) Session data
@@ -490,6 +497,9 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             session.config if session else get_config()
         )
         self.strategy = agent_strategy
+        self.extra_usage = UniResponseUsage(
+            prompt_tokens=0, completion_tokens=0, total_tokens=0
+        )
         # other
         self.last_call = datetime.now(utc)
         self.preset = preset or (
@@ -661,7 +671,9 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         async with MemoryLimiter(self.data, self.train, config=config) as lim:
             await self._wait_for_continue(SuspendEnum.MEMORY.value)
             await lim.run_enforce()
-            abs_usage = lim.usage
+
+            if abs_usage := lim.usage:
+                self.extra_usage = gather_usage(self.extra_usage, abs_usage)
             self.data = lim.memory
         logger.debug("Memory limitation application completed")
 
@@ -671,10 +683,6 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             f"Preparing sending messages completed, message count: {len(send_messages)}"
         )
         response: UniResponse[str, None] = await self._process_chat(send_messages)
-        if response.usage and abs_usage:
-            response.usage.completion_tokens += abs_usage.completion_tokens
-            response.usage.prompt_tokens += abs_usage.prompt_tokens
-            response.usage.total_tokens += abs_usage.total_tokens
         self.response = response
 
         logger.debug("Chat processing completed, preparing to send response")
