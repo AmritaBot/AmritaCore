@@ -3,22 +3,19 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import copy
-from asyncio import Task, iscoroutinefunction
+from asyncio import Task
 from collections import defaultdict
-from collections.abc import AsyncGenerator, Awaitable, Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from functools import wraps
 from io import StringIO
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, TypeAlias, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 from uuid import uuid4
 
 import aiologic
-import anyio
-from anyio import create_memory_object_stream
-from anyio.abc import ObjectReceiveStream, ObjectSendStream
 from jinja2 import Template
 from pydantic import BaseModel, Field
 from pytz import utc
@@ -31,12 +28,19 @@ from amrita_core.consts import ABSTRACT_INSTRUCTION, DEFAULT_TEMPLATE
 from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData
-from amrita_core.utils import get_current_datetime_timestamp
+from amrita_core.streaming import SuspendObjectStream
+from amrita_core.utils import gather_usage, get_current_datetime_timestamp
 
 from .config import AmritaConfig, get_config
 from .hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
 from .hook.matcher import MatcherManager
-from .libchat import call_completion, get_last_response, get_tokens, text_generator
+from .libchat import (
+    RESPONSE_TYPE,
+    call_completion,
+    get_last_response,
+    get_tokens,
+    text_generator,
+)
 from .logging import debug_log, logger
 from .protocol import MessageContent, MessageWithMetadata
 from .sessions import SessionsManager
@@ -65,7 +69,7 @@ if TYPE_CHECKING:
 # Global lock for thread-safe operations in the chat manager
 LOCK = aiologic.Lock()
 
-RESPONSE_TYPE: TypeAlias = str | MessageContent
+
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 
 # Type vars
@@ -394,7 +398,7 @@ class MemoryLimiter:
             return
 
 
-class ChatObject:
+class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
     """Chat processing object - The minimal unit of chat processing.
 
     This class is responsible for processing a single chat session, including message receiving,
@@ -413,30 +417,22 @@ class ChatObject:
     last_call: datetime  # Last internal function call time
     session_id: str  # Session ID
     response: UniResponse[str, None]  # (lateinit) Response
+    extra_usage: UniResponseUsage[int]
     preset: ModelPreset  # preset used in this call
     config: AmritaConfig  # config used in this call
     session: SessionData | None  # (lateinit) Session data
     strategy: type[AgentStrategy]
     template: Template
     jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
-    _send_stream: ObjectSendStream
-    _receive_stream: ObjectReceiveStream
     _q_tout: float | None
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
     _err: BaseException | None = None
-    _queue_done: bool = False
-    _has_consumer: bool = False
     _hook_kwargs: dict[str, Any]
     _hook_args: tuple[Any, ...]
-    _callback_fun: RESPONSE_CALLBACK_TYPE = None
-    _callback_lock: aiologic.Lock
-    __suspend_signal: asyncio.Future | None = None
-    __resume_signal: asyncio.Future | None = None
-    _suspend_tags: tuple[str, ...] | None = None
+
     _raised_exc: tuple[type[BaseException], ...]
-    __done_marker = object()
 
     def __init__(
         self,
@@ -488,6 +484,10 @@ class ChatObject:
         )
         self.data = context or sm.get_session_data(session_id).memory
         self.session_id = session_id
+        # initialize iostream
+        super().__init__(
+            queue_size=queue_size, callback=callback, queue_timeout=queue_timeout
+        )
         # data
         self.user_input = user_input
         self.user_message = Message(role="user", content=user_input)
@@ -497,6 +497,9 @@ class ChatObject:
             session.config if session else get_config()
         )
         self.strategy = agent_strategy
+        self.extra_usage = UniResponseUsage(
+            prompt_tokens=0, completion_tokens=0, total_tokens=0
+        )
         # other
         self.last_call = datetime.now(utc)
         self.preset = preset or (
@@ -512,72 +515,8 @@ class ChatObject:
         # Hook args
         self._hook_args = hook_args
         self._hook_kwargs = hook_kwargs or {}
-
-        # Initialize for streaming responses
-        self._send_stream, self._receive_stream = create_memory_object_stream(
-            max_buffer_size=queue_size
-        )
+        # initialize id
         self.stream_id = uuid4().hex
-        self._callback_fun = callback
-        self._callback_lock = aiologic.Lock()
-        self._q_tout = queue_timeout
-
-    async def _wait_for_continue(self, tag: str | None = None) -> bool:
-        """Break point for suspend.
-
-        Args:
-            tag (str): Tag for break point.
-
-        Returns:
-            bool: True if has really waited during runing, False if not.
-        """
-        if self.__suspend_signal is None:
-            return False
-        elif (
-            self._suspend_tags
-        ):  # When tags filter exists, only suspend when tag matches
-            if tag is None or tag not in self._suspend_tags:
-                return False
-        await asyncio.sleep(0)
-        if self.__resume_signal is not None and not self.__resume_signal.done():
-            await self.__resume_signal
-            return True
-        try:
-            self.__suspend_signal.set_result(True)
-            self.__resume_signal = asyncio.Future()
-            await self.__resume_signal
-            return True
-        finally:
-            self.__resume_signal = None
-
-    async def wait_to_suspend(self, *tags: str, timeout: float | None = None):  # noqa: ASYNC109
-        """Tell chatobject to suspend and wait for it.
-
-        Args:
-            *tags (str): Tags to wait for (filter break points).
-            timeout (float | None, optional): Timeout for waiting. Defaults to None.
-
-        Raises:
-            RuntimeError: Raised when already waiting.
-        """
-        if self.__suspend_signal is not None:
-            if self.__suspend_signal.done():
-                self.__suspend_signal = None
-            else:
-                raise RuntimeError("Already watting for suspend!")
-        try:
-            self._suspend_tags = tags
-            self.__suspend_signal = asyncio.Future()
-            await asyncio.wait_for(self.__suspend_signal, timeout)
-        finally:
-            self.__suspend_signal = None
-            self._suspend_tags = None
-
-    def resume(self) -> None:
-        """Resume to run when suspend."""
-        if self.__resume_signal and not self.__resume_signal.done():
-            self.__resume_signal.set_result(True)
-            self._suspend_tags = None
 
     @staticmethod
     def monitoring(func: Callable[..., Any]):
@@ -591,48 +530,19 @@ class ChatObject:
 
         return inner
 
-    @staticmethod
-    def suspend_with_tag(tag: str):
-        """Decorator for suspend with tag filter.Used in inner function.
+    async def full_response(self) -> str:
+        """Return full response from the queue as a single string.
 
-        Args:
-            tag (str): Tag for break point.
+        Returns:
+            Complete response string combining all chunks in the queue
         """
-
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            return ChatObject.suspend(func, tag)
-
-        return decorator
-
-    @staticmethod
-    def suspend(func: Callable[..., Any], tag: str | None = None) -> Callable[..., Any]:
-        """Decorator for suspend.(Only be used for a time-costy function)"""
-        if not iscoroutinefunction(func):
-            raise TypeError(f"{func.__name__} is not a coroutine function.")
-
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            chat_object = None
-            for arg in args:
-                if isinstance(arg, ChatObject):
-                    chat_object = arg
-                    break
-            if chat_object is None:
-                for value in kwargs.values():
-                    if isinstance(value, ChatObject):
-                        chat_object = value
-                        break
-            if chat_object is None:
-                raise TypeError(
-                    f"No ChatObject parameter found in function '{func.__name__}'. "
-                    f"Args types: {[type(a).__name__ for a in args]}, "
-                    f"Kwargs keys: {list(kwargs.keys())}"
-                )
-
-            await chat_object._wait_for_continue(tag)
-            return await func(*args, **kwargs)
-
-        return wrapper
+        builder = StringIO()
+        async for item in self.get_response_generator():
+            if isinstance(item, str):
+                builder.write(item)
+            elif isinstance(item, MessageContent):
+                builder.write(str(item.get_content()))
+        return builder.getvalue()
 
     def get_exception(self) -> BaseException | None:
         """
@@ -705,7 +615,7 @@ class ChatObject:
         return self
 
     @monitoring
-    @suspend
+    @SuspendObjectStream.suspend
     async def _entry(self) -> None:
         """Call chat object to process messages"""
         if not self._is_running and not self._is_done:
@@ -730,7 +640,7 @@ class ChatObject:
                 f"ChatObject of {self.stream_id} is already running or done"
             )
 
-    @suspend
+    @SuspendObjectStream.suspend
     async def _run(self):
         """Run chat processing flow
 
@@ -761,7 +671,9 @@ class ChatObject:
         async with MemoryLimiter(self.data, self.train, config=config) as lim:
             await self._wait_for_continue(SuspendEnum.MEMORY.value)
             await lim.run_enforce()
-            abs_usage = lim.usage
+
+            if abs_usage := lim.usage:
+                self.extra_usage = gather_usage(self.extra_usage, abs_usage)
             self.data = lim.memory
         logger.debug("Memory limitation application completed")
 
@@ -771,126 +683,12 @@ class ChatObject:
             f"Preparing sending messages completed, message count: {len(send_messages)}"
         )
         response: UniResponse[str, None] = await self._process_chat(send_messages)
-        if response.usage and abs_usage:
-            response.usage.completion_tokens += abs_usage.completion_tokens
-            response.usage.prompt_tokens += abs_usage.prompt_tokens
-            response.usage.total_tokens += abs_usage.total_tokens
         self.response = response
 
         logger.debug("Chat processing completed, preparing to send response")
         await self.set_queue_done()
 
-    def queue_closed(self) -> bool:
-        """Check if the response queue is closed
-
-        Returns:
-            True if the queue is closed, False otherwise
-        """
-        return self._queue_done
-
-    async def set_queue_done(self) -> None:
-        """Mark the response queue as done by putting the done marker"""
-        if not self.queue_closed():
-            try:
-                await self._put_to_queue(self.__done_marker)
-            except anyio.BrokenResourceError:
-                self._queue_done = True
-            else:
-                self._queue_done = True
-
-    async def _put_to_queue(self, item):
-        """Put an item to the queue, using overflow mechanism if primary queue is full
-
-        Args:
-            item: Item to put in the queue
-        """
-        with anyio.fail_after(self._q_tout):
-            await self._send_stream.send(item)
-
-    @suspend
-    async def yield_response(self, response: RESPONSE_TYPE) -> None:
-        """Send chat model response to the queue allowing both str and MessageContent types.
-
-        Args:
-            response: Either a string or MessageContent object to be sent to the queue
-        """
-        if self._callback_fun is not None:
-            async with self._callback_lock:
-                await self._callback_fun(response)
-        else:
-            if not self.queue_closed():
-                await self._put_to_queue(response)
-            else:
-                raise RuntimeError("Queue is closed.")
-
-    def set_callback_func(self, func: RESPONSE_CALLBACK_TYPE) -> None:
-        """Set a callback function to be executed when a response is yielded.
-
-        Args:
-            func (RESPONSE_CALLBACK_TYPE): Function to be executed when a response is yielded
-
-        Raises:
-            RuntimeError: If a callback function is already set, raise it.
-        """
-        if not self._callback_fun:
-            self._callback_fun = func
-        else:
-            raise RuntimeError(
-                "The callback function of this chat object has already been set!"
-            )
-
-    async def yield_response_iteration(
-        self, iterator: AsyncGenerator[RESPONSE_TYPE, None]
-    ):
-        """Send chat model response to the queue allowing both str and MessageContent types.
-
-        Args:
-            iterator: An async generator that yields either strings or MessageContent objects
-        """
-        async for chunk in iterator:
-            await self.yield_response(chunk)
-
-    def get_response_generator(self) -> AsyncGenerator[RESPONSE_TYPE, None]:
-        """Return an async generator to iterate over responses from the queue.
-
-        Yields:
-            Either a string or MessageContent object from the response queue
-        """
-        if self._has_consumer or self._callback_fun is not None:
-            raise RuntimeError("Response is already being consumed.")
-        self._has_consumer = True
-        return self._response_generator()
-
-    async def full_response(self) -> str:
-        """Return full response from the queue as a single string.
-
-        Returns:
-            Complete response string combining all chunks in the queue
-        """
-        builder = StringIO()
-        async for item in self.get_response_generator():
-            if isinstance(item, str):
-                builder.write(item)
-            elif isinstance(item, MessageContent):
-                builder.write(str(item.get_content()))
-        return builder.getvalue()
-
-    async def _response_generator(self) -> AsyncGenerator[RESPONSE_TYPE]:
-        """Internal method to asynchronously yield items from the queue until done marker is reached.
-
-        Yields:
-            Items from the response queue until the done marker is encountered
-        """
-        try:
-            async for item in self._receive_stream:
-                if item is self.__done_marker:
-                    return
-                yield item
-        finally:
-            self._queue_done = True
-            await self._send_stream.aclose()
-
-    @suspend
+    @SuspendObjectStream.suspend
     async def _run_strategy(self) -> None:
         """Run workflow of strategy given."""
 
@@ -928,7 +726,7 @@ class ChatObject:
             await st.on_post_process()
         self.context_wrap.extend(ctx.original_context.end_messages)
 
-    @suspend
+    @SuspendObjectStream.suspend
     async def _run_agent(self, ctx: StrategyContext) -> None:
         strategy: AgentStrategy = self.strategy(ctx)
         backup: SendMessageWrap = self.context_wrap.copy()
@@ -958,7 +756,7 @@ class ChatObject:
             self.context_wrap = backup
 
     @monitoring
-    @suspend
+    @SuspendObjectStream.suspend
     async def _process_chat(
         self,
         send_messages: CONTENT_LIST_TYPE,

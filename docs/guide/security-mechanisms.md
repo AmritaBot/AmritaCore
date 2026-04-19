@@ -163,11 +163,11 @@ def detect_sensitive_information(text: str):
     return found_items
 ```
 
-## 6.3 Template Security Enhancements (Version 0.8.0+)
+## 6.3 Template Security Enhancements
 
 ### 6.3.1 Jinja2 Template Escaping
 
-Starting from version 0.8.0, AmritaCore automatically applies HTML escaping to user-provided content in Jinja2 templates to **prevent user input from breaking the structured format of system messages**.
+AmritaCore automatically applies HTML escaping to user-provided content in Jinja2 templates to **prevent user input from breaking the structured format of system messages**.
 
 **Enhanced Template Safety**:
 
@@ -256,12 +256,12 @@ As documented in the [Jinja2 Template Variables Safety](../extensions-integratio
 
 AmritaCore's security enhancements work together to provide defense in depth:
 
-| Security Layer          | Protection Provided                 | Version Added |
-| ----------------------- | ----------------------------------- | ------------- |
-| Cookie Detection        | Prompt injection detection          | 0.5.0+        |
-| Template Escaping       | XSS prevention in prompts           | 0.8.0+        |
-| Adapter Type Validation | Prevents adapter misuse             | 0.8.0+        |
-| Session Isolation       | Prevents cross-session data leakage | 0.5.0+        |
+| Security Layer          | Protection Provided                 | Supported |
+| ----------------------- | ----------------------------------- | --------- |
+| Cookie Detection        | Prompt injection detection          | Yes       |
+| Template Escaping       | XSS prevention in prompts           | Yes       |
+| Adapter Type Validation | Prevents adapter misuse             | Yes       |
+| Session Isolation       | Prevents cross-session data leakage | Yes       |
 
 These layers ensure that AmritaCore applications remain secure against common attack vectors while maintaining ease of use and developer productivity.
 

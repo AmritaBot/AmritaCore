@@ -2,7 +2,9 @@
 
 **Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
 
-AmritaCore provides an explicit, lightweight suspend mechanism that allows external control over the execution flow of `ChatObject`, enabling you to pause and resume processing at specific points. Typical use cases include:
+AmritaCore provides an explicit, lightweight suspend mechanism that allows external control over the execution flow of `ChatObject`, enabling you to pause and resume processing at specific points. This mechanism is implemented through the `SuspendObjectStream` base class, which `ChatObject` inherits from.
+
+Typical use cases include:
 
 - Interactive debugging with state inspection between processing steps
 - Custom flow control in complex multi-agent systems
@@ -11,7 +13,7 @@ AmritaCore provides an explicit, lightweight suspend mechanism that allows exter
 
 ## Standard Breakpoint Tags
 
-Starting from version 0.8.0, AmritaCore provides **standardized breakpoint tags** through the `SuspendEnum` enumeration. These built-in tags correspond to key execution points in the ChatObject lifecycle:
+AmritaCore provides **standardized breakpoint tags** through the `SuspendEnum` enumeration. These built-in tags correspond to key execution points in the ChatObject lifecycle:
 
 ```python
 from amrita_core import SuspendEnum
@@ -27,12 +29,12 @@ SuspendEnum.COMPLE        # "matcher_call::post_completion" - After model comple
 
 ## How It Works
 
-Core internal methods of `ChatObject` (such as `_entry`, `_run`, `_run_strategy`) are decorated with the `@suspend` decorator. They automatically check for suspend signals before execution.
+Core internal methods of `ChatObject` (such as `_entry`, `_run`, `_run_strategy`) are decorated with the `@SuspendObjectStream.suspend` decorator. They automatically check for suspend signals before execution.
 
 Basic workflow:
 
 1. Call `await chat.wait_to_suspend(timeout)` **outside** the main `ChatObject` execution context from a separate async task
-2. `ChatObject` will automatically pause when reaching the next `@suspend` decorated method
+2. `ChatObject` will automatically pause when reaching the next `@SuspendObjectStream.suspend` decorated method
 3. Resume execution by calling `chat.resume()`
 
 ## Using Tags for Breakpoint Control
@@ -72,13 +74,13 @@ controller_task = asyncio.create_task(external_controller(chat))
 
 ### Using Tags in Custom Functions
 
-Use the `@ChatObject.suspend_with_tag` decorator to add tagged suspend points to your custom functions:
+Use the `@SuspendObjectStream.suspend_with_tag` decorator to add tagged suspend points to your custom functions:
 
 ```python
-from amrita_core import ChatObject
+from amrita_core.streaming import SuspendObjectStream
 
 class MyAgent:
-    @ChatObject.suspend_with_tag("before_api_call")
+    @SuspendObjectStream.suspend_with_tag("before_api_call")
     async def call_external_api(self, chat_obj: ChatObject, url: str):
         """Suspends before calling external API (if external listener is waiting for this tag)"""
         # If external code called wait_to_suspend("before_api_call")
@@ -87,7 +89,7 @@ class MyAgent:
             async with session.get(url) as response:
                 return await response.json()
 
-    @ChatObject.suspend_with_tag("after_response")
+    @SuspendObjectStream.suspend_with_tag("after_response")
     async def post_process_response(self, chat_obj: ChatObject, response: str):
         """Suspends after processing response"""
         # Post-processing logic
@@ -96,8 +98,8 @@ class MyAgent:
 
 ### Tag Matching Rules
 
-1. **Exact Match**: `wait_to_suspend("xxx")` only matches functions decorated with `@ChatObject.suspend_with_tag("xxx")`
-2. **Untagged Suspend**: `wait_to_suspend()` matches all functions decorated with `@suspend`
+1. **Exact Match**: `wait_to_suspend("xxx")` only matches functions decorated with `@SuspendObjectStream.suspend_with_tag("xxx")`
+2. **Untagged Suspend**: `wait_to_suspend()` matches all functions decorated with `@SuspendObjectStream.suspend`
 3. **Priority**: Tagged suspend takes precedence over untagged suspend
 
 ```python
@@ -171,7 +173,7 @@ asyncio.run(main())
 
 ### Key Points
 
-- `_wait_for_continue()` is invoked automatically by all `@suspend` decorated methods
+- `_wait_for_continue()` is invoked automatically by all `@SuspendObjectStream.suspend` decorated methods
 - You can insert custom suspend points anywhere in your business logic
 - It returns immediately without blocking if no suspend is pending
 - Implemented with async signal scheduling, isolated from main business flow
@@ -218,6 +220,7 @@ asyncio.run(main())
 - The timeout parameter in `wait_to_suspend` prevents infinite blocking
 - **Tag parameter helps precise positioning**: Use tags in complex flows to accurately control specific breakpoints
 - This is a low-level capability intended for framework extension, advanced debugging, and custom workflow orchestration
+- **Inheritance**: Since `ChatObject` inherits from `SuspendObjectStream`, all suspend/resume methods are available on ChatObject instances
 
 ## When Not to Use This Feature
 

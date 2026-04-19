@@ -120,12 +120,11 @@ async def on_post_process(self) -> None:
 
 - **`run()`**: Main execution method for `"workflow"` and `"rag"` categories
 - **`single_execute()`**: Single-step execution method for `"agent"` and `"agent-mixed"` categories
-- **`on_exception(exc: BaseException)`**: Called when an exception occurs during execution. **Starting from version 0.8.0, the default implementation does nothing (passes silently) instead of raising `NoExceptionHandler`.** Custom strategies should override this method to implement specific error handling logic.
-- **`on_limited()`**: Called when execution limits are reached (e.g., maximum tool calls)
+- **`on_exception(exc: BaseException)`**: Called when an exception occurs during execution. The default implementation does nothing (passes silently) instead of raising `NoExceptionHandler`. Custom strategies should override this method to implement specific error handling logic.
 
 #### Exception Handling Best Practices
 
-Since version 0.8.0, the default `on_exception()` method in [AgentStrategy](../api-reference/classes/AgentStrategy.md) no longer raises exceptions by default. This change provides more flexibility for custom error handling:
+The default `on_exception()` method in [AgentStrategy](../api-reference/classes/AgentStrategy.md) no longer raises exceptions by default. This change provides more flexibility for custom error handling:
 
 ```python
 from amrita_core.agent.strategy import AgentStrategy
@@ -215,7 +214,7 @@ print(response)
 
 ### 4.2.4 Streaming Response Processing
 
-AmritaCore uses **AnyIO memory object streams** for streaming responses, which provides built-in backpressure handling starting from version 0.8.0:
+AmritaCore uses **AnyIO memory object streams** for streaming responses, which provides built-in backpressure handling:
 
 ```python
 # Process streaming responses
@@ -224,11 +223,9 @@ async for message in chat.get_response_generator():
     print(content, end="")
 ```
 
-**Backpressure Mechanism Changes (Version 0.8.0+)**:
+**Backpressure Mechanism Changes**:
 
-- **Before 0.8.0**: Used dual queues with overflow mechanism (`queue_size` and `overflow_queue_size`)
-- **After 0.8.0**: Uses single AnyIO memory object stream with automatic backpressure
-- **Benefits**: Simpler implementation, better memory efficiency, and more reliable flow control
+- Uses single AnyIO memory object stream with automatic backpressure
 
 The `_put_to_queue()` method now uses AnyIO's `send()` method with timeout:
 
@@ -341,13 +338,13 @@ async def postprocess_response(event: CompletionEvent):
 
 ### 4.4.1 Tool Registration Example
 
-Registering tools for use by the agent:
+Registering tools for use by the agent with comprehensive validation:
 
 ```python
 from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import FunctionDefinitionSchema, FunctionParametersSchema, FunctionPropertySchema
 
-# First define the function schema
+# Define function schema with advanced validation
 weather_func = FunctionDefinitionSchema(
     name="get_current_weather",
     description="Get the current weather in a given location",
@@ -356,12 +353,22 @@ weather_func = FunctionDefinitionSchema(
         properties={
             "location": FunctionPropertySchema(
                 type="string",
-                description="The city and state, e.g. San Francisco, CA"
+                description="The city and state, e.g. San Francisco, CA",
+                minLength=2,           # Minimum location length
+                maxLength=100,         # Maximum reasonable length
+                pattern=r"^[a-zA-Z\s,-]+$"  # Only letters, spaces, commas, hyphens
             ),
             "unit": FunctionPropertySchema(
                 type="string",
                 enum=["celsius", "fahrenheit"],
                 description="The unit of temperature"
+            ),
+            "forecast_days": FunctionPropertySchema(
+                type="integer",
+                description="Number of days to forecast (0 for current only)",
+                minimum=0,
+                maximum=7,
+                default=0
             )
         },
         required=["location"]
@@ -375,10 +382,27 @@ async def get_current_weather(data: dict) -> str:
     """
     location = data["location"]
     unit = data.get("unit", "celsius")  # Default to celsius if not provided
+    forecast_days = data.get("forecast_days", 0)
 
-    # Simulate weather lookup
-    return f"The weather in {location} is sunny, temperature is 22 degrees {unit}."
+    # Simulate weather lookup with validation
+    if forecast_days == 0:
+        return f"The current weather in {location} is sunny, temperature is 22 degrees {unit}."
+    else:
+        return f"Weather forecast for {location} ({forecast_days} days): Sunny with temperatures ranging from 18-25 degrees {unit}."
 ```
+
+### Enhanced Validation Features
+
+`FunctionPropertySchema` supports comprehensive JSON Schema validation:
+
+- **Numeric Constraints**: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
+- **String Constraints**: `minLength`, `maxLength`, `pattern`, `format`
+- **Array Constraints**: `items`, `minItems`, `maxItems`, `uniqueItems`
+- **Object Constraints**: `properties`, `required`, `additionalProperties`
+- **Special Values**: `enum`, `const`, `default`
+- **Union Types**: `type` can be a list of allowed types
+
+These constraints are automatically validated when the LLM generates tool calls, ensuring that only valid parameter values are passed to your tool functions.
 
 ### 4.4.2 Tool Execution Flow
 
@@ -574,14 +598,82 @@ logger.error("Failed to process request: %s", error)
 
 ### 4.6.2 get_last_response() Getting Last Response
 
-Retrieve the last response from a conversation:
+Retrieve the last response from a conversation generator. This function supports streaming intermediate chunks to a target stream while extracting the final response.
 
 ```python
 from amrita_core.libchat import get_last_response
+from amrita_core.streaming import SuspendObjectStream
 
-# Get the last response
-last_resp = get_last_response(chat_object)
-print(last_resp)
+# Basic usage - get only the last response
+last_resp = await get_last_response(chat_object)
+
+# Advanced usage - stream intermediate chunks while getting the last response
+class ResponseStream(SuspendObjectStream[str]):
+    pass
+
+response_stream = ResponseStream()
+last_resp = await get_last_response(
+    chat_object,
+    yield_to=response_stream,
+    yield_to_wrapper=lambda chunk: f"[STREAMING] {chunk}"
+)
+```
+
+**Function Signature**:
+
+```python
+async def get_last_response(
+    generator: AsyncGenerator[RESPONSE_TYPE | UniResponse[str, None], None],
+    yield_to: SuspendObjectStream[RESPONSE_TYPE] | None = None,
+    yield_to_wrapper: Callable[[RESPONSE_TYPE], RESPONSE_TYPE] | None = None,
+) -> UniResponse[str, None]
+```
+
+**Parameters**:
+
+- `generator`: Async generator yielding response parts (strings, MessageContent, or UniResponse objects)
+- `yield_to` (optional): Target stream to send intermediate chunks to. If provided, all non-UniResponse chunks will be yielded to this stream.
+- `yield_to_wrapper` (optional): Function to transform chunks before yielding them to the target stream.
+
+**Returns**:
+
+- The last `UniResponse` object from the generator
+
+**Raises**:
+
+- `RuntimeError`: If no response is found in the generator
+
+**Use Cases**:
+
+1. **Basic Response Extraction**: When you only need the final response metadata (usage, tool calls, etc.)
+2. **Streaming with Final Response**: When you want to stream intermediate content to users while also capturing the final response for processing
+3. **Response Transformation**: When you need to transform streamed content (e.g., adding prefixes, formatting, filtering)
+
+**Example with ChatObject**:
+
+```python
+from amrita_core import ChatObject
+from amrita_core.libchat import get_last_response
+
+# Create chat object
+chat = ChatObject(
+    context=context,
+    session_id="session_123",
+    user_input="What's the weather like?",
+    train=train.model_dump()
+)
+
+# Stream responses while capturing final response
+async with chat.begin():
+    final_response = await get_last_response(
+        chat.get_response_generator(),
+        yield_to=your_websocket_stream,
+        yield_to_wrapper=lambda chunk: {"type": "stream", "content": str(chunk)}
+    )
+
+    # Now you have both streamed content and final response metadata
+    print(f"Total tokens used: {final_response.usage.total_tokens}")
+    print(f"Tool calls made: {len(final_response.tool_calls or [])}")
 ```
 
 ### 4.6.3 Debugging Tips

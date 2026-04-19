@@ -1,6 +1,6 @@
 # ChatObject
 
-ChatObject 类是与 AI 进行对话的主要接口。
+ChatObject 类是与 AI 进行对话的主要接口。它继承自 `SuspendObjectStream[RESPONSE_TYPE]`，提供内置的挂起/恢复功能和流式响应处理。
 
 ## 属性
 
@@ -16,17 +16,14 @@ ChatObject 类是与 AI 进行对话的主要接口。
 - `last_call` (datetime): 最后一次内部函数调用时间
 - `session_id` (str): 会话 ID
 - `response` (UniResponse[str, None]): 响应
-- `_response_queue` (asyncio.Queue[Any]): 响应队列
-- `_overflow_queue` (asyncio.Queue[Any]): 溢出队列
+- `extra_usage` (UniResponseUsage[int]): 来自内存限制和其他操作的额外使用统计
 - `_is_running` (bool): 是否正在运行
 - `_is_done` (bool): 是否已完成
 - `_task` (Task[None]): 任务
-- `_has_task` (bool): 是否有任务
 - `_err` (BaseException | None): 错误
-- `_wait` (bool): 是否等待
-- `_queue_done` (bool): 队列是否完成
-- `_callback_fun` (RESPONSE_CALLBACK_TYPE): 用于处理响应的回调函数
-- `_callback_lock` (Lock): 用于线程安全回调执行的锁
+- `_q_tout` (float | None): 队列超时设置
+- `_hook_kwargs` (dict[str, Any]): 事件处理器的关键字参数
+- `_hook_args` (tuple[Any, ...]): 事件处理器的位置参数
 
 ## 构造函数参数
 
@@ -44,23 +41,23 @@ ChatObject 类是与 AI 进行对话的主要接口。
 - `hook_args` (tuple[Any, ...]): 触发事件时传递给事件处理器的位置参数（默认：空元组）
 - `hook_kwargs` (dict[str, Any] | None): 触发事件时传递给事件处理器的关键字参数（默认：None）
 - `exception_ignored` (tuple[type[BaseException], ...]): 在事件处理器中应该被忽略并再次抛出的异常类型（默认：空元组）
-- `queue_size` (int): 主响应队列的大小（默认：**45**）
-- `overflow_queue_size` (int): 溢出队列的大小（默认：**15**）
+- `queue_size` (int): 响应流缓冲区大小（默认：**45**）
+- `queue_timeout` (float | None): 队列操作超时时间（秒）（默认：**10.0**）
 
 ## 方法
 
 - `begin()`: 执行对话
-- `get_response_generator()`: 返回用于流式响应的异步生成器
-- `full_response()`: 返回完整响应
-- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: 设置响应处理的回调函数
-- `yield_response(response: RESPONSE_TYPE)`: 将响应推送到队列或回调函数
-- `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`: **(高级)** 等待挂起信号，可选择标签匹配
-- `resume()`: **(高级)** 恢复挂起的执行流程
-- `_wait_for_continue(tag: str | None = None)`: **(高级)** 与外部控制器配合使用的手动挂起点
+- `get_response_generator()`: 返回用于流式响应的异步生成器（继承自 SuspendObjectStream）
+- `full_response()`: 返回完整响应（继承自 SuspendObjectStream）
+- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: 设置响应处理的回调函数（继承自 SuspendObjectStream）
+- `yield_response(response: RESPONSE_TYPE)`: 将响应推送到队列或回调函数（继承自 SuspendObjectStream）
+- `wait_to_suspend(*tags: str, timeout: float | None = None)`: **(高级)** 等待挂起信号，可选择标签匹配（继承自 SuspendObjectStream）
+- `resume()`: **(高级)** 恢复挂起的执行流程（继承自 SuspendObjectStream）
+- `_wait_for_continue(tag: str | None = None)`: **(高级)** 与外部控制器配合使用的手动挂起点（继承自 SuspendObjectStream）
 
 ### 挂起与恢复方法详情
 
-#### `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`
+#### `wait_to_suspend(*tags: str, timeout: float | None = None)`
 
 从外部独立任务中调用此方法，当`ChatObject`到达下一个挂起点时暂停执行。
 
@@ -68,17 +65,18 @@ ChatObject 类是与 AI 进行对话的主要接口。
 
 - `*tags` (str): 可选的标签过滤器（作为位置参数传递）
   - 无标签（默认）: 匹配所有使用`@suspend`装饰的方法
-  - 单个标签字符串: 仅匹配使用`@ChatObject.suspend_with_tag(tag)`装饰的方法
+  - 单个标签字符串: 仅匹配使用`@SuspendObjectStream.suspend_with_tag(tag)`装饰的方法
   - **标准标签**: 使用[SuspendEnum](SuspendEnum.md)值来指定内置断点：
     - `SuspendEnum.MEMORY.value`: 内存摘要前
     - `SuspendEnum.SINGLE_TOOL.value`: 每次工具调用前
     - `SuspendEnum.PRECOMPLE.value`: 模型完成前
     - `SuspendEnum.COMPLE.value`: 模型完成后
-- `timeout` (float): 超时时间（秒），防止无限阻塞
+- `timeout` (float | None): 超时时间（秒），防止无限阻塞。如果为None，则无限等待。
 
 **异常:**
 
 - `asyncio.TimeoutError`: 如果在指定超时时间内未触发挂起，则抛出此异常
+- `RuntimeError`: 如果已经在等待挂起，则抛出此异常
 
 **示例:**
 
@@ -125,18 +123,12 @@ async def controller(chat_obj):
 **示例:**
 
 ```python
-from amrita_core import ChatObject
+from amrita_core import SuspendObjectStream
 
 class MyProcessor:
+    @SuspendObjectStream.suspend_with_tag("before_process")
     async def process_data(self, chat_obj: ChatObject, data: dict):
-        # 处理前
-        await chat_obj._wait_for_continue(tag="before_process")
-
         result = await self.do_processing(data)
-
-        # 处理后
-        await chat_obj._wait_for_continue(tag="after_process")
-
         return result
 ```
 
@@ -162,7 +154,7 @@ chat_with_callback = ChatObject(
     train=train.model_dump(),
     callback=callback_handler,
     queue_size=20,
-    overflow_queue_size=40
+    queue_timeout=10.0
 )
 
 # 替代方案：创建后设置回调
@@ -210,13 +202,13 @@ ChatObject 类负责处理单个聊天会话，包括消息接收、上下文管
 
 ### 回调机制
 
-新的回调机制旨在防止在消费者可能跟不上生产者的情况下（例如 Web 应用程序）发生队列溢出。当提供回调函数时：
+回调机制继承自 SuspendObjectStream，工作方式如下：
 
-1. 响应直接传递给回调函数，而不是排队
+1. 当提供回调函数时，响应直接传递给回调函数而不是排队
 2. 这可以防止内存堆积和潜在的溢出问题
 3. 回调函数以异步方式执行，并具有适当的锁定以确保线程安全
 
-当未提供回调时，使用传统的基于队列的流式机制，同时使用主队列和溢出队列来处理临时的消费者延迟。
+当未提供回调时，使用传统的基于队列的流式机制，AnyIO 的内存对象流提供内置的背压处理。
 
 ### 事件参数注入
 
@@ -231,6 +223,25 @@ ChatObject 类负责处理单个聊天会话，包括消息接收、上下文管
 3. **保留关键字**：键 `'self'` 是保留关键字，不能在 `jinja2_vars` 中使用
 
 这种设计为模板自定义提供了最大的灵活性，同时通过防止与内置变量的意外冲突来保持安全性。
+
+### 参数
+
+- **`train`** (`dict[str, str] | Message[str]`): 定义Agent行为的系统消息或训练数据
+- **`user_input`** (`str | list[TextContent | ImageContent]`): 用户输入消息
+- **`context`** (`MemoryModel | None`): 对话内存上下文（可选）
+- **`session_id`** (`str`): 对话会话的唯一标识符
+- **`callback`** (`Callable[[str | MessageContent], Awaitable[Any]] | None`, 可选): 异步回调函数，在生成响应块时接收它们。默认为 `None`。
+- **`config`** (`AmritaConfig | None`, 可选): 此聊天实例的配置。默认为全局配置。
+- **`preset`** (`ModelPreset | None`, 可选): 模型预设配置。默认为会话或全局默认值。
+- **`auto_create_session`** (`bool`, 可选): 如果会话不存在是否自动创建。默认为 `False`。
+- **`train_template`** (`Template`, 可选): 用于格式化系统消息的Jinja2模板。默认为内置模板。
+- **`jinja2_vars`** (`dict[str, Any] | None`, 可选): 传递给Jinja2模板系统的变量。
+- **`agent_strategy`** (`type[AgentStrategy]`, 可选): Agent执行策略。默认为 `ReActAgentStrategy`。
+- **`hook_args`** (`tuple[Any, ...]`, 可选): 传递给匹配器函数的参数。默认为空元组。
+- **`hook_kwargs`** (`dict[str, Any] | None`, 可选): 传递给匹配器函数的关键字参数。
+- **`exception_ignored`** (`tuple[type[BaseException], ...]`, 可选): 如果在匹配器函数中发生，应该重新抛出的异常类型。
+- **`queue_size`** (`int`, 可选): 响应流的最大缓冲区大小。使用AnyIO的内存对象流与内置背压，而不是之前的双队列溢出机制。默认为 `45`。
+- **`queue_timeout`** (`float | None`, 可选): 队列操作的超时时间（秒）。如果为 `None`，操作将无限等待。默认为 `10.0`。
 
 ### 流式响应处理
 
@@ -250,4 +261,4 @@ async for message in chat.get_response_generator():
 - **内存高效**：内置缓冲区大小限制防止无界内存增长
 - **超时安全**：队列操作遵循 `queue_timeout` 参数
 
-**注意**：在0.8.0版本中已移除之前的 `overflow_queue_size` 参数。所有背压现在都由AnyIO的单流机制处理。
+**注意**：之前的 `overflow_queue_size` 参数已被移除。所有背压现在都由AnyIO的单流机制处理。

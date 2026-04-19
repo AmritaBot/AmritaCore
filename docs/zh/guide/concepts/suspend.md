@@ -2,7 +2,9 @@
 
 **注意：这是一个用于特殊场景的高级功能。大多数用户不需要直接使用它。**
 
-AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `ChatObject` 的执行流程，在指定节点暂停和恢复处理。适用场景：
+AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `ChatObject` 的执行流程，在指定节点暂停和恢复处理。此机制通过 `SuspendObjectStream` 基类实现，`ChatObject` 继承自该基类。
+
+适用场景：
 
 - 需要在处理步骤之间检查状态的交互式调试
 - 在复杂多代理系统中实现自定义流程控制
@@ -11,7 +13,7 @@ AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `Chat
 
 ## 标准断点标签
 
-从 0.8.0 版本开始，AmritaCore 通过 `SuspendEnum` 枚举提供了**标准化的断点标签**。这些内置标签对应 ChatObject 生命周期中的关键执行点：
+AmritaCore 通过 `SuspendEnum` 枚举提供了**标准化的断点标签**。这些内置标签对应 ChatObject 生命周期中的关键执行点：
 
 ```python
 from amrita_core import SuspendEnum
@@ -27,12 +29,12 @@ SuspendEnum.COMPLE        # "matcher_call::post_completion" - 模型完成后
 
 ## 工作原理
 
-`ChatObject` 的核心生命周期方法（`_entry`、`_run`、`_run_strategy` 等）均被 `@suspend` 装饰器托管，执行前会自动检测挂起信号。
+`ChatObject` 的核心生命周期方法（`_entry`、`_run`、`_run_strategy` 等）均被 `@SuspendObjectStream.suspend` 装饰器托管，执行前会自动检测挂起信号。
 
 基础使用步骤：
 
 1. 从 `ChatObject` 执行上下文**外部**，单独异步任务中调用 `await chat.wait_to_suspend(timeout)` 监听挂起状态
-2. `ChatObject` 运行到下一个被 `@suspend` 装饰的方法时自动暂停
+2. `ChatObject` 运行到下一个被 `@SuspendObjectStream.suspend` 装饰的方法时自动暂停
 3. 调用 `chat.resume()` 恢复正常执行流程
 
 ## 使用 Tag 标记断点
@@ -72,11 +74,13 @@ controller_task = asyncio.create_task(external_controller(chat))
 
 ### 在自定义函数中使用标签
 
+使用 `@SuspendObjectStream.suspend_with_tag` 装饰器为自定义函数添加带标签的挂起点：
+
 ```python
-from amrita_core import ChatObject
+from amrita_core.streaming import SuspendObjectStream
 
 class MyAgent:
-    @ChatObject.suspend_with_tag("before_api_call")
+    @SuspendObjectStream.suspend_with_tag("before_api_call")
     async def call_external_api(self, chat_obj: ChatObject, url: str):
         """在调用外部API前挂起（如果外部监听器正在等待此标签）"""
         # 如果外部调用了 wait_to_suspend("before_api_call")
@@ -85,7 +89,7 @@ class MyAgent:
             async with session.get(url) as response:
                 return await response.json()
 
-    @ChatObject.suspend_with_tag("after_response")
+    @SuspendObjectStream.suspend_with_tag("after_response")
     async def post_process_response(self, chat_obj: ChatObject, response: str):
         """在处理响应后挂起"""
         # 后处理逻辑
@@ -94,8 +98,8 @@ class MyAgent:
 
 ### 标签匹配规则
 
-1. **精确匹配**：`wait_to_suspend("xxx")` 只会匹配 `@ChatObject.suspend_with_tag("xxx")` 装饰的函数
-2. **无标签挂起**：`wait_to_suspend()` 会匹配所有被 `@suspend` 装饰的函数
+1. **精确匹配**：`wait_to_suspend("xxx")` 只会匹配 `@SuspendObjectStream.suspend_with_tag("xxx")` 装饰的函数
+2. **无标签挂起**：`wait_to_suspend()` 会匹配所有被 `@SuspendObjectStream.suspend` 装饰的函数
 3. **优先级**：带标签的挂起优先于无标签的挂起
 
 ```python
@@ -169,7 +173,7 @@ asyncio.run(main())
 
 ### 关键说明
 
-- `_wait_for_continue()` 会被所有 `@suspend` 装饰的方法自动调用
+- `_wait_for_continue()` 会被所有 `@SuspendObjectStream.suspend` 装饰的方法自动调用
 - 支持开发者手动植入，定制业务内部挂点
 - 无待处理挂起请求时，调用会立即返回，不阻塞流程
 - 基于异步信号实现，独立于业务执行流
@@ -217,6 +221,7 @@ asyncio.run(main())
 - `wait_to_suspend` 超时参数用于避免无限阻塞
 - **tag 参数帮助精确定位**：在复杂流程中使用 tag 可以准确控制特定断点
 - 属于底层能力，面向框架扩展、高级调试与定制流程编排场景
+- **继承关系**：由于 `ChatObject` 继承自 `SuspendObjectStream`，所有挂起/恢复方法都可在 ChatObject 实例上使用
 
 ## 何时不使用此功能
 

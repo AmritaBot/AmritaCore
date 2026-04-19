@@ -1,5 +1,7 @@
 # EmbeddingChunk
 
+`EmbeddingChunk` 表示嵌入适配器返回的嵌入向量。
+
 ## 概述
 
 `EmbeddingChunk` 类表示嵌入适配器返回的单个嵌入向量。它为嵌入结果提供了标准化结构，在保持与OpenAI嵌入响应格式兼容的同时增加了类型安全性。
@@ -51,8 +53,3 @@ for chunk in embeddings:
 - [`ModelAdapter.call_embed()`](ModelAdapter.md#call_embed): 返回 `EmbeddingChunk` 实例的方法
 - [`ADAPTER_TYPE`](ADAPTER_TYPE.md): 包含 `"embed"` 类型的枚举
 - [`call_completion()`](../functions/call_completion.md): 处理嵌入适配器调用的函数
-
-## 版本信息
-
-- **添加于**: 0.8.0版本
-- **目的**: 为类型安全的嵌入操作提供标准化的嵌入结果格式

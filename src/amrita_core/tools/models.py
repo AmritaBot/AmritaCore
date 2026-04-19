@@ -231,6 +231,54 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
     enum: list[T] | None = Field(
         default=None, description="Enumerated parameters", exclude_if=on_none
     )
+    const: Any | None = Field(
+        default=None,
+        description="Constant value that the parameter must equal",
+        exclude_if=on_none,
+    )
+    default: Any | None = Field(
+        default=None, description="Default value for the parameter", exclude_if=on_none
+    )
+    minimum: float | None = Field(
+        default=None,
+        description="Minimum value (inclusive) for numeric types",
+        exclude_if=on_none,
+    )
+    maximum: float | None = Field(
+        default=None,
+        description="Maximum value (inclusive) for numeric types",
+        exclude_if=on_none,
+    )
+    exclusiveMinimum: bool | None = Field(
+        default=None,
+        description="Whether value must be greater than minimum (default false)",
+        exclude_if=on_none,
+    )
+    exclusiveMaximum: bool | None = Field(
+        default=None,
+        description="Whether value must be less than maximum (default false)",
+        exclude_if=on_none,
+    )
+    multipleOf: float | None = Field(
+        default=None,
+        description="Value must be a multiple of this number",
+        exclude_if=on_none,
+    )
+    minLength: int | None = Field(
+        default=None,
+        description="Minimum string length (inclusive)",
+        exclude_if=on_none,
+    )
+    maxLength: int | None = Field(
+        default=None,
+        description="Maximum string length (inclusive)",
+        exclude_if=on_none,
+    )
+    pattern: str | None = Field(
+        default=None,
+        description="Regular expression that string must match",
+        exclude_if=on_none,
+    )
     properties: dict[str, FunctionPropertySchema] | None = Field(
         default=None,
         description="Parameter property definitions, only valid when parameter type is object",
@@ -261,10 +309,36 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
         description="Parameter property definitions, only valid when parameter type is object",
         exclude_if=on_none,
     )
+    additionalProperties: bool | dict[str, Any] | None = Field(
+        default=None,
+        description="Whether object allows additional properties or schema for additional properties",
+        exclude_if=on_none,
+    )
+    format: str | None = Field(
+        default=None,
+        description="String format such as date, time, datetime, email, uri, uuid, etc.",
+        exclude_if=on_none,
+    )
+    nullable: bool | None = Field(
+        default=None,
+        description="Whether parameter can be null (equivalent to type: [original_type, 'null'])",
+        exclude_if=on_none,
+    )
 
     @model_validator(mode="after")
     def validator(self) -> Self:
-        if self.type == "object":
+        # Handle type as list (union types)
+        types_to_check = self.type if isinstance(self.type, list) else [self.type]
+
+        # Check if we have object or array types
+        has_object = "object" in types_to_check
+        has_array = "array" in types_to_check
+        has_string = "string" in types_to_check
+        has_numeric = any(t in types_to_check for t in ["number", "integer"])
+        has_boolean = "boolean" in types_to_check
+
+        # Object type validation
+        if has_object:
             if self.properties is None:
                 raise ValueError("When type is object, properties must be set.")
             elif self.required is None:
@@ -274,9 +348,28 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
                 for i in (self.maxItems, self.minItems, self.uniqueItems, self.items)
             ):
                 raise ValueError(
-                    "When type is object, `maxItems`,`minItems`,`uniqueItems`,`Items` must be None."
+                    "When type includes object, `maxItems`,`minItems`,`uniqueItems`,`items` must be None."
                 )
-        elif self.type == "array":
+            if any(
+                i is not None
+                for i in (
+                    self.minLength,
+                    self.maxLength,
+                    self.pattern,
+                    self.format,
+                    self.minimum,
+                    self.maximum,
+                    self.exclusiveMinimum,
+                    self.exclusiveMaximum,
+                    self.multipleOf,
+                )
+            ):
+                raise ValueError(
+                    "When type includes object, string and numeric constraints must be None."
+                )
+
+        # Array type validation
+        elif has_array:
             if self.items is None:
                 raise ValueError("When type is array, items must be set.")
             elif self.minItems is not None and self.minItems < 0:
@@ -291,6 +384,110 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
                 raise ValueError("maxItems must be greater than or equal to minItems.")
             elif self.uniqueItems is None:
                 self.uniqueItems = False
+            if any(
+                i is not None
+                for i in (
+                    self.minLength,
+                    self.maxLength,
+                    self.pattern,
+                    self.format,
+                    self.minimum,
+                    self.maximum,
+                    self.exclusiveMinimum,
+                    self.exclusiveMaximum,
+                    self.multipleOf,
+                    self.properties,
+                )
+            ):
+                raise ValueError(
+                    "When type includes array, string, numeric, and object constraints must be None."
+                )
+
+        # String type validation
+        if has_string:
+            if self.minLength is not None and self.minLength < 0:
+                raise ValueError("minLength must be greater than or equal to 0.")
+            elif self.maxLength is not None and self.maxLength < 0:
+                raise ValueError("maxLength must be greater than or equal to 0.")
+            elif (
+                self.maxLength is not None
+                and self.minLength is not None
+                and self.maxLength < self.minLength
+            ):
+                raise ValueError(
+                    "maxLength must be greater than or equal to minLength."
+                )
+            if any(
+                i is not None
+                for i in (
+                    self.minimum,
+                    self.maximum,
+                    self.exclusiveMinimum,
+                    self.exclusiveMaximum,
+                    self.multipleOf,
+                    self.items,
+                    self.minItems,
+                    self.maxItems,
+                    self.uniqueItems,
+                    self.properties,
+                )
+            ):
+                raise ValueError(
+                    "When type includes string, numeric and array constraints must be None."
+                )
+
+        # Numeric type validation
+        if has_numeric:
+            if (
+                self.minimum is not None
+                and self.maximum is not None
+                and self.minimum > self.maximum
+            ):
+                raise ValueError("minimum must be less than or equal to maximum.")
+            if self.multipleOf is not None and self.multipleOf <= 0:
+                raise ValueError("multipleOf must be greater than 0.")
+            if any(
+                i is not None
+                for i in (
+                    self.minLength,
+                    self.maxLength,
+                    self.pattern,
+                    self.format,
+                    self.items,
+                    self.minItems,
+                    self.maxItems,
+                    self.uniqueItems,
+                    self.properties,
+                )
+            ):
+                raise ValueError(
+                    "When type includes numeric, string and array constraints must be None."
+                )
+
+        # Boolean type validation
+        if has_boolean:
+            if any(
+                i is not None
+                for i in (
+                    self.minLength,
+                    self.maxLength,
+                    self.pattern,
+                    self.format,
+                    self.minimum,
+                    self.maximum,
+                    self.exclusiveMinimum,
+                    self.exclusiveMaximum,
+                    self.multipleOf,
+                    self.items,
+                    self.minItems,
+                    self.maxItems,
+                    self.uniqueItems,
+                    self.properties,
+                )
+            ):
+                raise ValueError(
+                    "When type includes boolean, string, numeric, and array constraints must be None."
+                )
 
         return self
 

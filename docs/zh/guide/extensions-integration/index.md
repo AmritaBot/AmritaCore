@@ -35,7 +35,7 @@ AmritaCore 提供了一种灵活的方式来通过自定义工具扩展其功能
 from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import FunctionDefinitionSchema, FunctionParametersSchema, FunctionPropertySchema
 
-# 首先定义函数模式
+# 首先使用高级验证定义函数模式
 calculate_math_tool = FunctionDefinitionSchema(
     name="calculate_math",
     description="计算数学表达式的结果",
@@ -44,7 +44,17 @@ calculate_math_tool = FunctionDefinitionSchema(
         properties={
             "expression": FunctionPropertySchema(
                 type="string",
-                description="要计算的数学表达式"
+                description="要计算的数学表达式",
+                minLength=1,
+                maxLength=1000,
+                pattern=r"^[0-9+\-*/().\s]+$"  # 只允许安全的数学字符
+            ),
+            "precision": FunctionPropertySchema(
+                type="integer",
+                description="结果的小数位数",
+                minimum=0,
+                maximum=10,
+                default=2
             )
         },
         required=["expression"]
@@ -58,18 +68,29 @@ async def calculate_math(data: dict) -> str:
     """
     # 在实际实现中，您需要使用安全的求值方法
     # 或专用的数学库来防止代码注入
-    import re
-    # 只允许数字、运算符、括号和小数点
     expression = data["expression"]
-    if re.match(r'^[0-9+\\-*/().\\s]+$', expression):
-        try:
-            result = eval(expression)
-            return str(float(result))  # 必须返回字符串！
-        except Exception as e:
-            return "0.0"
-    else:
-        return "无效的表达式"
+    precision = data.get("precision", 2)
+
+    # 模式验证确保只包含安全字符
+    try:
+        result = eval(expression)
+        return f"{float(result):.{precision}f}"  # 必须返回字符串！
+    except Exception as e:
+        return "0.0"
 ```
+
+### 增强的验证功能
+
+`FunctionPropertySchema` 支持全面的 JSON Schema 验证，包含类型特定的约束：
+
+- **数值约束**：`minimum`、`maximum`、`exclusiveMinimum`、`exclusiveMaximum`、`multipleOf`
+- **字符串约束**：`minLength`、`maxLength`、`pattern`、`format`
+- **数组约束**：`items`、`minItems`、`maxItems`、`uniqueItems`
+- **对象约束**：`properties`、`required`、`additionalProperties`
+- **特殊值**：`enum`、`const`、`default`
+- **联合类型**：`type` 可以是允许类型的列表
+
+当 LLM 生成工具调用时，这些约束会自动验证，确保只有有效的参数值传递给您的工具函数。
 
 ### 5.1.3 高级工具模式
 

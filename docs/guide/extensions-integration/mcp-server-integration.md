@@ -286,9 +286,9 @@ config = AmritaConfig(
 
 - [`ClientManager` API Reference](../api-reference/classes/ClientManager.md) - Complete API documentation
 
-## New MCP Client Binding Method (Version 0.8.0+)
+## New MCP Client Binding Method
 
-Starting from version 0.8.0, AmritaCore provides a simplified method to bind MCP clients directly to the client manager using the `bound_to()` method.
+AmritaCore provides a simplified method to bind MCP clients directly to the client manager using the `bound_to()` method.
 
 ### Using bound_to() Method
 

@@ -280,9 +280,9 @@ config = AmritaConfig(
 - 在 MCP 服务器中实现适当的错误处理
 - 记录工具调用以便调试
 
-## 新的MCP客户端绑定方法（0.8.0+版本）
+## 新的MCP客户端绑定方法
 
-从0.8.0版本开始，AmritaCore提供了使用 `bound_to()` 方法直接将MCP客户端绑定到客户端管理器的简化方法。
+AmritaCore提供了使用 `bound_to()` 方法直接将MCP客户端绑定到客户端管理器的简化方法。
 
 ### 使用 bound_to() 方法
 

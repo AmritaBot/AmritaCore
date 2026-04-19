@@ -5,6 +5,8 @@ from typing import Any, Generic, TypeVar
 
 import pytz
 
+from amrita_core.types import UniResponseUsage
+
 T = TypeVar("T")
 
 
@@ -58,8 +60,43 @@ def kw2dict(**kwargs: Any) -> dict[str, Any]:
     return kwargs
 
 
+def n2zero(n: int | None) -> int:
+    return n or 0
+
+
 class Ref(Generic[T]):
     value: T
 
     def __init__(self, value: T) -> None:
         self.value = value
+
+
+def gather_usage(
+    base: UniResponseUsage[int],
+    *args: UniResponseUsage[int]
+    | UniResponseUsage[None]
+    | UniResponseUsage[int | None]
+    | None,
+) -> UniResponseUsage[int]:
+    """Gather usages
+
+    Args:
+        base(UniResponseUsage[int]): Base object of usage.
+        *args: Usages to gather.
+
+    Returns:
+        UniResponseUsage[int]: the gathered usage (base)
+    """
+    u = base
+    for usage in args:
+        if usage is None:
+            continue
+        u.prompt_tokens += n2zero(usage.prompt_tokens)
+        u.completion_tokens += n2zero(usage.completion_tokens)
+        if usage.total_tokens is not None:
+            u.total_tokens += usage.total_tokens
+        else:
+            u.total_tokens += n2zero(usage.prompt_tokens) + n2zero(
+                usage.completion_tokens
+            )
+    return u

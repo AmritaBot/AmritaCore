@@ -35,7 +35,7 @@ AmritaCore provides a flexible way to extend its functionality through custom to
 from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import FunctionDefinitionSchema, FunctionParametersSchema, FunctionPropertySchema
 
-# First define the function schema
+# First define the function schema with advanced validation
 calculate_math_tool = FunctionDefinitionSchema(
     name="calculate_math",
     description="Calculate the result of a mathematical expression",
@@ -44,7 +44,17 @@ calculate_math_tool = FunctionDefinitionSchema(
         properties={
             "expression": FunctionPropertySchema(
                 type="string",
-                description="Mathematical expression to evaluate"
+                description="Mathematical expression to evaluate",
+                minLength=1,
+                maxLength=1000,
+                pattern=r"^[0-9+\-*/().\s]+$"  # Only allow safe math characters
+            ),
+            "precision": FunctionPropertySchema(
+                type="integer",
+                description="Number of decimal places for result",
+                minimum=0,
+                maximum=10,
+                default=2
             )
         },
         required=["expression"]
@@ -58,18 +68,29 @@ async def calculate_math(data: dict) -> str:
     """
     # In a real implementation, you'd want to use a safe eval method
     # or a dedicated math library to prevent code injection
-    import re
-    # Only allow numbers, operators, parentheses, and decimal points
     expression = data["expression"]
-    if re.match(r'^[0-9+\-*/().\s]+$', expression):
-        try:
-            result = eval(expression)
-            return str(float(result))  # Must return string!
-        except Exception as e:
-            return "0.0"
-    else:
-        return "Invalid expression"
+    precision = data.get("precision", 2)
+
+    # The pattern validation ensures only safe characters are present
+    try:
+        result = eval(expression)
+        return f"{float(result):.{precision}f}"  # Must return string!
+    except Exception as e:
+        return "0.0"
 ```
+
+### Enhanced Validation Features
+
+`FunctionPropertySchema` supports comprehensive JSON Schema validation with type-specific constraints:
+
+- **Numeric Constraints**: `minimum`, `maximum`, `exclusiveMinimum`, `exclusiveMaximum`, `multipleOf`
+- **String Constraints**: `minLength`, `maxLength`, `pattern`, `format`
+- **Array Constraints**: `items`, `minItems`, `maxItems`, `uniqueItems`
+- **Object Constraints**: `properties`, `required`, `additionalProperties`
+- **Special Values**: `enum`, `const`, `default`
+- **Union Types**: `type` can be a list of allowed types
+
+These constraints are automatically validated when the LLM generates tool calls, ensuring that only valid parameter values are passed to your tool functions.
 
 ### 5.1.3 Advanced Tool Patterns
 
