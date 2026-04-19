@@ -13,7 +13,7 @@ To use AmritaCore, you'll need:
 
 ### 2.1.2 Python Version Support
 
-AmritaCore officially supports Python versions from 3.10 up to 3.14. While it may work with other versions, these are the tested and recommended versions.
+AmritaCore officially supports Python versions from 3.10 up to 3.13. While it may work with other versions, these are the tested and recommended versions.
 
 ### 2.1.3 Dependency Installation
 
