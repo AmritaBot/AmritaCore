@@ -21,7 +21,7 @@ AmritaCore provides several built-in tools to support core behaviors of intellig
 - **Description**: Think about what you should do next, always call this tool to think when completing a tool call.
 - **Parameters**:
   - `last_step`: The last step you took (if there are no steps that you had done, please leave this blank).
-  - `summary`: What are you thinking about (not thinking content) - a brief summary of your current focus or intention.
+  - `summary`: What are you thinking about (not your detailed reasoning) - a brief summary of your current focus or intention.
 
 ### 9.1.3 PROCESS_MESSAGE (Process Message Tool)
 
