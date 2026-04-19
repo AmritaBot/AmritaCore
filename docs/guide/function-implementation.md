@@ -124,7 +124,7 @@ async def on_post_process(self) -> None:
 
 #### Exception Handling Best Practices
 
-Since the default `on_exception()` method in [AgentStrategy](../api-reference/classes/AgentStrategy.md) no longer raises exceptions by default. This change provides more flexibility for custom error handling:
+The default `on_exception()` method in [AgentStrategy](../api-reference/classes/AgentStrategy.md) no longer raises exceptions by default. This change provides more flexibility for custom error handling:
 
 ```python
 from amrita_core.agent.strategy import AgentStrategy
