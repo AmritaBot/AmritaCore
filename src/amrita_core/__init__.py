@@ -15,6 +15,7 @@ from .libchat import (
 from .logging import debug_log, logger
 from .preset import PresetManager, PresetReport
 from .sessions import SessionsManager
+from .streaming import SuspendObjectStream
 from .tools import mcp
 from .tools.manager import ToolsManager, on_tools, simple_tool
 from .tools.models import (
@@ -61,6 +62,7 @@ __all__ = [
     "PresetReport",
     "SessionsManager",
     "SuspendEnum",
+    "SuspendObjectStream",
     "TextContent",
     "ToolCall",
     "ToolContext",
