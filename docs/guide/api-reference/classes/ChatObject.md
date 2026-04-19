@@ -1,6 +1,6 @@
 # ChatObject
 
-The ChatObject class is the primary interface for conversations with the AI.
+The ChatObject class is the primary interface for conversations with the AI. It inherits from `SuspendObjectStream[RESPONSE_TYPE]`, providing built-in suspend/resume capabilities and streaming response handling.
 
 ## Properties
 
@@ -16,17 +16,14 @@ The ChatObject class is the primary interface for conversations with the AI.
 - `last_call` (datetime): Time of last internal function call
 - `session_id` (str): Session ID
 - `response` (UniResponse[str, None]): Response
-- `_response_queue` (asyncio.Queue[Any]): Response queue
-- `_overflow_queue` (asyncio.Queue[Any]): Overflow queue
+- `extra_usage` (UniResponseUsage[int]): Additional usage statistics from memory limiting and other operations
 - `_is_running` (bool): Whether it is running
 - `_is_done` (bool): Whether it is completed
 - `_task` (Task[None]): Task
-- `_has_task` (bool): Whether there is a task
 - `_err` (BaseException | None): Error
-- `_wait` (bool): Whether to wait
-- `_queue_done` (bool): Whether queue is done
-- `_callback_fun` (RESPONSE_CALLBACK_TYPE): Callback function for handling responses
-- `_callback_lock` (Lock): Lock for thread-safe callback execution
+- `_q_tout` (float | None): Queue timeout setting
+- `_hook_kwargs` (dict[str, Any]): Keyword arguments for event handlers
+- `_hook_args` (tuple[Any, ...]): Positional arguments for event handlers
 
 ## Constructor Parameters
 
@@ -44,23 +41,23 @@ The ChatObject class is the primary interface for conversations with the AI.
 - `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
 - `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
 - `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
-- `queue_size` (int): Size of the primary response queue (default: **45**)
-- `overflow_queue_size` (int): Size of the overflow queue (default: **15**)
+- `queue_size` (int): Size of the response stream buffer (default: **45**)
+- `queue_timeout` (float | None): Timeout for queue operations in seconds (default: **10.0**)
 
 ## Methods
 
 - `begin()`: Execute the conversation
-- `get_response_generator()`: Returns an async generator for streaming responses
-- `full_response()`: Returns the complete response
-- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: Set a callback function for response handling
-- `yield_response(response: RESPONSE_TYPE)`: Yield response to queue or callback function
-- `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`: **(Advanced)** Wait for suspend signal with optional tag matching
-- `resume()`: **(Advanced)** Resume suspended execution flow
-- `_wait_for_continue(tag: str | None = None)`: **(Advanced)** Manual suspend point for use with external controllers
+- `get_response_generator()`: Returns an async generator for streaming responses (inherited from SuspendObjectStream)
+- `full_response()`: Returns the complete response (inherited from SuspendObjectStream)
+- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: Set a callback function for response handling (inherited from SuspendObjectStream)
+- `yield_response(response: RESPONSE_TYPE)`: Yield response to queue or callback function (inherited from SuspendObjectStream)
+- `wait_to_suspend(*tags: str, timeout: float | None = None)`: **(Advanced)** Wait for suspend signal with optional tag matching (inherited from SuspendObjectStream)
+- `resume()`: **(Advanced)** Resume suspended execution flow (inherited from SuspendObjectStream)
+- `_wait_for_continue(tag: str | None = None)`: **(Advanced)** Manual suspend point for use with external controllers (inherited from SuspendObjectStream)
 
 ### Suspend & Resume Methods Details
 
-#### `wait_to_suspend(timeout: float = 5.0, tag: str | None = None)`
+#### `wait_to_suspend(*tags: str, timeout: float | None = None)`
 
 Call this method from an external independent task to pause `ChatObject` execution when it reaches the next suspend point.
 
@@ -68,17 +65,18 @@ Call this method from an external independent task to pause `ChatObject` executi
 
 - `*tags` (str): Optional tag filter (passed as positional arguments)
   - No tags (default): Matches all methods decorated with `@suspend`
-  - Single tag string: Only matches methods decorated with `@ChatObject.suspend_with_tag(tag)`
+  - Single tag string: Only matches methods decorated with `@SuspendObjectStream.suspend_with_tag(tag)`
   - **Standard tags**: Use [SuspendEnum](SuspendEnum.md) values for built-in breakpoints:
     - `SuspendEnum.MEMORY.value`: Before memory summarization
     - `SuspendEnum.SINGLE_TOOL.value`: Before each tool call
     - `SuspendEnum.PRECOMPLE.value`: Before model completion
     - `SuspendEnum.COMPLE.value`: After model completion
-- `timeout` (float): Timeout in seconds, prevents infinite blocking
+- `timeout` (float | None): Timeout in seconds, prevents infinite blocking. If None, waits indefinitely.
 
 **Exceptions:**
 
 - `asyncio.TimeoutError`: Raised if suspend is not triggered within the specified timeout
+- `RuntimeError`: Raised if already waiting for suspend
 
 **Example:**
 
@@ -125,18 +123,12 @@ Manual suspend point, typically used inside custom functions to enable fine-grai
 **Example:**
 
 ```python
-from amrita_core import ChatObject
+from amrita_core import SuspendObjectStream
 
 class MyProcessor:
+    @SuspendObjectStream.suspend_with_tag("before_process")
     async def process_data(self, chat_obj: ChatObject, data: dict):
-        # Before processing
-        await chat_obj._wait_for_continue(tag="before_process")
-
         result = await self.do_processing(data)
-
-        # After processing
-        await chat_obj._wait_for_continue(tag="after_process")
-
         return result
 ```
 
@@ -162,7 +154,7 @@ chat_with_callback = ChatObject(
     train=train.model_dump(),
     callback=callback_handler,
     queue_size=20,
-    overflow_queue_size=40
+    queue_timeout=10.0
 )
 
 # Alternative: Set callback after creation
@@ -210,13 +202,13 @@ The ChatObject class is responsible for processing a single chat session, includ
 
 ### Callback Mechanism
 
-The new callback mechanism is designed to prevent queue overflow in scenarios where consumers may not keep up with producers (e.g., web applications). When a callback function is provided:
+The callback mechanism is inherited from SuspendObjectStream and works as follows:
 
-1. Responses are directly passed to the callback function instead of being queued
+1. Responses are directly passed to the callback function instead of being queued when a callback is provided
 2. This prevents memory buildup and potential overflow issues
 3. The callback function is executed asynchronously with proper locking for thread safety
 
-When no callback is provided, the traditional queue-based streaming mechanism is used with both primary and overflow queues to handle temporary consumer lag.
+When no callback is provided, the traditional queue-based streaming mechanism is used with AnyIO's memory object streams providing built-in backpressure handling.
 
 ### Event Parameter Injection
 
@@ -248,7 +240,7 @@ This design provides maximum flexibility for template customization while mainta
 - **`hook_args`** (`tuple[Any, ...]`, optional): Arguments passed to matcher functions. Defaults to empty tuple.
 - **`hook_kwargs`** (`dict[str, Any] | None`, optional): Keyword arguments passed to matcher functions.
 - **`exception_ignored`** (`tuple[type[BaseException], ...]`, optional): Exception types that should be re-raised if they occur in matcher functions.
-- **`queue_size`** (`int`, optional): Maximum buffer size for the response stream. **Starting from version 0.8.0, this uses AnyIO's memory object stream with built-in backpressure instead of the previous dual-queue overflow mechanism.** Defaults to `45`.
+- **`queue_size`** (`int`, optional): Maximum buffer size for the response stream. Uses AnyIO's memory object stream with built-in backpressure instead of the previous dual-queue overflow mechanism. Defaults to `45`.
 - **`queue_timeout`** (`float | None`, optional): Timeout for queue operations in seconds. If `None`, operations will wait indefinitely. Defaults to `10.0`.
 
 ### Streaming Response Processing
@@ -269,4 +261,4 @@ async for message in chat.get_response_generator():
 - **Memory Efficient**: Built-in buffer size limits prevent unbounded memory growth
 - **Timeout Safety**: Queue operations respect the `queue_timeout` parameter
 
-**Note**: The previous `overflow_queue_size` parameter has been removed in version 0.8.0. All backpressure is now handled by AnyIO's single-stream mechanism.
+**Note**: The previous `overflow_queue_size` parameter has been removed. All backpressure is now handled by AnyIO's single-stream mechanism.

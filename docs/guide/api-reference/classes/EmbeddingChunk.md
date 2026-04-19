@@ -1,5 +1,7 @@
 # EmbeddingChunk
 
+`EmbeddingChunk` represents an embedding vector returned by the embedding adapter.
+
 ## Overview
 
 The `EmbeddingChunk` class represents a single embedding vector returned by an embedding adapter. It provides a standardized structure for embedding results that maintains compatibility with OpenAI's embedding response format while adding type safety.
@@ -51,8 +53,3 @@ for chunk in embeddings:
 - [`ModelAdapter.call_embed()`](ModelAdapter.md#call_embed): Method that returns `EmbeddingChunk` instances
 - [`ADAPTER_TYPE`](ADAPTER_TYPE.md): Enumeration that includes `"embed"` type
 - [`call_completion()`](../functions/call_completion.md): Function that handles embedding adapter calls
-
-## Version Information
-
-- **Added in**: Version 0.8.0
-- **Purpose**: Standardized embedding result format for type-safe embedding operations

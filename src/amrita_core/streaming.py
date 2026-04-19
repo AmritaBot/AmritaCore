@@ -56,19 +56,6 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         self._q_tout = queue_timeout
 
     @staticmethod
-    def suspend_with_tag(tag: str):
-        """Decorator for suspend with tag filter. Used in inner function.
-
-        Args:
-            tag (str): Tag for break point.
-        """
-
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            return SuspendObjectStream.suspend(func, tag)
-
-        return decorator
-
-    @staticmethod
     def suspend(func: Callable[..., Any], tag: str | None = None) -> Callable[..., Any]:
         """Decorator for suspend. (Only be used for a time-costly function)"""
         if not asyncio.iscoroutinefunction(func):
@@ -97,6 +84,19 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             return await func(*args, **kwargs)
 
         return wrapper
+
+    @staticmethod
+    def suspend_with_tag(tag: str):
+        """Decorator for suspend with tag filter. Used in inner function.
+
+        Args:
+            tag (str): Tag for break point.
+        """
+
+        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            return SuspendObjectStream.suspend(func, tag)
+
+        return decorator
 
     async def _wait_for_continue(self, tag: str | None = None) -> bool:
         """Break point for suspend.
@@ -182,13 +182,13 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         with anyio.fail_after(self._q_tout):
             await self._send_stream.send(item)
 
-    @suspend_with_tag(SUSPEND_ON_YIELD)
     async def yield_response(self, response: ObjectTypeT) -> None:
         """Send chat model response to the queue allowing both str and MessageContent types.
 
         Args:
             response: Either a string or MessageContent object to be sent to the queue.
         """
+        await self._wait_for_continue(SUSPEND_ON_YIELD)
         if self._callback_fun is not None:
             async with self._callback_lock:
                 await self._callback_fun(response)

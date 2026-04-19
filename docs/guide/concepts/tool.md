@@ -64,6 +64,139 @@ async def add(data: dict[str, Any]) -> str:
 
 ```
 
+### Advanced FunctionPropertySchema Usage
+
+`FunctionPropertySchema` supports comprehensive JSON Schema validation with type-specific constraints:
+
+#### Numeric Type Constraints
+
+```python
+temperature = FunctionPropertySchema(
+    type="number",
+    description="Temperature in Celsius",
+    minimum=-273.15,      # Absolute zero
+    maximum=1000.0,       # Reasonable upper limit
+    multipleOf=0.1,       # Precision to 0.1 degrees
+    exclusiveMinimum=False, # Minimum is inclusive
+    exclusiveMaximum=False  # Maximum is inclusive
+)
+```
+
+#### String Type Constraints
+
+```python
+email = FunctionPropertySchema(
+    type="string",
+    description="User email address",
+    minLength=5,          # Minimum email length
+    maxLength=254,        # Maximum email length per RFC
+    pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$", # Email regex
+    format="email"        # Standard email format
+)
+
+password = FunctionPropertySchema(
+    type="string",
+    description="User password",
+    minLength=8,          # Minimum password strength
+    maxLength=128,        # Maximum reasonable length
+    pattern=r"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).*$"  # Must contain lowercase, uppercase, and digit
+)
+```
+
+#### Array Type Constraints
+
+```python
+tags = FunctionPropertySchema(
+    type="array",
+    description="List of tags",
+    items=FunctionPropertySchema(type="string", minLength=1, maxLength=50),
+    minItems=1,           # At least one tag required
+    maxItems=10,          # Maximum 10 tags
+    uniqueItems=True      # No duplicate tags allowed
+)
+```
+
+#### Object Type Constraints
+
+```python
+address = FunctionPropertySchema(
+    type="object",
+    description="User address",
+    properties={
+        "street": FunctionPropertySchema(type="string", minLength=1),
+        "city": FunctionPropertySchema(type="string", minLength=1),
+        "country": FunctionPropertySchema(type="string", minLength=2, maxLength=2), # ISO country code
+    },
+    required=["street", "city", "country"],
+    additionalProperties=False  # No extra properties allowed
+)
+```
+
+#### Enum and Constant Values
+
+```python
+# Enumerate allowed values
+unit = FunctionPropertySchema(
+    type="string",
+    description="Temperature unit",
+    enum=["celsius", "fahrenheit", "kelvin"]
+)
+
+# Constant value (must equal exactly)
+api_version = FunctionPropertySchema(
+    type="string",
+    description="API version",
+    const="v1.0"
+)
+
+# Default values
+optional_note = FunctionPropertySchema(
+    type="string",
+    description="Optional note",
+    default="No note provided"
+)
+```
+
+#### Union Types
+
+```python
+# Accept multiple types
+flexible_input = FunctionPropertySchema(
+    type=["string", "number"],  # Can be either string or number
+    description="Flexible input parameter"
+)
+```
+
+### Validation Rules
+
+`FunctionPropertySchema` enforces strict type-specific validation rules:
+
+1. **Object Type (`object`)**:
+   - `properties` must be defined
+   - `required` defaults to empty list if not provided
+   - Array constraints (`items`, `minItems`, etc.) must be `None`
+   - String/numeric constraints must be `None`
+
+2. **Array Type (`array`)**:
+   - `items` must be defined
+   - `uniqueItems` defaults to `False` if not provided
+   - String/numeric/object constraints must be `None`
+   - `minItems` and `maxItems` must be non-negative, with `minItems <= maxItems`
+
+3. **String Type (`string`)**:
+   - `minLength` and `maxLength` must be non-negative, with `minLength <= maxLength`
+   - Numeric/array/object constraints must be `None`
+
+4. **Numeric Types (`number`/`integer`)**:
+   - `minimum <= maximum` must hold
+   - `multipleOf` must be positive
+   - String/array/object constraints must be `None`
+
+5. **Boolean Type (`boolean`)**:
+   - All other constraint types must be `None`
+
+These validation rules ensure that your tool schemas are well-formed and compatible with standard JSON Schema specifications.
+
 ## 3.4.4 FunctionDefinitionSchema Function Schema
 
 The [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md) class defines the schema for function parameters:
@@ -99,9 +232,9 @@ Tools are automatically discovered and registered when modules are imported:
 from . import my_tools  # Tools are automatically registered; make sure they are only imported once.
 ```
 
-## 3.4.4 Embedding Support (Version 0.8.0+)
+## 3.4.4 Embedding Support
 
-Starting from version 0.8.0, AmritaCore provides built-in support for embedding generation through the adapter system.
+AmritaCore provides built-in support for embedding generation through the adapter system.
 
 ### Adapter Types
 

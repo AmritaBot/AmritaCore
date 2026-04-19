@@ -340,7 +340,7 @@ async def postprocess_response(event: CompletionEvent):
 AmritaCore 提供了多种预定义类型以确保一致性：
 
 - [BaseModel](classes/BaseModel.md): 所有数据模型的基类
-- [Depends](classes/Depends.md): 用于声明事件处理程序依赖项的依赖注入装饰器
+- [Depends](classes/Depends.md): 用于声明事件处理器依赖项的依赖注入装饰器
 - [DependsFactory](classes/DependsFactory.md): 用于包装和解析依赖函数的依赖工厂类
 - [EmbeddingChunk](classes/EmbeddingChunk.md): 表示嵌入适配器返回的嵌入向量
 - [Function](classes/Function.md): 表示工具系统中的可调用函数
@@ -349,6 +349,7 @@ AmritaCore 提供了多种预定义类型以确保一致性：
 - [ModelConfig](classes/ModelConfig.md): 模型特定配置
 - [ModelPreset](classes/ModelPreset.md): 特定模型的完整配置
 - [SuspendEnum](classes/SuspendEnum.md): 用于挂起/恢复机制的标准化断点标签
+- [SuspendObjectStream](classes/SuspendObjectStream.md): 具有挂起/恢复功能和流式响应处理的泛型基类
 - [TextContent](classes/TextContent.md): 表示消息中的文本内容
 - [ToolCall](classes/ToolCall.md): 表示工具的调用
 - [ToolContext](classes/ToolContext.md): 为工具执行提供上下文

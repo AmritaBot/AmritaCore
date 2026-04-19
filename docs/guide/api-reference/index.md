@@ -352,6 +352,7 @@ AmritaCore provides several predefined types for consistency:
 - [ModelConfig](classes/ModelConfig.md): Model-specific configuration
 - [ModelPreset](classes/ModelPreset.md): Complete configuration for a specific model
 - [SuspendEnum](classes/SuspendEnum.md): Standardized breakpoint tags for suspend/resume mechanism
+- [SuspendObjectStream](classes/SuspendObjectStream.md): Generic base class for objects with suspend/resume capabilities and streaming response handling
 - [TextContent](classes/TextContent.md): Represents text content within messages
 - [ToolCall](classes/ToolCall.md): Represents an invocation of a tool
 - [ToolContext](classes/ToolContext.md): Provides context for tool execution
