@@ -127,7 +127,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 {
                     "type": "reasoning",
                     "extra_type": "pre_resolve",
-                    "last_strp": last_step,
+                    "last_step": last_step,
                     "summary": summary,
                 },
             )
