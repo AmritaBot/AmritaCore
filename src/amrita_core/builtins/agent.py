@@ -119,6 +119,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         resp_msg: dict[str, Any] = json.loads(tool_call.function.arguments)
         last_step: str = resp_msg["last_step"]
         summary: str = resp_msg["summary"]
+        self.agent_last_step = last_step
 
         await self.chat_object.yield_response(
             MessageWithMetadata(
