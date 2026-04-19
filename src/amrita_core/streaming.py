@@ -1,14 +1,16 @@
 import asyncio
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from functools import wraps
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeAlias, TypeVar
 
 import aiologic
 import anyio
 from anyio.abc import ObjectReceiveStream, ObjectSendStream
+from typing_extensions import LiteralString
 
 ObjectTypeT = TypeVar("ObjectTypeT")
-CALLBACK_TYPE = Callable[[ObjectTypeT], Awaitable[Any]]
+CALLBACK_TYPE: TypeAlias = Callable[[ObjectTypeT], Awaitable[Any]]
+SUSPEND_ON_YIELD: LiteralString = "SuspendObjectStream::yield_response"
 
 
 class SuspendObjectStream(Generic[ObjectTypeT]):
@@ -180,7 +182,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         with anyio.fail_after(self._q_tout):
             await self._send_stream.send(item)
 
-    @suspend
+    @suspend_with_tag(SUSPEND_ON_YIELD)
     async def yield_response(self, response: ObjectTypeT) -> None:
         """Send chat model response to the queue allowing both str and MessageContent types.
 
