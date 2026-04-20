@@ -193,7 +193,7 @@ async for message in chat.get_response_generator():
 
 - 使用带自动背压的单个AnyIO内存对象流
 
-现在 [\_put_to_queue()](file:///home/johnrichard/LiteSuggarDEV/AmritaCore/src/amrita_core/chatmanager.py#L793-L799) 方法使用AnyIO的 `send()` 方法并带有超时：
+现在 `_put_to_queue()` 方法使用AnyIO的 `send()` 方法并带有超时：
 
 ```python
 await asyncio.wait_for(self._send_stream.send(item), timeout=self._q_tout)
