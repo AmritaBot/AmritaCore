@@ -1,14 +1,14 @@
-# Suspend & Resume Mechanism
+# Suspend and Resume Mechanism
 
 **Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
 
-AmritaCore provides an explicit, lightweight suspend mechanism that allows external control over the execution flow of `ChatObject`, enabling you to pause and resume processing at specific points. This mechanism is implemented through the `SuspendObjectStream` base class, which `ChatObject` inherits from.
+AmritaCore provides a simple and explicit suspend mechanism that allows external control over the execution flow of `ChatObject`, pausing and resuming processing at specified nodes. This mechanism is implemented through the `SuspendObjectStream` base class, from which `ChatObject` inherits.
 
-Typical use cases include:
+Applicable scenarios:
 
-- Interactive debugging with state inspection between processing steps
-- Custom flow control in complex multi-agent systems
-- Coordination with external systems that require synchronization points
+- Interactive debugging that requires state inspection between processing steps
+- Implementing custom flow control in complex multi-agent systems
+- Coordinating with external systems that require synchronization points
 - **Tagged breakpoint control**: Use tags to mark specific breakpoints for precise flow control
 
 ## Standard Breakpoint Tags
@@ -29,19 +29,19 @@ SuspendEnum.COMPLE        # "matcher_call::post_completion" - After model comple
 
 ## Architecture Overview
 
-The suspend/resume mechanism operates on two distinct layers within `SuspendObjectStream`:
+The suspend/resume mechanism operates at two distinct levels within `SuspendObjectStream`:
 
 ```mermaid
 graph TD
-    A[Producer: yield_response] --> B{Layer 1: Outer Suspend}
+    A[Producer: yield_response] --> B{Level 1: Outer Suspend}
     B -->|Check wait_to_suspend| C[_wait_for_continue]
     C -->|If suspended| D[Block until resume]
-    C -->|If not suspended| E{Layer 2: Mode Selection}
+    C -->|If not suspended| E{Level 2: Mode Selection}
     D --> E
-    E -->|Callback Mode| F[Inner Suspend: Callback]
+    E -->|Callback Mode| F[Inner Suspend: Callback Function]
     E -->|Queue Mode| G[Queue Buffer]
-    F --> H[Process immediately]
-    G --> I[Buffer for later consumption]
+    F --> H[Immediate Processing]
+    G --> I[Buffered for Consumption]
     H --> J[Consumer]
     I --> J
 
@@ -50,43 +50,48 @@ graph TD
     style G fill:#f0f0f0
 ```
 
-### Two Layers of Interruption
+### Two-Level Interruption Mechanism
 
-#### 1. Outer Suspend (Control Flow Interruption)
+#### 1. Outer Suspend - Control Flow Interruption
 
-Implemented through the `@SuspendObjectStream.suspend` decorator and `wait_to_suspend()/resume()` methods:
+Implemented via the `@SuspendObjectStream.suspend` decorator and `wait_to_suspend()/resume()` methods:
 
-- **External-driven**: Triggered by calling `wait_to_suspend()` from outside
-- **Flow control**: Pauses the entire coroutine execution
+- **Externally driven**: Triggered by external calls to `wait_to_suspend()`
+- **Flow control**: Pauses execution of the entire coroutine
 - **Tag filtering**: Supports fine-grained breakpoint selection
 - **Bidirectional communication**: Requires explicit `resume()` to continue
 
-**Analogy**: 🚦 Traffic light - Complete stop, waiting for green light (resume) to proceed
+**Analogy**: 🚦 Traffic light - complete stop, waiting for green light (resume) to proceed
 
-#### 2. Inner Suspend / Callback (Data Flow Interception)
+#### 2. Inner Suspend / Callback - Data Flow Interception
 
-Implemented through the `callback` mechanism:
+Implemented via the `callback` mechanism:
 
-- **Internal-driven**: Automatically triggered on every `yield_response`
-- **Data interception**: Inserts processing logic in the data transmission path
+- **Internally driven**: Automatically triggered on each `yield_response`
+- **Data interception**: Inserts processing logic into the data transmission path
 - **Real-time response**: No external `resume()` needed, continues automatically
-- **Unidirectional flow**: Data flows through and is processed immediately
+- **Unidirectional flow**: Data flows through and is processed without blocking production
 
-**Analogy**: 🛂 Customs checkpoint - Every item is inspected but released immediately after processing
+**Analogy**: 🛂 Customs checkpoint - every item must be inspected, but inspection completes immediately without prolonged detention
+
+::: warning Callback and Iterator Are Mutually Exclusive
+**Important Limitation**: `callback` and `async for` iteration consumption are **mutually exclusive**. A single `ChatObject` instance can only use one method to handle the response stream. Using both callback and iterator simultaneously will result in a `RuntimeError`.
+:::
 
 ## How It Works
 
-Core internal methods of `ChatObject` (such as `_entry`, `_run`, `_run_strategy`) are decorated with the `@SuspendObjectStream.suspend` decorator. They automatically check for suspend signals before execution.
+The core lifecycle methods of `ChatObject` (`_entry`, `_run`, `_run_strategy`, etc.) are all managed by the `@SuspendObjectStream.suspend` decorator and automatically check for suspend signals before execution.
 
-Basic workflow:
+Basic usage steps:
 
-1. Call `await chat.wait_to_suspend(timeout)` **outside** the main `ChatObject` execution context from a separate async task
-2. `ChatObject` will automatically pause when reaching the next `@SuspendObjectStream.suspend` decorated method
-3. Resume execution by calling `chat.resume()`
+1. Call `chat.begin()` to start the internal task of the ChatObject
+2. From **outside** the ChatObject execution context, in a separate asynchronous task, call `await chat.wait_to_suspend(timeout)` to listen for the suspend state
+3. The ChatObject automatically pauses when it reaches the next method decorated with `@SuspendObjectStream.suspend`
+4. Call `chat.resume()` to resume normal execution flow
 
-## Using Tags for Breakpoint Control
+## Using Tags to Mark Breakpoints
 
-AmritaCore supports adding unique identifiers to suspend points using the `tag` parameter, enabling precise breakpoint control:
+AmritaCore supports using the `tag` parameter to assign unique identifiers to suspension points, enabling precise breakpoint control:
 
 ### Basic Usage with Standard Tags
 
@@ -104,24 +109,25 @@ chat = ChatObject(
     train=train.model_dump()
 )
 
-# External controller listens for a specific standardized breakpoint
+# External controller listening for a specific standard breakpoint
 async def external_controller(chat_obj):
     # Wait for the standard "single_tool_call" breakpoint
     await chat_obj.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
     print("Suspended before tool call!")
 
-    # Can inspect or modify state here
+    # You can inspect or modify state here
     # ...
 
     chat_obj.resume()
 
-# Start controller task
+chat.begin()
+# Start the controller task
 controller_task = asyncio.create_task(external_controller(chat))
 ```
 
 ### Using Tags in Custom Functions
 
-Use the `@SuspendObjectStream.suspend_with_tag` decorator to add tagged suspend points to your custom functions:
+Use the `@SuspendObjectStream.suspend_with_tag` decorator to add tagged suspension points to custom functions:
 
 ```python
 from amrita_core.streaming import SuspendObjectStream
@@ -129,25 +135,25 @@ from amrita_core.streaming import SuspendObjectStream
 class MyAgent:
     @SuspendObjectStream.suspend_with_tag("before_api_call")
     async def call_external_api(self, chat_obj: ChatObject, url: str):
-        """Suspends before calling external API (if external listener is waiting for this tag)"""
-        # If external code called wait_to_suspend("before_api_call")
-        # Code will pause here until resume() is called
+        """Suspend before calling external API (if an external listener is waiting for this tag)"""
+        # If external called wait_to_suspend("before_api_call")
+        # Execution will pause here until resume() is called
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 return await response.json()
 
     @SuspendObjectStream.suspend_with_tag("after_response")
     async def post_process_response(self, chat_obj: ChatObject, response: str):
-        """Suspends after processing response"""
+        """Suspend after processing response"""
         # Post-processing logic
         print(f"Processing response: {response}")
 ```
 
 ### Tag Matching Rules
 
-1. **Exact Match**: `wait_to_suspend("xxx")` only matches functions decorated with `@SuspendObjectStream.suspend_with_tag("xxx")`
-2. **Untagged Suspend**: `wait_to_suspend()` matches all functions decorated with `@SuspendObjectStream.suspend`
-3. **Priority**: Tagged suspend takes precedence over untagged suspend
+1. **Exact match**: `wait_to_suspend("xxx")` only matches functions decorated with `@SuspendObjectStream.suspend_with_tag("xxx")`
+2. **Untagged suspend**: `wait_to_suspend()` matches all functions decorated with `@SuspendObjectStream.suspend`
+3. **Priority**: Tagged suspension takes precedence over untagged suspension
 
 ```python
 # Example: Multi-breakpoint control flow
@@ -161,29 +167,29 @@ async def multi_breakpoint_controller(chat_obj):
     print("Step 2 completed")
 
     # Finally wait for any breakpoint
-    await chat_obj.wait_to_suspend()  # Matches any suspend-decorated method
+    await chat_obj.wait_to_suspend()  # Matches any method decorated with suspend
     print("Any step completed")
 
     chat_obj.resume()
 ```
 
-## Manual Usage of `_wait_for_continue()`
+## Manual Use of `_wait_for_continue()`
 
-For fine-grained control, you can manually call `await chat._wait_for_continue()` in your own async functions to create custom suspend points:
+For finer-grained control, you can manually call `await chat._wait_for_continue()` within custom asynchronous logic to freely insert custom suspension points:
 
 ```python
 import asyncio
 from amrita_core import create_agent, minimal_init
 
 async def custom_processing_step(chat_obj):
-    """Custom business logic with a manual suspend point"""
-    print("Start processing...")
+    """Custom processing function with a manual suspension point"""
+    print("Starting processing step...")
     await asyncio.sleep(0.5)
 
-    # Manual suspend point: blocks only if suspend is triggered externally
+    # Manual suspension point: blocks only if external wait_to_suspend triggered, otherwise returns immediately
     await chat_obj._wait_for_continue()
 
-    print("Resume after suspend point...")
+    print("Continuing after suspension point...")
     await asyncio.sleep(0.5)
 
 async def main():
@@ -199,16 +205,17 @@ async def main():
     # External independent control task
     async def external_controller(chat_obj):
         await chat_obj.wait_to_suspend(timeout=5.0)
-        print("Chat suspended.")
+        print("Chat suspended!")
         await asyncio.sleep(1)
         chat_obj.resume()
-        print("Chat resumed.")
+        print("Chat resumed!")
 
     controller_task = asyncio.create_task(external_controller(chat))
 
     try:
         await custom_processing_step(chat)
-        async with chat.begin():
+        chat.begin()
+        async with chat:
             async for response in chat.get_response_generator():
                 content = response if isinstance(response, str) else response.get_content()
                 print(content, end="", flush=True)
@@ -218,17 +225,17 @@ async def main():
 asyncio.run(main())
 ```
 
-### Key Points
+### Key Notes
 
-- `_wait_for_continue()` is invoked automatically by all `@SuspendObjectStream.suspend` decorated methods
-- You can insert custom suspend points anywhere in your business logic
-- It returns immediately without blocking if no suspend is pending
-- Implemented with async signal scheduling, isolated from main business flow
-- **Tag parameter passing**: Can pass tag parameter when manually calling: `await chat_obj._wait_for_continue("custom_tag")`
+- `_wait_for_continue()` is automatically called by all methods decorated with `@SuspendObjectStream.suspend`
+- Developers can manually insert it to customize internal business suspension points
+- When no pending suspend request exists, the call returns immediately without blocking the flow
+- Based on asynchronous signals, independent of the business execution flow
+- **Tag parameter passing**: When calling manually, you can pass a tag parameter: `await chat_obj._wait_for_continue(tag="custom_tag")`
 
-## Combining Both Interruption Layers
+## Combining Both Interruption Mechanisms
 
-The two interruption mechanisms are orthogonal and can be combined:
+The two interruption mechanisms are orthogonal and can be combined. However, because **callback and iterator are mutually exclusive**, you need to adjust the combination strategy based on the chosen response consumption method.
 
 ```mermaid
 sequenceDiagram
@@ -242,49 +249,76 @@ sequenceDiagram
     alt Suspended
         OS-->>P: Block execution
         Note over OS: Waiting for resume()
-    else Not Suspended
+    else Not suspended
         OS->>IS: Pass data
-        IS->>IS: Process callback
+        IS->>IS: Execute callback
         IS->>C: Deliver result
     end
 ```
 
-Example of combining both mechanisms:
+### Callback Mode + Outer Suspend
+
+When using callbacks to handle responses, outer suspension still works correctly. **Note**: You must first call `chat.begin()` to start the task, then wait for the task to finish using `await chat`.
 
 ```python
-# Scenario: Monitor data AND pause at critical points
+# Scenario: Monitor data while pausing at key points (callback mode)
 
 async def monitor(response):
-    """Inner suspend: Real-time monitoring of each response"""
+    """Inner suspend: real-time monitoring of each response"""
     if "error" in str(response):
         await send_alert(response)
 
-chat.set_callback_func(monitor)  # Set inner suspend
+chat.set_callback_func(monitor)  # Set inner suspend (callback)
 
-# Start task
-chat.begin()
-
-# Outer suspend: Pause at specific moments
+# Outer suspend: pause at specific moment
 async def controller():
     await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
     print("About to call LLM, continue?")
-    input()  # User confirmation
+    await asyncio.to_thread(input, "Press Enter to continue...")
     chat.resume()
 
+# Start the task and controller task
+chat.begin()
 asyncio.create_task(controller())
 
-# Stream consumption
-async for chunk in chat.get_response_generator():
-    print(chunk, end="")
+# Wait for ChatObject execution to complete
+await chat
+# Or get the full response
+# final_response = await chat.full_response()
 ```
 
-**Execution flow**:
+### Iterator Mode + Outer Suspend
 
-1. Each response chunk triggers `monitor()` (inner suspend)
-2. Pauses at PRECOMPLE, waiting for user confirmation (outer suspend)
-3. After user confirmation, subsequent response chunks continue triggering `monitor()`
+If not using callbacks and only consuming via iterator, outer suspension is also effective. Using the `async with chat:` context manager is recommended.
 
-## Standard Usage Example
+```python
+# Scenario: Streaming output with suspension support (iterator mode)
+
+# Outer suspend control task
+async def controller():
+    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    print("\n[System] About to call LLM, pausing...")
+    input("Press Enter to continue...")
+    chat.resume()
+
+chat.begin()
+async with chat:
+    asyncio.create_task(controller())
+    async for chunk in chat.get_response_generator():
+        content = chunk if isinstance(chunk, str) else chunk.get_content()
+        print(content, end="", flush=True)
+    # Iterator exhausts naturally, then context exits
+```
+
+::: tip How to Choose?
+- Need to process chunks but don't want to write manual loops? Use **callback mode**, start with `chat.begin()` then `await chat` to wait for completion.
+- Need streaming output to terminal or WebSocket? Use **iterator mode** with the `async with chat:` context manager.
+- Regardless of mode, outer suspension (`wait_to_suspend`) works normally.
+:::
+
+## Usage Pattern Examples
+
+### Iterator Mode (Most Common)
 
 ```python
 import asyncio
@@ -303,11 +337,13 @@ async def main():
     # External concurrent control logic
     async def external_controller(chat_obj):
         await chat_obj.wait_to_suspend(timeout=5.0)
-        print("Chat suspended, you may inspect or modify states here.")
-        # Custom operations: state checking, context modification, external integration
+        print("Chat suspended.")
+        await asyncio.sleep(1)
         chat_obj.resume()
+        print("Chat resumed.")
 
-    async with chat.begin():
+    chat.begin()
+    async with chat:
         controller_task = asyncio.create_task(external_controller(chat))
         try:
             async for response in chat.get_response_generator():
@@ -319,20 +355,50 @@ async def main():
 asyncio.run(main())
 ```
 
-## Important Notes
+### Callback Mode
 
-- Control interfaces must be called from a separate concurrent task outside the main `ChatObject` async context
-- The timeout parameter in `wait_to_suspend` prevents infinite blocking
-- **Tag parameter helps precise positioning**: Use tags in complex flows to accurately control specific breakpoints
-- This is a low-level capability intended for framework extension, advanced debugging, and custom workflow orchestration
-- **Inheritance**: Since `ChatObject` inherits from `SuspendObjectStream`, all suspend/resume methods are available on ChatObject instances
+```python
+async def handle_chunk(chunk):
+    print(chunk, end="", flush=True)
+
+chat.set_callback_func(handle_chunk)
+
+async def external_controller(chat_obj):
+    await chat_obj.wait_to_suspend(timeout=5.0)
+    print("\n[Suspended]")
+    await asyncio.sleep(1)
+    chat_obj.resume()
+
+chat.begin()
+asyncio.create_task(external_controller(chat))
+# Wait for the flow to complete naturally
+await chat
+```
+
+## Important Usage Notes
+
+- Control interfaces must be called from a separate concurrent task, outside the main asynchronous context of the `ChatObject`
+- The `wait_to_suspend` timeout parameter is used to avoid indefinite blocking
+- **Tag parameters help precise positioning**: In complex flows, using tags enables accurate control of specific breakpoints
+- This is a low-level capability intended for framework extension, advanced debugging, and custom flow orchestration scenarios
+- **Inheritance relationship**: Since `ChatObject` inherits from `SuspendObjectStream`, all suspend/resume methods are available on ChatObject instances
+
+::: warning Callback and Iterator Are Mutually Exclusive
+Do not set a callback function and use `get_response_generator()` simultaneously; this will cause a `RuntimeError`.
+:::
+
+::: danger Lifecycle Management
+- You must call `chat.begin()` to create the internal task before using `async with chat:` or `await chat`.
+- `async with chat:` is the recommended approach for **iterator mode**; it automatically terminates the task upon exit.
+- In **callback mode**, start the task with `chat.begin()` and then directly `await chat` to wait for completion; there is no need to enter the context manager.
+:::
 
 ## When Not to Use This Feature
 
-For common scenarios, please use the standard interaction patterns:
+For normal business development, prefer the standard interaction patterns:
 
-- Streaming response: `async with chat.begin(): async for response in chat.get_response_generator()`
-- Callback-based response: `chat.set_callback_func(callback)` + `await chat.begin()`
-- Full complete response: `async with chat.begin(): response = await chat.full_response()`
+- Streaming response output: `chat.begin(); async with chat: async for response in chat.get_response_generator()`
+- Callback-style response: `chat.set_callback_func(callback); chat.begin(); await chat`
+- Complete one-time response: `chat.begin(); response = await chat.full_response()`
 
-Only use the suspend/resume mechanism for advanced scenarios that require fine external control over internal execution.
+Enable the suspend/resume capability only in advanced scenarios that require fine-grained external control over internal execution flow.

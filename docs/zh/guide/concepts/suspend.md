@@ -74,15 +74,20 @@ graph TD
 
 **比喻**：🛂 海关检查站 - 每件货物都要经过检查，但检查完立即放行，不会长时间滞留
 
+::: warning 回调模式与迭代器互斥
+**重要限制**：`callback` 与 `async for` 迭代消费是**互斥的**。同一个 `ChatObject` 实例只能选择其中一种方式处理响应流。同时设置回调并使用迭代器将导致 `RuntimeError`。
+:::
+
 ## 工作原理
 
 `ChatObject` 的核心生命周期方法（`_entry`、`_run`、`_run_strategy` 等）均被 `@SuspendObjectStream.suspend` 装饰器托管，执行前会自动检测挂起信号。
 
 基础使用步骤：
 
-1. 从 `ChatObject` 执行上下文**外部**，单独异步任务中调用 `await chat.wait_to_suspend(timeout)` 监听挂起状态
-2. `ChatObject` 运行到下一个被 `@SuspendObjectStream.suspend` 装饰的方法时自动暂停
-3. 调用 `chat.resume()` 恢复正常执行流程
+1. 调用 `chat.begin()` 启动 ChatObject 内部任务
+2. 从 ChatObject 执行上下文**外部**，单独异步任务中调用 `await chat.wait_to_suspend(timeout)` 监听挂起状态
+3. ChatObject 运行到下一个被 `@SuspendObjectStream.suspend` 装饰的方法时自动暂停
+4. 调用 `chat.resume()` 恢复正常执行流程
 
 ## 使用 Tag 标记断点
 
@@ -115,6 +120,7 @@ async def external_controller(chat_obj):
 
     chat_obj.resume()
 
+chat.begin()
 # 启动控制器任务
 controller_task = asyncio.create_task(external_controller(chat))
 ```
@@ -208,7 +214,8 @@ async def main():
 
     try:
         await custom_processing_step(chat)
-        async with chat.begin():
+        chat.begin()
+        async with chat:
             async for response in chat.get_response_generator():
                 content = response if isinstance(response, str) else response.get_content()
                 print(content, end="", flush=True)
@@ -228,7 +235,7 @@ asyncio.run(main())
 
 ## 组合使用两种中断机制
 
-两种中断机制是正交的，可以组合使用：
+两种中断机制是正交的，可以组合使用。但由于**回调与迭代器互斥**，你需要根据所选响应消费方式调整组合策略。
 
 ```mermaid
 sequenceDiagram
@@ -249,42 +256,69 @@ sequenceDiagram
     end
 ```
 
-组合使用的示例：
+### 回调模式 + 外断点
+
+当使用回调处理响应时，外断点仍然可以正常工作。**注意**：必须先调用 `chat.begin()` 启动任务，然后通过 `await chat` 等待任务结束。
 
 ```python
-# 场景：既要监控数据，又要在关键点暂停
+# 场景：既要监控数据，又要在关键点暂停（回调模式）
 
 async def monitor(response):
     """内断点：实时监控每个响应"""
     if "error" in str(response):
         await send_alert(response)
 
-chat.set_callback_func(monitor)  # 设置内断点
-
-# 启动任务
-chat.begin()
+chat.set_callback_func(monitor)  # 设置内断点（回调）
 
 # 外断点：在特定时刻暂停
 async def controller():
     await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
     print("即将调用 LLM，是否继续？")
-    input()  # 用户确认
+    await asyncio.to_thread(input, "按回车继续...")
     chat.resume()
 
+# 启动任务和控制任务
+chat.begin()
 asyncio.create_task(controller())
 
-# 流式消费
-async for chunk in chat.get_response_generator():
-    print(chunk, end="")
+# 等待 ChatObject 执行完成
+await chat
+# 或者获取完整响应
+# final_response = await chat.full_response()
 ```
 
-**执行流程**：
+### 迭代器模式 + 外断点
 
-1. 每个响应块都会触发 `monitor()`（内断点）
-2. 到达 PRECOMPLE 时暂停，等待用户确认（外断点）
-3. 用户确认后继续，后续的响应块继续触发 `monitor()`
+如果不使用回调，仅使用迭代器消费，外断点同样有效。推荐使用 `async with chat:` 上下文管理器。
+
+```python
+# 场景：流式输出同时支持挂起（迭代器模式）
+
+# 外断点控制任务
+async def controller():
+    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    print("\n[系统] 即将调用 LLM，暂停中...")
+    input("按回车继续...")
+    chat.resume()
+
+chat.begin()
+async with chat:
+    asyncio.create_task(controller())
+    async for chunk in chat.get_response_generator():
+        content = chunk if isinstance(chunk, str) else chunk.get_content()
+        print(content, end="", flush=True)
+    # 迭代器自然耗尽后，上下文退出
+```
+
+::: tip 如何选择？
+- 需要逐块处理但不想手动写循环？使用**回调模式**，通过 `chat.begin()` 启动后 `await chat` 等待完成。
+- 需要流式输出到终端或 WebSocket？使用**迭代器模式**，结合 `async with chat:` 上下文管理器。
+- 无论哪种模式，外断点（`wait_to_suspend`）都能正常生效。
+:::
 
 ## 使用模式示例
+
+### 迭代器模式（最常用）
 
 ```python
 import asyncio
@@ -308,7 +342,8 @@ async def main():
         chat_obj.resume()
         print("聊天已恢复。")
 
-    async with chat.begin():
+    chat.begin()
+    async with chat:
         controller_task = asyncio.create_task(external_controller(chat))
         try:
             async for response in chat.get_response_generator():
@@ -320,6 +355,26 @@ async def main():
 asyncio.run(main())
 ```
 
+### 回调模式
+
+```python
+async def handle_chunk(chunk):
+    print(chunk, end="", flush=True)
+
+chat.set_callback_func(handle_chunk)
+
+async def external_controller(chat_obj):
+    await chat_obj.wait_to_suspend(timeout=5.0)
+    print("\n[挂起]")
+    await asyncio.sleep(1)
+    chat_obj.resume()
+
+chat.begin()
+asyncio.create_task(external_controller(chat))
+# 等待流程自然完成
+await chat
+```
+
 ## 重要使用说明
 
 - 控制接口必须在 `ChatObject` 主异步上下文之外、独立并发任务中调用
@@ -328,12 +383,22 @@ asyncio.run(main())
 - 属于底层能力，面向框架扩展、高级调试与定制流程编排场景
 - **继承关系**：由于 `ChatObject` 继承自 `SuspendObjectStream`，所有挂起/恢复方法都可在 ChatObject 实例上使用
 
+::: warning 回调与迭代器互斥
+请不要同时设置回调函数并使用 `get_response_generator()`，这会导致 `RuntimeError`。
+:::
+
+::: danger 生命周期管理
+- 必须先调用 `chat.begin()` 创建内部任务，然后才能使用 `async with chat:` 或 `await chat`。
+- `async with chat:` 是**迭代器模式**的推荐写法，它会在退出时自动终止任务。
+- **回调模式**下，请使用 `chat.begin()` 启动任务后直接 `await chat` 等待完成，无需进入上下文管理器。
+:::
+
 ## 何时不使用此功能
 
 普通业务开发请优先使用标准交互模式：
 
-- 流式响应输出：`async with chat.begin(): async for response in chat.get_response_generator()`
-- 回调式响应：`chat.set_callback_func(callback)` + `await chat.begin()`
-- 完整一次性应答：`async with chat.begin(): response = await chat.full_response()`
+- 流式响应输出：`chat.begin(); async with chat: async for response in chat.get_response_generator()`
+- 回调式响应：`chat.set_callback_func(callback); chat.begin(); await chat`
+- 完整一次性应答：`chat.begin(); response = await chat.full_response()`
 
 仅在需要外部精细控制内部执行流程的高阶场景，才启用挂起/恢复能力。
