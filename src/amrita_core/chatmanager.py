@@ -527,8 +527,12 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         def inner(*args, **kwargs):
             self: ChatObject = args[0]  # This is Self
             self.last_call = datetime.now(utc)
+            pev = self.now_calling
             self.now_calling = func.__name__
-            return func(*args, **kwargs)
+            try:
+              return func(*args, **kwargs)
+            finally:
+              self.now_calling = pev
 
         return inner
 
