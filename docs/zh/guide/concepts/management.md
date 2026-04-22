@@ -180,7 +180,7 @@ AmritaCore通过适配器系统提供内置的嵌入向量生成功能。
 
 ### 适配器类型
 
-AmritaCore适配器通过 `ADAPTER_TYPE` 类型定义支持多种类型：
+AmritaCore适配器通过 `ADAPTER_TYPE` 字面量类型别名（定义为 `Literal["text-gen", "embed"]`）支持多种类型：
 
 - **`"text-gen"`**: 传统的文本生成/完成（默认）
 - **`"embed"`**: 嵌入向量生成
@@ -188,7 +188,7 @@ AmritaCore适配器通过 `ADAPTER_TYPE` 类型定义支持多种类型：
 
 ### 嵌入适配器实现
 
-要创建嵌入适配器，需要继承 `ModelAdapter` 并实现所需方法：
+要创建嵌入适配器，需要继承 [`ModelAdapter`](../api-reference/classes/ModelAdapter.md) 并实现所需方法：
 
 ```python
 from collections.abc import Iterable, Sequence
@@ -221,9 +221,10 @@ class MyEmbeddingAdapter(ModelAdapter):
 ```
 
 **注意**：
+
 - `get_adapter_protocol()` 是必须实现的抽象方法，返回适配器协议名称
 - `get_type()` 返回适配器类型，默认为 `"text-gen"`，嵌入适配器应返回 `"embed"`
-- `call_embed()` 方法接收文本列表，返回 `EmbeddingChunk` 序列
+- `call_embed()` 方法接收文本列表，返回 [`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) 序列
 
 ### 使用嵌入适配器
 
@@ -252,7 +253,7 @@ embeddings = await call_completion(preset=preset, messages=texts)
 
 ### EmbeddingChunk 结构
 
-`EmbeddingChunk` 类表示单个嵌入结果：
+[`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) 类表示单个嵌入结果：
 
 ```python
 from amrita_core.types import EmbeddingChunk

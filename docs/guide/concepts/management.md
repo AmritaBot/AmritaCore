@@ -181,7 +181,7 @@ AmritaCore provides built-in support for embedding generation through the adapte
 
 ### Adapter Types
 
-AmritaCore adapters support multiple types through the `ADAPTER_TYPE` type definition:
+AmritaCore adapters support multiple types through the `ADAPTER_TYPE` literal type alias (defined as `Literal["text-gen", "embed"]`):
 
 - **`"text-gen"`**: Traditional text generation/completion (default)
 - **`"embed"`**: Embedding vector generation
@@ -189,7 +189,7 @@ AmritaCore adapters support multiple types through the `ADAPTER_TYPE` type defin
 
 ### Embedding Adapter Implementation
 
-To create an embedding adapter, extend `ModelAdapter` and implement the required methods:
+To create an embedding adapter, extend [`ModelAdapter`](../api-reference/classes/ModelAdapter.md) and implement the required methods:
 
 ```python
 from collections.abc import Iterable, Sequence
@@ -222,9 +222,10 @@ class MyEmbeddingAdapter(ModelAdapter):
 ```
 
 **Note**:
+
 - `get_adapter_protocol()` is a required abstract method that returns the adapter protocol name
 - `get_type()` returns the adapter type, defaulting to `"text-gen"`, embedding adapters should return `"embed"`
-- `call_embed()` method receives a list of texts and returns a sequence of `EmbeddingChunk` objects
+- `call_embed()` method receives a list of texts and returns a sequence of [`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) objects
 
 ### Using Embedding Adapters
 
@@ -253,7 +254,7 @@ embeddings = await call_completion(preset=preset, messages=texts)
 
 ### EmbeddingChunk Structure
 
-The `EmbeddingChunk` class represents a single embedding result:
+The [`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) class represents a single embedding result:
 
 ```python
 from amrita_core.types import EmbeddingChunk

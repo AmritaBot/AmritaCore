@@ -235,6 +235,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ModelPreset",
               },
               {
+                text: "ModelAdapter",
+                link: "/guide/api-reference/classes/ModelAdapter",
+              },
+              {
                 text: "MCPClient",
                 link: "/guide/api-reference/classes/MCPClient",
               },
@@ -536,6 +540,10 @@ export default withMermaid({
               {
                 text: "ModelPreset",
                 link: "/zh/guide/api-reference/classes/ModelPreset",
+              },
+              {
+                text: "ModelAdapter",
+                link: "/zh/guide/api-reference/classes/ModelAdapter",
               },
               {
                 text: "MCPClient",

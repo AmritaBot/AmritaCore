@@ -51,5 +51,5 @@ for chunk in embeddings:
 ## 相关组件
 
 - [`ModelAdapter.call_embed()`](ModelAdapter.md#call_embed): 返回 `EmbeddingChunk` 实例的方法
-- [`ADAPTER_TYPE`](ADAPTER_TYPE.md): 包含 `"embed"` 类型的枚举
+- [`ModelAdapter`](ModelAdapter.md): 适配器基类，使用 `ADAPTER_TYPE` 字面量类型
 - [`call_completion()`](../functions/call_completion.md): 处理嵌入适配器调用的函数

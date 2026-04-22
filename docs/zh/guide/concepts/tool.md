@@ -231,4 +231,3 @@ registered_tools = manager.get_tools()
 # 当您导入包含 @on_tools 装饰函数的模块时
 from . import my_tools  # 工具会自动注册
 ```
-
