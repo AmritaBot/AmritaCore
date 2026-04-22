@@ -93,10 +93,7 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             tag (str): Tag for break point.
         """
 
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            return SuspendObjectStream.suspend(func, tag)
-
-        return decorator
+        return lambda func: SuspendObjectStream.suspend(func, tag)
 
     async def _wait_for_continue(self, tag: str | None = None) -> bool:
         """Break point for suspend.

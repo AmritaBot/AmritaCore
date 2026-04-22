@@ -173,3 +173,107 @@ updated_context = chat.data
 ## 3.2.9 会话隔离
 
 此处请见[安全控制](../security-mechanisms.md)第6.3章。
+
+## 3.2.10 嵌入向量支持
+
+AmritaCore通过适配器系统提供内置的嵌入向量生成功能。
+
+### 适配器类型
+
+AmritaCore适配器通过 `ADAPTER_TYPE` 类型定义支持多种类型：
+
+- **`"text-gen"`**: 传统的文本生成/完成（默认）
+- **`"embed"`**: 嵌入向量生成
+- **`"rerank"`**: 重排序功能（计划在未来版本中实现）
+
+### 嵌入适配器实现
+
+要创建嵌入适配器，需要继承 `ModelAdapter` 并实现所需方法：
+
+```python
+from collections.abc import Iterable, Sequence
+from amrita_core.protocol import ModelAdapter
+from amrita_core.types import EmbeddingChunk, ModelPreset
+
+class MyEmbeddingAdapter(ModelAdapter):
+    @staticmethod
+    def get_adapter_protocol() -> str:
+        return "my-embedding-protocol"
+
+    @staticmethod
+    def get_type() -> str:
+        return "embed"
+
+    async def call_embed(self, texts: Iterable[str], **kwargs) -> Sequence[EmbeddingChunk]:
+        """为给定文本生成嵌入向量"""
+        embeddings = []
+        for idx, text in enumerate(texts):
+            # 您的嵌入逻辑在这里
+            embedding_vector = self._generate_embedding(text)
+            embeddings.append(
+                EmbeddingChunk(embedding=embedding_vector, index=idx)
+            )
+        return embeddings
+
+    def _generate_embedding(self, text: str) -> list[float]:
+        # 实现您的嵌入生成逻辑
+        pass
+```
+
+**注意**：
+- `get_adapter_protocol()` 是必须实现的抽象方法，返回适配器协议名称
+- `get_type()` 返回适配器类型，默认为 `"text-gen"`，嵌入适配器应返回 `"embed"`
+- `call_embed()` 方法接收文本列表，返回 `EmbeddingChunk` 序列
+
+### 使用嵌入适配器
+
+嵌入适配器可以通过标准预设系统使用：
+
+```python
+from amrita_core.preset import PresetManager, ModelPreset
+from amrita_core.libchat import call_completion
+
+# 为嵌入适配器创建预设
+preset = ModelPreset(
+    protocol="my-embedding-protocol",
+    model="embedding-model-v1",
+    # ... 其他配置
+)
+
+# 注册预设
+PresetManager().register_preset("embedding-preset", preset)
+
+# 使用嵌入适配器
+texts = ["Hello world", "How are you?"]
+embeddings = await call_completion(preset=preset, messages=texts)
+```
+
+**注意**：`call_completion` 函数会自动检测适配器类型并调用适当的方法（`"text-gen"` 调用 `call_api`，`"embed"` 调用 `call_embed`）。
+
+### EmbeddingChunk 结构
+
+`EmbeddingChunk` 类表示单个嵌入结果：
+
+```python
+from amrita_core.types import EmbeddingChunk
+
+# EmbeddingChunk 包含两个字段：
+# - embedding: Sequence[float] - 作为浮点数序列的嵌入向量
+# - index: int - 文本在输入序列中的原始索引
+```
+
+此结构保持与OpenAI嵌入响应格式的兼容性，同时提供类型安全性。
+
+### 类型安全和验证
+
+AmritaCore包含适配器使用的自动类型验证：
+
+```python
+# 如果适配器不支持 "text-gen"，这将引发 RuntimeError
+response = await call_completion(preset=text_gen_preset, messages=["Hello"])
+
+# 这将与嵌入适配器正常工作
+embeddings = await call_completion(preset=embedding_preset, messages=["Hello"])
+```
+
+框架验证适配器类型是否与预期用途匹配，防止意外误用嵌入适配器进行文本生成，反之亦然。

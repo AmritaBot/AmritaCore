@@ -3,7 +3,7 @@ from __future__ import annotations
 import contextlib
 import uuid
 from dataclasses import dataclass, field
-from typing import TypeVar, overload
+from typing import Any, TypeVar, overload
 
 from typing_extensions import Self
 
@@ -29,6 +29,7 @@ class SessionData:
         presets: Manager for model presets in the session
         mcp: Client manager for MCP (Model Context Protocol) connections
         config: Configuration settings for the session
+        extra: Additional data associated with the session
     """
 
     session_id: str
@@ -37,6 +38,7 @@ class SessionData:
     presets: MultiPresetManager = field(default_factory=MultiPresetManager)
     mcp: ClientManager = field(default_factory=ClientManager)
     config: AmritaConfig = field(default_factory=AmritaConfig)
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 class SessionsManager(ContextThreadsafe):
