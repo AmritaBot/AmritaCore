@@ -267,6 +267,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/SuspendEnum",
               },
               {
+                text: "SuspendObjectStream",
+                link: "/guide/api-reference/classes/SuspendObjectStream",
+              },
+              {
                 text: "EmbeddingChunk",
                 link: "/guide/api-reference/classes/EmbeddingChunk",
               },
@@ -572,6 +576,10 @@ export default withMermaid({
               {
                 text: "SuspendEnum",
                 link: "/zh/guide/api-reference/classes/SuspendEnum",
+              },
+              {
+                text: "SuspendObjectStream",
+                link: "/zh/guide/api-reference/classes/SuspendObjectStream",
               },
               {
                 text: "EmbeddingChunk",

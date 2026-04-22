@@ -44,7 +44,7 @@ class ModelAdapter:
 
 ## 方法
 
-### get_adapter_protocol() _(抽象方法)_
+### get*adapter_protocol() *(抽象方法)\_
 
 获取此适配器的协议标识符。
 

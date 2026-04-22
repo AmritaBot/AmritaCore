@@ -27,6 +27,53 @@ SuspendEnum.COMPLE        # "matcher_call::post_completion" - After model comple
 
 **Recommendation**: Use these standard tags instead of custom string tags for better maintainability and compatibility.
 
+## Architecture Overview
+
+The suspend/resume mechanism operates on two distinct layers within `SuspendObjectStream`:
+
+```mermaid
+graph TD
+    A[Producer: yield_response] --> B{Layer 1: Outer Suspend}
+    B -->|Check wait_to_suspend| C[_wait_for_continue]
+    C -->|If suspended| D[Block until resume]
+    C -->|If not suspended| E{Layer 2: Mode Selection}
+    D --> E
+    E -->|Callback Mode| F[Inner Suspend: Callback]
+    E -->|Queue Mode| G[Queue Buffer]
+    F --> H[Process immediately]
+    G --> I[Buffer for later consumption]
+    H --> J[Consumer]
+    I --> J
+
+    style B fill:#e1f5ff
+    style F fill:#fff4e1
+    style G fill:#f0f0f0
+```
+
+### Two Layers of Interruption
+
+#### 1. Outer Suspend (Control Flow Interruption)
+
+Implemented through the `@SuspendObjectStream.suspend` decorator and `wait_to_suspend()/resume()` methods:
+
+- **External-driven**: Triggered by calling `wait_to_suspend()` from outside
+- **Flow control**: Pauses the entire coroutine execution
+- **Tag filtering**: Supports fine-grained breakpoint selection
+- **Bidirectional communication**: Requires explicit `resume()` to continue
+
+**Analogy**: 🚦 Traffic light - Complete stop, waiting for green light (resume) to proceed
+
+#### 2. Inner Suspend / Callback (Data Flow Interception)
+
+Implemented through the `callback` mechanism:
+
+- **Internal-driven**: Automatically triggered on every `yield_response`
+- **Data interception**: Inserts processing logic in the data transmission path
+- **Real-time response**: No external `resume()` needed, continues automatically
+- **Unidirectional flow**: Data flows through and is processed immediately
+
+**Analogy**: 🛂 Customs checkpoint - Every item is inspected but released immediately after processing
+
 ## How It Works
 
 Core internal methods of `ChatObject` (such as `_entry`, `_run`, `_run_strategy`) are decorated with the `@SuspendObjectStream.suspend` decorator. They automatically check for suspend signals before execution.
@@ -178,6 +225,64 @@ asyncio.run(main())
 - It returns immediately without blocking if no suspend is pending
 - Implemented with async signal scheduling, isolated from main business flow
 - **Tag parameter passing**: Can pass tag parameter when manually calling: `await chat_obj._wait_for_continue("custom_tag")`
+
+## Combining Both Interruption Layers
+
+The two interruption mechanisms are orthogonal and can be combined:
+
+```mermaid
+sequenceDiagram
+    participant P as Producer
+    participant OS as Outer Suspend<br/>(wait_to_suspend)
+    participant IS as Inner Suspend<br/>(Callback)
+    participant C as Consumer
+
+    P->>OS: yield_response(data)
+    OS->>OS: Check if suspended?
+    alt Suspended
+        OS-->>P: Block execution
+        Note over OS: Waiting for resume()
+    else Not Suspended
+        OS->>IS: Pass data
+        IS->>IS: Process callback
+        IS->>C: Deliver result
+    end
+```
+
+Example of combining both mechanisms:
+
+```python
+# Scenario: Monitor data AND pause at critical points
+
+async def monitor(response):
+    """Inner suspend: Real-time monitoring of each response"""
+    if "error" in str(response):
+        await send_alert(response)
+
+chat.set_callback_func(monitor)  # Set inner suspend
+
+# Start task
+chat.begin()
+
+# Outer suspend: Pause at specific moments
+async def controller():
+    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    print("About to call LLM, continue?")
+    input()  # User confirmation
+    chat.resume()
+
+asyncio.create_task(controller())
+
+# Stream consumption
+async for chunk in chat.get_response_generator():
+    print(chunk, end="")
+```
+
+**Execution flow**:
+
+1. Each response chunk triggers `monitor()` (inner suspend)
+2. Pauses at PRECOMPLE, waiting for user confirmation (outer suspend)
+3. After user confirmation, subsequent response chunks continue triggering `monitor()`
 
 ## Standard Usage Example
 
