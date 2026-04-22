@@ -235,6 +235,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ModelPreset",
               },
               {
+                text: "ModelAdapter",
+                link: "/guide/api-reference/classes/ModelAdapter",
+              },
+              {
                 text: "MCPClient",
                 link: "/guide/api-reference/classes/MCPClient",
               },
@@ -261,6 +265,10 @@ export default withMermaid({
               {
                 text: "SuspendEnum",
                 link: "/guide/api-reference/classes/SuspendEnum",
+              },
+              {
+                text: "SuspendObjectStream",
+                link: "/guide/api-reference/classes/SuspendObjectStream",
               },
               {
                 text: "EmbeddingChunk",
@@ -538,6 +546,10 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/ModelPreset",
               },
               {
+                text: "ModelAdapter",
+                link: "/zh/guide/api-reference/classes/ModelAdapter",
+              },
+              {
                 text: "MCPClient",
                 link: "/zh/guide/api-reference/classes/MCPClient",
               },
@@ -564,6 +576,10 @@ export default withMermaid({
               {
                 text: "SuspendEnum",
                 link: "/zh/guide/api-reference/classes/SuspendEnum",
+              },
+              {
+                text: "SuspendObjectStream",
+                link: "/zh/guide/api-reference/classes/SuspendObjectStream",
               },
               {
                 text: "EmbeddingChunk",

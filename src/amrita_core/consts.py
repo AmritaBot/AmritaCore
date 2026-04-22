@@ -1,7 +1,6 @@
 from jinja2 import Template
-from typing_extensions import LiteralString
 
-ABSTRACT_INSTRUCTION: LiteralString = """<SYS>
+ABSTRACT_INSTRUCTION: str = """<SYS>
 You are a professional context summarizer, strictly following user instructions to perform summarization tasks.
 </SYS>
 
@@ -24,7 +23,7 @@ User input → Direct summary output
 </FORMATTING>"""
 
 # train,memory,chatobj(ChatObject),config will be given to Jinja2
-PROMPT_TEMPLATE: LiteralString = """<SCHEMA>
+PROMPT_TEMPLATE: str = """<SCHEMA>
 {% if config.cookie.enable %}
 <HIDDEN>{{ config.cookie.cookie }}</HIDDEN>
 {% endif %}
@@ -44,7 +43,7 @@ Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of 
 
 DEFAULT_TEMPLATE: Template = Template(PROMPT_TEMPLATE)
 
-DEFAULT_INSTRUCTIONS: LiteralString = """## Summary
+DEFAULT_INSTRUCTIONS: str = """## Summary
 
 You are a helpful assistant with two distinct working modes: Information Processing Mode and Daily Conversation Mode. You switch modes based on the agent_stop tool call.
 By default, you start in Daily Conversation Mode. You may enter Information Processing Mode only when a task requires tool use.

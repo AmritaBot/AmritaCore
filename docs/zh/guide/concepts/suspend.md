@@ -27,6 +27,53 @@ SuspendEnum.COMPLE        # "matcher_call::post_completion" - 模型完成后
 
 **推荐**：使用这些标准标签而不是自定义字符串标签，以获得更好的可维护性和兼容性。
 
+## 架构概览
+
+挂起/恢复机制在 `SuspendObjectStream` 内部通过两个不同的层级运作：
+
+```mermaid
+graph TD
+    A[生产者: yield_response] --> B{第一层: 外断点}
+    B -->|检查 wait_to_suspend| C[_wait_for_continue]
+    C -->|如果挂起| D[阻塞直到 resume]
+    C -->|如果未挂起| E{第二层: 模式选择}
+    D --> E
+    E -->|回调模式| F[内断点: 回调函数]
+    E -->|队列模式| G[队列缓冲区]
+    F --> H[立即处理]
+    G --> I[缓冲供后续消费]
+    H --> J[消费者]
+    I --> J
+
+    style B fill:#e1f5ff
+    style F fill:#fff4e1
+    style G fill:#f0f0f0
+```
+
+### 两层中断机制
+
+#### 1. 外断点（Outer Suspend）- 控制流中断
+
+通过 `@SuspendObjectStream.suspend` 装饰器和 `wait_to_suspend()/resume()` 方法实现：
+
+- **外部驱动**：由外部调用 `wait_to_suspend()` 触发
+- **流程控制**：暂停整个协程的执行
+- **标签过滤**：支持细粒度的断点选择
+- **双向通信**：需要显式调用 `resume()` 才能继续
+
+**比喻**：🚦 交通信号灯 - 完全停止，等待绿灯（resume）才能继续前行
+
+#### 2. 内断点（Inner Suspend / Callback）- 数据流拦截
+
+通过 `callback` 机制实现：
+
+- **内部驱动**：每次 `yield_response` 自动触发
+- **数据拦截**：在数据传输路径上插入处理逻辑
+- **实时响应**：无需外部 `resume()`，自动继续
+- **单向流动**：数据流过即处理，不阻塞生产
+
+**比喻**：🛂 海关检查站 - 每件货物都要经过检查，但检查完立即放行，不会长时间滞留
+
 ## 工作原理
 
 `ChatObject` 的核心生命周期方法（`_entry`、`_run`、`_run_strategy` 等）均被 `@SuspendObjectStream.suspend` 装饰器托管，执行前会自动检测挂起信号。
@@ -178,6 +225,64 @@ asyncio.run(main())
 - 无待处理挂起请求时，调用会立即返回，不阻塞流程
 - 基于异步信号实现，独立于业务执行流
 - **tag 参数传递**：手动调用时可传入 tag 参数 `await chat_obj._wait_for_continue(tag="custom_tag")`
+
+## 组合使用两种中断机制
+
+两种中断机制是正交的，可以组合使用：
+
+```mermaid
+sequenceDiagram
+    participant P as 生产者
+    participant OS as 外断点<br/>(wait_to_suspend)
+    participant IS as 内断点<br/>(Callback)
+    participant C as 消费者
+
+    P->>OS: yield_response(data)
+    OS->>OS: 检查是否挂起?
+    alt 已挂起
+        OS-->>P: 阻塞执行
+        Note over OS: 等待 resume()
+    else 未挂起
+        OS->>IS: 传递数据
+        IS->>IS: 执行回调
+        IS->>C: 交付结果
+    end
+```
+
+组合使用的示例：
+
+```python
+# 场景：既要监控数据，又要在关键点暂停
+
+async def monitor(response):
+    """内断点：实时监控每个响应"""
+    if "error" in str(response):
+        await send_alert(response)
+
+chat.set_callback_func(monitor)  # 设置内断点
+
+# 启动任务
+chat.begin()
+
+# 外断点：在特定时刻暂停
+async def controller():
+    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    print("即将调用 LLM，是否继续？")
+    input()  # 用户确认
+    chat.resume()
+
+asyncio.create_task(controller())
+
+# 流式消费
+async for chunk in chat.get_response_generator():
+    print(chunk, end="")
+```
+
+**执行流程**：
+
+1. 每个响应块都会触发 `monitor()`（内断点）
+2. 到达 PRECOMPLE 时暂停，等待用户确认（外断点）
+3. 用户确认后继续，后续的响应块继续触发 `monitor()`
 
 ## 使用模式示例
 

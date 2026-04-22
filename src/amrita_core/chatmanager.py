@@ -415,6 +415,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
     context_wrap: SendMessageWrap  # (lateinit) Context message
     train: Message[str]  # System message
     last_call: datetime  # Last internal function call time
+    now_calling: str | None = None  # currently calling function name
     session_id: str  # Session ID
     response: UniResponse[str, None]  # (lateinit) Response
     extra_usage: UniResponseUsage[int]
@@ -526,7 +527,12 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         def inner(*args, **kwargs):
             self: ChatObject = args[0]  # This is Self
             self.last_call = datetime.now(utc)
-            return func(*args, **kwargs)
+            pev = self.now_calling
+            self.now_calling = func.__name__
+            try:
+              return func(*args, **kwargs)
+            finally:
+              self.now_calling = pev
 
         return inner
 
