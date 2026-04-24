@@ -530,9 +530,9 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             pev = self.now_calling
             self.now_calling = func.__name__
             try:
-              return func(*args, **kwargs)
+                return func(*args, **kwargs)
             finally:
-              self.now_calling = pev
+                self.now_calling = pev
 
         return inner
 

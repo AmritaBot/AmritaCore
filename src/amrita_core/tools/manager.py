@@ -1,18 +1,20 @@
 import asyncio
 import inspect
+import json
 import re
+import types
 import typing
 from asyncio import iscoroutinefunction
 from collections.abc import Awaitable, Callable
 from functools import wraps
 from typing import Any, get_args, get_origin, get_type_hints, overload
 
+from pydantic import BaseModel
 from typing_extensions import Self
 
 from amrita_core.threadsafe import ContextThreadsafe
 
 from .models import (
-    JSON_OBJECT_TYPE,
     FunctionDefinitionSchema,
     FunctionParametersSchema,
     FunctionPropertySchema,
@@ -204,10 +206,164 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
     return func_desc, param_descriptions
 
 
+def _is_container_type(type_hint: Any) -> bool:
+    """Check if a type hint is a container type (List, Dict)"""
+    if hasattr(type_hint, "__origin__"):
+        origin = get_origin(type_hint)
+        return origin in (list, dict)
+    return False
+
+
+def _is_pydantic_model(type_hint: Any) -> bool:
+    """Check if a type hint is a Pydantic model"""
+    try:
+        return isinstance(type_hint, type) and issubclass(type_hint, BaseModel)
+    except (ImportError, TypeError):
+        return False
+
+
+def _convert_pydantic_model_to_property_schema(
+    model_class: type[BaseModel], globalns: dict[str, Any]
+) -> FunctionPropertySchema:
+    """Convert a Pydantic model to FunctionPropertySchema recursively"""
+    if not _is_pydantic_model(model_class):
+        raise ValueError(f"Expected Pydantic BaseModel, got {model_class.__name__}")
+
+    # Get field definitions from the model
+    properties = {}
+    required_fields = []
+
+    for field_name, field_info in model_class.__pydantic_fields__.items():
+        field_type = field_info.annotation
+        field_desc = field_info.description or f"Field {field_name}"
+
+        # Check for Any or object types
+        if field_type is Any or field_type is object:
+            raise ValueError(
+                f"Field '{field_name}' in Pydantic model '{model_class.__name__}' uses Any or object type, which is not allowed"
+            )
+
+        # Convert field type to FunctionPropertySchema
+        field_schema = _python_type_to_property_schema(field_type, globalns, field_desc)
+        properties[field_name] = field_schema
+
+        # Check if field is required
+        if field_info.is_required():
+            required_fields.append(field_name)
+
+    return FunctionPropertySchema(
+        type="object",
+        description=f"Pydantic model {model_class.__name__}",
+        properties=properties,
+        required=required_fields,
+    )
+
+
+def _python_type_to_property_schema(
+    python_type: Any, globalns: dict[str, Any], description: str = "No description"
+) -> FunctionPropertySchema:
+    """Convert Python type to FunctionPropertySchema with full JSON Schema support"""
+    # Handle basic types
+    if python_type is str:
+        return FunctionPropertySchema(type="string", description=description)
+    elif python_type is int:
+        return FunctionPropertySchema(type="integer", description=description)
+    elif python_type is float:
+        return FunctionPropertySchema(type="number", description=description)
+    elif python_type is bool:
+        return FunctionPropertySchema(type="boolean", description=description)
+    elif python_type is Any or python_type is object:
+        raise ValueError(f"Type {python_type} is not allowed in tool parameters")
+
+    # Handle Pydantic models
+    if _is_pydantic_model(python_type):
+        return _convert_pydantic_model_to_property_schema(python_type, globalns)
+
+    # Handle generic types (List, Dict, Union, etc.)
+    origin = get_origin(python_type) if python_type not in (list, dict) else python_type
+
+    # Handle bare types like 'list' and 'dict'
+    if python_type is list or python_type is dict:
+        if python_type is list:
+            raise ValueError("List type must have a specified element type")
+        elif python_type is dict:
+            raise ValueError("Dict type must have a specified element type")
+
+    if origin is not None:
+        args = get_args(python_type)
+
+        if origin is list:
+            if not args:
+                raise ValueError("List type must have a specified element type")
+            item_type = args[0]
+            if item_type is Any or item_type is object:
+                raise ValueError("List elements cannot be Any or object type")
+
+            # Check if item_type is itself a container (nested containers not allowed)
+            if _is_container_type(item_type):
+                raise ValueError(
+                    "Nested containers are not allowed. Use Pydantic models for complex nested structures."
+                )
+
+            # Recursively convert the item type
+            item_schema = _python_type_to_property_schema(
+                item_type, globalns, "List item"
+            )
+            return FunctionPropertySchema(
+                type="array", description=description, items=item_schema
+            )
+
+        elif origin is dict:
+            # Dict types are not supported in tool parameters
+            # Users should use Pydantic models instead for object structures
+            raise ValueError(
+                "Dict types are not supported in tool parameters. Use Pydantic models to define object structures."
+            )
+
+        elif origin is typing.Union or origin is types.UnionType:
+            # Handle both typing.Union and Python 3.10+ UnionType (str | int)
+            # For both cases, get_args returns the type arguments
+            args = get_args(python_type)
+            non_none_types = [arg for arg in args if arg is not type(None)]
+
+            if len(non_none_types) == 1:
+                # This is Optional[T]
+                main_type = non_none_types[0]
+                if main_type is Any or main_type is object:
+                    raise ValueError("Optional type cannot contain Any or object")
+                schema = _python_type_to_property_schema(
+                    main_type, globalns, description
+                )
+                # For Optional, we don't set nullable in JSON Schema
+                # The caller should handle required vs optional at the parameter level
+                return schema
+            else:
+                # Reject Union of multiple types (non-Optional unions)
+                raise ValueError(
+                    f"Union types with multiple non-None types are not supported: {python_type}"
+                )
+
+    # Handle other types by falling back to string
+    return FunctionPropertySchema(type="string", description=description)
+
+
 def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
     """
     A decorator that creates a ToolData object based on the function signature and annotations.
     It automatically generates parameter descriptions and metadata.
+
+    Supported Types:
+    - Basic types: str, int, float, bool
+    - Pydantic BaseModel classes (for complex object structures)
+    - List[T] where T is a supported type (single-level containers only)
+    - Optional[T] (equivalent to Union[T, None])
+
+    Unsupported Types (will raise ValueError):
+    - Dict types (use Pydantic models instead for object structures)
+    - Nested containers (e.g., List[List[str]], Dict[str, List[int]])
+    - Union types with multiple non-None types (e.g., Union[str, int])
+    - Any or object types
+    - Custom types not covered above
 
     Example:
 
@@ -228,50 +384,38 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
     """
     signature: inspect.Signature = inspect.signature(func)
     func_desc, param_descriptions = _parse_google_docstring(func.__doc__)
-    type_hints: dict[str, Any] = get_type_hints(
-        func, globalns=globals(), localns=locals()
-    )
-    properties = {}
-    required = []
+    # Use globals() as the namespace for type resolution
+    globalns: dict[str, Any] = getattr(func, "__globals__", globals())
+    type_hints: dict[str, Any] = get_type_hints(func, globalns=globalns, localns={})
+    properties: dict[str, Any] = {}
+    required: list[str] = []
 
     for param_name, param in signature.parameters.items():
         if param_name == "self":
             continue
         param_type = type_hints.get(param_name)
-        json_type: JSON_OBJECT_TYPE = "string"
-        if param_type:
-            if hasattr(param_type, "__origin__"):
-                origin = get_origin(param_type)
-                if origin is not None:
-                    if issubclass(origin, list):
-                        json_type = "array"
-                    elif issubclass(origin, dict):
-                        json_type = "object"
-                    elif origin is typing.Union:
-                        args = get_args(param_type)
-                        if type(None) in args:
-                            pass
-                        else:
-                            non_none_types = [
-                                arg for arg in args if arg is not type(None)
-                            ]
-                            if non_none_types:
-                                param_type = non_none_types[0]
-                                json_type = _python_type_to_json_type(param_type)
-                else:
-                    json_type = _python_type_to_json_type(param_type)
-            else:
-                json_type = _python_type_to_json_type(param_type)
         param_desc = param_descriptions.get(param_name, f"Parameter {param_name}")
+
+        if param_type:
+            # Check for Any or object types at the top level
+            if param_type is Any or param_type is object:
+                raise ValueError(
+                    f"Parameter '{param_name}' uses '{param_type.__name__}' type, which is not allowed"
+                )
+            property_schema = _python_type_to_property_schema(
+                param_type, globalns, param_desc
+            )
+        else:
+            raise RuntimeError("Function parameter with not type hint is not allowed.")
+
         is_required = param.default == inspect.Parameter.empty
         if is_required:
             required.append(param_name)
-        property_schema = FunctionPropertySchema(type=json_type, description=param_desc)
 
         properties[param_name] = property_schema
 
     parameters_schema = FunctionParametersSchema(
-        type="object", properties=properties if properties else None, required=required
+        type="object", properties=properties, required=required
     )
 
     function_def = FunctionDefinitionSchema(
@@ -291,27 +435,19 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
         )
 
         # Convert result to string as expected by the schema
-        return str(result)
+        return (
+            json.dumps(result)
+            if isinstance(
+                result,
+                (
+                    list,
+                    dict,
+                ),
+            )
+            else str(result)
+        )
 
     return tool_wrapper
-
-
-def _python_type_to_json_type(python_type: type[Any]) -> JSON_OBJECT_TYPE:
-    """Convert Python type to JSON schema type."""
-    if python_type is str:
-        return "string"
-    elif python_type is int:
-        return "integer"
-    elif python_type is float:
-        return "number"
-    elif python_type is bool:
-        return "boolean"
-    elif python_type is list:
-        return "array"
-    elif python_type is dict:
-        return "object"
-    else:
-        return "string"
 
 
 def on_tools(
