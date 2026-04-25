@@ -174,8 +174,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         then: Callable[
             [
                 Self,
-                ToolCall,  # trigger_response
-                UniResponse[str, None],  # tool_response
+                ToolCall,
+                UniResponse[str, None],
             ],
             Awaitable[Any],
         ],
@@ -303,21 +303,16 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         pass
 
     @abstractmethod
-    async def _append_tool_result_to_context(
-        self,
-        tool_call: ToolCall,
-        func_response: str,
-        response_msg: UniResponse[None, list[ToolCall] | None],
+    async def _append_reasoning(
+        self, tool_call: ToolCall, reasoning_content: UniResponse[str, None]
     ):
-        """Append tool result to context (strategy-specific).
+        """Append reasoning content to context (strategy-specific).
 
-        Subclasses must implement this to define how tool results are added to context.
-        Subclasses should use self.ctx.message to access the message list.
+        Subclasses must implement this to define how reasoning results are added to context.
 
         Args:
-            tool_call: The tool call object
-            func_response: The function execution result
-            response_msg: The original response message
+            tool_call: The tool call object containing the reasoning request
+            reasoning_content: The response containing the generated reasoning content
         """
         ...
 
@@ -453,15 +448,21 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         ...
 
     @abstractmethod
-    async def _append_reasoning(
-        self, tool_call: ToolCall, reasoning_content: UniResponse[str, None]
+    async def _append_tool_result_to_context(
+        self,
+        tool_call: ToolCall,
+        func_response: str,
+        response_msg: UniResponse[None, list[ToolCall] | None],
     ):
-        """Append reasoning content to context (strategy-specific).
+        """Append tool result to context (strategy-specific).
 
-        Subclasses must implement this to define how reasoning results are added to context.
+        Subclasses must implement this to define how tool results are added to context.
+        Subclasses should use self.ctx.message to access the message list.
 
         Args:
-            response: The response from tools_caller containing reasoning tool calls
+            tool_call: The tool call object
+            func_response: The function execution result
+            response_msg: The original response message
         """
         ...
 
@@ -942,4 +943,11 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
 
 AmritaAgentStrategy = ReActAgentStrategy  # Alias for backward compatibility
 
-__all__ = ["PROCESS_MESSAGE"]  # backward compatibility
+__all__ = [
+    "PROCESS_MESSAGE",
+    "AmritaAgentStrategy",
+    "BaseReActAgentStrategy",
+    "HybridReActAgentStrategy",
+    "NoActionAgentStrategy",
+    "ReActAgentStrategy",
+]  # backward compatibility

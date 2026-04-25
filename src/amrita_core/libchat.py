@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import AsyncGenerator, Callable, Generator, Sequence
+from collections.abc import AsyncGenerator, Callable, Generator, Iterable, Sequence
 from io import StringIO
 
 from pydantic import ValidationError
@@ -22,6 +22,7 @@ from .tools.models import ToolChoice
 from .types import (
     CONTENT_LIST_TYPE,
     CONTENT_LIST_TYPE_ITEM,
+    EmbeddingChunk,
     Message,
     ModelPreset,
     ToolCall,
@@ -157,10 +158,8 @@ def _validate_msg_list(
 
 async def _call_with_reflection(
     preset: ModelPreset,
-    call_func: typing.Callable[..., typing.Awaitable[T]],
+    call_func: typing.Callable[[ModelAdapter], typing.Awaitable[T]],
     config: AmritaConfig,
-    *args,
-    **kwargs,
 ) -> T:
     """Internal helper to call an adapter function with reflection and logging.
 
@@ -168,8 +167,6 @@ async def _call_with_reflection(
         preset: Model preset to use for the call
         call_func: Async function to call on the adapter
         config: Configuration to pass to the adapter
-        *args: Arguments to pass to the call function
-        **kwargs: Keyword arguments to pass to the call function
 
     Returns:
         Result of the call function
@@ -195,7 +192,7 @@ async def _call_with_reflection(
     debug_log(f"API URL: {preset.base_url}")
     debug_log(f"Model: {preset.model}")
     adapter = adapter_class(preset, config)
-    return await call_func(adapter, *args, **kwargs)
+    return await call_func(adapter)
 
 
 async def tools_caller(
@@ -221,15 +218,14 @@ async def tools_caller(
 
     async def _call_tools(
         adapter: ModelAdapter,
-        messages: CONTENT_LIST_TYPE,
-        tools,
-        tool_choice,
     ):
         return await adapter.call_tools(messages, tools, tool_choice)
 
     preset = preset or PresetManager().get_default_preset()
     return await _call_with_reflection(
-        preset, _call_tools, config, messages, tools, tool_choice
+        preset,
+        _call_tools,
+        config,
     )
 
 
@@ -237,6 +233,7 @@ async def call_completion(
     messages: CONTENT_LIST_TYPE,
     preset: ModelPreset | None = None,
     config: AmritaConfig | None = None,
+    **kwargs,
 ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
     """Get chat response from the model.
 
@@ -253,14 +250,14 @@ async def call_completion(
     config = config or get_config()
 
     async def _call_api(
-        adapter: ModelAdapter, messages: CONTENT_LIST_TYPE
+        adapter: ModelAdapter,
     ) -> Callable[
         [], AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any]
     ]:
-        return lambda: adapter.call_api([(i.model_dump()) for i in messages])
+        return lambda: adapter.call_api([(i.model_dump()) for i in messages], **kwargs)
 
     # Call adapter to get chat response
-    response = await _call_with_reflection(preset, _call_api, config, messages)
+    response = await _call_with_reflection(preset, _call_api, config)
     is_thinking = False
     async for resp in response():
         if preset.config.cot_model:
@@ -303,3 +300,23 @@ async def get_last_response(
     if resp is None:
         raise RuntimeError("No response found in generator.")
     return resp
+
+
+async def call_embedding(
+    text: Iterable[str],
+    preset: ModelPreset,
+    config: AmritaConfig | None = None,
+    **kwargs,
+) -> Sequence[EmbeddingChunk]:
+    config = config or get_config()
+
+    async def _call_embed(
+        adapter: ModelAdapter,
+    ) -> Sequence[EmbeddingChunk]:
+        return await adapter.call_embed(text, **kwargs)
+
+    return await _call_with_reflection(
+        preset,
+        _call_embed,
+        config,
+    )

@@ -32,11 +32,6 @@ MCP_SERVER_SCRIPT_TYPE = (
     str | Path  # TODO: Support all types of scripts
 )
 
-
-class NOT_GIVEN:
-    pass
-
-
 class MCPClient:
     """Reusable MCP Client"""
 
