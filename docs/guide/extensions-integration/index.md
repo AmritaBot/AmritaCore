@@ -23,9 +23,13 @@ def add(a: int, b: int) -> int:
     return a + b
 ```
 
-This tool wll be automatically registered and available to the agent.
+This tool will be automatically registered and available to the agent.
 
-In the `__doc__` block(Always is `"""` block) of the tool, you can add a description and parameters for the tool as Google's format. The parameters will be used to describe the paramenters for LLM when the tool is called.
+In the `__doc__` block(Always is `"""` block) of the tool, you can add a description and parameters for the tool as Google's format. The parameters will be used to describe the parameters for LLM when the tool is called.
+
+**Registration Scope**: Tools registered with `@simple_tool` are added to the global container during module loading and are available to all sessions.
+
+**Supported Types**: The `@simple_tool` decorator now supports rich type annotations including Pydantic models, List[T], and Optional[T]. See the [Tool System](../concepts/tool.md) documentation for complete type support details.
 
 ### 5.1.2 Tool System Extensions
 
@@ -79,6 +83,8 @@ async def calculate_math(data: dict) -> str:
         return "0.0"
 ```
 
+**Registration Scope**: Like `@simple_tool`, the `@on_tools` decorator registers tools to the global container during module loading.
+
 ### Enhanced Validation Features
 
 `FunctionPropertySchema` supports comprehensive JSON Schema validation with type-specific constraints:
@@ -88,9 +94,14 @@ async def calculate_math(data: dict) -> str:
 - **Array Constraints**: `items`, `minItems`, `maxItems`, `uniqueItems`
 - **Object Constraints**: `properties`, `required`, `additionalProperties`
 - **Special Values**: `enum`, `const`, `default`
-- **Union Types**: `type` can be a list of allowed types
+- **Union Types**: `type` can be a list of allowed types (only available with manual schema definition, not through `@simple_tool`)
 
 These constraints are automatically validated when the LLM generates tool calls, ensuring that only valid parameter values are passed to your tool functions.
+
+> **Note on Registration Methods**:
+>
+> - **Decorators** (`@simple_tool`, `@on_tools`): Register to global container at module load time, available to all sessions
+> - **Direct Manager Operations**: Allow session-specific tool management at runtime using `ToolsManager` or `MultiToolsManager` instances
 
 ### 5.1.3 Advanced Tool Patterns
 

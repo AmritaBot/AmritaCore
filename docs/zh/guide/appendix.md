@@ -85,6 +85,7 @@ AI 系统保留和访问先前交互信息的机制。AmritaCore 的记忆系统
 - **GitHub 讨论**：使用 GitHub 仓库中的讨论标签页
 - **Discord 服务器**：加入我们的社区聊天（在仓库中有链接）
 - **Stack Overflow**：将问题标记为 "amrita-core"
+- **QQ 群**：加入我们的 QQ 群（在仓库中有链接）
 
 ### 9.3.2 问题提交
 

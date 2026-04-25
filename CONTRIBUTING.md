@@ -103,14 +103,17 @@ When contributing code that introduces new functionality or modifies existing fu
 Before submitting your PR, ensure all tests pass:
 
 ```bash
-# Run all tests
-python -m pytest tests/
+# Run all tests (use python3 as specified in project configuration)
+python3 -m pytest tests/
 
 # Run tests with coverage
-python -m pytest tests/ --cov=amrita_core
+python3 -m pytest tests/ --cov=amrita_core
 
 # Run specific test file
-python -m pytest tests/test_specific_module.py
+python3 -m pytest tests/test_specific_module.py
+
+# Or use the provided script
+bash scripts/run_test.sh
 ```
 
 ## Development Process
@@ -123,11 +126,34 @@ python -m pytest tests/test_specific_module.py
 - Use meaningful variable and function names
 - Use ruff for code formatting
 
+### Available Development Scripts
+
+The project provides several helper scripts in the `scripts/` directory:
+
+- **`format.sh`**: Format Python code using ruff (`--check` for dry-run)
+- **`lint.sh`**: Lint Python code using ruff (`--fix` to auto-fix issues)
+- **`typecheck.sh`**: Run type checking
+- **`run_test.sh`**: Run all tests
+- **`docs-lint.sh`**: Lint documentation files using Prettier (`--fix` to auto-fix)
+- **`docs-dev.sh`**: Start documentation development server
+- **`docs-build.sh`**: Build documentation
+- **`clean.sh`**: Clean build artifacts and caches
+- **`release.sh`**: Prepare release
+- **`init_venv.sh`**: Initialize virtual environment
+- **`check.sh`**: Run comprehensive checks (format, lint, typecheck, test)
+
+Before submitting a PR, it's recommended to run:
+
+```bash
+bash scripts/check.sh
+```
+
 ### Documentation
 
-- Update relevant documentation
+- Update relevant documentation in the `docs/` directory
 - Add examples for new features
 - Keep documentation synchronized with code
+- Both English and Chinese documentation should be updated simultaneously
 
 ## Project Structure
 
@@ -135,16 +161,30 @@ python -m pytest tests/test_specific_module.py
 AmritaCore/
 ├── src/
 │   └── amrita_core/          # Core source code
-│       ├── builtins/         # Built-in functionality
+│       ├── agent/            # Agent core logic
+│       │   ├── context.py    # Context management
+│       │   ├── functions.py  # Function calling logic
+│       │   └── strategy.py   # Execution strategies
+│       ├── builtins/         # Built-in components
+│       │   ...
 │       ├── hook/             # Event hook system
-│       ├── tools/            # Tool system
+│       │   ├── event.py      # Event definitions
+│       │   ├── matcher.py    # Event matchers
+│       │   └── on.py         # Hook decorators/registration
+│       ├── tools/            # Tool management system
+│       │   ├── manager.py    # Tool registration and dispatch
+│       │   └── mcp.py        # MCP client integration
 │       ├── __init__.py       # Entry point
 │       ├── chatmanager.py    # Chat manager
 │       ├── config.py         # Configuration system
+│       ├── consts.py         # Constants
 │       ├── libchat.py        # Chat library
 │       ├── logging.py        # Logging system
 │       ├── preset.py         # Preset manager
 │       ├── protocol.py       # Protocol layer
+│       ├── sessions.py       # Session management
+│       ├── streaming.py      # Streaming utilities
+│       ├── threadsafe.py     # Thread safety utilities
 │       ├── tokenizer.py      # Tokenizer
 │       ├── types.py          # Type definitions
 │       └── utils.py          # Utility functions
@@ -152,6 +192,7 @@ AmritaCore/
 ├── docs/                     # Documentation
 │   └── zh/                   # Chinese documentation
 ├── tests/                    # Test code
+├── scripts/                  # Development scripts
 └── pyproject.toml           # Project configuration
 ```
 
@@ -163,19 +204,21 @@ AmritaCore/
 2. Add type definitions to `types.py` (if needed)
 3. Implement the feature ensuring it follows existing code style
 4. Add unit tests
-5. Update documentation
+5. Update documentation (both English and Chinese)
 
 ### Fixing Bugs
 
 1. Identify the problem
 2. Create a test case to verify the issue
-3. Make sure all tests pass
+3. Fix the issue
+4. Ensure all tests pass
 
 ### Improving Documentation
 
 - Update relevant documentation in the `docs/` directory
 - Ensure grammar is correct and content is clear
 - Follow existing documentation structure
+- Update both English and Chinese versions simultaneously
 
 ## Contact Us
 

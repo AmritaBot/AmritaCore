@@ -496,8 +496,8 @@ class FunctionParametersSchema(BaseModel):
     """Validate function parameter structure"""
 
     type: Literal["object"] = Field(..., description="Parameter type")
-    properties: dict[str, FunctionPropertySchema] | None = Field(
-        default=None, description="Parameter property definitions", exclude_if=on_none
+    properties: dict[str, FunctionPropertySchema] = Field(
+        default_factory=dict, description="Parameter property definitions"
     )
 
     required: list[str] = Field(

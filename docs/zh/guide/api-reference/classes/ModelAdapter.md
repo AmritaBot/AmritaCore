@@ -44,7 +44,7 @@ class ModelAdapter:
 
 ## 方法
 
-### get*adapter_protocol() *(抽象方法)\_
+### get*adapter_protocol()*(抽象方法)
 
 获取此适配器的协议标识符。
 
@@ -185,7 +185,7 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     return embeddings
 ```
 
-### protocol _(属性)_
+### protocol *(属性)*
 
 获取模型协议适配器标识符。
 
@@ -235,8 +235,8 @@ AmritaCore 提供了几个内置适配器：
 - **位置**: `amrita_core.builtins.adapter.AnthropicAdapter`
 - **特性**:
   - 支持流式响应
-  - 目前为实验性（工具调用尚未实现）
-  - 针对 Claude 模型优化
+  - 通过Anthropic的工具使用API提供完整的工具调用支持
+  - 针对Claude模型优化，具有适当的消息格式处理
 
 ## 创建自定义适配器
 

@@ -1,3 +1,4 @@
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -6,7 +7,7 @@ from amrita_core.tools.manager import (
     MultiToolsManager,
     ToolsManager,
     _parse_google_docstring,
-    _python_type_to_json_type,
+    _python_type_to_property_schema,
     on_tools,
     simple_tool,
 )
@@ -166,15 +167,18 @@ def test_parse_google_docstring():
     assert params["param2"] == "The second parameter."
 
 
-def test_python_type_to_json_type():
-    assert _python_type_to_json_type(str) == "string"
-    assert _python_type_to_json_type(int) == "integer"
-    assert _python_type_to_json_type(float) == "number"
-    assert _python_type_to_json_type(bool) == "boolean"
-    assert _python_type_to_json_type(list) == "array"
-    assert _python_type_to_json_type(dict) == "object"
-
-    assert _python_type_to_json_type(type) == "string"
+def test_python_type_to_property_schema():
+    ns = globals()
+    assert _python_type_to_property_schema(str, ns).type == "string"
+    assert _python_type_to_property_schema(int, ns).type == "integer"
+    assert _python_type_to_property_schema(float, ns).type == "number"
+    assert _python_type_to_property_schema(bool, ns).type == "boolean"
+    with pytest.raises(ValueError):  # noqa: PT011
+        _python_type_to_property_schema(list, globalns=ns).type
+    with pytest.raises(ValueError):  # noqa: PT011
+        _python_type_to_property_schema(dict, ns).type
+    with pytest.raises(ValueError):  # noqa: PT011
+        _python_type_to_property_schema(Any, ns)
 
 
 def test_on_tools_decorator():

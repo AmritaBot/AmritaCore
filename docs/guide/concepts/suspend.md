@@ -311,6 +311,7 @@ async with chat:
 ```
 
 ::: tip How to Choose?
+
 - Need to process chunks but don't want to write manual loops? Use **callback mode**, start with `chat.begin()` then `await chat` to wait for completion.
 - Need streaming output to terminal or WebSocket? Use **iterator mode** with the `async with chat:` context manager.
 - Regardless of mode, outer suspension (`wait_to_suspend`) works normally.
@@ -388,6 +389,7 @@ Do not set a callback function and use `get_response_generator()` simultaneously
 :::
 
 ::: danger Lifecycle Management
+
 - You must call `chat.begin()` to create the internal task before using `async with chat:` or `await chat`.
 - `async with chat:` is the recommended approach for **iterator mode**; it automatically terminates the task upon exit.
 - In **callback mode**, start the task with `chat.begin()` and then directly `await chat` to wait for completion; there is no need to enter the context manager.

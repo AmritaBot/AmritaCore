@@ -58,9 +58,9 @@ AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapt
 
 **支持的协议**: `"openai"`, `"__main__"`
 
-### 9.2.2 AnthropicAdapter (实验性)
+### 9.2.2 AnthropicAdapter
 
-`AnthropicAdapter` 为Anthropic的Claude模型提供实验性支持。
+`AnthropicAdapter` 为Anthropic的Claude模型提供完整支持。
 
 **功能特性**：
 
@@ -68,10 +68,9 @@ AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapt
 - **流式响应**: 支持带有消息流处理的流式响应
 - **令牌跟踪**: 为Anthropic的使用模型提供适当的输入/输出令牌跟踪
 - **消息过滤**: 自动过滤无效消息（content=None的assistant消息和所有tool消息），以符合Anthropic API要求
+- **工具调用**: 完全支持Anthropic的工具使用功能，具有适当的工具选择处理
 
 **支持的协议**: `"anthropic"`, `"claude"`
-
-**注意**: 此适配器为实验性，与OpenAI适配器相比可能功能有限。
 
 ## 9.3 内置Agent系统
 
@@ -125,19 +124,23 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 **工具函数模式**：
 
 ```xml
+
 <!-- 工具调用 -->
+
 <TOOL_CALL name="tool">
-    <PARAMS>
-        <!-- 参数作为键值对传递 -->
-        <PARAM name="param1">value1</PARAM>
-    </PARAMS>
+<PARAMS>
+<!-- 参数作为键值对传递 -->
+<PARAM name="param1">value1</PARAM>
+</PARAMS>
 </TOOL_CALL>
 
 <!-- 工具结果 -->
+
 <TOOL_RESULT name="tool">
-   工具执行结果内容
+工具执行结果内容
 </TOOL_RESULT>
-```
+
+```python
 
 **已知限制和安全考虑**：
 
@@ -197,3 +200,4 @@ Cookie安全钩子自动检测模型响应中是否出现敏感Cookie值，并�
 - **时机**: 在所有工具执行成功完成后调用
 - **适用性**: 对**所有策略类别**（`"agent"`、`"rag"`、`"workflow"`、`"agent-mixed"`）都可用
 - **用例**: 添加最终指令、上下文摘要或清理操作
+```
