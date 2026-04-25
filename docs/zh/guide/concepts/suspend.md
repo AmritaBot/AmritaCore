@@ -315,7 +315,7 @@ async with chat:
 - 需要逐块处理但不想手动写循环？使用**回调模式**，通过 `chat.begin()` 启动后 `await chat` 等待完成。
 - 需要流式输出到终端或 WebSocket？使用**迭代器模式**，结合 `async with chat:` 上下文管理器。
 - 无论哪种模式，外断点（`wait_to_suspend`）都能正常生效。
-  :::
+:::
 
 ## 使用模式示例
 
