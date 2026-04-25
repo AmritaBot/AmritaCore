@@ -58,9 +58,9 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 
 **Supported Protocols**: `"openai"`, `"__main__"`
 
-### 9.2.2 AnthropicAdapter (Experimental)
+### 9.2.2 AnthropicAdapter
 
-`AnthropicAdapter` provides experimental support for Anthropic's Claude models.
+`AnthropicAdapter` provides full support for Anthropic's Claude models.
 
 **Features**:
 
@@ -68,10 +68,9 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 - **Streaming Responses**: Supports streaming with message stream handling
 - **Token Tracking**: Proper input/output token tracking for Anthropic's usage model
 - **Message Filtering**: Automatically filters out invalid messages (assistant messages with `content=None` and all tool messages) to comply with Anthropic API requirements
+- **Tool Calling**: Full support for Anthropic's tool use capabilities with proper tool choice handling
 
 **Supported Protocols**: `"anthropic"`, `"claude"`
-
-**Note**: This adapter is experimental and may have limited functionality compared to the OpenAI adapter.
 
 ## 9.3 Built-in Agent System
 

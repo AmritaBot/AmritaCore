@@ -44,7 +44,7 @@ class ModelAdapter:
 
 ## Methods
 
-### get*adapter_protocol() *(Abstract)\_
+### get*adapter_protocol()*(Abstract)
 
 Get the protocol identifier(s) for this adapter.
 
@@ -185,7 +185,7 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     return embeddings
 ```
 
-### protocol _(Property)_
+### protocol *(Property)*
 
 Get the model protocol adapter identifier.
 
@@ -235,8 +235,8 @@ AmritaCore provides several built-in adapters:
 - **Location**: `amrita_core.builtins.adapter.AnthropicAdapter`
 - **Features**:
   - Supports streaming responses
-  - Currently experimental (tool calling not yet implemented)
-  - Optimized for Claude models
+  - Full tool calling support via Anthropic's tool use API
+  - Optimized for Claude models with proper message format handling
 
 ## Creating Custom Adapters
 

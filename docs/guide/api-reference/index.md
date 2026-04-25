@@ -108,7 +108,7 @@ agent = create_agent(
 - `config` ([AmritaConfig](classes/AmritaConfig.md) | None, optional): Configuration for the agent. Defaults to global config.
 - `**kwargs`: Additional keyword arguments to pass to AgentRuntime
 
-**Returns**: [AgentRuntime](#agentruntime) - Configured agent runtime instance
+**Returns**: `AgentRuntime` - Configured agent runtime instance
 
 **Usage Notes**:
 

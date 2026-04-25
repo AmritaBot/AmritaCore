@@ -46,7 +46,8 @@ The mission of AmritaCore is to provide a lightweight yet powerful foundation fo
 5. **Event-Driven Architecture**: Comprehensive event system for flexible and reactive agent behavior
 6. **Tool Integration Framework**: Robust system for integrating external tools and services
 7. **Advanced Memory Management**: Sophisticated context handling with automatic summarization and token optimization
-8. **High-Performance**: Lightweight and efficient, with high performance.
+8. **Built-in Anthropic support**: AmritaCore provides a native adapter for Anthropic's AI models
+9. **High-Performance**: Lightweight and efficient, with high performance.
 
 ## 📖 Documentation
 
@@ -78,4 +79,3 @@ All versions of AmritaCore are released under the MIT License (Although the past
 ## Unstable Features
 
 - `Python 3.14+ Supporting`: we are not sure if it will work well on Python 3.14+(No GIL Version).
-- `Anthropic Supporting`: It's now only supports Completion, function calling is not supported yet.
