@@ -325,6 +325,14 @@ class AnthropicAdapter(ModelAdapter):
             tool_choice=anthropic_tool_choice,
         )
 
+        usage = None
+        if getattr(response, "usage", None) is not None:
+            usage = UniResponseUsage[int](
+                prompt_tokens=response.usage.input_tokens,
+                completion_tokens=response.usage.output_tokens,
+                total_tokens=response.usage.input_tokens + response.usage.output_tokens,
+            )
+
         tool_calls = []
         if response.stop_reason == "tool_use":
             tool_calls.extend(
@@ -345,6 +353,7 @@ class AnthropicAdapter(ModelAdapter):
             role="assistant",
             content=None,
             tool_calls=tool_calls if tool_calls else None,
+            usage=usage,
         )
 
     @staticmethod

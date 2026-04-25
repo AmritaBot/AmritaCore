@@ -514,6 +514,7 @@ class FunctionDefinitionSchema(BaseModel):
         ..., description="Function parameter definition"
     )
 
+
 class ToolFunctionSchema(BaseModel):
     """Validate complete function field structure"""
 
