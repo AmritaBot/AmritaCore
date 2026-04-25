@@ -324,7 +324,7 @@ class TestSimpleToolExtended:
 
 
 def test_simple_tool_reject_no_typehint():
-    with pytest.raises(RuntimeError):
+    with pytest.raises(TypeError):
 
         @simple_tool
         def testa(a): ...

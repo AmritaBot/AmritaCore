@@ -406,7 +406,9 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
                 param_type, globalns, param_desc
             )
         else:
-            raise RuntimeError("Function parameter with not type hint is not allowed.")
+            raise TypeError(
+                f"Parameter '{param_name}' in {func.__name__} must have a type hint"
+            )
 
         is_required = param.default == inspect.Parameter.empty
         if is_required:
