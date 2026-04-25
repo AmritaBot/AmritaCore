@@ -258,7 +258,6 @@ class MatcherFactory:
 
     @staticmethod
     async def _do_runtime_resolve(
-        *,
         runtime_args: dict[int, DependsFactory],
         runtime_kwargs: dict[str, DependsFactory],
         args2update: list[Any],
@@ -462,6 +461,15 @@ class MatcherFactory:
         *args: Any,
         config: None = None,
         exception_ignored: tuple[type[BaseException], ...] = (),
+        **kwargs: Any,
+    ) -> None: ...
+
+    @overload
+    @classmethod
+    async def trigger_event(
+        cls,
+        event: BaseEvent,
+        *args: Any,
         **kwargs: Any,
     ) -> None: ...
     @classmethod

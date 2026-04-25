@@ -367,7 +367,7 @@ class TestMatcherFactorySimpleRun:
         handlers = EventRegistry().get_handlers("test_event")
 
         result = await MatcherFactory._simple_run(
-            handlers[matcher.priority], event, self.config, (), (), {}
+            handlers[matcher.priority], event, (), (), {}, self.config
         )
 
         assert result is True
@@ -396,10 +396,10 @@ class TestMatcherFactorySimpleRun:
         result = await MatcherFactory._simple_run(
             handlers[matcher.priority],
             event,
-            self.config,
             (),
             (),
             {"runtime_dep": Depends(dep_func)},
+            self.config,
         )
 
         assert result is True
@@ -428,7 +428,12 @@ class TestMatcherFactorySimpleRun:
         handlers = EventRegistry().get_handlers("test_event")
 
         result = await MatcherFactory._simple_run(
-            handlers[matcher.priority], event, self.config, (), (), {}
+            handlers[matcher.priority],
+            event,
+            (),
+            (),
+            {},
+            self.config,
         )
 
         assert result is True
@@ -454,10 +459,10 @@ class TestMatcherFactorySimpleRun:
             await MatcherFactory._simple_run(
                 handlers[matcher.priority],
                 event,
-                self.config,
                 (),
                 (),
                 {"bad_dep": Depends(failing_dep)},
+                self.config,
             )
 
     @pytest.mark.asyncio
@@ -481,7 +486,12 @@ class TestMatcherFactorySimpleRun:
         handlers = EventRegistry().get_handlers("test_event")
 
         result = await MatcherFactory._simple_run(
-            handlers[matcher.priority], event, self.config, (), (), {}
+            handlers[matcher.priority],
+            event,
+            (),
+            (),
+            {},
+            self.config,
         )
 
         assert result is True  # Should continue to next handler
