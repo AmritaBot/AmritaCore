@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from amrita_core.tools.mcp import (
-    NOT_GIVEN,
     ClientManager,
     MCPClient,
     MultiClientManager,
@@ -188,9 +187,3 @@ class TestClientManager:
 
         manager = ClientManager()
         assert isinstance(manager, MultiClientManager)
-
-
-def test_not_given():
-    # Test NOT_GIVEN class
-    assert NOT_GIVEN is not None
-    assert isinstance(NOT_GIVEN, type)
