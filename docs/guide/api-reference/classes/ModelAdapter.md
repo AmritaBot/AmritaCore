@@ -185,7 +185,7 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     return embeddings
 ```
 
-### protocol *(Property)*
+### protocol _(Property)_
 
 Get the model protocol adapter identifier.
 

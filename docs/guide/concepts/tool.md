@@ -47,6 +47,43 @@ The `@simple_tool` decorator now supports a rich set of parameter types:
 - **Container types**: `List[T]` where T is a supported type (single-level containers only)
 - **Optional types**: `Optional[T]` or `T | None` (equivalent to Union[T, None])
 
+#### Pydantic Model Best Practices
+
+When using Pydantic `BaseModel` classes as parameters, the class docstring (`__doc__`) is automatically used as the description for the JSON Schema object. Field descriptions should be provided using Pydantic's `Field` function.
+
+**Important Note**: The class-level docstring of a Pydantic model takes precedence over any parameter descriptions in the function's docstring. This means that when you define a Pydantic model parameter, its class docstring will be used as the object description in the JSON Schema, regardless of what you write in the function's Args section.
+
+**Correct Example**:
+
+```python
+from typing import Optional
+from pydantic import BaseModel, Field
+
+class UserAddress(BaseModel):
+    """Represents a user's physical address with street, city, and country information."""
+
+    street: str = Field(..., description="The street address including house number")
+    city: str = Field(..., description="The city name")
+    country: str = Field(..., description="ISO 3166-1 alpha-2 country code", min_length=2, max_length=2)
+    postal_code: Optional[str] = Field(None, description="Postal or ZIP code")
+
+@simple_tool
+def process_address(address: UserAddress) -> str:
+    """Process a user address object.
+
+    Args:
+        address (UserAddress): This description will be IGNORED because the UserAddress class has its own docstring.
+    """
+    return f"Processed address for {address.city}, {address.country}"
+```
+
+In this example:
+
+- The class docstring `"Represents a user's physical address..."` becomes the JSON Schema object description
+- Each field uses `Field(..., description="...")` to provide field-level descriptions
+- Type constraints like `min_length=2, max_length=2` are properly applied to the `country` field
+- The parameter description in the function's docstring (`"This description will be IGNORED..."`) is **ignored** because the Pydantic model class already has a docstring
+
 #### Unsupported Types (will raise ValueError)
 
 - **Dict types**: Use Pydantic models instead for object structures

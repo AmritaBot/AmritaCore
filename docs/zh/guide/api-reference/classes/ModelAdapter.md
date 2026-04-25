@@ -185,7 +185,7 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     return embeddings
 ```
 
-### protocol *(属性)*
+### protocol _(属性)_
 
 获取模型协议适配器标识符。
 

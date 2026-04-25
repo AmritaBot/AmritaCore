@@ -223,7 +223,7 @@ def _is_pydantic_model(type_hint: Any) -> bool:
 
 
 def _convert_pydantic_model_to_property_schema(
-    model_class: type[BaseModel], globalns: dict[str, Any]
+    model_class: type[BaseModel], globalns: dict[str, Any], desc: str | None = None
 ) -> FunctionPropertySchema:
     """Convert a Pydantic model to FunctionPropertySchema recursively"""
     if not _is_pydantic_model(model_class):
@@ -253,17 +253,23 @@ def _convert_pydantic_model_to_property_schema(
 
     return FunctionPropertySchema(
         type="object",
-        description=f"Pydantic model {model_class.__name__}",
+        description=model_class.__doc__
+        or desc
+        or f"Pydantic model {model_class.__name__}",
         properties=properties,
         required=required_fields,
     )
 
 
 def _python_type_to_property_schema(
-    python_type: Any, globalns: dict[str, Any], description: str = "No description"
+    python_type: Any,
+    globalns: dict[str, Any],
+    description: str | None = None,
 ) -> FunctionPropertySchema:
     """Convert Python type to FunctionPropertySchema with full JSON Schema support"""
     # Handle basic types
+    has_desc = bool(description)
+    description = description or "No description"
     if python_type is str:
         return FunctionPropertySchema(type="string", description=description)
     elif python_type is int:
@@ -277,7 +283,9 @@ def _python_type_to_property_schema(
 
     # Handle Pydantic models
     if _is_pydantic_model(python_type):
-        return _convert_pydantic_model_to_property_schema(python_type, globalns)
+        return _convert_pydantic_model_to_property_schema(
+            python_type, globalns, description if has_desc else None
+        )
 
     # Handle generic types (List, Dict, Union, etc.)
     origin = get_origin(python_type) if python_type not in (list, dict) else python_type
@@ -353,7 +361,7 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
 
     Supported Types:
     - Basic types: str, int, float, bool
-    - Pydantic BaseModel classes (for complex object structures)
+    - Pydantic BaseModel classes (for complex object structures), for this, please write a model with a description.
     - List[T] where T is a supported type (single-level containers only)
     - Optional[T] (equivalent to Union[T, None])
 

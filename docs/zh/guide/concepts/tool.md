@@ -18,7 +18,7 @@ AmritaCore 提供了一个全面的框架来集成外部工具和服务。工具
 
 `@simple_tool` 函数可以以较为简单的方式注册工具：
 
-```python
+```
 from amrita_core import simple_tool
 
 @simple_tool
@@ -45,6 +45,43 @@ def my_tool(arg1: str, arg2: int) -> str:
 - **容器类型**：`List[T]`，其中 T 是支持的类型（仅支持单层容器）
 - **可选类型**：`Optional[T]` 或 `T | None`（等同于 Union[T, None]）
 
+#### Pydantic 模型最佳实践
+
+使用 Pydantic `BaseModel` 类作为参数时，类的文档字符串（`__doc__`）会自动用作 JSON Schema 对象的描述。字段描述应使用 Pydantic 的 `Field` 函数提供。
+
+**重要说明**：Pydantic 模型的类级别文档字符串优先级高于函数文档字符串中的参数描述。这意味着当您定义 Pydantic 模型参数时，其类文档字符串将被用作 JSON Schema 中的对象描述，无论您在函数的 Args 部分中写什么内容。
+
+**正确示例**：
+
+```
+from typing import Optional
+from pydantic import BaseModel, Field
+
+class UserAddress(BaseModel):
+    """表示用户的物理地址，包含街道、城市和国家信息。"""
+
+    street: str = Field(..., description="包含门牌号的街道地址")
+    city: str = Field(..., description="城市名称")
+    country: str = Field(..., description="ISO 3166-1 alpha-2 国家代码", min_length=2, max_length=2)
+    postal_code: Optional[str] = Field(None, description="邮政编码或 ZIP 码")
+
+@simple_tool
+def process_address(address: UserAddress) -> str:
+    """处理用户地址对象。
+
+    Args:
+        address (UserAddress): 此描述将被忽略，因为 UserAddress 类已有自己的文档字符串。
+    """
+    return f"已处理 {address.city}, {address.country} 的地址"
+```
+
+在此示例中：
+
+- 类文档字符串 `"表示用户的物理地址..."` 成为 JSON Schema 对象的描述
+- 每个字段使用 `Field(..., description="...")` 提供字段级别的描述
+- 类型约束如 `min_length=2, max_length=2` 正确应用于 `country` 字段
+- 函数文档字符串中的参数描述（`"此描述将被忽略..."`）会被**忽略**，因为 Pydantic 模型类已经有文档字符串
+
 #### 不支持的类型（会抛出 ValueError）
 
 - **Dict 类型**：请使用 Pydantic 模型代替对象结构
@@ -58,7 +95,7 @@ def my_tool(arg1: str, arg2: int) -> str:
 
 `@on_tools` 装饰器将函数注册为可调用工具，并提供更高级的用法：
 
-```python
+```
 from typing import Any
 
 from amrita_core import on_tools
@@ -94,7 +131,7 @@ async def add(data: dict[str, Any]) -> str:
 
 #### 数值类型约束
 
-```python
+```
 temperature = FunctionPropertySchema(
 type="number",
 description="摄氏温度",
@@ -109,7 +146,7 @@ exclusiveMaximum=False # 最大值包含在内
 
 #### 字符串类型约束
 
-```python
+```
 email = FunctionPropertySchema(
     type="string",
     description="用户邮箱地址",
@@ -130,7 +167,7 @@ password = FunctionPropertySchema(
 
 #### 数组类型约束
 
-```python
+```
 tags = FunctionPropertySchema(
 type="array",
 description="标签列表",
@@ -144,7 +181,7 @@ uniqueItems=True # 不允许重复标签
 
 #### 对象类型约束
 
-```python
+```
 address = FunctionPropertySchema(
     type="object",
     description="用户地址",
@@ -160,7 +197,7 @@ address = FunctionPropertySchema(
 
 #### 枚举和常量值
 
-```python
+```
 # 枚举允许的值
 unit = FunctionPropertySchema(
     type="string",
@@ -187,7 +224,7 @@ optional_note = FunctionPropertySchema(
 
 > **注意**：`FunctionPropertySchema` 中的联合类型（手动模式定义）可以使用 `type=["string", "number"]` 接受多种类型，但此功能**不适用于** `@simple_tool` 装饰器，后者仅支持 `Optional[T]` 模式。
 
-```python
+```
 # 接受多种类型（仅适用于手动模式定义）
 flexible_input = FunctionPropertySchema(
     type=["string", "number"],  # 可以是字符串或数字
@@ -229,7 +266,7 @@ flexible_input = FunctionPropertySchema(
 
 [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md) 类定义函数参数的模式：
 
-```python
+```
 from amrita_core.tools.models import FunctionDefinitionSchema
 
 schema = FunctionDefinitionSchema(
@@ -243,7 +280,7 @@ schema = FunctionDefinitionSchema(
 
 [ToolsManager](../api-reference/classes/ToolsManager.md) 类管理已注册的工具：
 
-```python
+```
 from amrita_core.tools.manager import ToolsManager
 
 manager = ToolsManager()
@@ -255,7 +292,7 @@ registered_tools = manager.get_tools()
 
 工具在导入模块时自动发现和注册：
 
-```python
+```
 # 当您导入包含 @on_tools 装饰函数的模块时
 from . import my_tools  # 工具会自动注册
 ```
