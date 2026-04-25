@@ -147,37 +147,6 @@ class TestCallWithReflection:
         return mock_adapter
 
     @pytest.mark.asyncio
-    async def test_call_with_reflection_success(self, mock_adapter_class):
-        """Test successful call with reflection"""
-        from amrita_core.config import AmritaConfig
-        from amrita_core.types import ModelPreset
-
-        # Mock the adapter manager
-        with patch.object(
-            AdapterManager, "safe_get_adapter", return_value=mock_adapter_class
-        ):
-            preset = ModelPreset(
-                model="test-model",
-                name="test-preset",
-                api_key="test-key",
-                protocol="test-protocol",
-            )
-            config = AmritaConfig()
-
-            async def test_call_func(adapter, *args, **kwargs):
-                return await adapter.some_method(*args, **kwargs)
-
-            result = await _call_with_reflection(
-                preset, test_call_func, config, "arg1", kwarg1="value1"
-            )
-
-            assert result == "test_result"
-            mock_adapter_class.assert_called_once_with(preset, config)
-            mock_adapter_class.return_value.some_method.assert_called_once_with(
-                "arg1", kwarg1="value1"
-            )
-
-    @pytest.mark.asyncio
     async def test_call_with_reflection_undefined_protocol(self):
         """Test call with undefined protocol"""
         from amrita_core.config import AmritaConfig

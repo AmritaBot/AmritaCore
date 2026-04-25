@@ -33,10 +33,6 @@ MCP_SERVER_SCRIPT_TYPE = (
 )
 
 
-class NOT_GIVEN:
-    pass
-
-
 class MCPClient:
     """Reusable MCP Client"""
 
