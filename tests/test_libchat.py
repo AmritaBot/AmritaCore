@@ -145,6 +145,7 @@ class TestCallWithReflection:
         mock_adapter_instance.some_method = AsyncMock(return_value="test_result")
         mock_adapter.get_type.return_value = "text-gen"
         return mock_adapter
+
     @pytest.mark.asyncio
     async def test_call_with_reflection_undefined_protocol(self):
         """Test call with undefined protocol"""
