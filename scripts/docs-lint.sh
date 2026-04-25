@@ -26,33 +26,7 @@ done
 
 echo "Linting documentation files with Prettier..."
 
-# Define file patterns to lint
-FILE_PATTERNS=(
-    "docs/**/*.md"
-    "docs/**/*.mts"
-    "docs/**/*.ts"
-    "docs/**/*.json"
-    "readmes/*.md"
-    "README.md"
-)
-
-# Build the find command to locate all matching files
-FILES_TO_LINT=()
-for pattern in "${FILE_PATTERNS[@]}"; do
-    # Use eval to expand the glob pattern properly
-    while IFS= read -r -d '' file; do
-        FILES_TO_LINT+=("$file")
-    done < <(find . -path "./docs" -prune -o -path "./docs/**" -prune -o -name "$(basename "$pattern")" -type f -print0 2>/dev/null || true)
-    
-    # Handle the docs directory specifically
-    if [[ "$pattern" == docs/* ]]; then
-        while IFS= read -r -d '' file; do
-            FILES_TO_LINT+=("$file")
-        done < <(find docs -name "$(basename "$pattern")" -type f -print0 2>/dev/null || true)
-    fi
-done
-
-# Alternative approach: use a simpler method to collect files
+# Collect documentation files to lint with a single, simple approach
 FILES_TO_LINT=()
 while IFS= read -r -d '' file; do
     FILES_TO_LINT+=("$file")
