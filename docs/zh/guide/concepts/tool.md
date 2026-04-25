@@ -18,7 +18,7 @@ AmritaCore 提供了一个全面的框架来集成外部工具和服务。工具
 
 `@simple_tool` 函数可以以较为简单的方式注册工具：
 
-```
+```python
 from amrita_core import simple_tool
 
 @simple_tool
@@ -53,7 +53,7 @@ def my_tool(arg1: str, arg2: int) -> str:
 
 **正确示例**：
 
-```
+```python
 from typing import Optional
 from pydantic import BaseModel, Field
 
@@ -95,7 +95,7 @@ def process_address(address: UserAddress) -> str:
 
 `@on_tools` 装饰器将函数注册为可调用工具，并提供更高级的用法：
 
-```
+```python
 from typing import Any
 
 from amrita_core import on_tools
@@ -131,7 +131,7 @@ async def add(data: dict[str, Any]) -> str:
 
 #### 数值类型约束
 
-```
+```python
 temperature = FunctionPropertySchema(
 type="number",
 description="摄氏温度",
@@ -146,7 +146,7 @@ exclusiveMaximum=False # 最大值包含在内
 
 #### 字符串类型约束
 
-```
+```python
 email = FunctionPropertySchema(
     type="string",
     description="用户邮箱地址",
@@ -167,7 +167,7 @@ password = FunctionPropertySchema(
 
 #### 数组类型约束
 
-```
+```python
 tags = FunctionPropertySchema(
 type="array",
 description="标签列表",
@@ -181,7 +181,7 @@ uniqueItems=True # 不允许重复标签
 
 #### 对象类型约束
 
-```
+```python
 address = FunctionPropertySchema(
     type="object",
     description="用户地址",
@@ -197,7 +197,7 @@ address = FunctionPropertySchema(
 
 #### 枚举和常量值
 
-```
+```python
 # 枚举允许的值
 unit = FunctionPropertySchema(
     type="string",
@@ -224,7 +224,7 @@ optional_note = FunctionPropertySchema(
 
 > **注意**：`FunctionPropertySchema` 中的联合类型（手动模式定义）可以使用 `type=["string", "number"]` 接受多种类型，但此功能**不适用于** `@simple_tool` 装饰器，后者仅支持 `Optional[T]` 模式。
 
-```
+```python
 # 接受多种类型（仅适用于手动模式定义）
 flexible_input = FunctionPropertySchema(
     type=["string", "number"],  # 可以是字符串或数字
@@ -266,7 +266,7 @@ flexible_input = FunctionPropertySchema(
 
 [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md) 类定义函数参数的模式：
 
-```
+```python
 from amrita_core.tools.models import FunctionDefinitionSchema
 
 schema = FunctionDefinitionSchema(
@@ -280,7 +280,7 @@ schema = FunctionDefinitionSchema(
 
 [ToolsManager](../api-reference/classes/ToolsManager.md) 类管理已注册的工具：
 
-```
+```python
 from amrita_core.tools.manager import ToolsManager
 
 manager = ToolsManager()
@@ -292,7 +292,7 @@ registered_tools = manager.get_tools()
 
 工具在导入模块时自动发现和注册：
 
-```
+```python
 # 当您导入包含 @on_tools 装饰函数的模块时
 from . import my_tools  # 工具会自动注册
 ```
