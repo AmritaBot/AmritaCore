@@ -343,8 +343,7 @@ def _python_type_to_property_schema(
                     f"Union types with multiple non-None types are not supported: {python_type}"
                 )
 
-    # Handle other types by falling back to string
-    return FunctionPropertySchema(type="string", description=description)
+    raise TypeError(f"Unsupported type: {python_type}")
 
 
 def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
