@@ -253,7 +253,7 @@ def _convert_pydantic_model_to_property_schema(
 
     return FunctionPropertySchema(
         type="object",
-        description=model_class.__doc__
+        description=(model_class.__doc__ or "").strip()
         or desc
         or f"Pydantic model {model_class.__name__}",
         properties=properties,
@@ -268,7 +268,7 @@ def _python_type_to_property_schema(
 ) -> FunctionPropertySchema:
     """Convert Python type to FunctionPropertySchema with full JSON Schema support"""
     # Handle basic types
-    has_desc = bool(description)
+    has_desc = bool(description.strip() if description else False)
     description = description or "No description"
     if python_type is str:
         return FunctionPropertySchema(type="string", description=description)
