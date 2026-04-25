@@ -4,6 +4,16 @@
 
 AmritaCore 提供了一个全面的框架来集成外部工具和服务。工具可以被注册并提供给Agent在对话期间使用。
 
+工具有三种主要的注册方式：
+
+1. **`@simple_tool` 装饰器**：一种简单的自动注册方法，从函数签名和文档字符串中推断模式。通过这种方式注册的工具会被添加到全局容器中，对所有会话都可用。
+
+2. **`@on_tools` 装饰器**：一种细粒度的注册方法，允许使用 `FunctionDefinitionSchema` 显式控制工具模式定义。
+
+3. **直接操作 `ToolsManager`/`MultiToolsManager`**：最精细的方法，允许在运行时以编程方式注册、修改和删除工具，包括会话特定的工具管理。
+
+> **重要说明**：像 `@simple_tool` 和 `@on_tools` 这样的装饰器在模块加载时（会话创建之前）将工具注册到**全局容器**中。这是因为会话只有在对话开始时才会在运行时实例化。对于会话特定的工具管理，请使用直接的 `ToolsManager` 操作。
+
 ## 3.4.2 @simple_tool 函数注册
 
 `@simple_tool` 函数可以以较为简单的方式注册工具：
@@ -24,9 +34,25 @@ def my_tool(arg1: str, arg2: int) -> str:
 
 ### 说明
 
-`@simple_tool` 函数注册了工具，并定义了工具参数和返回值类型。
+`@simple_tool` 装饰器提供了一种简单的方式来注册工具，通过自动从函数类型注解和 Google 风格的文档字符串中推断工具模式。
 
-它将自动从工具的文档字符串中提取参数描述，遵循谷歌的Python英文注释范式，类型由类型注解自动推断，但此装饰器只支持**基本类型**，其他类型参数都将fallback为str。
+#### 支持的类型
+
+`@simple_tool` 装饰器现在支持丰富的参数类型：
+
+- **基本类型**：`str`、`int`、`float`、`bool`
+- **Pydantic BaseModel 类**：用于复杂的嵌套对象结构
+- **容器类型**：`List[T]`，其中 T 是支持的类型（仅支持单层容器）
+- **可选类型**：`Optional[T]` 或 `T | None`（等同于 Union[T, None]）
+
+#### 不支持的类型（会抛出 ValueError）
+
+- **Dict 类型**：请使用 Pydantic 模型代替对象结构
+- **嵌套容器**：例如 `List[List[str]]`、`Dict[str, List[int]]`
+- **包含多个非 None 类型的联合类型**：例如 `Union[str, int]` 或 `str | int`
+- **Any 或 object 类型**：出于类型安全考虑，这些类型被明确拒绝
+
+它将自动从工具的文档字符串中提取参数描述，遵循谷歌的Python英文注释范式，类型由类型注解自动推断。
 
 ## 3.4.3 @on_tools 装饰器注册
 
@@ -159,8 +185,10 @@ optional_note = FunctionPropertySchema(
 
 #### 联合类型
 
+> **注意**：`FunctionPropertySchema` 中的联合类型（手动模式定义）可以使用 `type=["string", "number"]` 接受多种类型，但此功能**不适用于** `@simple_tool` 装饰器，后者仅支持 `Optional[T]` 模式。
+
 ```python
-# 接受多种类型
+# 接受多种类型（仅适用于手动模式定义）
 flexible_input = FunctionPropertySchema(
     type=["string", "number"],  # 可以是字符串或数字
     description="灵活的输入参数"

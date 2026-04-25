@@ -27,6 +27,10 @@ def add(a: int, b: int) -> int:
 
 在工具的 `__doc__` 块）中，您可以按照 Google 格式为工具添加描述和参数。当调用工具时，这些参数将在 LLM 调用时用于描述参数。
 
+**注册范围**: 使用 `@simple_tool` 注册的工具在模块加载期间被添加到全局容器中，并对所有会话都可用。
+
+**支持的类型**: `@simple_tool` 装饰器现在支持丰富的类型注解，包括 Pydantic 模型、List[T] 和 Optional[T]。完整的类型支持详情请参阅[工具系统](../concepts/tool.md)文档。
+
 ### 5.1.2 工具系统扩展
 
 AmritaCore 提供了一种灵活的方式来通过自定义工具扩展其功能。您可以创建新的工具，使Agent能够执行特定任务：
@@ -79,6 +83,8 @@ async def calculate_math(data: dict) -> str:
         return "0.0"
 ```
 
+**注册范围**: 与 `@simple_tool` 类似，`@on_tools` 装饰器在模块加载期间将工具注册到全局容器中。
+
 ### 增强的验证功能
 
 `FunctionPropertySchema` 支持全面的 JSON Schema 验证，包含类型特定的约束：
@@ -88,9 +94,14 @@ async def calculate_math(data: dict) -> str:
 - **数组约束**：`items`、`minItems`、`maxItems`、`uniqueItems`
 - **对象约束**：`properties`、`required`、`additionalProperties`
 - **特殊值**：`enum`、`const`、`default`
-- **联合类型**：`type` 可以是允许类型的列表
+- **联合类型**：`type` 可以是允许类型的列表（仅适用于手动模式定义，不适用于 `@simple_tool`）
 
 当 LLM 生成工具调用时，这些约束会自动验证，确保只有有效的参数值传递给您的工具函数。
+
+> **关于注册方法的说明**:
+>
+> - **装饰器**（`@simple_tool`、`@on_tools`）：在模块加载时注册到全局容器，对所有会话都可用
+> - **直接管理器操作**：允许在运行时使用 `ToolsManager` 或 `MultiToolsManager` 实例进行会话特定的工具管理
 
 ### 5.1.3 高级工具模式
 

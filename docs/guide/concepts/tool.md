@@ -4,6 +4,16 @@
 
 AmritaCore provides a comprehensive framework for integrating external tools and services. Tools can be registered and made available to the agent for use during conversations.
 
+There are three main approaches to tool registration:
+
+1. **`@simple_tool` decorator**: A simple, automatic registration method that infers schema from function signatures and docstrings. Tools registered this way are added to the global container and are available to all sessions.
+
+2. **`@on_tools` decorator**: A fine-grained registration method that allows explicit control over the tool schema definition using `FunctionDefinitionSchema`.
+
+3. **Direct `ToolsManager`/`MultiToolsManager` manipulation**: The most granular approach, allowing programmatic tool registration, modification, and removal at runtime, including session-specific tool management.
+
+> **Important Note**: Decorators like `@simple_tool` and `@on_tools` register tools to the **global container** during module loading time, before any session is created. This is because sessions are only instantiated at runtime when conversations begin. For session-specific tool management, use direct `ToolsManager` operations.
+
 ## 3.4.2 @simple_tool Decorator Registration
 
 The `@simple_tool` decorator registers functions as simple tools:
@@ -26,9 +36,25 @@ def add(a: int, b: int) -> int:
 
 ### Description
 
-The `@simple_tool` decorator registers functions as simple tools.
+The `@simple_tool` decorator provides a simple way to register tools by automatically inferring the tool schema from function type annotations and Google-style docstrings.
 
-Args in the function signature are considered arguments to the function.Their types are inferred from the type annotations, and their descriptions are inferred from the docstring which should be written as **Google's Python Docstring format**.
+#### Supported Types
+
+The `@simple_tool` decorator now supports a rich set of parameter types:
+
+- **Basic types**: `str`, `int`, `float`, `bool`
+- **Pydantic BaseModel classes**: For complex nested object structures
+- **Container types**: `List[T]` where T is a supported type (single-level containers only)
+- **Optional types**: `Optional[T]` or `T | None` (equivalent to Union[T, None])
+
+#### Unsupported Types (will raise ValueError)
+
+- **Dict types**: Use Pydantic models instead for object structures
+- **Nested containers**: e.g., `List[List[str]]`, `Dict[str, List[int]]`
+- **Union types with multiple non-None types**: e.g., `Union[str, int]` or `str | int`
+- **Any or object types**: These are explicitly rejected for type safety
+
+Args in the function signature are considered arguments to the function. Their types are inferred from the type annotations, and their descriptions are inferred from the docstring which should be written as **Google's Python Docstring format**.
 
 ## 3.4.3 @on_tools Decorator Registration
 
@@ -159,8 +185,10 @@ optional_note = FunctionPropertySchema(
 
 #### Union Types
 
+> **Note**: Union types in `FunctionPropertySchema` (manual schema definition) can accept multiple types using `type=["string", "number"]`, but this capability is **not available** through the `@simple_tool` decorator, which only supports `Optional[T]` patterns.
+
 ```python
-# Accept multiple types
+# Accept multiple types (only available with manual schema definition)
 flexible_input = FunctionPropertySchema(
     type=["string", "number"],  # Can be either string or number
     description="Flexible input parameter"

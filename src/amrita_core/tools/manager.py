@@ -436,7 +436,7 @@ def simple_tool(func: Callable[..., Any | Awaitable[Any]]):
 
         # Convert result to string as expected by the schema
         return (
-            json.dumps(result)
+            json.dumps(result, indent=4, ensure_ascii=False)
             if isinstance(
                 result,
                 (

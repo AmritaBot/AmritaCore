@@ -311,10 +311,11 @@ async with chat:
 ```
 
 ::: tip 如何选择？
+
 - 需要逐块处理但不想手动写循环？使用**回调模式**，通过 `chat.begin()` 启动后 `await chat` 等待完成。
 - 需要流式输出到终端或 WebSocket？使用**迭代器模式**，结合 `async with chat:` 上下文管理器。
 - 无论哪种模式，外断点（`wait_to_suspend`）都能正常生效。
-:::
+  :::
 
 ## 使用模式示例
 
@@ -388,10 +389,11 @@ await chat
 :::
 
 ::: danger 生命周期管理
+
 - 必须先调用 `chat.begin()` 创建内部任务，然后才能使用 `async with chat:` 或 `await chat`。
 - `async with chat:` 是**迭代器模式**的推荐写法，它会在退出时自动终止任务。
 - **回调模式**下，请使用 `chat.begin()` 启动任务后直接 `await chat` 等待完成，无需进入上下文管理器。
-:::
+  :::
 
 ## 何时不使用此功能
 

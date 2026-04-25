@@ -239,13 +239,34 @@ def add(a: int, b: int) -> int:
     return a + b
 ```
 
-**Purpose**: Register a simple tool
+**Purpose**: Register a simple tool with automatic schema inference from type annotations and docstrings.
+
+**Supported Parameter Types**:
+
+- Basic types: `str`, `int`, `float`, `bool`
+- Pydantic BaseModel classes for complex nested structures
+- Container types: `List[T]` (single-level only)
+- Optional types: `Optional[T]` or `T | None`
+
+**Unsupported Types** (will raise ValueError):
+
+- Dict types (use Pydantic models instead)
+- Nested containers (e.g., `List[List[str]]`)
+- Multi-type unions (e.g., `str | int`)
+- `Any` or `object` types
+
+**Registration Behavior**:
+
+- Tools are registered to the **global container** during module loading
+- Available to all sessions since registration happens before session creation
+- For session-specific tool management, use direct `MultiToolsManager` operations instead
 
 **Usage Notes**:
 
 - The decorator registers a simple tool.
 - The tool is registered with the name of the function.
-- The description of each paramenter is from the docstring of the function, it follows the same format as the docstring.
+- The description of each parameter is from the docstring of the function, it follows the same format as the docstring.
+- All function parameters must have type annotations (no untyped parameters allowed).
 
 ### 7.3.2 @on_tools - Tool Registration
 
@@ -281,7 +302,13 @@ async def add(data: dict[str, Any]) -> str:
 
 ```
 
-**Purpose**: Registers a function as an available tool that the agent can call.
+**Purpose**: Registers a function as an available tool that the agent can call with fine-grained control over the tool schema.
+
+**Registration Behavior**:
+
+- Like `@simple_tool`, registers to the **global container** during module loading
+- Provides explicit control over tool schema definition
+- Suitable for complex validation requirements not supported by `@simple_tool`
 
 **Usage Notes**:
 
