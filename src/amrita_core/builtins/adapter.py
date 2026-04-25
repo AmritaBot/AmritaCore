@@ -75,8 +75,8 @@ class AnthropicAdapter(ModelAdapter):
     @staticmethod
     def _convert_content_to_blocks(
         content: str | list[dict] | None,
-    ) -> list[dict] | str:
-        """Convert internal content to Anthropic content blocks (or plain string)"""
+    ) -> list[dict]:
+        """Convert internal content to Anthropic content blocks"""
         if content is None:
             return []
         if isinstance(content, str):
