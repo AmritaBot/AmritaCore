@@ -824,7 +824,9 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
                     f"Because of `{e!s}`, LLM request failed, retrying ({i}/{self.config.llm.max_retries})..."
                 )
                 ctx = FallbackContext(self.preset, e, self.config, self.context_wrap, i)
-                await MatcherManager.trigger_event(ctx, ctx.config, (FallbackFailed,))
+                await MatcherManager.trigger_event(
+                    ctx, ctx.config, exception_ignored=(FallbackFailed,)
+                )
                 if ctx.preset is self.preset:
                     ctx.fail("No preset fallback available, exiting!")
                 self.preset = ctx.preset
