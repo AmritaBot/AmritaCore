@@ -151,9 +151,6 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         """Resume to run when suspend."""
         if self.__resume_signal and not self.__resume_signal.done():
             self.__resume_signal.set_result(True)
-        self._suspend_tags = None
-        self.__resume_signal = None
-        self.__suspend_signal = None  # Just for cleanup
 
     def queue_closed(self) -> bool:
         """Check if the response queue is closed.
