@@ -116,7 +116,8 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
             await self.__resume_signal
             return True
         try:
-            self.__suspend_signal.set_result(True)
+            if not self.__suspend_signal.done():
+                self.__suspend_signal.set_result(True)
             self.__resume_signal = asyncio.Future()
             await self.__resume_signal
             return True
@@ -150,7 +151,6 @@ class SuspendObjectStream(Generic[ObjectTypeT]):
         """Resume to run when suspend."""
         if self.__resume_signal and not self.__resume_signal.done():
             self.__resume_signal.set_result(True)
-            self._suspend_tags = None
 
     def queue_closed(self) -> bool:
         """Check if the response queue is closed.
