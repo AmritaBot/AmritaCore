@@ -280,6 +280,8 @@ class AnthropicAdapter(ModelAdapter):
                 completion_tokens=last_msg.usage.output_tokens,
                 total_tokens=last_msg.usage.input_tokens + last_msg.usage.output_tokens,
             )
+            text_content = text_resp.getvalue()
+            yield text_content
 
         yield UniResponse(
             content=text_resp.getvalue(),
