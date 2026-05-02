@@ -1,5 +1,4 @@
 import gc
-import weakref
 from typing import Any
 
 import pytest
