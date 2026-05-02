@@ -79,7 +79,7 @@ class WeakValueLRUCache(Generic[K, V]):
         Args:
             loose (bool): Loose mode.
         """
-        self._loose = loose
+        self._loose_mode = loose
 
     @property
     def loose(self) -> bool:
@@ -88,7 +88,7 @@ class WeakValueLRUCache(Generic[K, V]):
         Returns:
             bool: Loose mode.
         """
-        return self._loose
+        return self._loose_mode
 
     @overload
     def get(self, key: K) -> V | None: ...
