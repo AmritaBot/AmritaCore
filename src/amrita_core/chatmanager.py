@@ -66,10 +66,6 @@ from .types import (
 if TYPE_CHECKING:
     from .sessions import SessionData
 
-# Global lock for thread-safe operations in the chat manager
-LOCK = aiologic.Lock()
-
-
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 
 # Type vars
@@ -432,6 +428,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
     _err: BaseException | None = None
     _hook_kwargs: dict[str, Any]
     _hook_args: tuple[Any, ...]
+    _chatman: ChatManager
 
     _raised_exc: tuple[type[BaseException], ...]
 
@@ -446,6 +443,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         preset: ModelPreset | None = None,
         auto_create_session: bool = False,
         *,
+        chat_man: ChatManager | None = None,
         train_template: Template = DEFAULT_TEMPLATE,
         jinja2_vars: dict[str, Any] | None = None,
         agent_strategy: type[AgentStrategy] = ReActAgentStrategy,
@@ -467,6 +465,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
             jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
+            chat_man (ChatManager | None, optional): ChatManager that ChatObject will be bound to. Defaults to None(Global ChatManager).
             train_template (Template, optional): Jinja2 template used to format system message.
             agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to ReActAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
@@ -474,6 +473,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
             queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 45.
         """
+        global chat_manager
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
             sm.init_session(session_id)
@@ -501,6 +501,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         self.extra_usage = UniResponseUsage(
             prompt_tokens=0, completion_tokens=0, total_tokens=0
         )
+        self._chatman = chat_man or chat_manager
         # other
         self.last_call = datetime.now(utc)
         self.preset = preset or (
@@ -630,15 +631,15 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
 
             try:
                 self._is_running = True
-                await chat_manager.add_chat_object(self)
+                await self._chatman.add_chat_object(self)
 
                 await self._run()
             finally:
                 self._is_running = False
                 self._is_done = True
                 self.end_at = datetime.now(utc)
-                chat_manager.running_chat_object_id2map.pop(self.stream_id, None)
-                if chat_manager.clean_obj(
+                self._chatman.running_chat_object_id2map.pop(self.stream_id, None)
+                if self._chatman.clean_obj(
                     self.session_id, 10000
                 ):  # A hard limit just to avoid memory leaks
                     logger.warning(
@@ -899,6 +900,7 @@ class ChatManager:
         default_factory=lambda: defaultdict(list)
     )
     running_chat_object_id2map: dict[str, ChatObjectMeta] = field(default_factory=dict)
+    _lock: aiologic.Lock = field(default_factory=aiologic.Lock)
 
     def clean_obj(self, k: str, maxitems: int = 10) -> bool:
         """
@@ -948,7 +950,7 @@ class ChatManager:
         """
         Asynchronously clean up all running chat objects, limiting the number of objects for each key to no more than 10
         """
-        async with LOCK:
+        async with self._lock:
             for key in self.running_chat_object.keys():
                 self.clean_obj(key, maxitems)
 
@@ -959,7 +961,7 @@ class ChatManager:
         Args:
             chat_object (ChatObject): Chat object instance
         """
-        async with LOCK:
+        async with self._lock:
             meta: ChatObjectMeta = chat_object.get_snapshot()
             self.running_chat_object_id2map[chat_object.stream_id] = meta
             key = chat_object.session_id
