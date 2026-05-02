@@ -110,10 +110,9 @@ class MCPClient:
         Args:
             update_tools (bool, optional): whether to update the tool list. Defaults to False.
         """
-        if self.mcp_client is not None and not self._close_waitter:
+        await self._clean_waitter()
+        if self.mcp_client is not None:
             raise RuntimeError("MCP Server is already connected!")
-        else:
-            await self._clean_waitter()
 
         server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
         self.mcp_client = Client(server_script)
