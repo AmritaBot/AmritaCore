@@ -64,7 +64,8 @@ class MCPClient:
 
     async def __aenter__(self) -> Self:
         self._close_waitter = None
-        await self._connect()
+        if not self.mcp_client:
+            await self._connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
