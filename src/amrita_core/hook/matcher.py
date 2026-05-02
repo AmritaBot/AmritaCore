@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
 import inspect
 from collections import defaultdict
-from collections.abc import Awaitable, Callable, Iterable
+from collections.abc import Awaitable, Callable, Hashable, Iterable
 from copy import deepcopy
+from dataclasses import asdict, dataclass
+from dataclasses import field as Field
 from types import FrameType, MappingProxyType
 from typing import (
     Any,
@@ -14,14 +17,16 @@ from typing import (
     TypeVar,
     overload,
 )
+from uuid import UUID, uuid4
 
+import aiologic
 from exceptiongroup import ExceptionGroup
-from pydantic import BaseModel, Field
 from typing_extensions import Never, Self
 
 from amrita_core.config import AmritaConfig
 from amrita_core.hook.event import EventTypeEnum
 from amrita_core.logging import debug_log, logger
+from amrita_core.weakcache import WeakValueLRUCache
 
 from .event import BaseEvent
 from .exception import (
@@ -33,12 +38,16 @@ from .exception import (
 ChatException: TypeAlias = MatcherException
 
 
-class FunctionData(BaseModel, arbitrary_types_allowed=True):
-    function: Callable[..., Awaitable[Any]] = Field(...)
-    signature: inspect.Signature = Field(...)
-    frame: FrameType = Field(...)
-    priority: int = Field(...)
-    matcher: Matcher = Field(...)
+@dataclass
+class FunctionData:
+    function: Callable[..., Awaitable[Any]] = Field()
+    signature: inspect.Signature = Field()
+    frame: FrameType = Field()
+    priority: int = Field()
+    matcher: Matcher = Field()
+
+    def model_dump(self):
+        return asdict(self)
 
 
 class EventRegistry:
@@ -62,20 +71,35 @@ class EventRegistry:
         return self._event_handlers
 
 
-class Matcher:
-    def __init__(self, event_type: str, priority: int = 10, block: bool = True):
+class Matcher(Hashable):
+    _dead_at: datetime.datetime | None = None
+    id: UUID
+
+    def __init__(
+        self,
+        event_type: str,
+        priority: int = 10,
+        block: bool = True,
+        dead_at: datetime.datetime | None = None,
+    ):
         """Constructor, initialize Matcher object.
         Args:
             event_type (str): Event type
             priority (int, optional): Priority. Defaults to 10.
             block (bool, optional): Whether to block subsequent events. Defaults to True.
+            dead_at (datetime.datetime | None, optional): Deadline for this matcher. Defaults to None.
         """
         if priority <= 0:
             raise ValueError("Event priority cannot be zero or negative!")
 
-        self.event_type = event_type
-        self.priority = priority
-        self.block = block
+        self.event_type: str = event_type
+        self.priority: int = priority
+        self.block: bool = block
+        self._dead_at = dead_at
+        self.id = uuid4()
+
+    def __hash__(self):
+        return hash(self.id.bytes)
 
     def append_handler(self, func: Callable[..., Awaitable[Any]]):
         frame = inspect.currentframe()
@@ -116,6 +140,10 @@ class Matcher:
         Ignore the current handler and continue processing the next one.
         """
         raise PassException()  # pragma: no cover
+
+    @property
+    def dead(self) -> bool:
+        return self._dead_at is not None and self._dead_at < datetime.datetime.now()
 
 
 T = TypeVar("T")
@@ -188,6 +216,17 @@ class MatcherFactory:
     """
     Event handling factory class.
     """
+
+    _lock_pool: ClassVar[WeakValueLRUCache[str, aiologic.Lock]] = WeakValueLRUCache(
+        capacity=1024, loose_mode=True
+    )
+
+    @classmethod
+    def _repo_lock(cls, category: str) -> aiologic.Lock:
+        if (lock := cls._lock_pool.get(category)) is None:
+            lock = aiologic.Lock()
+            cls._lock_pool[category] = lock
+        return lock
 
     @staticmethod
     def _resolve_dependencies(
@@ -345,15 +384,18 @@ class MatcherFactory:
         Returns:
             bool: Should continue to run.
         """
+        _dead_to_remove: list[FunctionData] = []
         for func in matcher_list:
+            matcher: Matcher = func.matcher
+            if matcher.dead:
+                _dead_to_remove.append(func)
+                continue
             signature: inspect.Signature = func.signature
             frame: FrameType = func.frame
             line_number: int = frame.f_lineno
             file_name: str = frame.f_code.co_filename
             handler = func.function
-            session_args = [func.matcher, event, *extra_args] + (
-                [config] if config else []
-            )
+            session_args = [matcher, event, *extra_args] + ([config] if config else [])
             session_kwargs: dict[str, Any] = deepcopy(extra_kwargs)
             runtime_args: dict[int, DependsFactory] = {  # index -> DependsFactory
                 k: v
@@ -429,7 +471,10 @@ class MatcherFactory:
                 continue
             finally:
                 logger.info(f"Handler {handler.__name__} finished")
-                if func.matcher.block:
+                if _dead_to_remove:
+                    for func in _dead_to_remove:
+                        matcher_list.remove(func)
+                if matcher.block:
                     return False
         return True
 
@@ -502,26 +547,29 @@ class MatcherFactory:
             raise RuntimeError("No event found in args")
         session_kwargs = kwargs
         event_type: EventTypeEnum | str = event.get_event_type()  # Get event type
-        handlers = EventRegistry().get_handlers(event_type)
-        priorities: list[int] = sorted(handlers.keys(), reverse=False)
-        debug_log(f"Running matchers for event: {event_type}!")
-        # Check if there are handlers for this event type
-        if priorities:
-            for priority in priorities:
-                logger.info(f"Running matchers for priority {priority}......")
-                if not await cls._simple_run(
-                    handlers[priority],
-                    event,
-                    exception_ignored=exception_ignored,
-                    extra_args=args,
-                    extra_kwargs=session_kwargs,
-                    config=config,
-                ):
-                    break
-        else:
-            logger.warning(
-                f"No registered Matcher for {event_type} event, skipping processing."
+        async with cls._repo_lock(event_type):
+            handlers: defaultdict[int, list[FunctionData]] = (
+                EventRegistry().get_handlers(event_type)
             )
+            priorities: list[int] = sorted(handlers.keys(), reverse=False)
+            debug_log(f"Running matchers for event: {event_type}!")
+            # Check if there are handlers for this event type
+            if priorities:
+                for priority in priorities:
+                    logger.info(f"Running matchers for priority {priority}......")
+                    if not await cls._simple_run(
+                        handlers[priority],
+                        event,
+                        exception_ignored=exception_ignored,
+                        extra_args=args,
+                        extra_kwargs=session_kwargs,
+                        config=config,
+                    ):
+                        break
+            else:
+                logger.warning(
+                    f"No registered Matcher for {event_type} event, skipping processing."
+                )
 
 
 MatcherManager = MatcherFactory

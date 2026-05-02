@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import json
 import random
@@ -38,23 +39,38 @@ class MCPClient:
 
     mcp_client: Client | None = None
     server_script: MCP_SERVER_SCRIPT_TYPE
+    _close_waitter: asyncio.Future | None = None
+    _close_ttl: int
 
     def __init__(
         self,
         server_script: MCP_SERVER_SCRIPT_TYPE,
+        connection_ttl: int = 60,  # When the connection is not used for a long time, it will be closed
         # headers: dict | None = None,
     ):
+        """Constructor
+
+        Args:
+            server_script (MCP_SERVER_SCRIPT_TYPE): Server script
+            connection_ttl (int, optional): TTL for connection when planned to close. Defaults to 60. Set to -1 to disable
+        """
         self.mcp_client = None
         self.server_script: MCP_SERVER_SCRIPT_TYPE = server_script
         self.tools: list[MCPToolSchema] = []
         self.openai_tools: list[ToolFunctionSchema] = []
+        if connection_ttl < -1:
+            raise ValueError("connection_ttl must be greater than or equals to -1")
+        self._close_ttl = connection_ttl
 
     async def __aenter__(self) -> Self:
+        self._close_waitter = None
         await self._connect()
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self._close()
+        if self._close_ttl == -1:
+            return await self.close_no_wait()
+        self.close()
 
     async def bound_to(self, tm: ClientManager):
         try:
@@ -94,8 +110,10 @@ class MCPClient:
         Args:
             update_tools (bool, optional): whether to update the tool list. Defaults to False.
         """
-        if self.mcp_client is not None:
+        if self.mcp_client is not None and not self._close_waitter:
             raise RuntimeError("MCP Server is already connected!")
+        else:
+            await self._clean_waitter()
 
         server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
         self.mcp_client = Client(server_script)
@@ -108,6 +126,43 @@ class MCPClient:
             ]
             logger.info(f"Available tools: {[tool.name for tool in self.tools]}")
             self._cast_tool_to_amrita()
+
+    async def _clean_waitter(self):
+        if self._close_waitter is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                self._close_waitter.cancel()
+                await asyncio.sleep(0)
+            self._close_waitter = None
+
+    def close(self) -> asyncio.Future[None]:
+        """Create a TTL-Task to wait for connection's close.
+
+        Returns:
+            asyncio.Task[None]: Waiting task.
+        """
+        if self._close_waitter is not None and not self._close_waitter.done():
+            return self._close_waitter
+        if self._close_ttl == -1:
+            raise RuntimeError("TTL is not set. Please use `close_no_wait` instead.")
+
+        async def waitter() -> None:
+
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.sleep(self._close_ttl)
+                await self._close()
+
+        self._close_waitter = asyncio.create_task(waitter())
+        return self._close_waitter
+
+    async def close_no_wait(self):
+        await self._clean_waitter()
+        await self._close()
+
+    async def _close(self) -> None:
+        """Close connection"""
+        if self.mcp_client:
+            await self.mcp_client.__aexit__(None, None, None)
+            self.mcp_client = None
 
     def _format_tools_for_openai(self):
         """Convert MCP tool format to OpenAI tool format"""
@@ -141,12 +196,6 @@ class MCPClient:
     def get_original_tools(self) -> list[MCPToolSchema]:
         """Get original MCP tool list"""
         return self.tools
-
-    async def _close(self):
-        """Close connection"""
-        if self.mcp_client:
-            await self.mcp_client.__aexit__(None, None, None)
-            self.mcp_client = None
 
 
 class MultiClientManager(ContextThreadsafe):

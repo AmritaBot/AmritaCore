@@ -345,6 +345,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             return False
 
         result_msg_list: list[ToolResult] = []
+        ret: bool = True
         for tool_call in tool_calls:
             function_name = tool_call.function.name
             function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
@@ -430,12 +431,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                             },
                         )
                     )
-                    return False
+                    ret = False
 
             # Send tool call info to user
             await self._notify_tool_calls(result_msg_list, function_name, tool_call.id)
 
-        return True
+        return ret
 
     async def _handle_error_append(
         self,
