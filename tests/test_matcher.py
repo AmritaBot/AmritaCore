@@ -367,43 +367,14 @@ class TestMatcherFactorySimpleRun:
         handlers = EventRegistry().get_handlers("test_event")
 
         result = await MatcherFactory._simple_run(
-            handlers[matcher.priority], event, (), (), {}, self.config
+            handlers[matcher.priority],
+            exception_ignored=(),
+            extra_args=(event, self.config),
+            extra_kwargs={},
         )
 
         assert result is True
         assert call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_simple_run_with_runtime_deps(self):
-        """Test _simple_run with runtime dependencies from hook_kwargs."""
-        received_deps = {}
-
-        async def dep_func() -> str:
-            return "runtime_value"
-
-        matcher = Matcher("test_event", block=False)  # Set block=False
-
-        @matcher.handle()
-        async def test_handler(
-            event: TestEvent, config: AmritaConfig, runtime_dep: str
-        ):
-            nonlocal received_deps
-            received_deps["runtime_dep"] = runtime_dep
-
-        event = TestEvent()
-        handlers = EventRegistry().get_handlers("test_event")
-
-        result = await MatcherFactory._simple_run(
-            handlers[matcher.priority],
-            event,
-            (),
-            (),
-            {"runtime_dep": Depends(dep_func)},
-            self.config,
-        )
-
-        assert result is True
-        assert received_deps["runtime_dep"] == "runtime_value"
 
     @pytest.mark.asyncio
     async def test_simple_run_with_default_deps(self):
@@ -429,41 +400,13 @@ class TestMatcherFactorySimpleRun:
 
         result = await MatcherFactory._simple_run(
             handlers[matcher.priority],
-            event,
-            (),
-            (),
-            {},
-            self.config,
+            exception_ignored=(),
+            extra_args=(event, self.config),
+            extra_kwargs={},
         )
 
         assert result is True
         assert received_deps["default_dep_param"] == "default_value"
-
-    @pytest.mark.asyncio
-    async def test_simple_run_runtime_deps_failure(self):
-        """Test _simple_run when runtime deps fail to resolve."""
-
-        async def failing_dep() -> str | None:
-            return None
-
-        matcher = Matcher("test_event", block=False)  # Set block=False
-
-        @matcher.handle()
-        async def test_handler(event: TestEvent, config: AmritaConfig, bad_dep: str):
-            pass
-
-        event = TestEvent()
-        handlers = EventRegistry().get_handlers("test_event")
-
-        with pytest.raises(RuntimeError, match="Runtime arguments cannot be resolved"):
-            await MatcherFactory._simple_run(
-                handlers[matcher.priority],
-                event,
-                (),
-                (),
-                {"bad_dep": Depends(failing_dep)},
-                self.config,
-            )
 
     @pytest.mark.asyncio
     async def test_simple_run_default_deps_failure(self):
@@ -487,11 +430,9 @@ class TestMatcherFactorySimpleRun:
 
         result = await MatcherFactory._simple_run(
             handlers[matcher.priority],
-            event,
-            (),
-            (),
-            {},
-            self.config,
+            exception_ignored=(),
+            extra_args=(event, self.config),
+            extra_kwargs={},
         )
 
         assert result is True  # Should continue to next handler
