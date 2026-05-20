@@ -5,7 +5,6 @@ import datetime
 import inspect
 from collections import defaultdict
 from collections.abc import Awaitable, Callable, Hashable, Iterable
-from copy import deepcopy
 from dataclasses import asdict, dataclass
 from dataclasses import field as Field
 from types import FrameType, MappingProxyType
@@ -325,8 +324,8 @@ class MatcherFactory:
         resolve_tasks = []
         if not runtime_args and not runtime_kwargs:
             return True
-        session_args = deepcopy(session_args)
-        session_kwargs = deepcopy(session_kwargs)
+        session_args = session_args
+        session_kwargs = session_kwargs
         for idx, factory in runtime_args.items():
             task = factory.resolve(*session_args, **session_kwargs)
             resolve_tasks.append((idx, None, task))
@@ -543,7 +542,7 @@ class MatcherFactory:
             # Check if there are handlers for this event type
             if priorities:
                 s_args = [event, *args] + ([config] if config else [])
-                session_kwargs: dict[str, Any] = deepcopy(kwargs)
+                session_kwargs: dict[str, Any] = kwargs.copy()
                 runtime_args: dict[int, DependsFactory] = {  # index -> DependsFactory
                     k: v for k, v in enumerate(s_args) if isinstance(v, DependsFactory)
                 }
