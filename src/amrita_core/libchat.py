@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import AsyncGenerator, Callable, Generator, Iterable, Sequence
+from collections.abc import AsyncGenerator, Callable, Generator, Sequence
 from io import StringIO
 
+from amrita_sense.logging import debug_log
 from pydantic import ValidationError
 
-from amrita_core.preset import PresetManager
-from amrita_core.streaming import SuspendObjectStream
-
-from .config import AmritaConfig, get_config
-from .logging import debug_log
-from .protocol import (
+from amrita_core.base.adapter import (
     COMPLETION_RETURNING,
     AdapterManager,
     MessageContent,
     ModelAdapter,
 )
+from amrita_core.preset import PresetManager
+from amrita_core.streaming import SuspendObjectStream
+
+from .config import AmritaConfig, get_config
 from .tokenizer import hybrid_token_count
 from .tools.models import ToolChoice
 from .types import (
@@ -303,12 +303,14 @@ async def get_last_response(
 
 
 async def call_embedding(
-    text: Iterable[str],
+    text: Sequence[str],
     preset: ModelPreset,
     config: AmritaConfig | None = None,
     **kwargs,
 ) -> Sequence[EmbeddingChunk]:
     config = config or get_config()
+    if isinstance(text, str):
+        raise TypeError("Text must be a sequence of strings, not a single string.")
 
     async def _call_embed(
         adapter: ModelAdapter,

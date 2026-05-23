@@ -1,7 +1,7 @@
 from amrita_core.config import AmritaConfig
+from amrita_core.contents import MessageWithMetadata
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
-from amrita_core.protocol import MessageWithMetadata
 
 posthook = on_completion(block=False, priority=10)
 

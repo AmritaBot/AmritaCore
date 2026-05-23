@@ -2,7 +2,7 @@ import asyncio
 import os
 import random
 
-from amrita_core import ChatObject, init, load_amrita, logger, set_config
+from amrita_core import ChatObject, load_amrita, logger, set_config
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig
 from amrita_core.preset import PresetManager
 from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
@@ -172,5 +172,4 @@ async def main():
 
 
 if __name__ == "__main__":
-    init()
     asyncio.run(main())

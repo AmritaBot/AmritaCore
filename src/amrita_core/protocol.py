@@ -1,279 +1,37 @@
-from __future__ import annotations
+import warnings
 
-import base64
-from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, Iterable, Sequence
-from dataclasses import dataclass, field
-from io import BytesIO
-from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, TypedDict
+from .base.adapter import (
+    ADAPTER_TYPE,
+    COMPLETION_RETURNING,
+    AdapterManager,
+    MessageContent,
+    ModelAdapter,
+)
+from .contents import (
+    ImageMessage,
+    MessageMetadata,
+    MessageWithMetadata,
+    RawMessageContent,
+    StringMessageContent,
+    get_image_format,
+)
 
-import aiofiles
-import aiohttp
-import filetype
-from filetype.types.base import Type
+warnings.warn(
+    "amrita_core.protocol is deprecated and will be removed in a future release. Please use amrita_core.base.adapter and amrita_core.contents instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-from amrita_core.config import AmritaConfig, get_config
-from amrita_core.threadsafe import ContextThreadsafe
-
-from .logging import logger
-from .tools.models import ToolChoice, ToolFunctionSchema
-from .types import EmbeddingChunk, ModelPreset, ToolCall, UniResponse
-
-
-def get_image_format(file: Path | bytes):
-    kind: Type | None = filetype.guess(file)
-    if kind is None:
-        return
-    assert isinstance(kind.mime, str)
-    if kind and kind.mime.startswith("image/"):
-        assert isinstance(kind.extension, str)
-        return kind.extension.lower()  # return 'png', 'jpeg' or 'gif' etc.
-
-
-class MessageContent(ABC):
-    """Abstract base class for different types of message content
-
-    This allows for various types of content to be yielded by the chat manager,
-    not just strings. Subclasses should implement their own representation.
-    """
-
-    def __str__(self) -> str:
-        return self.get_content()
-
-    def __init__(self, content_type: str):
-        self.type = content_type
-
-    @abstractmethod
-    def get_content(self):
-        """Return the actual content of the message"""
-        raise NotImplementedError("Subclasses must implement get_content method")
-
-
-class RawMessageContent(MessageContent, ABC):
-    """Raw message content implementation abstract class"""
-
-    def __init__(self, raw_data: Any):
-        super().__init__("raw")
-        self.raw_data = raw_data
-
-    def get_content(self):
-        return self.raw_data
-
-    def __str__(self) -> str:
-        return str(self.raw_data)
-
-
-class StringMessageContent(MessageContent):
-    """String type message content implementation"""
-
-    def __init__(self, text: str):
-        super().__init__("string")
-        self.text = text
-
-    def get_content(self) -> str:
-        return self.text
-
-
-class MessageMetadata(TypedDict):
-    content: str
-    metadata: dict[str, Any]
-
-
-class MessageWithMetadata(MessageContent):
-    """Message with additional metadata"""
-
-    def __init__(self, content: str, metadata: dict[str, Any]):
-        """Constructor of MessageWith Metadata
-
-        Args:
-            content (str): Message content
-            metadata (dict[str, Any]): Metadata, normally has "type", "extra_type"(optional), "content" fields, but can be customized
-        """
-        super().__init__("metadata")
-        self.content = content
-        self.metadata = metadata
-
-    def get_content(self) -> str:
-        return self.content
-
-    def get_metadata(self) -> dict:
-        return self.metadata
-
-    def get_full_content(self) -> MessageMetadata:
-        return MessageMetadata(content=self.content, metadata=self.metadata)
-
-
-class ImageMessage(MessageContent):
-    """Image message"""
-
-    def __init__(self, image: str | BytesIO | bytes):
-        """Construct a new ImageMessage object.
-
-        Args:
-            image (str | BytesIO | bytes): The image to be responded with, str: URL, BytesIO: file object, bytes: Base64 encoded image
-        """
-        super().__init__("image")
-        self.image: str | BytesIO | bytes = image
-
-    async def get_image(self, headers: dict[str, Any] | None = None) -> BytesIO | bytes:
-        if isinstance(self.image, str):
-            self.image = await self.curl_image(headers)
-        return self.image
-
-    async def curl_image(self, extra_headers: dict | None = None) -> bytes:
-        if isinstance(self.image, str):
-            headers = {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.90 Safari/537.36"
-            }
-            headers.update(extra_headers or {})
-            async with aiohttp.ClientSession(headers=headers) as session:
-                async with session.get(self.image) as response:
-                    if response.status != 200:
-                        raise ValueError(f"Failed to download image from {self.image}")
-                    bt = await response.read()
-                    obj = base64.b64encode(bt)
-                    return obj
-        raise ValueError("Image must be a URL to use this method")
-
-    def get_content(self) -> str:
-        if isinstance(self.image, str):
-            return f"![]({self.image})"
-        elif isinstance(self.image, BytesIO):
-            self.image = self.image.getvalue()
-        image_type = get_image_format(self.image)
-        if not image_type:
-            return "[Unsupported image format]"
-        base64_data = base64.b64encode(self.image).decode("utf-8")
-        return f"![](data:image/{image_type};base64,{base64_data})"
-
-    async def save_to(self, path: Path, headers: dict | None = None):
-        async with aiofiles.open(path, "wb") as f:
-            if isinstance(self.image, BytesIO):
-                await f.write(self.image.read())
-            elif isinstance(self.image, bytes):
-                await f.write(self.image)
-            else:
-                await f.write(await self.curl_image(headers))
-
-
-COMPLETION_RETURNING = MessageContent | str | UniResponse[str, None]
-ADAPTER_TYPE = Literal[
-    "text-gen",
-    "embed",
-    # "rerank",
+__all__ = [
+    "ADAPTER_TYPE",
+    "COMPLETION_RETURNING",
+    "AdapterManager",
+    "ImageMessage",
+    "MessageContent",
+    "MessageMetadata",
+    "MessageWithMetadata",
+    "ModelAdapter",
+    "RawMessageContent",
+    "StringMessageContent",
+    "get_image_format",
 ]
-
-
-@dataclass
-class ModelAdapter:
-    """Base class for model adapter"""
-
-    preset: ModelPreset
-    config: AmritaConfig = field(default_factory=get_config)
-    __override__: bool = False  # Whether to allow overriding existing adapters
-
-    def __init_subclass__(cls) -> None:
-        super().__init_subclass__()
-        if not getattr(cls, "__abstract__", False) and not getattr(
-            cls, "__no_register__", False
-        ):
-            AdapterManager().register_adapter(cls)
-
-    async def call_api(
-        self, messages: Iterable, **kwargs
-    ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
-        if TYPE_CHECKING:
-            yield ""
-        else:
-            raise NotImplementedError
-
-    async def call_tools(
-        self,
-        messages: Iterable,
-        tools: list[ToolFunctionSchema],
-        tool_choice: ToolChoice | None = None,
-    ) -> UniResponse[None, list[ToolCall] | None]:
-        raise NotImplementedError
-
-    async def call_embed(
-        self, texts: Iterable[str], **kwargs
-    ) -> Sequence[EmbeddingChunk]:
-        raise NotImplementedError
-
-    # TODO: Add reranker support.
-
-    @staticmethod
-    @abstractmethod
-    def get_adapter_protocol() -> str | tuple[str, ...]: ...
-
-    @staticmethod
-    def get_type() -> ADAPTER_TYPE | tuple[ADAPTER_TYPE, ...]:
-        return "text-gen"
-
-    @property
-    def protocol(self):
-        """Get model protocol adapter"""
-        return self.get_adapter_protocol()
-
-
-class AdapterManager(ContextThreadsafe):
-    __instance = None
-    __inited = False
-    _adapter_class: dict[str, type[ModelAdapter]]
-
-    def __new__(cls):
-        if cls.__instance is None:
-            cls.__instance = super().__new__(cls)
-            cls.__instance._adapter_class = {}
-        return cls.__instance
-
-    def __init__(self):
-        if not self.__inited:
-            super().__init__()
-            self.__inited = True
-
-    def get_adapters(self) -> dict[str, type[ModelAdapter]]:
-        """Get all registered adapters"""
-        return self._adapter_class
-
-    def safe_get_adapter(self, protocol: str) -> type[ModelAdapter] | None:
-        """Get adapter"""
-        return self._adapter_class.get(protocol)
-
-    def get_adapter(self, protocol: str) -> type[ModelAdapter]:
-        """Get adapter"""
-        if protocol not in self._adapter_class:
-            raise ValueError(f"No adapter found for protocol {protocol}")
-        return self._adapter_class[protocol]
-
-    def register_adapter(self, adapter: type[ModelAdapter]):
-        """Register adapter"""
-        protocol = adapter.get_adapter_protocol()
-        override = adapter.__override__ if hasattr(adapter, "__override__") else False
-        if isinstance(protocol, str):
-            if protocol in self._adapter_class:
-                if not override:
-                    raise ValueError(
-                        f"Model protocol adapter {protocol} is already registered"
-                    )
-                logger.warning(
-                    f"Model protocol adapter {protocol} has been registered by {self._adapter_class[protocol].__name__}, overriding existing adapter"
-                )
-
-            self._adapter_class[protocol] = adapter
-        elif isinstance(protocol, tuple):
-            for p in protocol:
-                if not isinstance(p, str):
-                    raise TypeError(
-                        "Model protocol adapter must be a string or tuple of strings"
-                    )
-                if p in self._adapter_class:
-                    if not override:
-                        raise ValueError(
-                            f"Model protocol adapter {p} is already registered"
-                        )
-                    logger.warning(
-                        f"Model protocol adapter {p} has been registered by {self._adapter_class[p].__name__}, overriding existing adapter"
-                    )
-                self._adapter_class[p] = adapter

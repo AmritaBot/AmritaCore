@@ -2,12 +2,12 @@ import random
 import time
 import typing
 
+from amrita_sense.logging import debug_log, logger
 from typing_extensions import Self
 
+from amrita_core.base.adapter import AdapterManager
 from amrita_core.threadsafe import ContextThreadsafe
 
-from .logging import debug_log, logger
-from .protocol import AdapterManager
 from .tokenizer import hybrid_token_count
 from .types import BaseModel, Message, ModelPreset, TextContent, UniResponse
 

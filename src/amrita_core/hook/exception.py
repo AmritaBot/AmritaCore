@@ -1,13 +1,4 @@
-class MatcherException(Exception):
-    """Base exception for Matcher."""
-
-
-class CancelException(MatcherException):
-    pass
-
-
-class PassException(MatcherException):
-    pass
+from amrita_sense.hook.exception import CancelException, MatcherException, PassException
 
 
 class FallbackFailed(RuntimeError):
@@ -15,3 +6,11 @@ class FallbackFailed(RuntimeError):
 
     def __init__(self, *value: object):
         super().__init__(value)
+
+
+__all__ = [
+    "CancelException",
+    "FallbackFailed",
+    "MatcherException",
+    "PassException",
+]  # for backward compatibility

@@ -41,7 +41,7 @@ class FunctionConfig(BaseModel):
         default=False,
         description="Disabile built-in tokenizer when response not returning a token count.",
     )
-
+    tokenizer_used: str = Field(default="simple", description="Tokenizer to use.")
     agent_tool_call_limit: int = Field(
         default=10, description="Tool call limit in calling tools."
     )
