@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: "AmritaCore"
-  text: "Progressive Agent Framework"
-  tagline: "Modern, Lightweight, Easy to Use, Powerful"
+  text: "Flexible Progressive Agent Framework"
+  tagline: "Built on AmritaSense — Modern, Lightweight, Easy to Use, Powerful"
   image:
     src: /Amrita.png
     alt: Project Logo
@@ -15,15 +15,18 @@ hero:
     - theme: alt
       text: GitHub
       link: https://github.com/AmritaBot/AmritaCore
+    - theme: alt
+      text: AmritaSense
+      link: https://sense.amritabot.com
 
 features:
   - icon: ⚡
-    title: Native Asynchronous
-    details: Built-in asynchronous processing capabilities for improved performance
+    title: Powered by AmritaSense
+    details: High-performance async workflow engine with composable nodes and dependency injection
   - icon: 🔌
     title: Highly Extensible
     details: Modular design with pipeline hooks for easy feature expansion
   - icon: 🪶
     title: Lightweight
-    details: Minimal core with small footprint for fast loading and execution
+    details: AmritaSense core (~300 LOC) + thin Agent layer for minimal overhead
 ---

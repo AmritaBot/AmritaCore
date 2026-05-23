@@ -182,7 +182,7 @@ async def log_response(event: CompletionEvent):
 协议适配器允许 AmritaCore 与不同的 LLM 提供商或通信协议一起工作：
 
 ```python
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset
 from collections.abc import AsyncGenerator, Iterable
 from amrita_core.types import UniResponse
@@ -372,7 +372,7 @@ async def security_check(event: PreCompletionEvent):
 为不同 LLM 提供商构建适配器：
 
 ```python
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset, UniResponse
 from collections.abc import AsyncGenerator, Iterable
 import aiohttp

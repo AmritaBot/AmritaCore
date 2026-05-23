@@ -1,32 +1,36 @@
 # SuspendObjectStream
 
-`SuspendObjectStream` 是一个泛型基类，为需要异步向单个消费者产生项目的对象提供挂起/恢复功能和流式响应处理。
+> **已迁移至 AmritaSense**。`amrita_core.streaming` 现为弃用包装器。
 
-该类使用 AnyIO 的内存对象流实现生产者到单个消费者的架构，提供内置的背压处理和流控制。
+`SuspendObjectStream` 是 AnyIO 内存对象流之上的生产者-单消费者架构，内建挂起/恢复和流式响应能力。
 
-## 类定义
+**完整 API 文档**：[SuspendObjectStream — AmritaSense](https://sense.amritabot.com/reference/api/suspend-object-stream)
 
-```python
-class SuspendObjectStream(Generic[ObjectTypeT])
-```
-
-## 构造函数
+## 迁移
 
 ```python
-def __init__(
-    self,
-    /,
-    queue_size: int = 45,
-    queue_timeout: float | None = 10.0,
-    callback: CALLBACK_TYPE | None = None,
-) -> None
+# 旧（弃用）
+from amrita_core.streaming import SuspendObjectStream
+
+# 新
+from amrita_sense.streaming import SuspendObjectStream
 ```
 
-### 参数
+## 在 AmritaCore 中的使用
 
-- `queue_size` (int): 响应流的最大缓冲区大小。默认为 `45`。
-- `queue_timeout` (float | None): 队列操作的超时时间（秒）。如果为 `None`，操作将无限等待。默认为 `10.0`。
-- `callback` (CALLBACK_TYPE | None): 异步回调函数，在生成响应块时接收它们。默认为 `None`。
+ChatObject 继承自 `SuspendObjectStream[RESPONSE_TYPE]`。所有流式交互方法均来自此基类：
+
+| 方法                       | 用途                     |
+| -------------------------- | ------------------------ |
+| `yield_response()`         | 向队列或回调发送响应     |
+| `get_response_generator()` | 异步迭代响应流           |
+| `set_callback_func()`      | 设置响应回调             |
+| `wait_to_suspend()`        | 外部等待挂起             |
+| `resume()`                 | 恢复执行                 |
+| `@suspend`                 | 可挂起方法装饰器         |
+| `@suspend_with_tag(tag)`   | 带标签的可挂起方法装饰器 |
+
+> **注意**：`callback` 与 `async for` 迭代**互斥**，同一实例只能使用一种方式消费响应流。
 
 ## 属性
 

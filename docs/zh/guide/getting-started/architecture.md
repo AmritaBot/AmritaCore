@@ -112,7 +112,17 @@ graph LR
     RunMethod --> AgentLoop
 ```
 
-## 2.4.2 核心组件关系
+## 2.4.2 AmritaSense 基础
+
+AmritaCore 构建于 [**AmritaSense**](https://sense.amritabot.com) 之上，后者提供核心基础设施：
+
+- **工作流引擎**：`WorkflowInterpreter` 驱动 ChatObject 的节点链（训练渲染 → 内存限制 → 策略执行 → LLM 调用 → 后处理）
+- **事件系统**：`MatcherFactory`、`EventRegistry` 和依赖注入，实现可组合的钩子机制
+- **流式处理**：`SuspendObjectStream` 提供挂起/恢复和实时流式能力
+
+这种分离使得 AmritaCore 的 Agent 层保持轻量，专注于策略、会话、工具、MCP 和适配器。
+
+## 2.4.3 核心组件关系
 
 - **入口层**: 为用户提供简化的交互接口
   - `create_agent()`: 工厂函数，使用最少参数创建 `AgentRuntime`
@@ -137,7 +147,7 @@ graph LR
   - `Global 全局容器`: 存储所有会话可访问的共享资源
   - `Session 上下文`: 维护具有独立状态的隔离对话上下文
 
-## 2.4.3 Agent 循环与 Session 隔离机制
+## 2.4.4 Agent 循环与 Session 隔离机制
 
 ```mermaid
 sequenceDiagram

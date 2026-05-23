@@ -141,6 +141,34 @@ security_config = CookieConfig(
 - Adjust timeout and retry settings according to your LLM provider
 - Keep security features enabled in production environments
 
+### 3.1.7 tokenizer_used Tokenizer Selection
+
+> **New in v0.9.0rc1**: The `tokenizer_used` field in `FunctionConfig` selects which tokenizer to use for token counting.
+
+```python
+from amrita_core.config import FunctionConfig
+
+# Use the simple tokenizer (default)
+func_config = FunctionConfig(tokenizer_used="simple")
+
+# Use a custom registered tokenizer
+func_config = FunctionConfig(tokenizer_used="my_tokenizer")
+```
+
+Tokenizers are managed by the `TokenizerManager` and can be customised via the [BaseTokenizer](../../api-reference/classes/BaseTokenizer.md) abstract class.
+
+### 3.1.8 BuiltinName Internal Aliases
+
+> **New in v0.9.0rc1**: `BuiltinName` provides symbolic aliases used by the [workflow engine](workflow-engine.md).
+
+```python
+from amrita_core.chatmanager import BuiltinName
+
+BuiltinName.AGENT_STRATEGY  # "ChatObject::__agent_main__"
+```
+
+These aliases enable the workflow interpreter to locate and invoke specific nodes by name, supporting the composable workflow architecture.
+
 ## 3.5 Advanced Concepts
 
 ### 3.5.1 ChatObject Conversation Object

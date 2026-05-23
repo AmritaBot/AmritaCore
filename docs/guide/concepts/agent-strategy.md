@@ -36,6 +36,44 @@ AmritaCore supports four distinct strategy categories, each designed for specifi
 - **Use Case**: Agents that need to adapt between RAG and iterative tool calling based on context
 - **Context**: Full conversation history with dynamic behavior adaptation
 
+### Two Types of Strategies
+
+AmritaCore supports **two complementary ways** to define agent strategies. Choose based on whether your strategy needs internal state.
+
+#### Type 1: `type[AgentStrategy]` — Class-based Strategy
+
+Pass a **class** to `ChatObject`. The framework instantiates a fresh copy for every request.
+
+- ✅ Simple, stateless — write once, run everywhere
+- ✅ Ideal for most common agent patterns (ReAct, RAG, etc.)
+- ✅ No need to manage lifecycle — the framework handles it
+
+```python
+chat = ChatObject(
+    ...,
+    agent_strategy=ReActAgentStrategy,  # pass the class
+)
+```
+
+#### Type 2: `StrategyLikedObject` — Instance-based Strategy
+
+Pass a **pre-initialised instance**. The same object lives for the entire conversation, carrying its own state machine, resources, and configuration.
+
+- ✅ Carries internal state across `single_execute()` / `run()` calls
+- ✅ Pre-loads heavy resources (API clients, DB connections) once at creation
+- ✅ Guarantees conversation isolation — each dialog gets its own instance
+- ✅ Ideal for rate-limited, authenticated, or multi-step stateful workflows
+
+```python
+strategy = MyStatefulStrategy(api_key="sk-...", max_calls=5)
+chat = ChatObject(
+    ...,
+    agent_strategy=strategy,  # pass the instance
+)
+```
+
+> `ChatObject.agent_strategy` accepts **both** — `type[AgentStrategy]` OR `StrategyLikedObject` instance.
+
 ### Template Method Pattern Architecture
 
 AmritaCore's agent strategy system has been enhanced with a **template method pattern** that provides a unified execution framework while allowing strategy-specific customization.
@@ -189,9 +227,88 @@ async def use_builtin_strategies():
         response3 = await chat3.full_response()
 ```
 
-### Post-Process Hook
+## Stateful Strategies with StrategyLikedObject
 
-The `on_post_process()` method is a new lifecycle hook that is called after all agent steps complete successfully. This hook is invoked for **all strategy categories** (`"agent"`, `"rag"`, `"workflow"`, `"agent-mixed"`) and can be used for:
+> **New in v0.9.0rc1**: `StrategyLikedObject` enables stateful agent strategies by passing pre-initialised instances instead of class types.
+
+### Motivation
+
+Standard `AgentStrategy` subclasses are instantiated by the framework for each request. This works well for stateless strategies but limits:
+
+- **State machines**: Strategies that need to track state across calls
+- **Pre-configured resources**: Strategies with pre-loaded API clients, database connections, or model instances
+- **Conversation isolation**: Guaranteeing each conversation gets its own strategy instance with independent state
+
+`StrategyLikedObject` solves these by allowing you to pass an **already-initialised instance** directly to `ChatObject`.
+
+### Comparison: AgentStrategy vs StrategyLikedObject
+
+| Aspect           | `AgentStrategy`              | `StrategyLikedObject`          |
+| ---------------- | ---------------------------- | ------------------------------ |
+| Passed as        | Class (`type`)               | Instance                       |
+| Instantiation    | By framework per request     | By user, once                  |
+| Stateful         | No (new instance each time)  | Yes (same instance throughout) |
+| Resource loading | On every request             | Once, at creation              |
+| Use case         | Stateless, simple strategies | Complex, stateful workflows    |
+
+### Usage
+
+```python
+from amrita_core.agent.strategy import StrategyLikedObject
+from amrita_core.agent.context import StrategyContext
+
+class RateLimitedStrategy(StrategyLikedObject):
+    def __init__(self, max_calls: int, api_key: str):
+        self.max_calls = max_calls
+        self.call_count = 0
+        self.api_key = api_key
+        self.client = MyAPIClient(api_key)  # Pre-loaded resource
+
+    @classmethod
+    def get_category(cls) -> str:
+        return "agent"
+
+    async def single_execute(self) -> bool:
+        self.call_count += 1
+        if self.call_count > self.max_calls:
+            return False  # Stop
+        # Use self.client for API calls...
+        return True
+
+    async def on_limited(self) -> None:
+        await self.chat_object.yield_response(
+            "I've reached my call limit for this conversation."
+        )
+
+# Pass an instance — not a class
+strategy = RateLimitedStrategy(max_calls=5, api_key="sk-...")
+chat_obj = ChatObject(
+    train={"system": "You are a helpful assistant"},
+    user_input="Hello",
+    context=None,
+    session_id="session_123",
+    agent_strategy=strategy,  # Instance!
+)
+```
+
+### Lifecycle
+
+1. **Creation**: User instantiates `StrategyLikedObject` with custom parameters
+2. **Registration**: Instance is passed to `ChatObject(agent_strategy=instance)`
+3. **Initialisation**: Framework calls `strategy(ctx)` once context is ready
+4. **Execution**: Same instance handles all `single_execute()` / `run()` calls
+5. **Cleanup**: Instance is discarded when the conversation ends
+
+### When to Use
+
+- **Rate limiting**: Track per-conversation tool call counts
+- **Authenticated clients**: Pre-initialise API clients with session tokens
+- **Multi-step workflows**: Maintain state across workflow stages
+- **Resource pooling**: Share connection pools across strategy instances
+
+## Post-Process Hook
+
+The `on_post_process()` method is a lifecycle hook that is called after all agent steps complete successfully. This hook is invoked for **all strategy categories** (`"agent"`, `"rag"`, `"workflow"`, `"agent-mixed"`) and can be used for:
 
 - Adding final instructions to the context
 - Context summarization or cleanup

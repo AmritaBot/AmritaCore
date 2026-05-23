@@ -112,7 +112,17 @@ graph LR
     RunMethod --> AgentLoop
 ```
 
-## 2.4.2 Core Component Relationships
+## 2.4.2 AmritaSense Foundation
+
+AmritaCore is built on [**AmritaSense**](https://sense.amritabot.com), which provides the core infrastructure:
+
+- **Workflow Engine**: `WorkflowInterpreter` drives ChatObject's node chain (train rendering → memory limiting → strategy execution → LLM call → post-processing)
+- **Event System**: `MatcherFactory`, `EventRegistry`, and dependency injection for composable hooks
+- **Streaming**: `SuspendObjectStream` for suspend/resume and real-time streaming
+
+This separation keeps AmritaCore's Agent layer thin and focused on strategy, sessions, tools, MCP, and adapters.
+
+## 2.4.3 Core Component Relationships
 
 - **Entry Layer**: Provides a simplified interaction interface for users
   - `create_agent()`: Factory function that creates an `AgentRuntime` with minimal parameters
@@ -137,7 +147,7 @@ graph LR
   - `Global Container`: Stores shared resources accessible to all sessions
   - `Session Context`: Maintains isolated conversation contexts with independent state
 
-## 2.4.3 Agent Loop and Session Isolation Mechanism
+## 2.4.4 Agent Loop and Session Isolation Mechanism
 
 ```mermaid
 sequenceDiagram

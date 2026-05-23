@@ -192,7 +192,7 @@ AmritaCore适配器通过 `ADAPTER_TYPE` 字面量类型别名（定义为 `Lite
 
 ```python
 from collections.abc import Iterable, Sequence
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import EmbeddingChunk, ModelPreset
 
 class MyEmbeddingAdapter(ModelAdapter):

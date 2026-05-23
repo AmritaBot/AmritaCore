@@ -1,15 +1,16 @@
 # Key Features Overview
 
-## 1.2.1 8 Core Features
+## 1.2.1 9 Core Features
 
 1. **Stream-based Design**: All message outputs are asynchronous stream-based designs supporting real-time responses
 2. **Cookie Security Detection**: Built-in cookie security detection functionality to protect session security
 3. **Provider Independent Mechanism**: Data types and conversation management are independent of specific vendors, abstracted as a 'model adapter' interface, offering high portability
 4. **MCP Client Support**: Extension mechanisms integrate MCP clients, enhancing system expansion capabilities
-5. **Event-Driven Architecture**: Comprehensive event system with runtime dependency injection mechanism for flexible and reactive agent behavior
+5. **Event-Driven Architecture**: Comprehensive event system (powered by AmritaSense) with runtime dependency injection mechanism for flexible and reactive agent behavior
 6. **Tool Integration Framework**: Robust system for integrating external tools and services
 7. **Advanced Memory Management**: Sophisticated context handling with automatic context compression and token optimization
-8. **Native Suspend/Resume Support**: Built-in mechanism to pause and resume agent execution flow at any point, enabling interactive applications with real-time user control
+8. **Native Suspend/Resume Support**: Built-in mechanism (AmritaSense `SuspendObjectStream`) to pause and resume agent execution flow at any point
+9. **Composable Workflow Engine**: Powered by [AmritaSense](https://sense.amritabot.com) — node-based execution with native control flow (IF/WHILE/JUMP/TRY), dependency injection, and middleware support
 
 ## 1.2.2 Architectural Advantages
 

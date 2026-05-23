@@ -2,24 +2,20 @@
 
 ## 7.1 Core API Functions
 
-### 7.1.1 init() - Initialization
+### 7.1.1 init() - Initialization (Deprecated)
 
-The `init()` function initializes AmritaCore's core components and must be called before any other operations.
+> **Deprecated**: The `init()` function is deprecated since v0.9.0rc1. It is now an empty stub and no longer performs any initialisation. Use `load_amrita()` for async initialisation instead.
 
 ```python
 from amrita_core import init
 
-# Initialize AmritaCore
+# No longer necessary - this is now a no-op
 init()
 ```
 
-**Purpose**: Prepares the internal components of AmritaCore, initializes Jieba for text processing, loads built-in modules, and sets up the core framework.
+**Purpose**: Previously prepared internal components, initialized Jieba, and loaded built-in modules. Now deprecated.
 
-**Usage Notes**:
-
-- Must be called before any other AmritaCore functions
-- Thread-safe and can be called multiple times (subsequent calls are no-ops)
-- Sets up logging and internal state
+**Migration**: Remove any calls to `init()` in your code. Use `load_amrita()` when async initialisation is needed (e.g., for MCP client setup).
 
 ### 7.1.2 load_amrita() - Loading Framework
 
@@ -39,7 +35,8 @@ asyncio.run(main())
 
 **Usage Notes**:
 
-- Must be called after `init()` and `set_config()`
+- No longer requires `init()` to be called first (since v0.9.0rc1)
+- Should be called after `set_config()` if custom configuration is used
 - Should be awaited as it's an async function
 - When MCP is enabled, it's required to call `load_amrita()`.
 
@@ -154,6 +151,29 @@ chat = ChatObject(
 **Specials**:
 
 - `__await__`: Allows the object to be used as an async context manager, we recommend using it.
+
+### 7.2.1a StrategyLikedObject - Stateful Strategy Base
+
+The [StrategyLikedObject](classes/StrategyLikedObject.md) class is an abstract base class for agent strategy **instances**. Unlike `AgentStrategy` which receives a type, `StrategyLikedObject` is passed as an already-initialised instance, enabling stateful strategies with internal state machines.
+
+```python
+from amrita_core.agent.strategy import StrategyLikedObject
+
+class MyStatefulStrategy(StrategyLikedObject):
+    @classmethod
+    def get_category(cls) -> str:
+        return "agent"
+
+    async def single_execute(self) -> bool:
+        # Custom agent step logic
+        return False  # Stop after one step
+
+# Pass instance to ChatObject
+chat = ChatObject(
+    ...,
+    agent_strategy=MyStatefulStrategy()
+)
+```
 
 ### 7.2.2 Message - Message Class
 
@@ -378,6 +398,10 @@ AmritaCore provides several predefined types for consistency:
 - [MemoryModel](classes/MemoryModel.md): Stores conversation history
 - [ModelConfig](classes/ModelConfig.md): Model-specific configuration
 - [ModelPreset](classes/ModelPreset.md): Complete configuration for a specific model
+- [ChatManager](classes/ChatManager.md): Manages running ChatObject instances
+- [ChatObjectMeta](classes/ChatObjectMeta.md): Metadata model for ChatObject snapshots
+- [MemoryLimiter](classes/MemoryLimiter.md): Context processor for memory and token limits
+- [StrategyLikedObject](classes/StrategyLikedObject.md): Abstract base class for stateful agent strategy instances
 - [SuspendEnum](classes/SuspendEnum.md): Standardized breakpoint tags for suspend/resume mechanism
 - [SuspendObjectStream](classes/SuspendObjectStream.md): Generic base class for objects with suspend/resume capabilities and streaming response handling
 - [TextContent](classes/TextContent.md): Represents text content within messages

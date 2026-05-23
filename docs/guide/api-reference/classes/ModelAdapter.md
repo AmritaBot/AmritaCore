@@ -8,11 +8,13 @@ The `ModelAdapter` class provides a unified interface for integrating different 
 
 Adapters are automatically registered with the [`AdapterManager`](#adaptermanager) when defined, unless marked as abstract or explicitly disabled from registration.
 
+> **Note**: The `ModelAdapter` base class has been moved from `amrita_core.protocol` to `amrita_core.base.adapter`. The `amrita_core.protocol` module is now a deprecated re-export wrapper.
+
 ## Class Definition
 
 ```python
 from dataclasses import dataclass, field
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset
 from amrita_core.config import AmritaConfig
 
@@ -253,7 +255,7 @@ To create a custom adapter:
 
 ```python
 from collections.abc import AsyncGenerator, Iterable
-from amrita_core.protocol import ModelAdapter, COMPLETION_RETURNING
+from amrita_core.base.adapter import ModelAdapter, COMPLETION_RETURNING
 from amrita_core.types import ModelPreset, UniResponse, UniResponseUsage
 
 class CustomAdapter(ModelAdapter):

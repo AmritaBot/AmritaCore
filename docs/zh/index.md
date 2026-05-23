@@ -2,8 +2,8 @@
 layout: home
 hero:
   name: "AmritaCore"
-  text: "渐进式Agent框架"
-  tagline: "现代、轻量、易用、强大"
+  text: "灵活渐进式 Agent 框架"
+  tagline: "基于 AmritaSense — 现代、轻量、易用、强大"
   image:
     src: /Amrita.png
     alt: 项目Logo
@@ -15,15 +15,18 @@ hero:
     - theme: alt
       text: GitHub
       link: https://github.com/AmritaBot/AmritaCore
+    - theme: alt
+      text: AmritaSense
+      link: https://sense.amritabot.com
 
 features:
   - icon: ⚡
-    title: 原生异步
-    details: 内置异步处理能力，提升性能
+    title: AmritaSense 驱动
+    details: 高性能异步工作流引擎，支持可组合节点和依赖注入
   - icon: 🔌
     title: 高度可扩展
     details: 模块化设计，使用管道钩子机制，易于功能扩展
   - icon: 🪶
     title: 轻量级
-    details: 极简核心，占用空间小，加载和执行快速
+    details: AmritaSense 核心 (~300 LOC) + 薄 Agent 层，极致轻量
 ---

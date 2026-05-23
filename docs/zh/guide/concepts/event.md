@@ -1,5 +1,7 @@
 # 事件系统
 
+> **v0.9.0rc1 起**：事件系统核心（`BaseEvent`、`MatcherFactory`、`EventRegistry`、`MatcherException`、`CancelException`、`PassException`）已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [AmritaSense 事件系统](https://sense.amritabot.com/guide/advanced/event_system)。`amrita_core.hook.*` 模块现为弃用包装器。
+
 ## 3.3.1 事件驱动设计
 
 AmritaCore 实现了一个事件驱动架构，允许您在处理流水线的各个阶段拦截和修改。可以注册事件以响应特定条件或操作。

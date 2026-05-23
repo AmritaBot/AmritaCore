@@ -1,5 +1,7 @@
 # Suspend and Resume Mechanism
 
+> **v0.9.0rc1 起**：`SuspendObjectStream` 已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [执行与中断](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) 和 [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream)。`amrita_core.streaming` 现为弃用包装器。
+
 **Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
 
 AmritaCore provides a simple and explicit suspend mechanism that allows external control over the execution flow of `ChatObject`, pausing and resuming processing at specified nodes. This mechanism is implemented through the `SuspendObjectStream` base class, from which `ChatObject` inherits.
@@ -13,16 +15,22 @@ Applicable scenarios:
 
 ## Standard Breakpoint Tags
 
-AmritaCore provides **standardized breakpoint tags** through the `SuspendEnum` enumeration. These built-in tags correspond to key execution points in the ChatObject lifecycle:
+AmritaCore provides **standardized breakpoint tags** through the `SuspendEnum` enumeration. These built-in tags correspond to key execution points in the ChatObject lifecycle. Since v0.9.0rc1, ChatObject is driven by a [workflow engine](workflow-engine.md) with additional node-level breakpoints:
 
 ```python
 from amrita_core import SuspendEnum
 
 # Available standard breakpoint tags:
-SuspendEnum.MEMORY        # "ChatObject::memory_limiting" - Before memory summarization
-SuspendEnum.SINGLE_TOOL   # "ChatObject::single_tool_call" - Before each tool call
-SuspendEnum.PRECOMPLE     # "matcher_call::pre_completion" - Before model completion
-SuspendEnum.COMPLE        # "matcher_call::post_completion" - After model completion
+SuspendEnum.ENTRY_POINT        # "ChatObject::_entry" - Entry point
+SuspendEnum.TRAIN_RENDER       # "ChatObject::render_train_template" - Template rendering
+SuspendEnum.MEMORY             # "ChatObject::memory_limiting" - Memory summarization
+SuspendEnum.MESSAGES_PREPARED  # "ChatObject::prepare_send_messages" - Messages prepared
+SuspendEnum.PRECOMPLE          # "matcher_call::pre_completion" - Before model completion
+SuspendEnum.STRATEGY_START     # "ChatObject::run_strategy_start" - Strategy execution
+SuspendEnum.LLM_CALL           # "ChatObject::call_llm" - LLM API call
+SuspendEnum.SINGLE_TOOL        # "ChatObject::single_tool_call" - Before each tool call
+SuspendEnum.COMPLE             # "matcher_call::post_completion" - After model completion
+SuspendEnum.FINALIZE           # "ChatObject::finalize" - End of pipeline
 ```
 
 **Recommendation**: Use these standard tags instead of custom string tags for better maintainability and compatibility.
@@ -80,7 +88,7 @@ Implemented via the `callback` mechanism:
 
 ## How It Works
 
-The core lifecycle methods of `ChatObject` (`_entry`, `_run`, `_run_strategy`, etc.) are all managed by the `@SuspendObjectStream.suspend` decorator and automatically check for suspend signals before execution.
+Since v0.9.0rc1, the core lifecycle of `ChatObject` is driven by a [composable workflow engine](workflow-engine.md). Each workflow node (e.g., `_render_train`, `_limiting_memory`, `_pre_runner`, `_run_strategy`, `_call_completion`, `_post_runner`) is decorated with `@SuspendObjectStream.suspend` and automatically checks for suspend signals before execution.
 
 Basic usage steps:
 
@@ -315,7 +323,7 @@ async with chat:
 - Need to process chunks but don't want to write manual loops? Use **callback mode**, start with `chat.begin()` then `await chat` to wait for completion.
 - Need streaming output to terminal or WebSocket? Use **iterator mode** with the `async with chat:` context manager.
 - Regardless of mode, outer suspension (`wait_to_suspend`) works normally.
-:::
+  :::
 
 ## Usage Pattern Examples
 
@@ -393,7 +401,7 @@ Do not set a callback function and use `get_response_generator()` simultaneously
 - You must call `chat.begin()` to create the internal task before using `async with chat:` or `await chat`.
 - `async with chat:` is the recommended approach for **iterator mode**; it automatically terminates the task upon exit.
 - In **callback mode**, start the task with `chat.begin()` and then directly `await chat` to wait for completion; there is no need to enter the context manager.
-:::
+  :::
 
 ## When Not to Use This Feature
 

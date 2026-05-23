@@ -193,7 +193,7 @@ To create an embedding adapter, extend [`ModelAdapter`](../api-reference/classes
 
 ```python
 from collections.abc import Iterable, Sequence
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import EmbeddingChunk, ModelPreset
 
 class MyEmbeddingAdapter(ModelAdapter):

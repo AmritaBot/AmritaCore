@@ -4,11 +4,15 @@
 
 ### 1.1.1 什么是AmritaCore？
 
-AmritaCore是一个**基础设施定位的轻量级Agent框架**，作为智能体开发的基础构建块。**AmritaCore采用交互优先（interactive-first）的设计理念**，通过其原生异步流式架构，支持实时、响应式的Agent应用。
+AmritaCore是一个**基于 [AmritaSense](https://sense.amritabot.com) 的灵活渐进式 Agent 框架**。它利用 AmritaSense 异步工作流引擎，提供可组合、高性能的 Agent 执行，同时保持极小开销。
+
+**AmritaCore = AmritaSense（工作流引擎 + 事件系统 + 流式处理）+ Agent 层（策略、会话、工具、MCP、适配器）。**
+
+**AmritaCore采用交互优先（interactive-first）的设计理念**，通过 AmritaSense 的原生异步流式架构，支持实时、响应式的 Agent 应用。
 
 可以将AmritaCore视为为AI智能体提供essential "操作系统"能力的框架——提供核心原语和抽象，使开发者能够构建健壮、生产就绪的智能体应用，而无需重型框架的开销。
 
-**AmritaCore不是LangChain、LlamaIndex等现有框架的替代品**。相反，它是一个**轻量级、基础设施导向的Agent框架**，旨在为AI智能体开发提供基础构建块。
+**AmritaCore不是LangChain、LlamaIndex等现有框架的替代品**。相反，它是一个**轻量级、基础设施导向的Agent框架**，在经过验证的工作流引擎之上提供基础构建块。
 
 ### 1.1.2 项目背景和使命
 
@@ -24,6 +28,7 @@ AmritaCore通过专注的架构解决了这些需求，在强调核心能力的�
 
 ### 1.1.3 核心价值主张
 
+- **基于 AmritaSense**：依托成熟的异步工作流引擎，支持可组合节点、依赖注入和原生控制流（IF/WHILE/JUMP/TRY）
 - **流式设计**：所有消息输出均设计为异步流，支持实时响应
 - **轻量级架构**：最小依赖和最大性能，适用于资源受限的环境
 - **交互优先**：原生异步流式架构，针对实时、响应式应用进行优化

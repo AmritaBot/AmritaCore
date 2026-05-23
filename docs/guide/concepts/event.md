@@ -1,5 +1,7 @@
 # Event System
 
+> **v0.9.0rc1 起**：事件系统核心（`BaseEvent`、`MatcherFactory`、`EventRegistry`、`MatcherException`、`CancelException`、`PassException`）已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [AmritaSense 事件系统](https://sense.amritabot.com/guide/advanced/event_system)。`amrita_core.hook.*` 模块现为弃用包装器。
+
 ## 3.3.1 Event-Driven Design
 
 AmritaCore implements an event-driven architecture that allows you to intercept and modify the processing pipeline at various stages. Events can be registered to respond to specific conditions or actions.
@@ -74,13 +76,16 @@ You can modify the `event.preset` to switch to a different model preset for the 
 
 ## 3.3.5 MatcherManager Event Matcher
 
+> **Note**: Since v0.9.0rc1, `MatcherManager` (`MatcherFactory`) has been moved to the `amrita-sense` package. The `amrita_core.hook.matcher` module is now a deprecated re-export wrapper.
+
 The [MatcherManager](../api-reference/classes/MatcherManager.md) handles matching events to appropriate handlers:
 
 ```python
-from amrita_core.hook.matcher import MatcherManager
+# From amrita-sense (recommended)
+from amrita_sense.hook.matcher import MatcherFactory
 
-# The matcher is used internally to route events to handlers
-matcher = MatcherManager()
+# Or via the deprecated re-export (will be removed in a future release)
+from amrita_core.hook.matcher import MatcherManager
 ```
 
 ## 3.3.6 Event Registration and Triggering

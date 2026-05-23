@@ -12,7 +12,7 @@
 
 ```python
 from dataclasses import dataclass, field
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset
 from amrita_core.config import AmritaConfig
 
@@ -253,7 +253,7 @@ AmritaCore 提供了几个内置适配器：
 
 ```python
 from collections.abc import AsyncGenerator, Iterable
-from amrita_core.protocol import ModelAdapter, COMPLETION_RETURNING
+from amrita_core.base.adapter import ModelAdapter, COMPLETION_RETURNING
 from amrita_core.types import ModelPreset, UniResponse, UniResponseUsage
 
 class CustomAdapter(ModelAdapter):

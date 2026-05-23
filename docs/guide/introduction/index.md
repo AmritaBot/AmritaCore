@@ -4,11 +4,15 @@
 
 ### 1.1.1 What is AmritaCore?
 
-AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. **AmritaCore is designed to be interactive-first**, enabling real-time, responsive agent applications through its native async streaming architecture.
+AmritaCore is a **flexible progressive Agent framework built on [AmritaSense](https://sense.amritabot.com)**. It leverages the AmritaSense async workflow engine to deliver composable, high-performance agent execution with minimal overhead.
 
-Think of AmritaCore as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
+**AmritaCore = AmritaSense (workflow engine + events + streaming) + Agent layer (strategy, sessions, tools, MCP, adapters).**
 
-**AmritaCore is not a replacement for existing frameworks** like LangChain or LlamaIndex. Instead, it is a **lightweight, infrastructure-focused agent framework** designed to provide the essential building blocks for AI agent development.
+**AmritaCore is designed to be interactive-first**, enabling real-time, responsive agent applications through AmritaSense's native async streaming architecture.
+
+Think of AmritaCore as providing the essential "operating system" capabilities for AI agents — offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
+
+**AmritaCore is not a replacement for existing frameworks** like LangChain or LlamaIndex. Instead, it is a **lightweight, infrastructure-focused agent framework** that provides essential building blocks atop a proven workflow engine.
 
 ### 1.1.2 Project Background and Mission
 
@@ -24,6 +28,7 @@ AmritaCore addresses these requirements with a focused architecture that emphasi
 
 ### 1.1.3 Core Value Propositions
 
+- **Built on AmritaSense**: Leverages a battle-tested async workflow engine with composable nodes, dependency injection, and native control flow (IF/WHILE/JUMP/TRY)
 - **Stream-based Design**: All message outputs are designed as asynchronous streams for real-time responses
 - **Lightweight Architecture**: Minimal dependencies and maximum performance for resource-constrained environments
 - **Interactive-First**: Native async streaming architecture optimized for real-time, responsive applications

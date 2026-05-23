@@ -1,5 +1,7 @@
 # 挂起与恢复机制
 
+> **v0.9.0rc1 起**：`SuspendObjectStream` 已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [执行与中断](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) 和 [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream)。`amrita_core.streaming` 现为弃用包装器。
+
 **注意：这是一个用于特殊场景的高级功能。大多数用户不需要直接使用它。**
 
 AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `ChatObject` 的执行流程，在指定节点暂停和恢复处理。此机制通过 `SuspendObjectStream` 基类实现，`ChatObject` 继承自该基类。
@@ -315,7 +317,7 @@ async with chat:
 - 需要逐块处理但不想手动写循环？使用**回调模式**，通过 `chat.begin()` 启动后 `await chat` 等待完成。
 - 需要流式输出到终端或 WebSocket？使用**迭代器模式**，结合 `async with chat:` 上下文管理器。
 - 无论哪种模式，外断点（`wait_to_suspend`）都能正常生效。
-:::
+  :::
 
 ## 使用模式示例
 
@@ -393,7 +395,7 @@ await chat
 - 必须先调用 `chat.begin()` 创建内部任务，然后才能使用 `async with chat:` 或 `await chat`。
 - `async with chat:` 是**迭代器模式**的推荐写法，它会在退出时自动终止任务。
 - **回调模式**下，请使用 `chat.begin()` 启动任务后直接 `await chat` 等待完成，无需进入上下文管理器。
-:::
+  :::
 
 ## 何时不使用此功能
 

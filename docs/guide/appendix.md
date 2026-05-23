@@ -34,6 +34,8 @@ Model Context Protocol - a standard for connecting tools and data sources to AI 
 - **Event System**: A mechanism for intercepting and modifying the processing pipeline at various stages
 - **Session**: An isolated conversation thread with its own memory and state
 - **Configuration**: Settings that control how AmritaCore behaves in different scenarios
+- **Workflow Engine**: A composable node graph system that drives ChatObject execution since v0.9.0rc1. Nodes are connected with `>>` and executed by `WorkflowInterpreter`. Provided by the `amrita-sense` package.
+- **StrategyLikedObject**: An abstract base class for stateful agent strategy instances. Unlike `AgentStrategy` (passed as a type), `StrategyLikedObject` is passed as a pre-initialised instance, enabling internal state machines and resource management.
 
 ### 9.1.8 Abbreviations
 
@@ -52,9 +54,10 @@ Model Context Protocol - a standard for connecting tools and data sources to AI 
 - **Issue Reporting**: Report bugs and request features in the GitHub repository
 - **Pull Requests**: Contributions are welcome through pull requests
 
-### 9.2.2 Official Website
+### 9.2.2 Official Websites
 
-- **Website**: [https://core.amritabot.com](https://core.amritabot.com) (This site)
+- **AmritaCore Website**: [https://core.amritabot.com](https://core.amritabot.com) (This site)
+- **amrita-sense Website**: [https://sense.amritabot.com](https://sense.amritabot.com) — Documentation for the shared infrastructure package
 - **Documentation**: Comprehensive guides and tutorials
 - **Community Forum**: Connect with other users and developers
 

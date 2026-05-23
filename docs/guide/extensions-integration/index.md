@@ -182,7 +182,7 @@ async def log_response(event: CompletionEvent):
 Protocol adapters allow AmritaCore to work with different LLM providers or communication protocols:
 
 ```python
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset
 from collections.abc import AsyncGenerator, Iterable
 from amrita_core.types import UniResponse
@@ -372,7 +372,7 @@ async def security_check(event: PreCompletionEvent):
 Build adapters for different LLM providers:
 
 ```python
-from amrita_core.protocol import ModelAdapter
+from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset, UniResponse
 from collections.abc import AsyncGenerator, Iterable
 import aiohttp

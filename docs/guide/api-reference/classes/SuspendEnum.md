@@ -8,17 +8,29 @@ The `SuspendEnum` class provides standardized breakpoint tags for the suspend/re
 
 ## Enum Values
 
+### `ENTRY_POINT`
+
+- **Value**: `"ChatObject::_entry"`
+- **Description**: Triggered at the very beginning of ChatObject execution
+- **Usage**: Useful for pre-execution setup, logging, or initialisation hooks before the main workflow starts
+
+### `TRAIN_RENDER`
+
+- **Value**: `"ChatObject::render_train_template"`
+- **Description**: Triggered when rendering the Jinja2 training/prompt template
+- **Usage**: Ideal for inspecting or modifying the rendered system prompt
+
 ### `MEMORY`
 
 - **Value**: `"ChatObject::memory_limiting"`
 - **Description**: Triggered before memory summarization when context exceeds token limits
 - **Usage**: Perfect for inspecting or modifying context before automatic summarization
 
-### `SINGLE_TOOL`
+### `MESSAGES_PREPARED`
 
-- **Value**: `"ChatObject::single_tool_call"`
-- **Description**: Triggered before each individual tool call during agent execution
-- **Usage**: Ideal for debugging tool interactions, validating tool parameters, or implementing custom tool approval logic
+- **Value**: `"ChatObject::prepare_send_messages"`
+- **Description**: Triggered after the message list is prepared but before running pre-completion matchers
+- **Usage**: Great for final message validation or last-minute modifications
 
 ### `PRECOMPLE`
 
@@ -26,11 +38,44 @@ The `SuspendEnum` class provides standardized breakpoint tags for the suspend/re
 - **Description**: Triggered before sending messages to the LLM for completion
 - **Usage**: Useful for final message validation, security checks, or context modification before model inference
 
+### `STRATEGY_START`
+
+- **Value**: `"ChatObject::run_strategy_start"`
+- **Description**: Triggered when the agent strategy execution begins
+- **Usage**: Ideal for strategy-level instrumentation or custom pre-strategy logic
+
+### `LLM_CALL`
+
+- **Value**: `"ChatObject::call_llm"`
+- **Description**: Triggered during the actual LLM API call
+- **Usage**: Useful for monitoring API latency or injecting behaviour around model inference
+
+### `SINGLE_TOOL`
+
+- **Value**: `"ChatObject::single_tool_call"`
+- **Description**: Triggered before each individual tool call during agent execution
+- **Usage**: Ideal for debugging tool interactions, validating tool parameters, or implementing custom tool approval logic
+
 ### `COMPLE`
 
 - **Value**: `"matcher_call::post_completion"`
 - **Description**: Triggered after receiving the model response but before processing it
 - **Usage**: Great for response validation, content filtering, or implementing custom response handling logic
+
+### `FINALIZE`
+
+- **Value**: `"ChatObject::finalize"`
+- **Description**: Triggered at the end of the ChatObject execution pipeline
+- **Usage**: Useful for cleanup, logging final state, or post-processing
+
+## BuiltinName
+
+`BuiltinName` is a companion enumeration that provides aliases for internal framework components. Currently defined:
+
+### `AGENT_STRATEGY`
+
+- **Value**: `"ChatObject::__agent_main__"`
+- **Description**: Internal alias for the agent strategy subprogram used by the workflow engine
 
 ## Usage Example
 

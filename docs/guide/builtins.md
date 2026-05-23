@@ -42,7 +42,9 @@ Built-in tools are automatically enabled based on the agent configuration:
 
 ## 9.2 Built-in Adapters
 
-AmritaCore provides built-in adapters for multiple LLM providers, implementing the `ModelAdapter` interface.
+> **Note**: Since v0.9.0rc1, adapters have been moved from `amrita_core.builtins.adapter` to the `amrita_core.adapters` package with an **auto-discovery** mechanism. Adapters are automatically discovered and registered when their source files are loaded.
+
+AmritaCore provides built-in adapters for multiple LLM providers, implementing the `ModelAdapter` interface from `amrita_core.base.adapter`.
 
 ### 9.2.1 OpenAIAdapter
 
@@ -60,6 +62,8 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 
 ### 9.2.2 AnthropicAdapter
 
+> **Optional Dependency**: Starting from v0.9.0rc1, the Anthropic SDK is an optional dependency. Install it with `pip install amrita_core[anthropic]`.
+
 `AnthropicAdapter` provides full support for Anthropic's Claude models.
 
 **Features**:
@@ -71,6 +75,8 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 - **Tool Calling**: Full support for Anthropic's tool use capabilities with proper tool choice handling
 
 **Supported Protocols**: `"anthropic"`, `"claude"`
+
+**Graceful Degradation**: If the Anthropic SDK is not installed, the adapter logs an info message and is not registered, avoiding import errors.
 
 ## 9.3 Built-in Agent System
 

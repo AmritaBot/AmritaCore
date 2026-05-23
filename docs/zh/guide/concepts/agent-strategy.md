@@ -36,6 +36,44 @@ AmritaCore支持四种不同的策略类别，每种类别都针对特定用例�
 - **用例**: 需要根据上下文在RAG和迭代工具调用之间适应的Agent
 - **上下文**: 具有动态行为适应的完整对话历史
 
+### 两种策略类型
+
+AmritaCore 支持**两种互补的 Agent 策略定义方式**，根据是否需要内部状态来选择。
+
+#### 类型一：`type[AgentStrategy]` — 类策略（通用/无状态）
+
+传入一个**类**给 `ChatObject`，框架每次请求自动实例化新副本。
+
+- ✅ 简单、无状态 — 一次编写，处处运行
+- ✅ 适用于大多数常见 Agent 模式（ReAct、RAG 等）
+- ✅ 无需管理生命周期 — 框架自动处理
+
+```python
+chat = ChatObject(
+    ...,
+    agent_strategy=ReActAgentStrategy,  # 传入类
+)
+```
+
+#### 类型二：`StrategyLikedObject` — 实例策略（状态机/灵活）
+
+传入一个**已初始化的实例**，同一对象存活于整个对话周期，可携带内部状态机、资源和预配置参数。
+
+- ✅ 跨 `single_execute()` / `run()` 调用保持内部状态
+- ✅ 在创建时预加载重量资源（API 客户端、数据库连接等）
+- ✅ 保障对话隔离 — 每个对话各自独立实例
+- ✅ 适用于限流、认证、多步骤有状态工作流
+
+```python
+strategy = MyStatefulStrategy(api_key="sk-...", max_calls=5)
+chat = ChatObject(
+    ...,
+    agent_strategy=strategy,  # 传入实例
+)
+```
+
+> `ChatObject.agent_strategy` 同时接受 **`type[AgentStrategy]` 或 `StrategyLikedObject` 实例**。
+
 ### 模板方法模式架构
 
 AmritaCore的Agent策略系统通过**模板方法模式**得到了增强，该模式提供了统一的执行框架，同时允许策略特定的自定义。
@@ -188,6 +226,82 @@ async def use_builtin_strategies():
         response2 = await chat2.full_response()
         response3 = await chat3.full_response()
 ```
+
+## 有状态策略：StrategyLikedObject
+
+> **v0.9.0rc1 新增**：`StrategyLikedObject` 通过传入预初始化的实例（而非类）实现有状态策略。
+
+标准 `AgentStrategy` 子类由框架为每个请求实例化，适合无状态场景，但有以下局限：
+
+- **状态机**：需要跨调用跟踪状态的策略无法实现
+- **预配置资源**：无法在创建时预加载 API 客户端、数据库连接等
+- **对话隔离**：每个对话获得独立的策略实例及其独立状态
+
+`StrategyLikedObject` 通过允许你**直接传入已初始化的实例**解决了这些问题。
+
+### 对比
+
+| 维度 | `AgentStrategy`（类） | `StrategyLikedObject`（实例） |
+|------|----------------------|-----------------------------|
+| 传入方式 | 类（`type`） | 已初始化实例 |
+| 实例化 | 框架每次请求自动创建 | 用户手动创建一次 |
+| 有状态 | 否（每次新实例） | 是（同一实例贯穿全程） |
+| 资源加载 | 每次请求 | 创建时一次性 |
+| 适用场景 | 无状态、简单策略 | 复杂有状态工作流 |
+
+### 用法示例
+
+```python
+from amrita_core.agent.strategy import StrategyLikedObject
+
+class 限流策略(StrategyLikedObject):
+    def __init__(self, 最大调用次数: int, api_key: str):
+        self.最大调用次数 = 最大调用次数
+        self.调用计数 = 0
+        self.api_key = api_key
+        self.客户端 = MyAPIClient(api_key)  # 预加载资源
+
+    @classmethod
+    def get_category(cls) -> str:
+        return "agent"
+
+    async def single_execute(self) -> bool:
+        self.调用计数 += 1
+        if self.调用计数 > self.最大调用次数:
+            return False  # 停止
+        # 使用 self.客户端 进行 API 调用...
+        return True
+
+    async def on_limited(self) -> None:
+        await self.chat_object.yield_response(
+            "本次对话已达到调用上限。"
+        )
+
+# 传入实例 — 而非类
+策略 = 限流策略(最大调用次数=5, api_key="sk-...")
+chat_obj = ChatObject(
+    train={"system": "你是一个有用的助手"},
+    user_input="你好",
+    context=None,
+    session_id="session_123",
+    agent_strategy=策略,  # 实例！
+)
+```
+
+### 生命周期
+
+1. **创建**：用户手动实例化 `StrategyLikedObject`
+2. **注册**：实例传入 `ChatObject(agent_strategy=实例)`
+3. **初始化**：框架调用 `strategy(ctx)` 注入运行时上下文
+4. **执行**：同一实例处理所有 `single_execute()` / `run()` 调用
+5. **清理**：对话结束时实例被丢弃
+
+### 何时使用
+
+- **限流**：跟踪每个对话的工具调用次数
+- **认证客户端**：用会话令牌预初始化 API 客户端
+- **多步骤工作流**：在工作流各阶段之间保持状态
+- **资源池化**：在策略实例间共享连接池
 
 ### 后处理钩子
 

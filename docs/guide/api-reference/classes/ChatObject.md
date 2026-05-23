@@ -37,10 +37,12 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 - `auto_create_session` (bool): Whether to automatically create a session if it does not exist (default: False)
 - `train_template` (Template): Jinja2 template used to format system message (default: DEFAULT_TEMPLATE)
 - `jinja2_vars` (dict[str, Any] | None): Variables to be passed to the template system for custom template variables (default: None). **Important**: Keys in this dictionary must NOT match built-in variable names (`train`, `memory`, `chatobj`, `config`) as this would cause a TypeError due to duplicate keyword arguments.
-- `agent_strategy` (type[AgentStrategy]): Agent strategy to be used for execution (default: ReActAgentStrategy)
+- `agent_strategy` (type[AgentStrategy] | [StrategyLikedObject](StrategyLikedObject.md)): Agent strategy to be used for execution. Accepts either a strategy **class** (`type[AgentStrategy]`) or a pre-initialised strategy **instance** (`StrategyLikedObject`). The latter enables stateful strategies with internal state machines (default: ReActAgentStrategy)
 - `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
 - `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
 - `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
+- `middleware` (Callable[[Self], Awaitable[Any]] | None): Async middleware function that wraps the entire workflow execution. When set, the workflow engine delegates execution to the middleware instead of running the default pipeline. Useful for custom orchestration, monitoring, or cross-cutting concerns (default: None)
+- `archived_nodes` (SubprogramStorage | None): Additional node subprograms to append at the end of the workflow pipeline. Allows extending the ChatObject execution with custom steps after the standard pipeline completes. When `None`, defaults to `ARCHIVED_NODES` from `amrita_sense.instructions` (default: None)
 - `queue_size` (int): Size of the response stream buffer (default: **45**)
 - `queue_timeout` (float | None): Timeout for queue operations in seconds (default: **10.0**)
 

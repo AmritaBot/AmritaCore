@@ -2,23 +2,24 @@
 
 ## 4.1 Initialization and Loading
 
-### 4.1.1 init() Initialization Function
+### 4.1.1 init() Initialization Function (Deprecated)
 
-The `init()` function initializes AmritaCore's core components and must be called before any other operations:
+> **Deprecated since v0.9.0rc1**: The `init()` function is now a no-op stub. Use `load_amrita()` for async initialisation instead.
 
 ```python
 from amrita_core import init
 
-# Initialize AmritaCore
+# No longer necessary — this is now a no-op
 init()
 ```
 
-This function performs several key tasks:
+Previously this function performed several key tasks:
 
-- Sets up internal logging
-- Initializes Jieba for text processing (if available)
-- Loads built-in modules
-- Prepares the core framework for use
+- Set up internal logging
+- Initialized Jieba for text processing
+- Loaded built-in modules
+
+These tasks are now handled automatically by the framework or through `amrita-sense`.
 
 ### 4.1.2 load_amrita() Asynchronous Loading
 
@@ -63,20 +64,16 @@ print(current_config.function_config.use_minimal_context)
 
 ### 4.1.4 Initialization Process Details
 
-The initialization process involves:
+Since v0.9.0rc1, the initialization process has been simplified:
 
-1. Calling `init()` to prepare the core components
-2. Setting the desired configuration with `set_config()`
-3. Loading additional components with `load_amrita()`
+1. _(Optional)_ Set the desired configuration with `set_config()`
+2. Load additional components with `load_amrita()` (required when MCP is enabled)
 
 ```python
-from amrita_core import init, load_amrita
+from amrita_core import load_amrita
 from amrita_core.config import AmritaConfig, set_config
 
-# Step 1: Initialize core components
-init()
-
-# Step 2: Set configuration
+# Step 1: (Optional) Set configuration
 config = AmritaConfig()
 set_config(config)
 
