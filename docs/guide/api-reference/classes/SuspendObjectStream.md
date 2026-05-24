@@ -1,33 +1,33 @@
 # SuspendObjectStream
 
-> **已迁移至 AmritaSense**。`amrita_core.streaming` 现为弃用包装器。
+> **Migrated to AmritaSense**. `amrita_core.streaming` is now a deprecated wrapper.
 
-`SuspendObjectStream` 是 AnyIO 内存对象流之上的生产者-单消费者架构，内建挂起/恢复和流式响应能力。
+`SuspendObjectStream` is a producer-single-consumer architecture built on top of AnyIO memory object streams, with built-in suspend/resume and streaming response capabilities.
 
-**完整 API 文档**：[SuspendObjectStream — AmritaSense](https://sense.amritabot.com/reference/api/suspend-object-stream)
+**Full API Documentation**: [SuspendObjectStream — AmritaSense](https://sense.amritabot.com/reference/api/suspend-object-stream)
 
-## 迁移
+## Migration
 
 ```python
-# 旧（弃用）
+# Old (deprecated)
 from amrita_core.streaming import SuspendObjectStream
 
-# 新
+# New
 from amrita_sense.streaming import SuspendObjectStream
 ```
 
-## 在 AmritaCore 中的使用
+## Usage in AmritaCore
 
-ChatObject 继承自 `SuspendObjectStream[RESPONSE_TYPE]`。所有流式交互方法均来自此基类：
+ChatObject inherits from `SuspendObjectStream[RESPONSE_TYPE]`. All streaming interaction methods come from this base class:
 
-| 方法                       | 用途                     |
-| -------------------------- | ------------------------ |
-| `yield_response()`         | 向队列或回调发送响应     |
-| `get_response_generator()` | 异步迭代响应流           |
-| `set_callback_func()`      | 设置响应回调             |
-| `wait_to_suspend()`        | 外部等待挂起             |
-| `resume()`                 | 恢复执行                 |
-| `@suspend`                 | 可挂起方法装饰器         |
-| `@suspend_with_tag(tag)`   | 带标签的可挂起方法装饰器 |
+| Method                     | Purpose                                      |
+| -------------------------- | -------------------------------------------- |
+| `yield_response()`         | Send response to queue or callback           |
+| `get_response_generator()` | Asynchronously iterate over response stream  |
+| `set_callback_func()`      | Set a response callback                      |
+| `wait_to_suspend()`        | Wait for suspension externally               |
+| `resume()`                 | Resume execution                             |
+| `@suspend`                 | Decorator for suspendable methods            |
+| `@suspend_with_tag(tag)`   | Decorator for suspendable methods with a tag |
 
-> **注意**：`callback` 与 `async for` 迭代**互斥**，同一实例只能使用一种方式消费响应流。
+> **Note**: `callback` and `async for` iteration are **mutually exclusive** — only one method can be used to consume the response stream per instance.
