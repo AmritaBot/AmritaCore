@@ -206,7 +206,7 @@ class TestPresetTesting:
             assert report.message == ""
             assert report.test_output is not None
             assert report.token_prompt == -1
-            assert report.token_completion > 0
+            assert report.token_completion == -1
 
     @pytest.mark.asyncio
     async def test_test_single_preset_by_string(self):
