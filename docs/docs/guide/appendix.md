@@ -100,13 +100,13 @@ When reporting issues:
 5. Specify your environment (OS, Python version, AmritaCore version)
 6. Include any relevant error messages
 
-### 9.3.3 License Information (MIT)
+### 9.3.3 License Information (Apache 2.0)
 
-AmritaCore is released under the MIT license.
+AmritaCore is released under the Apache 2.0 license.
 
 #### Licensing
 
-Permission is hereby granted to any person obtaining a copy of this software and associated documentation files (the "Software"), to use the Software under the MIT license, including for commercial purposes.
+Permission is hereby granted to any person obtaining a copy of this software and associated documentation files (the "Software"), to use the Software under the Apache 2.0 license, including for commercial purposes.
 
 For the full license text, please refer to the `LICENSE` file in the repository.
 
