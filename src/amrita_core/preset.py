@@ -8,7 +8,6 @@ from typing_extensions import Self
 from amrita_core.base.adapter import AdapterManager
 from amrita_core.threadsafe import ContextThreadsafe
 
-from .tokenizer import hybrid_token_count
 from .types import BaseModel, Message, ModelPreset, TextContent, UniResponse
 
 TEST_MSG_PROMPT: Message[list[TextContent]] = Message(
@@ -146,7 +145,7 @@ class MultiPresetManager(ContextThreadsafe):
                 preset_data=preset,
                 test_input=(TEST_MSG_PROMPT, TEST_MSG_USER),
                 test_output=None,
-                token_prompt=prompt_tokens,
+                token_prompt=-1,
                 token_completion=0,
                 status=False,
                 message=str(e),
