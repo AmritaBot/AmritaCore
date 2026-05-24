@@ -3,7 +3,7 @@
 set -e
 
 cd "$(dirname "$0")/.."
-
+cd docs/
 echo "Building VitePress documentation site..."
 npm run docs:build
 
