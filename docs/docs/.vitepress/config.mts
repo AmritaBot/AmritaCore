@@ -316,7 +316,7 @@ export default withMermaid({
           },
         ],
         footer: {
-          message: `MIT License`,
+          message: `Apache 2.0 License`,
           copyright: `© Amrita 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [
@@ -627,7 +627,7 @@ export default withMermaid({
           },
         ],
         footer: {
-          message: `MIT 许可证(一些内容可能没有完全翻译成中文，请以英文文档为准。)`,
+          message: `Apache 2.0 许可证(一些内容可能没有完全翻译成中文，请以英文文档为准。)`,
           copyright: `© Amrita 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [

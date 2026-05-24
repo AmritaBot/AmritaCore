@@ -1,7 +1,7 @@
 [project]
 name = "amrita_core"
-version = "0.9.0rc1"
-description = "High performance, lightweight agent framework."
+version = "0.9.0"
+description = "High performance, flexible, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 dependencies = [

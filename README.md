@@ -1,6 +1,6 @@
 # AmritaCore
 
-<center><img src="./docs/public/Amrita.png" alt="Logo" width="200" height="200">
+<center><img src="./docs/docs/public/Amrita.png" alt="Logo" width="200" height="200">
 <p>
     <a href="https://img.shields.io/pypi/v/amrita-core">
       <img src="https://img.shields.io/pypi/v/amrita-core?color=blue&style=flat-square" alt="PyPI Version">
@@ -63,11 +63,11 @@ We welcome contributions! Please see our contribution guidelines for more inform
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
+This project is licensed under the Apache 2.0 License - see the [LICENSE](./LICENSE) file for details.
 
 ### Notes
 
-All versions of AmritaCore are released under the MIT License (Although the past versions are released under the AGPLv3 License, when this readme is created, we will release all versions under the MIT License).
+All versions of AmritaCore are released under the Apache 2.0 License (Although the past versions are released under the MIT/LGPL V3 License, when this readme is created, we will release all versions under the Apache 2.0 License).
 
 ## Other files
 
