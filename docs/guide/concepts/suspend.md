@@ -1,6 +1,6 @@
 # Suspend and Resume Mechanism
 
-> **v0.9.0rc1 起**：`SuspendObjectStream` 已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [执行与中断](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) 和 [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream)。`amrita_core.streaming` 现为弃用包装器。
+> **Starting from v0.9.0rc1**: `SuspendObjectStream` has been migrated to [AmritaSense](https://sense.amritabot.com). See the full docs at [Execution & Interrupt](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) and [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream). `amrita_core.streaming` is now a deprecated wrapper.
 
 **Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
 

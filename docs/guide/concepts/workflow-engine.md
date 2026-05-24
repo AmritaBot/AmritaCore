@@ -1,26 +1,26 @@
-# 工作流引擎
+# Workflow Engine
 
-> AmritaCore v0.9.0rc1 起，ChatObject 由 [AmritaSense](https://sense.amritabot.com) 的可组合工作流引擎驱动。
+> Starting from AmritaCore v0.9.0rc1, ChatObject is driven by [AmritaSense](https://sense.amritabot.com)'s composable workflow engine.
 
-## 概述
+## Overview
 
-ChatObject 的执行管道拆分为离散的**节点**（Node），由 AmritaSense 的 `WorkflowInterpreter` 执行。AmritaCore 本身不实现工作流引擎——它直接使用 AmritaSense 提供的引擎。
+ChatObject's execution pipeline is decomposed into discrete **Nodes**, executed by AmritaSense's `WorkflowInterpreter`. AmritaCore does not implement its own workflow engine — it uses AmritaSense's directly.
 
-工作流引擎的核心类型（`Node`、`NodeComposeRendered`、`WorkflowInterpreter`）和控制流指令（`IF`/`WHILE`/`JUMP`/`TRY`/`CALL`/`ALIAS`）全部由 AmritaSense 提供。
+The workflow engine's core types (`Node`, `NodeComposeRendered`, `WorkflowInterpreter`) and control-flow instructions (`IF`/`WHILE`/`JUMP`/`TRY`/`CALL`/`ALIAS`) are all provided by AmritaSense.
 
-**完整文档：**
+**Full Documentation:**
 
-| 主题                        | AmritaSense 文档                                                            |
-| --------------------------- | --------------------------------------------------------------------------- |
-| 工作流组合与执行            | [组合与执行](https://sense.amritabot.com/guide/concepts/compose_and_exec)   |
-| Node 装饰器与自定义节点     | [自定义节点](https://sense.amritabot.com/guide/advanced/custom_node)        |
-| 控制流（IF/WHILE/JUMP/TRY） | [控制流](https://sense.amritabot.com/guide/concepts/flow_control)           |
-| ALIAS / 子程序调用          | [控制流](https://sense.amritabot.com/guide/concepts/flow_control)           |
-| 依赖注入                    | [依赖注入](https://sense.amritabot.com/guide/advanced/dependency_injection) |
-| 事件系统                    | [事件系统](https://sense.amritabot.com/guide/advanced/event_system)         |
-| 执行与中断                  | [执行与中断](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) |
+| Topic                            | AmritaSense Docs                                                                        |
+| -------------------------------- | --------------------------------------------------------------------------------------- |
+| Workflow Composition & Execute   | [Compose & Execute](https://sense.amritabot.com/guide/concepts/compose_and_exec)        |
+| @Node Decorator & Custom Nodes   | [Custom Nodes](https://sense.amritabot.com/guide/advanced/custom_node)                  |
+| Control Flow (IF/WHILE/JUMP/TRY) | [Control Flow](https://sense.amritabot.com/guide/concepts/flow_control)                 |
+| ALIAS / Subprogram Calls         | [Control Flow](https://sense.amritabot.com/guide/concepts/flow_control)                 |
+| Dependency Injection             | [Dependency Injection](https://sense.amritabot.com/guide/advanced/dependency_injection) |
+| Event System                     | [Event System](https://sense.amritabot.com/guide/advanced/event_system)                 |
+| Execution & Interrupt            | [Execution & Interrupt](https://sense.amritabot.com/guide/concepts/exec_and_interrupt)  |
 
-## ChatObject 节点链
+## ChatObject Node Chain
 
 ```mermaid
 graph LR
@@ -34,26 +34,26 @@ graph LR
     H --> I[archived_nodes]
 ```
 
-| 节点                | SuspendEnum 标签    | 功能                      |
-| ------------------- | ------------------- | ------------------------- |
-| `_render_train`     | `TRAIN_RENDER`      | 渲染 Jinja2 系统提示模板  |
-| `_limiting_memory`  | `MEMORY`            | 执行内存长度和 Token 限制 |
-| `_prepare_messages` | `MESSAGES_PREPARED` | 准备最终消息列表          |
-| `_pre_runner`       | `PRECOMPLE`         | 触发预完成事件            |
-| `_run_strategy`     | `STRATEGY_START`    | 执行 Agent 策略           |
-| `_call_completion`  | `LLM_CALL`          | 调用 LLM                  |
-| `_post_runner`      | `COMPLE`            | 触发完成事件              |
-| `archived_nodes`    | —                   | 用户自定义扩展节点        |
+| Node                | SuspendEnum Tag     | Description                                 |
+| ------------------- | ------------------- | ------------------------------------------- |
+| `_render_train`     | `TRAIN_RENDER`      | Renders the Jinja2 system prompt template   |
+| `_limiting_memory`  | `MEMORY`            | Applies memory length and token limits      |
+| `_prepare_messages` | `MESSAGES_PREPARED` | Prepares the final message list for the LLM |
+| `_pre_runner`       | `PRECOMPLE`         | Triggers pre-completion matcher events      |
+| `_run_strategy`     | `STRATEGY_START`    | Executes the agent strategy                 |
+| `_call_completion`  | `LLM_CALL`          | Calls the LLM via the adapter               |
+| `_post_runner`      | `COMPLE`            | Triggers post-completion matcher events     |
+| `archived_nodes`    | —                   | User-defined extension nodes                |
 
-## ChatObject 特有概念
+## AmritaCore-Specific Concepts
 
-### WorkflowInterpreter 集成
+### WorkflowInterpreter Integration
 
-ChatObject 在 `__init__` 中组装工作流并执行：
+ChatObject assembles the workflow in `__init__` and executes it:
 
-- `_middleware` 参数可包裹整个工作流
-- `archived_nodes` 参数可在管道末尾追加自定义节点
-- `BuiltinName.AGENT_STRATEGY` 别名用于子程序调用
+- `_middleware` parameter can wrap the entire workflow
+- `archived_nodes` parameter appends custom nodes after the standard pipeline
+- `BuiltinName.AGENT_STRATEGY` alias enables subprogram calls
 
 ### BuiltinName
 
@@ -62,16 +62,16 @@ from amrita_core.chatmanager import BuiltinName
 BuiltinName.AGENT_STRATEGY  # "ChatObject::__agent_main__"
 ```
 
-### 中间件
+### Middleware
 
 ```python
 async def my_middleware(chat_obj: ChatObject) -> None:
-    """包裹整个 ChatObject 工作流的中间件。"""
-    logger.info("工作流启动中...")
+    """Middleware that wraps the entire ChatObject workflow."""
+    logger.info("Workflow starting...")
     try:
         await chat_obj._interpreter.run()
     finally:
-        logger.info("工作流结束。")
+        logger.info("Workflow finished.")
 
 chat = ChatObject(
     ...,
@@ -79,7 +79,7 @@ chat = ChatObject(
 )
 ```
 
-### 扩展节点
+### Extending with archived_nodes
 
 ```python
 from amrita_sense import Node
@@ -96,11 +96,11 @@ custom_nodes._nodes += (log_completion,)
 chat = ChatObject(..., archived_nodes=custom_nodes)
 ```
 
-## 迁移自 v0.8.x
+## Migration from v0.8.x
 
-| 旧方式                                  | 新方式                                     |
+| Old Approach                            | New Approach                               |
 | --------------------------------------- | ------------------------------------------ |
-| 覆写 `_run()`                           | `@Node` 装饰器 + `archived_nodes`          |
+| Override `_run()`                       | `@Node` decorator + `archived_nodes`       |
 | `from amrita_core.protocol import ...`  | `from amrita_core.base.adapter import ...` |
 | `from amrita_core.streaming import ...` | `from amrita_sense.streaming import ...`   |
 | `from amrita_core.logging import ...`   | `from amrita_sense.logging import ...`     |
