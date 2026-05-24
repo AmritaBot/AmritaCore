@@ -13,7 +13,8 @@ from openai.types.chat.chat_completion_message_tool_call import (
     Function as ToolCallFunction,
 )
 
-from amrita_core.builtins.adapter import AnthropicAdapter, OpenAIAdapter
+from amrita_core.adapters.anthropic import AnthropicAdapter
+from amrita_core.adapters.openai import OpenAIAdapter
 from amrita_core.config import AmritaConfig
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import ModelPreset, ToolCall, UniResponse
@@ -81,7 +82,7 @@ class TestOpenAIAdapter:
             usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_client.chat.completions.create.return_value = mock_completion
             mock_openai.return_value = mock_client
@@ -116,7 +117,7 @@ class TestOpenAIAdapter:
             object="chat.completion",
         )
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_client.chat.completions.create.return_value = mock_completion
             mock_openai.return_value = mock_client
@@ -157,7 +158,7 @@ class TestOpenAIAdapter:
             object="chat.completion",
         )
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_client.chat.completions.create.return_value = mock_completion
             mock_openai.return_value = mock_client
@@ -207,7 +208,7 @@ class TestOpenAIAdapter:
             object="chat.completion",
         )
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_client.chat.completions.create.return_value = mock_completion
             mock_openai.return_value = mock_client
@@ -240,7 +241,7 @@ class TestOpenAIAdapter:
             object="chat.completion",
         )
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_client.chat.completions.create.return_value = mock_completion
             mock_openai.return_value = mock_client
@@ -256,7 +257,7 @@ class TestOpenAIAdapter:
         """Test call_api with unexpected response type"""
         adapter.preset.config.stream = False
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_client.chat.completions.create.return_value = "unexpected_string"
             mock_openai.return_value = mock_client
@@ -279,7 +280,7 @@ class TestOpenAIAdapter:
             object="chat.completion.chunk",
         )
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_stream = MockAsyncStream([chunk1])
             mock_client.chat.completions.create.return_value = mock_stream
@@ -313,7 +314,7 @@ class TestOpenAIAdapter:
             object="chat.completion",
         )
 
-        with patch("amrita_core.builtins.adapter.openai.AsyncOpenAI") as mock_openai:
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
             mock_client.chat.completions.create.return_value = mock_completion
             mock_openai.return_value = mock_client
@@ -737,7 +738,7 @@ class TestAnthropicAdapter:
         mock_message.usage = Usage(input_tokens=10, output_tokens=5, total_tokens=15)
 
         with patch(
-            "amrita_core.builtins.adapter.anthropic.AsyncAnthropic"
+            "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"
         ) as mock_anthropic:
             mock_client = AsyncMock()
             mock_client.messages.create.return_value = mock_message
@@ -799,7 +800,7 @@ class TestAnthropicAdapter:
             return SimpleMockContext(mock_text_stream, mock_final_message)
 
         with patch(
-            "amrita_core.builtins.adapter.anthropic.AsyncAnthropic"
+            "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"
         ) as mock_anthropic:
             mock_client = AsyncMock()
             mock_client.messages.stream = mock_stream_method
@@ -859,7 +860,7 @@ class TestAnthropicAdapter:
             return SimpleMockContext(mock_text_stream, mock_final_message)
 
         with patch(
-            "amrita_core.builtins.adapter.anthropic.AsyncAnthropic"
+            "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"
         ) as mock_anthropic:
             mock_client = AsyncMock()
             mock_client.messages.stream = mock_stream_method
@@ -893,7 +894,7 @@ class TestAnthropicAdapter:
         mock_message.usage = Usage(input_tokens=15, output_tokens=10, total_tokens=25)
 
         with patch(
-            "amrita_core.builtins.adapter.anthropic.AsyncAnthropic"
+            "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"
         ) as mock_anthropic:
             mock_client = AsyncMock()
             mock_client.messages.create.return_value = mock_message

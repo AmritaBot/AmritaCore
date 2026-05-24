@@ -1,7 +1,6 @@
-from . import adapter, agent, tools
+from . import agent, tools
 
 __all__ = [
-    "adapter",
     "agent",
     "tools",
 ]

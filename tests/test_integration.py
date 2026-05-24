@@ -2,7 +2,6 @@ import asyncio
 
 import pytest
 
-from amrita_core import init
 from amrita_core.chatmanager import ChatObject, chat_manager
 from amrita_core.config import AmritaConfig
 from amrita_core.sessions import SessionsManager
@@ -22,7 +21,6 @@ class TestIntegration:
     async def test_session_creation_and_chat_flow(self):
         """Test session creation and chat flow integration"""
         # Initialize AmritaCore
-        init()
 
         # Create a new session
         sm = SessionsManager()
@@ -186,7 +184,6 @@ class TestIntegration:
 async def test_full_workflow():
     """Test full workflow"""
     # Initialize
-    init()
 
     # Create session
     sm = SessionsManager()
@@ -232,7 +229,6 @@ async def test_full_workflow():
 async def test_concurrent_sessions_and_objects():
     """Test concurrent sessions and objects"""
     # Initialize
-    init()
 
     # Create multiple sessions
     sm = SessionsManager()

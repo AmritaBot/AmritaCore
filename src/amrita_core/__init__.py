@@ -1,9 +1,13 @@
+from amrita_sense.logging import debug_log, logger
+from amrita_sense.streaming import SuspendObjectStream
+from typing_extensions import deprecated
+
+from . import adapters, tokenizers
 from .agent.functions import AgentRuntime, create_agent
 from .agent.strategy import AgentStrategy
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
 from .config import AmritaConfig, get_config, set_config
-from .hook.event import BaseEvent, CompletionEvent, EventTypeEnum, PreCompletionEvent
-from .hook.matcher import MatcherManager
+from .hook.event import CompletionEvent, EventTypeEnum, PreCompletionEvent
 from .hook.on import on_completion, on_event, on_precompletion
 from .libchat import (
     call_completion,
@@ -12,10 +16,8 @@ from .libchat import (
     text_generator,
     tools_caller,
 )
-from .logging import debug_log, logger
 from .preset import PresetManager, PresetReport
 from .sessions import SessionsManager
-from .streaming import SuspendObjectStream
 from .tools import mcp
 from .tools.manager import ToolsManager, on_tools, simple_tool
 from .tools.models import (
@@ -42,7 +44,6 @@ from .types import (
 __all__ = [
     "AgentRuntime",
     "AgentStrategy",
-    "BaseEvent",
     "BaseModel",
     "ChatManager",
     "ChatObject",
@@ -53,7 +54,6 @@ __all__ = [
     "FunctionDefinitionSchema",
     "FunctionParametersSchema",
     "FunctionPropertySchema",
-    "MatcherManager",
     "MemoryModel",
     "ModelConfig",
     "ModelPreset",
@@ -72,6 +72,7 @@ __all__ = [
     "ToolsManager",
     "UniResponse",
     "UniResponseUsage",
+    "adapters",
     "call_completion",
     "create_agent",
     "debug_log",
@@ -87,22 +88,16 @@ __all__ = [
     "set_config",
     "simple_tool",
     "text_generator",
+    "tokenizers",
     "tools_caller",
 ]
-__inited: bool = False
 
 
-def init():
-    global __all__, __inited
-    if not __inited:
-        logger.info("AmritaCore is initalizing......")
-        import jieba
-
-        from . import builtins
-
-        __all__ += [builtins.__name__]
-
-        jieba.initialize()
+@deprecated(
+    "Init method is no loger necessary. Please use minimal_init or load_amrita() instead for async initialization.",
+    category=DeprecationWarning,
+)
+def init(): ...
 
 
 def load_session(session_id: str):
@@ -122,5 +117,4 @@ async def load_amrita():
 
 async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
     set_config(config)
-    init()
     await load_amrita()

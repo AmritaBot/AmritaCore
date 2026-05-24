@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from datetime import datetime
 from typing import Any, Generic, TypeVar
 
 import pytz
+from pydantic import BaseModel
 
 from amrita_core.types import UniResponseUsage
 
 T = TypeVar("T")
+
+
+def model_dump(obj: Iterable[BaseModel | dict]) -> Sequence[Any]:
+    return [obj.model_dump() if isinstance(obj, BaseModel) else obj for obj in obj]
 
 
 def remove_think_tag(text: str) -> str:

@@ -7,7 +7,7 @@ isolated sessions with separate contexts, configurations, and tools.
 
 import asyncio
 
-from amrita_core import ChatObject, init, load_amrita, logger
+from amrita_core import ChatObject, load_amrita, logger
 from amrita_core.config import AmritaConfig, CookieConfig, FunctionConfig, LLMConfig
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionsManager
@@ -256,7 +256,6 @@ async def advanced_session_management_example():
 
 if __name__ == "__main__":
     # Initialize AmritaCore
-    init()
 
     # Run examples
     asyncio.run(basic_with_sessions_example())

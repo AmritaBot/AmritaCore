@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
+from amrita_sense.hook.event import BaseEvent
 from typing_extensions import Never, override
 
 from amrita_core.hook.exception import FallbackFailed
@@ -34,20 +34,7 @@ class EventTypeEnum(str, Enum):
 
 
 @dataclass
-class BaseEvent(ABC):
-    """All events must inherit from this class"""
-
-    @abstractmethod
-    def get_event_type(self) -> EventTypeEnum | str:
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    def event_type(self) -> EventTypeEnum | str: ...
-
-
-@dataclass
-class FallbackContext(BaseEvent):
+class FallbackContext(BaseEvent[EventTypeEnum]):
     preset: ModelPreset
     exc_info: BaseException
     config: "AmritaConfig"
@@ -68,9 +55,17 @@ class FallbackContext(BaseEvent):
         """Mark the event as failed"""
         raise FallbackFailed(reason)
 
+    if not TYPE_CHECKING:
+
+        def __setattr__(self, name: str, value: Any) -> None:
+            readonly = ("exc_info", "config", "context", "term")
+            if name in readonly:
+                raise AttributeError(f"Cannot modify attribute {name}")
+            super().__setattr__(name, value)
+
 
 @dataclass
-class Event(BaseEvent):
+class Event(BaseEvent[EventTypeEnum]):
     user_input: USER_INPUT
     original_context: SendMessageWrap
     chat_object: "ChatObject"
@@ -117,7 +112,7 @@ class CompletionEvent(Event):
         return EventTypeEnum.COMPLETION
 
     @override
-    def get_event_type(self) -> str:
+    def get_event_type(self) -> EventTypeEnum:
         return EventTypeEnum.COMPLETION
 
     def get_model_response(self) -> str:
@@ -136,5 +131,15 @@ class PreCompletionEvent(Event):
         return self._event_type
 
     @override
-    def get_event_type(self) -> str:
+    def get_event_type(self) -> EventTypeEnum:
         return self._event_type
+
+
+__all__ = [
+    "BaseEvent",  # For backward compatibility
+    "CompletionEvent",
+    "Event",
+    "EventTypeEnum",
+    "FallbackContext",
+    "PreCompletionEvent",
+]

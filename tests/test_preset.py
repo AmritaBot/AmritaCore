@@ -198,17 +198,15 @@ class TestPresetTesting:
             mock_adapter_manager_class.return_value = mock_instance
             mock_instance.safe_get_adapter.return_value = MockModelAdapter
 
-            # Mock hybrid_token_count
-            with patch("amrita_core.preset.hybrid_token_count", return_value=10):
-                report = await manager.test_single_preset(preset)
+            report = await manager.test_single_preset(preset)
 
-                assert isinstance(report, PresetReport)
-                assert report.preset_name == "test_success"
-                assert report.status is True
-                assert report.message == ""
-                assert report.test_output is not None
-                assert report.token_prompt == 10
-                assert report.token_completion > 0
+            assert isinstance(report, PresetReport)
+            assert report.preset_name == "test_success"
+            assert report.status is True
+            assert report.message == ""
+            assert report.test_output is not None
+            assert report.token_prompt == -1
+            assert report.token_completion == -1
 
     @pytest.mark.asyncio
     async def test_test_single_preset_by_string(self):
@@ -222,11 +220,10 @@ class TestPresetTesting:
             mock_adapter_manager_class.return_value = mock_instance
             mock_instance.safe_get_adapter.return_value = MockModelAdapter
 
-            with patch("amrita_core.preset.hybrid_token_count", return_value=10):
-                report = await manager.test_single_preset("test_by_string")
+            report = await manager.test_single_preset("test_by_string")
 
-                assert report.preset_name == "test_by_string"
-                assert report.status is True
+            assert report.preset_name == "test_by_string"
+            assert report.status is True
 
     @pytest.mark.asyncio
     async def test_test_single_preset_undefined_protocol(self):
@@ -239,14 +236,11 @@ class TestPresetTesting:
             mock_adapter_manager_class.return_value = mock_instance
             mock_instance.safe_get_adapter.return_value = None
 
-            with patch("amrita_core.preset.hybrid_token_count", return_value=10):
-                report = await manager.test_single_preset(preset)
+            report = await manager.test_single_preset(preset)
 
-                assert report.status is False
-                assert (
-                    "Undefined protocol adapter: undefined_protocol" in report.message
-                )
-                assert report.test_output is None
+            assert report.status is False
+            assert "Undefined protocol adapter: undefined_protocol" in report.message
+            assert report.test_output is None
 
     @pytest.mark.asyncio
     async def test_test_single_preset_exception(self):
@@ -269,12 +263,11 @@ class TestPresetTesting:
             mock_adapter_manager_class.return_value = mock_instance
             mock_instance.safe_get_adapter.return_value = FailingMockAdapter
 
-            with patch("amrita_core.preset.hybrid_token_count", return_value=10):
-                report = await manager.test_single_preset(preset)
+            report = await manager.test_single_preset(preset)
 
-                assert report.status is False
-                assert "API call failed" in report.message
-                assert report.test_output is None
+            assert report.status is False
+            assert "API call failed" in report.message
+            assert report.test_output is None
 
     @pytest.mark.asyncio
     async def test_test_presets_generator(self):
@@ -290,15 +283,14 @@ class TestPresetTesting:
             mock_adapter_manager_class.return_value = mock_instance
             mock_instance.safe_get_adapter.return_value = MockModelAdapter
 
-            with patch("amrita_core.preset.hybrid_token_count", return_value=10):
-                reports = []
-                async for report in manager.test_presets():
-                    reports.append(report)
+            reports = []
+            async for report in manager.test_presets():
+                reports.append(report)
 
-                assert len(reports) == 2
-                assert all(isinstance(r, PresetReport) for r in reports)
-                assert {r.preset_name for r in reports} == {"gen1", "gen2"}
-                assert all(r.status is True for r in reports)
+            assert len(reports) == 2
+            assert all(isinstance(r, PresetReport) for r in reports)
+            assert {r.preset_name for r in reports} == {"gen1", "gen2"}
+            assert all(r.status is True for r in reports)
 
 
 class TestPresetReport:

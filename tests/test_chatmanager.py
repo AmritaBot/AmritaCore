@@ -327,16 +327,18 @@ class TestMemoryLimiterAdvanced:
 
         with (
             patch(
-                "amrita_core.chatmanager.get_last_response", return_value=mock_response
-            ),
-            patch("amrita_core.chatmanager.call_completion") as mock_call_completion,
+                "amrita_core.chatmanager.chat_object.call_completion"
+            ) as mock_call_completion,
+            patch(
+                "amrita_core.chatmanager.memory_limiter.call_completion"
+            ) as mock_call_completion_2,
         ):
             # Create async generator mock
             async def mock_generator():
                 yield mock_response
 
             mock_call_completion.return_value = mock_generator()
-
+            mock_call_completion_2.return_value = mock_generator()
             async with MemoryLimiter(memory, train, config) as lim:
                 # Manually add some dropped messages
                 lim._dropped_messages = messages[:5]  # First 5 messages
