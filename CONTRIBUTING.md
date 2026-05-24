@@ -155,47 +155,6 @@ bash scripts/check.sh
 - Keep documentation synchronized with code
 - Both English and Chinese documentation should be updated simultaneously
 
-## Project Structure
-
-```text
-AmritaCore/
-├── src/
-│   └── amrita_core/          # Core source code
-│       ├── agent/            # Agent core logic
-│       │   ├── context.py    # Context management
-│       │   ├── functions.py  # Function calling logic
-│       │   └── strategy.py   # Execution strategies
-│       ├── builtins/         # Built-in components
-│       │   ...
-│       ├── hook/             # Event hook system
-│       │   ├── event.py      # Event definitions
-│       │   ├── matcher.py    # Event matchers
-│       │   └── on.py         # Hook decorators/registration
-│       ├── tools/            # Tool management system
-│       │   ├── manager.py    # Tool registration and dispatch
-│       │   └── mcp.py        # MCP client integration
-│       ├── __init__.py       # Entry point
-│       ├── chatmanager.py    # Chat manager
-│       ├── config.py         # Configuration system
-│       ├── consts.py         # Constants
-│       ├── libchat.py        # Chat library
-│       ├── logging.py        # Logging system
-│       ├── preset.py         # Preset manager
-│       ├── protocol.py       # Protocol layer
-│       ├── sessions.py       # Session management
-│       ├── streaming.py      # Streaming utilities
-│       ├── threadsafe.py     # Thread safety utilities
-│       ├── tokenizer.py      # Tokenizer
-│       ├── types.py          # Type definitions
-│       └── utils.py          # Utility functions
-├── demo/                     # Example code
-├── docs/                     # Documentation
-│   └── zh/                   # Chinese documentation
-├── tests/                    # Test code
-├── scripts/                  # Development scripts
-└── pyproject.toml           # Project configuration
-```
-
 ## Code Contribution Examples
 
 ### Adding New Features
