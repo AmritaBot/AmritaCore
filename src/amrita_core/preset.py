@@ -98,12 +98,6 @@ class MultiPresetManager(ContextThreadsafe):
         if isinstance(preset, str):
             preset = self.get_preset(preset)
         debug_log(f"Testing preset: {preset.name}...")
-        prompt_tokens = hybrid_token_count(
-            "".join(
-                [typing.cast(TextContent, msg.content[0]).text for msg in TEST_MSG_LIST]
-            )
-        )
-
         adapter = AdapterManager().safe_get_adapter(preset.protocol)
         if adapter is None:
             return PresetReport(
@@ -111,7 +105,7 @@ class MultiPresetManager(ContextThreadsafe):
                 preset_data=preset,
                 test_input=(TEST_MSG_PROMPT, TEST_MSG_USER),
                 test_output=None,
-                token_prompt=prompt_tokens,
+                token_prompt=-1,
                 token_completion=0,
                 status=False,
                 message=f"Undefined protocol adapter: {preset.protocol}",
@@ -139,8 +133,8 @@ class MultiPresetManager(ContextThreadsafe):
                     role="assistant",
                     content=[TextContent(type="text", text=data.content)],
                 ),
-                token_prompt=prompt_tokens,
-                token_completion=hybrid_token_count(data.content),
+                token_prompt=(data.usage.prompt_tokens or -1) if data.usage else -1,
+                token_completion=(data.usage.completion_tokens or -1) if data.usage else -1,
                 status=True,
                 message="",
                 time_used=time_delta,

@@ -110,9 +110,14 @@ def get_tokens(
     it = hybrid_token_count(
         "".join(text_generator(memory, full_message=True)),
         config.llm.tokens_count_mode,
+        tokenizer_type=config.function_config.tokenizer_used,
     )
 
-    ot = hybrid_token_count(response.content)
+    ot = hybrid_token_count(
+        response.content,
+        config.llm.tokens_count_mode,
+        tokenizer_type=config.function_config.tokenizer_used,
+    )
     return UniResponseUsage(
         prompt_tokens=it, total_tokens=it + ot, completion_tokens=ot
     )

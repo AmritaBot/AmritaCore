@@ -268,6 +268,7 @@ class MemoryLimiter:
                 tk_tmp += hybrid_token_count(
                     msg,
                     self.config.llm.tokens_count_mode,
+                    tokenizer_type=self.config.function_config.tokenizer_used,
                 )
             return tk_tmp
 
@@ -279,7 +280,11 @@ class MemoryLimiter:
         if not self.config.llm.enable_tokens_limit:
             logger.debug("Token limitation disabled, skipping processing")
             return
-        prompt_length = hybrid_token_count(train.content)
+        prompt_length = hybrid_token_count(
+            train.content,
+            self.config.llm.tokens_count_mode,
+            tokenizer_type=self.config.function_config.tokenizer_used
+        )
         if prompt_length > self.config.llm.session_tokens_windows:
             logger.warning(
                 f"Prompt size too large! It's {prompt_length}>{self.config.llm.session_tokens_windows}! Please adjusts the prompt or settings!"
