@@ -107,6 +107,7 @@ def gather_usage(
             )
     return u
 
+
 def on_none(value: Any | None) -> bool:
     """Used for Pydantic's exclude_if
 

@@ -187,6 +187,11 @@ class UniResponse(
         description="Reasoning/thinking content from model",
         exclude_if=lambda x: x is None,
     )
+    reasoning_signature: str | None = Field(
+        default=None,
+        description="Anthropic thinking signature (required for round-tripping)",
+        exclude_if=lambda x: x is None,
+    )
 
 
 class ImageUrl(BaseModel):
@@ -313,6 +318,11 @@ class Message(BaseModel, Generic[_T]):
     reasoning_content: str | None = Field(
         default=None,
         description="Reasoning/thinking content from model",
+        exclude_if=lambda x: x is None,
+    )
+    reasoning_signature: str | None = Field(
+        default=None,
+        description="Anthropic thinking signature (required for round-tripping)",
         exclude_if=lambda x: x is None,
     )
 

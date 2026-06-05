@@ -35,8 +35,6 @@ JSON_OBJECT_TYPE = Literal[
 ]
 
 
-
-
 def cast_mcp_properties_to_amrita(
     property: dict[str, MCP_OBJECT_TYPE],
 ) -> dict[str, FunctionPropertySchema]:
