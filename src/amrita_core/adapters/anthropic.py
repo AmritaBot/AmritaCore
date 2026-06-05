@@ -211,7 +211,7 @@ try:
 
         @override
         async def call_api(
-            self, messages: Iterable, *args, **kwargs
+            self, messages: Iterable, **kwargs
         ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
             """Plain text generation (no tool calls)"""
             preset: ModelPreset = self.preset
@@ -237,6 +237,7 @@ try:
                     max_tokens=config.llm.max_tokens,
                     top_p=preset_config.top_p,
                     temperature=preset_config.temperature,
+                    **kwargs,
                 ) as resp:
                     async for chunk in resp.text_stream:
                         text_resp.write(chunk)
@@ -280,6 +281,7 @@ try:
             messages: Iterable,
             tools: list[ToolFunctionSchema],
             tool_choice: ToolChoice | None = None,
+            **kwargs,
         ) -> UniResponse[None, list[ToolCall] | None]:
             """Tool call specific interface; returns tool_calls in UniResponse"""
             preset: ModelPreset = self.preset
@@ -310,6 +312,7 @@ try:
                 temperature=preset_config.temperature,
                 tools=anthropic_tools,
                 tool_choice=anthropic_tool_choice,
+                **kwargs,
             )
 
             usage = None

@@ -55,7 +55,6 @@ class MessageMetadataPayload(TypedDict):
     type: str
     extra_type: str | None
 
-
 class MessageMetadataPayloadError(MessageMetadataPayload):
     error: str
     type: str  # TODO: Literal["error"] after Python 3.10 EOL

@@ -11,6 +11,7 @@ from typing import Any, Generic, Literal
 
 from pydantic import BaseModel as B_Model
 from pydantic import Field, model_validator
+from typing_extensions import Self
 
 # Pydantic models
 
@@ -59,6 +60,31 @@ class ModelConfig(BaseModel):
     )
 
 
+class ThinkingConfig(BaseModel):
+    """Thinking/reasoning configuration for a model preset."""
+
+    thinking_type: Literal["enabled", "disabled"] | None = Field(
+        default=None,
+        description="Add `thinking.type` property in request (if provider supported, it's provider specificed)",
+    )
+    enable_thinking: bool | None = Field(
+        default=None,
+        description="Whether to enable thinking/reasoning (add `enable_thinking` property in request, it's provider specificed)",
+    )
+    thinking_effort: str | None = Field(
+        default="high",
+        description="Thinking effort level (model-dependent, normally are `minimal`,`low`,`medium`, `high`, `xhigh` or `max`. )",
+    )
+    content_mode: Literal["never", "by-tool", "optional"] = Field(
+        default="optional",
+        description=(
+            "How to handle reasoning_content: "
+            "never=strip all, by-tool=keep only for assistants with tool_calls, "
+            "optional=pass through"
+        ),
+    )
+
+
 class ModelPreset(BaseModel):
     model: str = Field(
         default="auto", description="Name of the AI model to use (e.g. gpt-3.5-turbo)"
@@ -72,7 +98,17 @@ class ModelPreset(BaseModel):
     )
     api_key: str = Field(default="", description="Key required to access API")
     protocol: str = Field(default="__main__", description="Protocol adapter type")
-    config: ModelConfig = Field(default_factory=ModelConfig)
+    rate: float | None = Field(
+        default=None,
+        description="Token cost rate for the model (used for cost estimation, optional)",
+    )
+    config: ModelConfig = Field(
+        default_factory=ModelConfig, description="Model configuration"
+    )
+    thinking_config: ThinkingConfig | None = Field(
+        default=None,
+        description="Thinking/reasoning configuration for the model preset(If adapter supported)",
+    )
     extra: dict[str, Any] = Field(default_factory=dict)
 
     @classmethod
@@ -144,6 +180,11 @@ class UniResponse(
     tool_calls: T_TOOL = Field(
         ...,
         description="Tool call results",
+        exclude_if=lambda x: x is None,
+    )
+    reasoning_content: str | None = Field(
+        default=None,
+        description="Reasoning/thinking content from model",
         exclude_if=lambda x: x is None,
     )
 
@@ -269,6 +310,11 @@ class Message(BaseModel, Generic[_T]):
     tool_calls: list[ToolCall] | None = Field(
         default=None, description="Tool calls", exclude_if=lambda x: x is None
     )
+    reasoning_content: str | None = Field(
+        default=None,
+        description="Reasoning/thinking content from model",
+        exclude_if=lambda x: x is None,
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -294,6 +340,16 @@ class Message(BaseModel, Generic[_T]):
                         validated_content.append(item)
                 data["content"] = validated_content
         return data
+
+    @model_validator(mode="after")
+    def validate_reasoning_content(self) -> Self:
+        """Ensure reasoning_content is only present on assistant messages."""
+        if self.role != "assistant" and self.reasoning_content is not None:
+            raise ValueError(
+                f"reasoning_content is only allowed on assistant messages, "
+                f"got role={self.role!r}"
+            )
+        return self
 
 
 class ToolResult(BaseModel):
