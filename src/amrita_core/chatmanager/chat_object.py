@@ -23,6 +23,7 @@ from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
 from amrita_sense.instructions import GOTO
 from amrita_sense.instructions.subprogram import SubprogramStorage
+from amrita_sense.node.core import Node as NodeType
 from jinja2 import Template
 from pytz import utc
 from typing_extensions import Self
@@ -234,25 +235,26 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             raise RuntimeError("Received a reserved keyword, please use another name.")
         self.jinja2_vars = jinja2_vars
         # Hook args
+        hook_kwargs = hook_kwargs or {}
+        self._hook_kwargs = hook_kwargs
         self._hook_args = hook_args
-        self._hook_kwargs = hook_kwargs or {}
         self._middleware = middleware
 
         workflow: NodeCompose = (
-            self._render_train
-            >> self._limiting_memory
-            >> self._prepare_messages
-            >> self._pre_runner
-            >> self._run_strategy
+            _render_train
+            >> _limiting_memory
+            >> _prepare_messages
+            >> _pre_runner
+            >> _run_strategy
             >> (
                 GOTO(BuiltinName.STRATEGY_EOF)
-                >> ALIAS(self._agent_entry, BuiltinName.AGENT_STRATEGY)
-                >> WHILE(self._single_strategy_exec).ACTION(self._counter_factory())
-                >> self._strategy_post
+                >> ALIAS(_agent_entry, BuiltinName.AGENT_STRATEGY)
+                >> WHILE(_single_strategy_exec).ACTION(_counter_factory(self))
+                >> _strategy_post
                 >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
             )
-            >> self._call_completion
-            >> self._post_runner
+            >> _call_completion
+            >> _post_runner
         )
         if archived_nodes is not None:
             workflow = workflow >> archived_nodes
@@ -421,233 +423,6 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
                 f"ChatObject of {self.stream_id} is already running or done"
             )
 
-    # Workflow nodes (in execution order)
-
-    @Node(SuspendEnum.TRAIN_RENDER.value)
-    async def _render_train(self):
-        logger.debug("Starting chat processing flow..")
-        data = self.data
-        config = self.config
-
-        data.messages.append(self.user_message)
-
-        logger.debug(
-            f"Added user message to memory, current message count: {len(data.messages)}"
-        )
-        # train,memory,chatobj(ChatObject),config will be given to Jinja2
-        self.train.content = await asyncio.to_thread(
-            self.template.render,
-            train=self.train,
-            memory=self.data,
-            chatobj=self,
-            config=config,
-            **self.jinja2_vars,
-        )
-        debug_log(self.train.content)
-
-    @Node(SuspendEnum.MEMORY.value)
-    async def _limiting_memory(self):
-        logger.debug("Starting applying memory limitations..")
-        async with MemoryLimiter(self.data, self.train, config=self.config) as lim:
-            await self._wait_for_continue(SuspendEnum.MEMORY.value)
-            await lim.run_enforce()
-
-            if abs_usage := lim.usage:
-                self.extra_usage = gather_usage(self.extra_usage, abs_usage)
-            self.data = lim.memory
-        logger.debug("Memory limitation application completed")
-
-    @Node(SuspendEnum.MESSAGES_PREPARED.value, wrap_to_async=False)
-    def _prepare_messages(self):
-        send_messages = self._prepare_send_messages()
-        self.context_wrap = SendMessageWrap.validate_messages(send_messages)
-        logger.debug(
-            f"Preparing sending messages completed, message count: {len(send_messages)}"
-        )
-
-    @Node(SuspendEnum.PRECOMPLE.value)
-    async def _pre_runner(self):
-        logger.debug(
-            f"Starting chat processing, sending message count: {len(self.context_wrap)}"
-        )
-
-        logger.debug("Triggering matcher functions..")
-        messages = self.context_wrap
-        chat_event = PreCompletionEvent(
-            chat_object=self,
-            user_input=self.user_input,
-            original_context=messages,
-        )
-        await MatcherManager.trigger_event(
-            chat_event,
-            self.config,
-            self,
-            self.preset,
-            *self._hook_args,
-            session=self.session,
-            exception_ignored=self._raised_exc,
-            **self._hook_kwargs,
-        )
-        self.data.messages = chat_event.get_context_messages().unwrap(
-            exclude_system=True
-        )
-
-    @Node(SuspendEnum.STRATEGY_START.value)
-    async def _run_strategy(self, intp: WorkflowInterpreter) -> None:
-        """Run workflow of strategy given."""
-
-        match self.strategy.get_category():
-            case "agent-mixed" | "agent":
-                context = (
-                    SendMessageWrap.validate_messages([self.train, self.user_message])
-                    if self.config.function_config.use_minimal_context
-                    else self.context_wrap.copy()
-                )
-                ctx = StrategyContext(self.user_input, context, self)
-                self._stg_ctx_tmp = ctx
-                return intp.jump_to(
-                    intp.find_addr_alias(BuiltinName.AGENT_STRATEGY.value)
-                )
-
-            case "rag":
-                context = SendMessageWrap.validate_messages(
-                    [
-                        self.train,
-                        self.user_message,
-                    ]
-                )
-            case "workflow":
-                context = self.context_wrap.copy()
-            case _:
-                raise RuntimeError("Invalid agent strategy")
-        ctx = StrategyContext(self.user_input, context, self)
-        st = self.strategy(ctx)
-        try:
-            await st.run()
-        except Exception as e:
-            if isinstance(e, self._raised_exc):
-                raise
-            with contextlib.suppress(NoExceptionHandler):
-                await st.on_exception(e)
-        else:
-            await st.on_post_process()
-        self.context_wrap.extend(ctx.original_context.end_messages)
-
-    @Node()
-    def _agent_entry(self, ctx: StrategyContext) -> None:
-        self._tmp_strategy = self.strategy(ctx)
-        self._ctx_backup_tmp: SendMessageWrap = self.context_wrap.copy()
-
-    def _counter_factory(self):
-
-        now = 1
-
-        @Node(SuspendEnum.ADVANCE_COUNTER, False)
-        async def advance():
-            nonlocal now
-            max_times: int = self.config.function_config.agent_tool_call_limit + 1
-            if now > max_times:
-                await self._tmp_strategy.on_limited()
-                raise BreakLoop(f"Counter has reached the maximum limit of {max_times}")
-            now += 1
-
-        return advance
-
-    @Node(SuspendEnum.SINGLE_TOOL.value)
-    async def _single_strategy_exec(self) -> bool:
-        try:
-            return await self._tmp_strategy.single_execute()
-        except Exception as e:
-            if isinstance(e, self._raised_exc) or isinstance(
-                e, self._interpreter._exc_ignored
-            ):
-                raise
-            logger.warning(
-                f"ERROR\n{e!s}\n!Failed to call Strategy! Continuing with old data..."
-            )
-            await self.yield_response(
-                MessageWithMetadata(
-                    content=f"Agent run failed:{e!s}",
-                    metadata=MessageMetadataPayloadError(
-                        error=str(e), type="error", extra_type=None
-                    ),
-                )
-            )
-            await self._tmp_strategy.on_exception(e)
-            self.context_wrap = self._ctx_backup_tmp
-            return False
-
-    @Node()
-    async def _strategy_post(self):
-        await self._tmp_strategy.on_post_process()
-        self.context_wrap.extend(self._tmp_strategy.ctx.original_context.end_messages)
-        del self._tmp_strategy
-        del self._ctx_backup_tmp
-        del self._stg_ctx_tmp
-
-    @Node(SuspendEnum.LLM_CALL.value)
-    async def _call_completion(self):
-        logger.debug("Calling chat model..")
-        response: UniResponse[str, None] | None = None
-        used_preset: set[str] = set()
-        for i in range(1, self.config.llm.max_fallbacks + 1):
-            try:
-                used_preset.add(self.preset.name)
-                async for chunk in call_completion(
-                    self.context_wrap.unwrap(), config=self.config, preset=self.preset
-                ):
-                    if isinstance(chunk, UniResponse):
-                        response = chunk
-                    elif isinstance(chunk, MessageContent | str):
-                        await self.yield_response(chunk)
-                break
-            except Exception as e:
-                logger.warning(
-                    f"Because of `{e!s}`, LLM request failed, retrying ({i}/{self.config.llm.max_retries})..."
-                )
-                ctx = FallbackContext(self.preset, e, self.config, self.context_wrap, i)
-                await MatcherManager.trigger_event(
-                    ctx, ctx.config, exception_ignored=(FallbackFailed,)
-                )
-                if ctx.preset is self.preset:
-                    ctx.fail("No preset fallback available, exiting!")
-                self.preset = ctx.preset
-        else:
-            raise FallbackFailed("Max preset fallbacks retries exceeded.")
-        if response is None:
-            raise RuntimeError("No final response from chat adapter.")
-        self.response = response
-
-    @Node(SuspendEnum.COMPLE.value)
-    async def _post_runner(self):
-        logger.debug("Triggering chat events..")
-        chat_event = CompletionEvent(
-            self.user_input, self.context_wrap, self, self.response.content
-        )
-        await self._wait_for_continue(SuspendEnum.COMPLE.value)
-        await MatcherManager.trigger_event(
-            chat_event,
-            self.config,
-            self,
-            self.preset,
-            *self._hook_args,
-            session=self.session,
-            exception_ignored=self._raised_exc,
-            **self._hook_kwargs,
-        )
-        self.response.content = chat_event.model_response
-        self.context_wrap.append(
-            Message[str](
-                content=self.response.content,
-                role="assistant",
-            )
-        )
-        logger.debug(
-            f"Added assistant response to memory, current message count: {len(self.context_wrap)}"
-        )
-
-        logger.debug("Chat processing completed")
-
     # Private helpers
 
     def _prepare_send_messages(
@@ -664,3 +439,249 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         messages = [train, *copy.deepcopy(data.messages)]
         logger.debug(f"Messages preparation completed, total {len(messages)} messages")
         return messages
+
+    # Workflow nodes (in execution order)
+
+
+@Node(SuspendEnum.TRAIN_RENDER.value)
+async def _render_train(chat_obj: ChatObject):
+    logger.debug("Starting chat processing flow..")
+    data = chat_obj.data
+    config = chat_obj.config
+
+    data.messages.append(chat_obj.user_message)
+
+    logger.debug(
+        f"Added user message to memory, current message count: {len(data.messages)}"
+    )
+    # train,memory,chatobj(ChatObject),config will be given to Jinja2
+    chat_obj.train.content = await asyncio.to_thread(
+        chat_obj.template.render,
+        train=chat_obj.train,
+        memory=chat_obj.data,
+        chatobj=chat_obj,
+        config=config,
+        **chat_obj.jinja2_vars,
+    )
+    debug_log(chat_obj.train.content)
+
+
+@Node(SuspendEnum.MEMORY.value)
+async def _limiting_memory(chat_obj: ChatObject):
+    logger.debug("Starting applying memory limitations..")
+    async with MemoryLimiter(
+        chat_obj.data, chat_obj.train, config=chat_obj.config
+    ) as lim:
+        await chat_obj._wait_for_continue(SuspendEnum.MEMORY.value)
+        await lim.run_enforce()
+
+        if abs_usage := lim.usage:
+            chat_obj.extra_usage = gather_usage(chat_obj.extra_usage, abs_usage)
+        chat_obj.data = lim.memory
+    logger.debug("Memory limitation application completed")
+
+
+@Node(SuspendEnum.MESSAGES_PREPARED.value, wrap_to_async=False)
+def _prepare_messages(chat_obj: ChatObject):
+    send_messages = chat_obj._prepare_send_messages()
+    chat_obj.context_wrap = SendMessageWrap.validate_messages(send_messages)
+    logger.debug(
+        f"Preparing sending messages completed, message count: {len(send_messages)}"
+    )
+
+
+@Node(SuspendEnum.PRECOMPLE.value)
+async def _pre_runner(chat_obj: ChatObject):
+    logger.debug(
+        f"Starting chat processing, sending message count: {len(chat_obj.context_wrap)}"
+    )
+
+    logger.debug("Triggering matcher functions..")
+    messages = chat_obj.context_wrap
+    chat_event = PreCompletionEvent(
+        chat_object=chat_obj,
+        user_input=chat_obj.user_input,
+        original_context=messages,
+    )
+    await MatcherManager.trigger_event(
+        chat_event,
+        chat_obj.config,
+        chat_obj,
+        chat_obj.preset,
+        *chat_obj._hook_args,
+        session=chat_obj.session,
+        exception_ignored=chat_obj._raised_exc,
+        **chat_obj._hook_kwargs,
+    )
+    chat_obj.data.messages = chat_event.get_context_messages().unwrap(
+        exclude_system=True
+    )
+
+
+@Node(SuspendEnum.STRATEGY_START.value)
+async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None:
+    """Run workflow of strategy given."""
+
+    match chat_obj.strategy.get_category():
+        case "agent-mixed" | "agent":
+            context = (
+                SendMessageWrap.validate_messages(
+                    [chat_obj.train, chat_obj.user_message]
+                )
+                if chat_obj.config.function_config.use_minimal_context
+                else chat_obj.context_wrap.copy()
+            )
+            ctx = StrategyContext(chat_obj.user_input, context, chat_obj)
+            chat_obj._stg_ctx_tmp = ctx
+            return intp.jump_to(intp.find_addr_alias(BuiltinName.AGENT_STRATEGY.value))
+
+        case "rag":
+            context = SendMessageWrap.validate_messages(
+                [
+                    chat_obj.train,
+                    chat_obj.user_message,
+                ]
+            )
+        case "workflow":
+            context = chat_obj.context_wrap.copy()
+        case _:
+            raise RuntimeError("Invalid agent strategy")
+    ctx = StrategyContext(chat_obj.user_input, context, chat_obj)
+    st = chat_obj.strategy(ctx)
+    try:
+        await st.run()
+    except Exception as e:
+        if isinstance(e, chat_obj._raised_exc):
+            raise
+        with contextlib.suppress(NoExceptionHandler):
+            await st.on_exception(e)
+    else:
+        await st.on_post_process()
+    chat_obj.context_wrap.extend(ctx.original_context.end_messages)
+
+
+@Node()
+def _agent_entry(chat_obj: ChatObject) -> None:
+    chat_obj._tmp_strategy = chat_obj.strategy(chat_obj._stg_ctx_tmp)
+    chat_obj._ctx_backup_tmp = chat_obj.context_wrap.copy()
+
+
+def _counter_factory(chat_obj: ChatObject) -> NodeType[None]:
+
+    now = 1
+
+    @Node(SuspendEnum.ADVANCE_COUNTER, False)
+    async def advance():
+        nonlocal now
+        max_times: int = chat_obj.config.function_config.agent_tool_call_limit + 1
+        if now > max_times:
+            await chat_obj._tmp_strategy.on_limited()
+            raise BreakLoop(f"Counter has reached the maximum limit of {max_times}")
+        now += 1
+
+    return advance
+
+
+@Node(SuspendEnum.SINGLE_TOOL.value)
+async def _single_strategy_exec(chat_obj: ChatObject) -> bool:
+    try:
+        return await chat_obj._tmp_strategy.single_execute()
+    except Exception as e:
+        if isinstance(e, chat_obj._raised_exc) or isinstance(
+            e, chat_obj._interpreter._exc_ignored
+        ):
+            raise
+        logger.warning(
+            f"ERROR\n{e!s}\n!Failed to call Strategy! Continuing with old data..."
+        )
+        await chat_obj.yield_response(
+            MessageWithMetadata(
+                content=f"Agent run failed:{e!s}",
+                metadata=MessageMetadataPayloadError(
+                    error=str(e), type="error", extra_type=None
+                ),
+            )
+        )
+        await chat_obj._tmp_strategy.on_exception(e)
+        chat_obj.context_wrap = chat_obj._ctx_backup_tmp
+        return False
+
+
+@Node()
+async def _strategy_post(chat_obj: ChatObject):
+    await chat_obj._tmp_strategy.on_post_process()
+    chat_obj.context_wrap.extend(
+        chat_obj._tmp_strategy.ctx.original_context.end_messages
+    )
+    del chat_obj._tmp_strategy
+    del chat_obj._ctx_backup_tmp
+    del chat_obj._stg_ctx_tmp
+
+
+@Node(SuspendEnum.LLM_CALL.value)
+async def _call_completion(chat_obj: ChatObject):
+    logger.debug("Calling chat model..")
+    response: UniResponse[str, None] | None = None
+    used_preset: set[str] = set()
+    for i in range(1, chat_obj.config.llm.max_fallbacks + 1):
+        try:
+            used_preset.add(chat_obj.preset.name)
+            async for chunk in call_completion(
+                chat_obj.context_wrap.unwrap(),
+                config=chat_obj.config,
+                preset=chat_obj.preset,
+            ):
+                if isinstance(chunk, UniResponse):
+                    response = chunk
+                elif isinstance(chunk, MessageContent | str):
+                    await chat_obj.yield_response(chunk)
+            break
+        except Exception as e:
+            logger.warning(
+                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{chat_obj.config.llm.max_retries})..."
+            )
+            ctx = FallbackContext(
+                chat_obj.preset, e, chat_obj.config, chat_obj.context_wrap, i
+            )
+            await MatcherManager.trigger_event(
+                ctx, ctx.config, exception_ignored=(FallbackFailed,)
+            )
+            if ctx.preset is chat_obj.preset:
+                ctx.fail("No preset fallback available, exiting!")
+            chat_obj.preset = ctx.preset
+    else:
+        raise FallbackFailed("Max preset fallbacks retries exceeded.")
+    if response is None:
+        raise RuntimeError("No final response from chat adapter.")
+    chat_obj.response = response
+
+
+@Node(SuspendEnum.COMPLE.value)
+async def _post_runner(chat_obj: ChatObject):
+    logger.debug("Triggering chat events..")
+    chat_event = CompletionEvent(
+        chat_obj.user_input, chat_obj.context_wrap, chat_obj, chat_obj.response.content
+    )
+    await chat_obj._wait_for_continue(SuspendEnum.COMPLE.value)
+    await MatcherManager.trigger_event(
+        chat_event,
+        chat_obj.config,
+        chat_obj,
+        chat_obj.preset,
+        *chat_obj._hook_args,
+        session=chat_obj.session,
+        exception_ignored=chat_obj._raised_exc,
+        **chat_obj._hook_kwargs,
+    )
+    chat_obj.response.content = chat_event.model_response
+    chat_obj.context_wrap.append(
+        Message[str](
+            content=chat_obj.response.content,
+            role="assistant",
+        )
+    )
+    logger.debug(
+        f"Added assistant response to memory, current message count: {len(chat_obj.context_wrap)}"
+    )
+
+    logger.debug("Chat processing completed")
