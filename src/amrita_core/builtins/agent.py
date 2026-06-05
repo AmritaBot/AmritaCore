@@ -41,6 +41,12 @@ from .tools import (
     REASONING_TOOL,
     STOP_TOOL,
 )
+from .types import (
+    AgentLoopErrorMetadata,
+    AgentReasoningChunkMetadata,
+    AgentReasoningMetadata,
+    AgentToolCallMetadata,
+)
 
 
 class BaseReActAgentStrategy(AgentStrategy, ABC):
@@ -124,12 +130,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         await self.chat_object.yield_response(
             MessageWithMetadata(
                 summary,
-                {
-                    "type": "reasoning",
-                    "extra_type": "pre_resolve",
-                    "last_step": last_step,
-                    "summary": summary,
-                },
+                AgentReasoningMetadata(
+                    type="reasoning",
+                    extra_type="pre_resolve",
+                    last_step=last_step,
+                    summary=summary,
+                ),
             )
         )
         reasoning_trigger_msg[0] = Message(
@@ -152,11 +158,11 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             yield_to_wrapper=lambda chunk: (
                 MessageWithMetadata(
                     chunk,
-                    metadata={
-                        "type": "text",
-                        "extra_type": "reasoning_chunk",
-                        "content": chunk,
-                    },
+                    metadata=AgentReasoningChunkMetadata(
+                        type="text",
+                        extra_type="reasoning_chunk",
+                        content=chunk,
+                    ),
                 )
                 if isinstance(chunk, str)
                 else chunk
@@ -270,13 +276,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 await self.chat_object.yield_response(
                     MessageWithMetadata(
                         content=f"Called tool {rslt.name}\n",
-                        metadata={
-                            "type": "function_call",
-                            "function_name": function_name,
-                            "is_done": True,
-                            "tool_id": tool_call_id,
-                            "err": None,
-                        },
+                        metadata=AgentToolCallMetadata(
+                            type="function_call",
+                            extra_type=None,
+                            function_name=function_name,
+                            is_done=True,
+                            tool_id=tool_call_id,
+                            err=None,
+                        ),
                     )
                 )
 
@@ -354,12 +361,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             await self.chat_object.yield_response(
                 MessageWithMetadata(
                     content=f"Calling function {function_name}\n",
-                    metadata={
-                        "type": "function_call",
-                        "function_name": function_name,
-                        "is_done": False,
-                        "tool_id": tool_call.id,
-                    },
+                    metadata=AgentToolCallMetadata(
+                        type="function_call",
+                        extra_type=None,
+                        function_name=function_name,
+                        is_done=False,
+                        tool_id=tool_call.id,
+                        err=None,
+                    ),
                 )
             )
 
@@ -423,12 +432,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     await self.chat_object.yield_response(
                         MessageWithMetadata(
                             content=prompt,
-                            metadata={
-                                "type": "error",
-                                "extra_type": "loop_reasoning",
-                                "chat_object_id": self.chat_object.stream_id,
-                                "error": prompt,
-                            },
+                            metadata=AgentLoopErrorMetadata(
+                                type="error",
+                                extra_type="loop_reasoning",
+                                chat_object_id=self.chat_object.stream_id,
+                                error=prompt,
+                            ),
                         )
                     )
                     ret = False
@@ -493,13 +502,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             await self.chat_object.yield_response(
                 MessageWithMetadata(
                     content=f"Error: {function_name} failed.",
-                    metadata={
-                        "type": "function_call",
-                        "function_name": function_name,
-                        "is_done": True,
-                        "tool_id": tool_call_id,
-                        "err": err,
-                    },
+                    metadata=AgentToolCallMetadata(
+                        type="function_call",
+                        extra_type=None,
+                        function_name=function_name,
+                        is_done=True,
+                        tool_id=tool_call_id,
+                        err=err,
+                    ),
                 )
             )
         return f"ERR: Tool {function_name} execution failed\n{err!s}"

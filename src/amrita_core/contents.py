@@ -49,15 +49,32 @@ class StringMessageContent(MessageContent):
         return self.text
 
 
+# TODO: When Python 3.10 EOL, refactor to use TypedDict + Generic
+#       e.g. class MessageMetadataPayload(TypedDict, Generic[T, T_E]):
+class MessageMetadataPayload(TypedDict):
+    type: str
+    extra_type: str | None
+
+
+class MessageMetadataPayloadError(MessageMetadataPayload):
+    error: str
+    type: str  # TODO: Literal["error"] after Python 3.10 EOL
+
+
+class MessageMetadataPayloadSystem(MessageMetadataPayload):
+    type: str  # TODO: Literal["system"] after Python 3.10 EOL
+    message: str
+
+
 class MessageMetadata(TypedDict):
     content: str
-    metadata: dict[str, Any]
+    metadata: MessageMetadataPayload
 
 
 class MessageWithMetadata(MessageContent):
     """Message with additional metadata"""
 
-    def __init__(self, content: str, metadata: dict[str, Any]):
+    def __init__(self, content: str, metadata: MessageMetadataPayload):
         """Constructor of MessageWith Metadata
 
         Args:
@@ -71,7 +88,7 @@ class MessageWithMetadata(MessageContent):
     def get_content(self) -> str:
         return self.content
 
-    def get_metadata(self) -> dict:
+    def get_metadata(self) -> MessageMetadataPayload:
         return self.metadata
 
     def get_full_content(self) -> MessageMetadata:

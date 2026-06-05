@@ -10,9 +10,18 @@ from types import TracebackType
 from typing import Any, TypeVar
 from uuid import uuid4
 
-from amrita_sense import ALIAS, Node, NodeComposeRendered, WorkflowInterpreter
+from amrita_sense import (
+    ALIAS,
+    NOP,
+    WHILE,
+    Node,
+    NodeCompose,
+    NodeComposeRendered,
+    WorkflowInterpreter,
+)
+from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
-from amrita_sense.instructions import ARCHIVED_NODES
+from amrita_sense.instructions import GOTO
 from amrita_sense.instructions.subprogram import SubprogramStorage
 from jinja2 import Template
 from pytz import utc
@@ -27,7 +36,11 @@ from amrita_core.agent.strategy import (
 from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
-from amrita_core.contents import MessageContent, MessageWithMetadata
+from amrita_core.contents import (
+    MessageContent,
+    MessageMetadataPayloadError,
+    MessageWithMetadata,
+)
 from amrita_core.hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
 from amrita_core.hook.exception import FallbackFailed
 from amrita_core.libchat import (
@@ -72,45 +85,68 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
     context management, model calling, and response sending.
     """
 
+    # Identity
     stream_id: str  # Chat object ID
+    session_id: str  # Session ID
+
+    # Timing
     timestamp: str  # Timestamp (for LLM)
     time: datetime  # Time
     end_at: datetime | None = None
-    data: Memory  # (lateinit) Memory file
-    user_input: USER_INPUT
-    user_message: Message[USER_INPUT]  # (lateinit) User message
-    context_wrap: SendMessageWrap  # (lateinit) Context message
-    train: Message[str]  # System message
     last_call: datetime  # Last internal function call time
     now_calling: str | None = None  # currently calling function name
-    session_id: str  # Session ID
-    response: UniResponse[str, None]  # (lateinit) Response
-    extra_usage: UniResponseUsage[int]
-    preset: ModelPreset  # preset used in this call
+
+    # Config & Preset
     config: AmritaConfig  # config used in this call
+    preset: ModelPreset  # preset used in this call
     session: SessionData | None  # (lateinit) Session data
     strategy: type[AgentStrategy] | StrategyLikedObject
+
+    # Input / Data
+    user_input: USER_INPUT
+    user_message: Message[USER_INPUT]  # (lateinit) User message
+    data: Memory  # (lateinit) Memory file
+    train: Message[str]  # System message
     template: Template
     jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
-    _q_tout: float | None
+
+    # Context
+    context_wrap: SendMessageWrap  # (lateinit) Context message
+
+    # Response
+    response: UniResponse[str, None]  # (lateinit) Response
+    extra_usage: UniResponseUsage[int]
+
+    # Runtime State
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
     _task: Task[None]
     _err: BaseException | None = None
-    _hook_kwargs: dict[str, Any]
-    _hook_args: tuple[Any, ...]
-    _chatman: ChatManager
+    _q_tout: float | None
 
-    _interpreter: (
-        WorkflowInterpreter  # (lateinit) When _entry is called, this will be set.
-    )
+    # Hooks
+    _hook_args: tuple[Any, ...]
+    _hook_kwargs: dict[str, Any]
+    _raised_exc: tuple[type[BaseException], ...]
+
+    # Workflow / Interpreter
     _workflow: (
         NodeComposeRendered  # (lateinit) ChatObject's runtime, will be set in __init__.
+    )
+    _interpreter: (
+        WorkflowInterpreter  # (lateinit) When _entry is called, this will be set.
     )
     _middleware: (
         Callable[[Self], Awaitable[Any]] | None
     )  # Middleware for the whole workflow, will be set in __init__.
-    _raised_exc: tuple[type[BaseException], ...]
+
+    # Agent Temp (lateinit)
+    _tmp_strategy: AgentStrategy | StrategyLikedObject
+    _ctx_backup_tmp: SendMessageWrap
+    _stg_ctx_tmp: StrategyContext
+
+    # Manager
+    _chatman: ChatManager
 
     def __init__(
         self,
@@ -201,20 +237,26 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         self._hook_args = hook_args
         self._hook_kwargs = hook_kwargs or {}
         self._middleware = middleware
-        archived_nodes = archived_nodes or ARCHIVED_NODES()
-        archived_nodes._nodes += (
-            ALIAS(self._run_agent, BuiltinName.AGENT_STRATEGY.value),
-        )
-        self._workflow = (
+
+        workflow: NodeCompose = (
             self._render_train
             >> self._limiting_memory
             >> self._prepare_messages
             >> self._pre_runner
             >> self._run_strategy
+            >> (
+                GOTO(BuiltinName.STRATEGY_EOF)
+                >> ALIAS(self._agent_entry, BuiltinName.AGENT_STRATEGY)
+                >> WHILE(self._single_strategy_exec).ACTION(self._counter_factory())
+                >> self._strategy_post
+                >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
+            )
             >> self._call_completion
             >> self._post_runner
-            >> (archived_nodes)
-        ).render()
+        )
+        if archived_nodes is not None:
+            workflow = workflow >> archived_nodes
+        self._workflow = workflow.render()
         self._interpreter = WorkflowInterpreter(
             self._workflow,
             self,
@@ -224,6 +266,37 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         )
         # initialize id
         self.stream_id = uuid4().hex
+
+    # Dunder / Magic methods
+
+    def __await__(self):
+        """
+        Await for task completion
+        """
+        if not hasattr(self, "_task"):
+            raise RuntimeError("ChatObject not running")
+        return self._task.__await__()
+
+    async def __aenter__(self) -> Self:
+        if not hasattr(self, "_task"):
+            raise RuntimeError("ChatObject not running")
+        if self._has_consumer:
+            raise RuntimeError("ChatObject already has a consumer")
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ):
+        del exc_tb  # This is unused
+        if exc_type is not None:
+            self._err = exc_val
+        self.terminate()
+        await self
+
+    # Monitoring
 
     @staticmethod
     def monitoring(func: Callable[..., Any]):
@@ -241,6 +314,27 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
                 self.now_calling = pev
 
         return inner
+
+    # Public API
+
+    @monitoring
+    def begin(self) -> Self:
+        """Start chat object task"""
+        if not hasattr(self, "_task"):
+            logger.debug("Starting chat object task...")
+            self._task = asyncio.create_task(self._entry())
+        return self
+
+    @monitoring
+    def terminate(self) -> None:
+        """
+        Terminate task execution
+        Sets the task status to completed and cancels the internal task
+        """
+        self._is_done = True
+        self._is_running = False
+        if hasattr(self, "_task") and not self._task.done():
+            self._task.cancel()
 
     async def full_response(self) -> str:
         """Return full response from the queue as a single string.
@@ -283,51 +377,15 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         """
         return self._is_done
 
-    @monitoring
-    def terminate(self) -> None:
-        """
-        Terminate task execution
-        Sets the task status to completed and cancels the internal task
-        """
-        self._is_done = True
-        self._is_running = False
-        if hasattr(self, "_task") and not self._task.done():
-            self._task.cancel()
+    def get_snapshot(self) -> ChatObjectMeta:
+        """Get a snapshot of the chat object
 
-    def __await__(self):
+        Returns:
+            Chat object metadata
         """
-        Await for task completion
-        """
-        if not hasattr(self, "_task"):
-            raise RuntimeError("ChatObject not running")
-        return self._task.__await__()
+        return ChatObjectMeta.model_validate(self, from_attributes=True)
 
-    async def __aenter__(self) -> Self:
-        if not hasattr(self, "_task"):
-            raise RuntimeError("ChatObject not running")
-        if self._has_consumer:
-            raise RuntimeError("ChatObject already has a consumer")
-        return self
-
-    async def __aexit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ):
-        del exc_tb  # This is unused
-        if exc_type is not None:
-            self._err = exc_val
-        self.terminate()
-        await self
-
-    @monitoring
-    def begin(self) -> Self:
-        """Start chat object task"""
-        if not hasattr(self, "_task"):
-            logger.debug("Starting chat object task...")
-            self._task = asyncio.create_task(self._entry())
-        return self
+    # Entry point
 
     @monitoring
     @SuspendObjectStream.suspend_with_tag(SuspendEnum.ENTRY_POINT.value)
@@ -362,6 +420,8 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             raise RuntimeError(
                 f"ChatObject of {self.stream_id} is already running or done"
             )
+
+    # Workflow nodes (in execution order)
 
     @Node(SuspendEnum.TRAIN_RENDER.value)
     async def _render_train(self):
@@ -404,13 +464,6 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         logger.debug(
             f"Preparing sending messages completed, message count: {len(send_messages)}"
         )
-        """
-        response: UniResponse[str, None] = await self._process_chat(send_messages)
-        self.response = response
-
-        logger.debug("Chat processing completed, preparing to send response")
-        await self.set_queue_done()
-        """
 
     @Node(SuspendEnum.PRECOMPLE.value)
     async def _pre_runner(self):
@@ -438,6 +491,99 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         self.data.messages = chat_event.get_context_messages().unwrap(
             exclude_system=True
         )
+
+    @Node(SuspendEnum.STRATEGY_START.value)
+    async def _run_strategy(self, intp: WorkflowInterpreter) -> None:
+        """Run workflow of strategy given."""
+
+        match self.strategy.get_category():
+            case "agent-mixed" | "agent":
+                context = (
+                    SendMessageWrap.validate_messages([self.train, self.user_message])
+                    if self.config.function_config.use_minimal_context
+                    else self.context_wrap.copy()
+                )
+                ctx = StrategyContext(self.user_input, context, self)
+                self._stg_ctx_tmp = ctx
+                return intp.jump_to(
+                    intp.find_addr_alias(BuiltinName.AGENT_STRATEGY.value)
+                )
+
+            case "rag":
+                context = SendMessageWrap.validate_messages(
+                    [
+                        self.train,
+                        self.user_message,
+                    ]
+                )
+            case "workflow":
+                context = self.context_wrap.copy()
+            case _:
+                raise RuntimeError("Invalid agent strategy")
+        ctx = StrategyContext(self.user_input, context, self)
+        st = self.strategy(ctx)
+        try:
+            await st.run()
+        except Exception as e:
+            if isinstance(e, self._raised_exc):
+                raise
+            with contextlib.suppress(NoExceptionHandler):
+                await st.on_exception(e)
+        else:
+            await st.on_post_process()
+        self.context_wrap.extend(ctx.original_context.end_messages)
+
+    @Node()
+    def _agent_entry(self, ctx: StrategyContext) -> None:
+        self._tmp_strategy = self.strategy(ctx)
+        self._ctx_backup_tmp: SendMessageWrap = self.context_wrap.copy()
+
+    def _counter_factory(self):
+
+        now = 1
+
+        @Node(SuspendEnum.ADVANCE_COUNTER, False)
+        async def advance():
+            nonlocal now
+            max_times: int = self.config.function_config.agent_tool_call_limit + 1
+            if now > max_times:
+                await self._tmp_strategy.on_limited()
+                raise BreakLoop(f"Counter has reached the maximum limit of {max_times}")
+            now += 1
+
+        return advance
+
+    @Node(SuspendEnum.SINGLE_TOOL.value)
+    async def _single_strategy_exec(self) -> bool:
+        try:
+            return await self._tmp_strategy.single_execute()
+        except Exception as e:
+            if isinstance(e, self._raised_exc) or isinstance(
+                e, self._interpreter._exc_ignored
+            ):
+                raise
+            logger.warning(
+                f"ERROR\n{e!s}\n!Failed to call Strategy! Continuing with old data..."
+            )
+            await self.yield_response(
+                MessageWithMetadata(
+                    content=f"Agent run failed:{e!s}",
+                    metadata=MessageMetadataPayloadError(
+                        error=str(e), type="error", extra_type=None
+                    ),
+                )
+            )
+            await self._tmp_strategy.on_exception(e)
+            self.context_wrap = self._ctx_backup_tmp
+            return False
+
+    @Node()
+    async def _strategy_post(self):
+        await self._tmp_strategy.on_post_process()
+        self.context_wrap.extend(self._tmp_strategy.ctx.original_context.end_messages)
+        del self._tmp_strategy
+        del self._ctx_backup_tmp
+        del self._stg_ctx_tmp
 
     @Node(SuspendEnum.LLM_CALL.value)
     async def _call_completion(self):
@@ -502,74 +648,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
 
         logger.debug("Chat processing completed")
 
-    @Node(SuspendEnum.STRATEGY_START.value)
-    async def _run_strategy(self, intp: WorkflowInterpreter) -> None:
-        """Run workflow of strategy given."""
-
-        match self.strategy.get_category():
-            case "agent-mixed" | "agent":
-                context = (
-                    SendMessageWrap.validate_messages([self.train, self.user_message])
-                    if self.config.function_config.use_minimal_context
-                    else self.context_wrap.copy()
-                )
-                ctx = StrategyContext(self.user_input, context, self)
-                return await intp.call_sub(
-                    intp.find_addr_alias(BuiltinName.AGENT_STRATEGY.value), ctx
-                )
-
-            case "rag":
-                context = SendMessageWrap.validate_messages(
-                    [
-                        self.train,
-                        self.user_message,
-                    ]
-                )
-            case "workflow":
-                context = self.context_wrap.copy()
-            case _:
-                raise RuntimeError("Invalid agent strategy")
-        ctx = StrategyContext(self.user_input, context, self)
-        st = self.strategy(ctx)
-        try:
-            await st.run()
-        except Exception as e:
-            if isinstance(e, self._raised_exc):
-                raise
-            with contextlib.suppress(NoExceptionHandler):
-                await st.on_exception(e)
-        else:
-            await st.on_post_process()
-        self.context_wrap.extend(ctx.original_context.end_messages)
-
-    @Node()
-    async def _run_agent(self, ctx: StrategyContext) -> None:
-        strategy: AgentStrategy | StrategyLikedObject = self.strategy(ctx)
-        backup: SendMessageWrap = self.context_wrap.copy()
-        try:
-            for _ in range(1, self.config.function_config.agent_tool_call_limit + 1):
-                await self._wait_for_continue(SuspendEnum.SINGLE_TOOL.value)
-                if not (await strategy.single_execute()):
-                    break
-            else:
-                await strategy.on_limited()
-            await strategy.on_post_process()
-            self.context_wrap.extend(strategy.ctx.original_context.end_messages)
-
-        except Exception as e:
-            if isinstance(e, self._raised_exc):
-                raise
-            logger.warning(
-                f"ERROR\n{e!s}\n!Failed to call Tools! Continuing with old data..."
-            )
-            await self.yield_response(
-                MessageWithMetadata(
-                    content=f"Agent run failed:{e!s}",
-                    metadata={"type": "error", "error": e},
-                )
-            )
-            await strategy.on_exception(e)
-            self.context_wrap = backup
+    # Private helpers
 
     def _prepare_send_messages(
         self,
@@ -585,11 +664,3 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         messages = [train, *copy.deepcopy(data.messages)]
         logger.debug(f"Messages preparation completed, total {len(messages)} messages")
         return messages
-
-    def get_snapshot(self) -> ChatObjectMeta:
-        """Get a snapshot of the chat object
-
-        Returns:
-            Chat object metadata
-        """
-        return ChatObjectMeta.model_validate(self, from_attributes=True)
