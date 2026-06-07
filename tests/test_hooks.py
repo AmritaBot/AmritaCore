@@ -32,8 +32,8 @@ class TestHooks:
         await cookie(mock_event, mock_config)
 
         # Verify that error response was yielded
-        mock_event.chat_object.yield_response.assert_called_once()
-        call_args = mock_event.chat_object.yield_response.call_args
+        mock_event.chat_object.io_stream.yield_response.assert_called_once()
+        call_args = mock_event.chat_object.io_stream.yield_response.call_args
         response_obj = call_args[1]["response"]
 
         assert isinstance(response_obj, MessageWithMetadata)
@@ -42,7 +42,7 @@ class TestHooks:
         assert response_obj.metadata["extra_type"] == "cookie"
 
         # Verify that queue was marked as done
-        mock_event.chat_object.set_queue_done.assert_called_once()
+        mock_event.chat_object.io_stream.set_queue_done.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_cookie_hook_without_cookie_found(self, mock_event, mock_config):
@@ -53,8 +53,8 @@ class TestHooks:
         await cookie(mock_event, mock_config)
 
         # Verify that no error response was yielded
-        mock_event.chat_object.yield_response.assert_not_called()
-        mock_event.chat_object.set_queue_done.assert_not_called()
+        mock_event.chat_object.io_stream.yield_response.assert_not_called()
+        mock_event.chat_object.io_stream.set_queue_done.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cookie_hook_with_cookie_disabled(self, mock_event):
@@ -69,8 +69,8 @@ class TestHooks:
         await cookie(mock_event, config)
 
         # Verify that no error response was yielded
-        mock_event.chat_object.yield_response.assert_not_called()
-        mock_event.chat_object.set_queue_done.assert_not_called()
+        mock_event.chat_object.io_stream.yield_response.assert_not_called()
+        mock_event.chat_object.io_stream.set_queue_done.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_cookie_hook_with_empty_cookie(self, mock_event):
@@ -85,8 +85,8 @@ class TestHooks:
         await cookie(mock_event, config)
 
         # Verify that no error response was yielded (empty cookie should not trigger)
-        mock_event.chat_object.yield_response.assert_not_called()
-        mock_event.chat_object.set_queue_done.assert_not_called()
+        mock_event.chat_object.io_stream.yield_response.assert_not_called()
+        mock_event.chat_object.io_stream.set_queue_done.assert_not_called()
 
     def test_posthook_decorator(self):
         """Test that posthook decorator is properly configured"""
