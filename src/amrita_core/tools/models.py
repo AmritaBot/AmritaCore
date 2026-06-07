@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
+from amrita_core.utils import on_none
+
 if TYPE_CHECKING:
     from amrita_core.agent.context import StrategyContext
 
@@ -31,18 +33,6 @@ JSON_OBJECT_TYPE = Literal[
     "array",
     "object",
 ]
-
-
-def on_none(value: Any | None) -> bool:
-    """Used for Pydantic's exclude_if
-
-    Args:
-        value (Any | None): Value to check
-
-    Returns:
-        bool: Returns True when Value is None
-    """
-    return value is None
 
 
 def cast_mcp_properties_to_amrita(

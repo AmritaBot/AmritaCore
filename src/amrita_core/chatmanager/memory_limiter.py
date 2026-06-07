@@ -283,7 +283,7 @@ class MemoryLimiter:
         prompt_length = hybrid_token_count(
             train.content,
             self.config.llm.tokens_count_mode,
-            tokenizer_type=self.config.function_config.tokenizer_used
+            tokenizer_type=self.config.function_config.tokenizer_used,
         )
         if prompt_length > self.config.llm.session_tokens_windows:
             logger.warning(

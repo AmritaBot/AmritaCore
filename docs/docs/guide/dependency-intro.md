@@ -44,5 +44,5 @@ Old import paths still work but are deprecated; they emit a `DeprecationWarning`
 
 ## Version Requirements
 
-- **amrita-sense**: `>=0.2.1`
+- **amrita-sense**: `>=0.3.0`
 - **Python**: `>=3.10,<3.15`

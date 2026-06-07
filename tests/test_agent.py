@@ -65,8 +65,9 @@ def mock_chat_object(mock_config):
     chat_obj.session_id = "test-session"
     chat_obj.preset = "default-preset"
     chat_obj.config = mock_config
-    chat_obj.yield_response = AsyncMock()
-    chat_obj.set_queue_done = AsyncMock()
+    chat_obj.io_stream = MagicMock()
+    chat_obj.io_stream.yield_response = AsyncMock()
+    chat_obj.io_stream.set_queue_done = AsyncMock()
     train_msg = Message(role="system", content="Test system message")
     chat_obj.train = train_msg
 
@@ -203,8 +204,10 @@ async def test_agent_strategy_on_limited(mock_strategy_context):
     assert "Too much tools called occurred" in appended_message.content
 
     # Verify response was yielded
-    mock_strategy_context.chat_object.yield_response.assert_called_once()
-    yielded_response = mock_strategy_context.chat_object.yield_response.call_args[0][0]
+    mock_strategy_context.chat_object.io_stream.yield_response.assert_called_once()
+    yielded_response = (
+        mock_strategy_context.chat_object.io_stream.yield_response.call_args[0][0]
+    )
     assert isinstance(yielded_response, MessageWithMetadata)
     assert (
         "[AmritaAgent] Too many tool calls! Workflow terminated!"

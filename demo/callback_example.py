@@ -53,7 +53,7 @@ async def callback_example():
 
     # Create chat object and set the callback
     chat = agent.get_chatobject(user_input)
-    chat.set_callback_func(response_callback)
+    chat.io_stream.set_callback_func(response_callback)
 
     # Execute with callback (no need to manually iterate)
     await chat.begin()
@@ -118,7 +118,7 @@ async def advanced_callback_example():
     print("🤖 Assistant: ", end="")
 
     chat = agent.get_chatobject(user_input)
-    chat.set_callback_func(advanced_callback)
+    chat.io_stream.set_callback_func(advanced_callback)
 
     await chat.begin()
 

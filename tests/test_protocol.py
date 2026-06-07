@@ -3,6 +3,7 @@ from io import BytesIO
 
 import pytest
 
+from amrita_core.builtins.types import AgentReasoningChunkMetadata
 from amrita_core.config import AmritaConfig, set_config
 from amrita_core.protocol import (
     AdapterManager,
@@ -53,7 +54,9 @@ class TestMessageContent:
     def test_message_with_metadata(self):
         """Test MessageWithMetadata functionality"""
         content = "Test message"
-        metadata = {"type": "info", "extra_type": "notification", "content": "details"}
+        metadata = AgentReasoningChunkMetadata(
+            type="info", extra_type="notification", content="details"
+        )
         msg = MessageWithMetadata(content, metadata)
 
         assert msg.type == "metadata"

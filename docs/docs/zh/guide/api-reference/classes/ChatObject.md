@@ -1,29 +1,49 @@
 # ChatObject
 
-ChatObject 类是与 AI 进行对话的主要接口。它继承自 `SuspendObjectStream[RESPONSE_TYPE]`，提供内置的挂起/恢复功能和流式响应处理。
+ChatObject 类是与 AI 进行对话的主要接口。它通过 `io_stream` 属性使用 `SuspendObjectStream[RESPONSE_TYPE]`（自 v0.9.1 起采用组合方式替代继承），提供挂起/恢复功能和流式响应处理。
 
 ## 属性
 
+### 标识
+
 - `stream_id` (str): 聊天对象 ID
-- `timestamp` (str): 时间戳
-- `time` (datetime): 时间
+- `session_id` (str): 会话 ID
+
+### 时间
+
+- `timestamp` (str): 时间戳（供 LLM 使用）
+- `time` (datetime): 创建时间
 - `end_at` (datetime | None): 结束时间
-- `data` (Memory): 记忆文件
+- `last_call` (datetime): 最后一次内部函数调用时间
+- `now_calling` (str | None): 当前调用的函数名
+
+### 配置与预设
+
+- `config` (AmritaConfig): 本次调用使用的配置
+- `preset` (ModelPreset): 本次调用使用的模型预设
+- `strategy` (type[AgentStrategy] | StrategyLikedObject): Agent 策略
+
+### 输入/数据
+
 - `user_input` (USER_INPUT): 用户输入
 - `user_message` (Message[USER_INPUT]): 用户消息
-- `context_wrap` (SendMessageWrap): 上下文包装器
-- `train` (dict[str, str]): 训练/提示数据
-- `last_call` (datetime): 最后一次内部函数调用时间
-- `session_id` (str): 会话 ID
-- `response` (UniResponse[str, None]): 响应
+- `data` (Memory): 记忆文件
+- `train` (Message[str]): 系统消息
+- `template` (Template): Jinja2 模板
+- `jinja2_vars` (dict[str, Any]): 传递给模板系统的变量
+
+### IO-Stream
+
+- `io_stream` (SuspendObjectStream[RESPONSE_TYPE]): 响应的流式接口
+
+### 上下文
+
+- `context_wrap` (SendMessageWrap): 上下文消息包装器
+
+### 响应
+
+- `response` (UniResponse[str, None]): 来自 LLM 的响应
 - `extra_usage` (UniResponseUsage[int]): 来自内存限制和其他操作的额外使用统计
-- `_is_running` (bool): 是否正在运行
-- `_is_done` (bool): 是否已完成
-- `_task` (Task[None]): 任务
-- `_err` (BaseException | None): 错误
-- `_q_tout` (float | None): 队列超时设置
-- `_hook_kwargs` (dict[str, Any]): 事件处理器的关键字参数
-- `_hook_args` (tuple[Any, ...]): 事件处理器的位置参数
 
 ## 构造函数参数
 
@@ -31,7 +51,7 @@ ChatObject 类是与 AI 进行对话的主要接口。它继承自 `SuspendObjec
 - `session_id` (str): 会话的唯一标识符
 - `user_input` (str): 用户输入消息
 - `train` (dict): AI的训练/提示数据
-- `callback` (RESPONSE_CALLBACK_TYPE): 可选的回调函数，用于直接处理响应（适用于Web场景）
+- `io_stream` (SuspendObjectStream[RESPONSE_TYPE] | None): 外部 SuspendObjectStream 实例。如果为 None，则自动创建一个新的（默认：None）
 - `config` (AmritaConfig): 聊天的配置设置，覆盖全局配置
 - `preset` (ModelPreset): 聊天的模型预设
 - `auto_create_session` (bool): 如果会话不存在是否自动创建（默认：False）
@@ -46,18 +66,36 @@ ChatObject 类是与 AI 进行对话的主要接口。它继承自 `SuspendObjec
 
 ## 方法
 
-- `begin()`: 执行对话
-- `get_response_generator()`: 返回用于流式响应的异步生成器（继承自 SuspendObjectStream）
-- `full_response()`: 返回完整响应（继承自 SuspendObjectStream）
-- `set_callback_func(func: RESPONSE_CALLBACK_TYPE)`: 设置响应处理的回调函数（继承自 SuspendObjectStream）
-- `yield_response(response: RESPONSE_TYPE)`: 将响应推送到队列或回调函数（继承自 SuspendObjectStream）
-- `wait_to_suspend(*tags: str, timeout: float | None = None)`: **(高级)** 等待挂起信号，可选择标签匹配（继承自 SuspendObjectStream）
-- `resume()`: **(高级)** 恢复挂起的执行流程（继承自 SuspendObjectStream）
-- `_wait_for_continue(tag: str | None = None)`: **(高级)** 与外部控制器配合使用的手动挂起点（继承自 SuspendObjectStream）
+### 核心方法
+
+- `begin()`: 启动聊天对象任务（返回 Self）
+- `terminate()`: 终止任务执行
+- `full_response()`: 以单一字符串形式返回完整响应
+- `get_exception()`: 获取任务执行期间发生的异常
+- `is_running()`: 检查任务是否正在运行
+- `is_done()`: 检查任务是否已完成
+- `get_snapshot()`: 获取聊天对象的快照（`ChatObjectMeta`）
+
+### 已弃用的流式方法（0.10.0 移除）
+
+> **自 v0.9.1 起**：所有流式/挂起方法已迁移至 `io_stream`。以下方法为已弃用的转发包装器，将在 v0.10.0 中移除：
+
+- `get_response_generator()` → 使用 `io_stream.get_response_generator()`
+- `set_callback_func(func)` → 使用 `io_stream.set_callback_func(func)`
+- `set_callback_fun_sending(func)` → 使用 `io_stream.set_callback_fun_sending(func)`
+- `yield_response(response)` → 使用 `io_stream.yield_response(response)`
+- `yield_response_iteration(iterator)` → 使用 `io_stream.yield_response_iteration(iterator)`
+- `push_object(obj)` → 使用 `io_stream.push_object(obj)`
+- `queue_closed()` → 使用 `io_stream.queue_closed()`
+- `set_queue_done()` → 使用 `io_stream.set_queue_done()`
+- `wait_to_suspend(*tags, timeout)` → 使用 `io_stream.wait_to_suspend(*tags, timeout)`
+- `resume()` → 使用 `io_stream.resume()`
 
 ### 挂起与恢复方法详情
 
-#### `wait_to_suspend(*tags: str, timeout: float | None = None)`
+> **自 v0.9.1 起**：请改用 `io_stream.wait_to_suspend()` 和 `io_stream.resume()`。ChatObject 上的这些方法为已弃用的转发包装器。
+
+#### `io_stream.wait_to_suspend(*tags: str, timeout: float | None = None)`
 
 从外部独立任务中调用此方法，当`ChatObject`到达下一个挂起点时暂停执行。
 
@@ -84,30 +122,30 @@ ChatObject 类是与 AI 进行对话的主要接口。它继承自 `SuspendObjec
 from amrita_core import SuspendEnum
 
 # 等待任意挂起点
-await chat.wait_to_suspend(timeout=3.0)
+await chat.io_stream.wait_to_suspend(timeout=3.0)
 
 # 等待特定的标准挂起点
-await chat.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
+await chat.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
 
 # 等待自定义标签
-await chat.wait_to_suspend("custom_tag", timeout=2.0)
+await chat.io_stream.wait_to_suspend("custom_tag", timeout=2.0)
 ```
 
-#### `resume()`
+#### `io_stream.resume()`
 
-恢复挂起的`ChatObject`执行流程。继续执行直到下一个挂起点或完成当前操作。
+恢复挂起的执行流程。继续执行直到下一个挂起点或完成当前操作。
 
 **示例:**
 
 ```python
 async def controller(chat_obj):
-    await chat_obj.wait_to_suspend("checkpoint")
+    await chat_obj.io_stream.wait_to_suspend("checkpoint")
     print("已挂起，正在检查状态...")
     # 执行检查或修改
-    chat_obj.resume()  # 恢复执行
+    chat_obj.io_stream.resume()  # 恢复执行
 ```
 
-#### `_wait_for_continue(tag: str | None = None)`
+#### `io_stream._wait_for_continue(tag: str | None = None)`
 
 与外部控制器配合使用的手动挂起点，通常在自定义函数内部使用以实现细粒度的流程控制。
 
@@ -147,24 +185,15 @@ train = Message(content="You are a helpful assistant.", role="system")
 async def callback_handler(message):
     print("Received:", message)
 
-chat_with_callback = ChatObject(
+chat = ChatObject(
     context=context,
     session_id="session_123",
     user_input="Hello!",
     train=train.model_dump(),
-    callback=callback_handler,
-    queue_size=20,
-    queue_timeout=10.0
 )
 
-# 替代方案：创建后设置回调
-chat_without_callback = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
-    train=train.model_dump()
-)
-chat_without_callback.set_callback_func(callback_handler)
+# 通过 io_stream 设置回调（替代之前的 `callback=` 构造参数）
+chat.io_stream.set_callback_func(callback_handler)
 
 # 带自定义事件参数的示例
 chat_with_event_params = ChatObject(
@@ -186,6 +215,17 @@ chat_with_jinja2_vars = ChatObject(
     jinja2_vars={"custom_role": "AI expert", "company_name": "Amrita Corp"}
 )
 
+# 带自定义 io_stream 的示例
+from amrita_sense.streaming import SuspendObjectStream
+custom_stream = SuspendObjectStream(queue_size=100, queue_timeout=30.0)
+chat_with_custom_stream = ChatObject(
+    context=context,
+    session_id="session_123",
+    user_input="Hello!",
+    train=train.model_dump(),
+    io_stream=custom_stream,
+)
+
 # ❌ 无效 - 这将导致 TypeError：
 # chat_with_override = ChatObject(
 #     context=context,
@@ -202,7 +242,7 @@ ChatObject 类负责处理单个聊天会话，包括消息接收、上下文管
 
 ### 回调机制
 
-回调机制继承自 SuspendObjectStream，工作方式如下：
+回调机制由 `io_stream` 属性（`SuspendObjectStream` 实例）提供，工作方式如下：
 
 1. 当提供回调函数时，响应直接传递给回调函数而不是排队
 2. 这可以防止内存堆积和潜在的溢出问题
@@ -249,7 +289,7 @@ AmritaCore使用**AnyIO内存对象流**进行流式响应，提供内置的背�
 
 ```python
 # 处理流式响应
-async for message in chat.get_response_generator():
+async for message in chat.io_stream.get_response_generator():
     content = message if isinstance(message, str) else message.get_content()
     print(content, end="")
 ```

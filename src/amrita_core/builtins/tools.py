@@ -10,6 +10,8 @@ from amrita_core.tools.models import (
     ToolFunctionSchema,
 )
 
+from .types import AgentMiddleMessageMetadata
+
 PROCESS_MESSAGE_TOOL = FunctionDefinitionSchema(
     name="processing_message",
     description="Describe what the agent is currently doing and express the agent's internal thoughts to the user. Use this when you need to communicate your current actions or internal reasoning to the user, not for general completion.",
@@ -84,9 +86,12 @@ REASONING_TOOL = ToolFunctionSchema(
 async def _(ctx: ToolContext) -> str | None:
     msg: str = ctx.data["content"]
     logger.debug(f"[LLM-ProcessMessage] {msg}")
-    await ctx.ctx.chat_object.yield_response(
+    await ctx.ctx.chat_object.io_stream.yield_response(
         MessageWithMetadata(
-            content=msg, metadata={"type": "middle_message", "content": msg}
+            content=msg,
+            metadata=AgentMiddleMessageMetadata(
+                type="middle_message", content=msg, extra_type=None
+            ),
         )
     )
     return f"Sent a message to user:\n\n```text\n{msg}\n```\n"

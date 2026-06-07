@@ -103,11 +103,9 @@ class TokenizerManager(ContextThreadsafe):
         if isinstance(tok_type, str):
             if tok_type in self._tokenizer_class:
                 if not override:
-                    raise ValueError(
-                        f"Model tok_type tokenizer {tok_type} is already registered"
-                    )
+                    raise ValueError(f"Tokenizer {tok_type} is already registered")
                 logger.warning(
-                    f"Model tok_type tokenizer {tok_type} has been registered by {self._tokenizer_class[tok_type].__name__}, overriding existing tokenizer"
+                    f"Tokenizer {tok_type} has been registered by {self._tokenizer_class[tok_type].__name__}, overriding existing tokenizer"
                 )
 
             self._tokenizer_class[tok_type] = tokenizer

@@ -370,7 +370,9 @@ class MultiClientManager(ContextThreadsafe):
                 self.register_only(client=client)
                 await self._load_this(client, fail_then_raise=False)
 
-    @deprecated("This is a typo issue, please use `initialize_this` instead.")
+    @deprecated(
+        "This is a typo issue, please use `initialize_this` instead.Will be removed in v0.10.0"
+    )
     def reinitalize_all(self):
         return self.reinitialize_all()
 

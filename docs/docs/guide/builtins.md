@@ -40,13 +40,34 @@ Built-in tools are automatically enabled based on the agent configuration:
 - **Thought Mode**: The `REASONING_TOOL` is only available when `config.builtin.agent_thought_mode` starts with "reasoning".
 - **Process Messages**: The `PROCESS_MESSAGE` tool is enabled when `config.function_config.agent_middle_message` is True.
 
-## 9.2 Built-in Adapters
+## 9.2 Built-in Metadata Types
+
+> **Since v0.9.1**: A new `amrita_core.builtins.types` module provides typed metadata classes (based on `MessageMetadataPayload`) for structured metadata in agent and hook workflows.
+
+These typed metadata classes replace plain dictionaries, providing type safety and IDE autocompletion:
+
+| Class                         | Purpose                                                                |
+| ----------------------------- | ---------------------------------------------------------------------- |
+| `AgentReasoningMetadata`      | Pre-resolve reasoning summaries (`last_step`, `summary`)               |
+| `AgentReasoningChunkMetadata` | Streaming reasoning chunks (`content`)                                 |
+| `AgentToolCallMetadata`       | Tool call notifications (`function_name`, `is_done`, `tool_id`, `err`) |
+| `AgentLoopErrorMetadata`      | Loop detection errors (`chat_object_id`, `error`)                      |
+| `AgentMiddleMessageMetadata`  | LLM middle messages (`content`)                                        |
+| `HookErrorMetadata`           | Hook-level error responses (`content`)                                 |
+
+Base classes in `amrita_core.contents`:
+
+- `MessageMetadataPayload` — base typed dict (`type`, `extra_type`)
+- `MessageMetadataPayloadError` — error payloads (`error`)
+- `MessageMetadataPayloadSystem` — system payloads (`message`)
+
+## 9.3 Built-in Adapters
 
 > **Note**: Since v0.9.0rc1, adapters have been moved from `amrita_core.builtins.adapter` to the `amrita_core.adapters` package with an **auto-discovery** mechanism. Adapters are automatically discovered and registered when their source files are loaded.
 
 AmritaCore provides built-in adapters for multiple LLM providers, implementing the `ModelAdapter` interface from `amrita_core.base.adapter`.
 
-### 9.2.1 OpenAIAdapter
+### 9.3.1 OpenAIAdapter
 
 `OpenAIAdapter` is the primary model adapter that implements communication protocols with the OpenAI API and compatible endpoints.
 
@@ -57,10 +78,12 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 - **Tool Calling**: Full support for OpenAI's function calling capabilities with proper tool choice handling
 - **Usage Statistics**: Tracks API call usage information including token counts
 - **Error Handling**: Robust error handling with configurable retry logic
+- **Reasoning/Thinking**: Supports OpenAI o-series reasoning through `ThinkingConfig` (streaming and non-streaming)
+- **Embedding API**: Provides `call_embed()` method for generating text embeddings (vector retrieval workflows)
 
 **Supported Protocols**: `"openai"`, `"__main__"`
 
-### 9.2.2 AnthropicAdapter
+### 9.3.2 AnthropicAdapter
 
 > **Optional Dependency**: Starting from v0.9.0rc1, the Anthropic SDK is an optional dependency. Install it with `pip install amrita_core[anthropic]`.
 
@@ -71,18 +94,19 @@ AmritaCore provides built-in adapters for multiple LLM providers, implementing t
 - **API Calls**: Asynchronous calls to the Anthropic API
 - **Streaming Responses**: Supports streaming with message stream handling
 - **Token Tracking**: Proper input/output token tracking for Anthropic's usage model
-- **Message Filtering**: Automatically filters out invalid messages (assistant messages with `content=None` and all tool messages) to comply with Anthropic API requirements
+- **Message Filtering**: Automatically filters out invalid messages to comply with Anthropic API requirements
 - **Tool Calling**: Full support for Anthropic's tool use capabilities with proper tool choice handling
+- **Extended Thinking**: Supports Anthropic's extended thinking feature through `ThinkingConfig`, with thinking delta streaming and signature tracking for API round-tripping
 
 **Supported Protocols**: `"anthropic"`, `"claude"`
 
 **Graceful Degradation**: If the Anthropic SDK is not installed, the adapter logs an info message and is not registered, avoiding import errors.
 
-## 9.3 Built-in Agent System
+## 9.4 Built-in Agent System
 
 AmritaCore includes a comprehensive intelligent agent system capable of autonomously using tools to complete tasks. The system has been significantly enhanced with a **template method pattern** architecture that provides unified execution flow while allowing strategy-specific customization.
 
-### 9.3.1 BaseReActAgentStrategy (Abstract Base Class)
+### 9.4.1 BaseReActAgentStrategy (Abstract Base Class)
 
 `BaseReActAgentStrategy` is the abstract base class that implements the template method pattern for ReAct-style agents. It provides shared functionality including:
 
@@ -95,7 +119,7 @@ AmritaCore includes a comprehensive intelligent agent system capable of autonomo
 
 This abstract class defines the common execution framework that all ReAct-style strategies inherit from, ensuring consistent behavior while allowing customization through abstract methods.
 
-### 9.3.2 ReActAgentStrategy
+### 9.4.2 ReActAgentStrategy
 
 The `ReActAgentStrategy` is the standard implementation that inherits from `BaseReActAgentStrategy` and implements the `"agent-mixed"` category, supporting both retrieval-augmented generation (RAG) and iterative tool calling within the same execution framework.
 
@@ -116,7 +140,7 @@ The `ReActAgentStrategy` is the standard implementation that inherits from `Base
 - **Intermediate Messages**: Controls visibility of processing messages and reasoning steps
 - **Error Notifications**: Configurable error reporting to users
 
-### 9.3.3 HybridReActAgentStrategy
+### 9.4.3 HybridReActAgentStrategy
 
 `HybridReActAgentStrategy` is a specialized agent strategy **optimized for Mixture of Experts (MoE) architecture models**. It addresses the ambiguity in internal state machines of certain MoE models when distinguishing between Tool and Completion identifiers.
 
@@ -150,7 +174,7 @@ The `ReActAgentStrategy` is the standard implementation that inherits from `Base
 - **Minimal Sanitization**: This strategy only provides basic tag pair escaping and does **NOT** perform semantic-level filtering or content validation
 - **Security Responsibility**: Users **MUST** implement comprehensive input validation, semantic analysis, and content sanitization for tool results in production environments
 
-### 9.3.4 NoActionAgentStrategy
+### 9.4.4 NoActionAgentStrategy
 
 `NoActionAgentStrategy` is a simple workflow strategy that performs no action. It can be used to give up the tool calling process when needed.
 
@@ -158,7 +182,7 @@ The `ReActAgentStrategy` is the standard implementation that inherits from `Base
 - **Use Case**: When you need to skip tool execution entirely
 - **Implementation**: Empty `run()` method that returns immediately
 
-### 9.3.5 Agent Workflow and Template Method Pattern
+### 9.4.5 Agent Workflow and Template Method Pattern
 
 The built-in agent system follows an enhanced workflow using the template method pattern:
 
@@ -174,7 +198,7 @@ The built-in agent system follows an enhanced workflow using the template method
 
 The template method pattern ensures that steps 1-4 and 6 follow a consistent flow across all strategies, while step 5 (result processing) and error handling are customized per strategy implementation.
 
-### 9.3.6 Strategy Selection Guidelines
+### 9.4.6 Strategy Selection Guidelines
 
 Choose the appropriate built-in strategy based on your use case:
 
@@ -183,11 +207,11 @@ Choose the appropriate built-in strategy based on your use case:
 - **Skip Tool Execution**: Use `NoActionAgentStrategy`
 - **Custom Behavior**: Extend `BaseReActAgentStrategy` or implement your own `AgentStrategy`
 
-## 9.4 Built-in Event Hooks
+## 9.5 Built-in Event Hooks
 
 AmritaCore provides built-in event hooks for common scenarios:
 
-### 9.4.1 Cookie Security Hook
+### 9.5.1 Cookie Security Hook
 
 The cookie security hook automatically detects if sensitive cookie values appear in model responses and terminates the session to prevent data leakage.
 
@@ -195,7 +219,7 @@ The cookie security hook automatically detects if sensitive cookie values appear
 - **Detection**: Scans model responses for configured cookie values
 - **Response**: Terminates session and returns generic error message on detection
 
-### 9.4.2 Post-Process Hook
+### 9.5.2 Post-Process Hook
 
 The `on_post_process()` hook is called after successful strategy execution and can be used for final context modifications or cleanup operations.
 

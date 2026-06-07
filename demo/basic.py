@@ -48,7 +48,7 @@ async def basic_example():
 
     # Stream the response token by token
     async with chat.begin():
-        async for message in chat.get_response_generator():
+        async for message in chat.io_stream.get_response_generator():
             # message can be a string or a Message object
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
@@ -66,7 +66,7 @@ async def basic_example():
     print("🤖 Assistant: ", end="")
 
     async with chat2.begin():
-        async for message in chat2.get_response_generator():
+        async for message in chat2.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
 

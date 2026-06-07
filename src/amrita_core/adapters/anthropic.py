@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from amrita_core.config import AmritaConfig
+from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
 from amrita_core.protocol import (
     COMPLETION_RETURNING,
     ModelAdapter,
@@ -137,8 +138,17 @@ try:
                 elif role == "assistant":
                     flush_tool_results()
                     tool_calls = msg.get("tool_calls")
+                    blocks = []
+                    # thinking block must come before text/tool_use blocks
+                    if msg.get("reasoning_content") and msg.get("reasoning_signature"):
+                        blocks.append(
+                            {
+                                "type": "thinking",
+                                "thinking": msg["reasoning_content"],
+                                "signature": msg["reasoning_signature"],
+                            }
+                        )
                     if tool_calls:
-                        blocks = []
                         for tc in tool_calls:
                             # tc may be a dict or ToolCall object
                             tc = tc if isinstance(tc, dict) else tc.model_dump()
@@ -151,10 +161,11 @@ try:
                                     "input": json.loads(func.get("arguments", "{}")),
                                 }
                             )
-                        converted.append({"role": "assistant", "content": blocks})
                     else:
-                        blocks = AnthropicAdapter._convert_content_to_blocks(content)
-                        converted.append({"role": "assistant", "content": blocks})
+                        blocks.extend(
+                            AnthropicAdapter._convert_content_to_blocks(content)
+                        )
+                    converted.append({"role": "assistant", "content": blocks})
 
                 elif role == "tool":
                     tc_id = msg.get("tool_call_id", "")
@@ -211,12 +222,22 @@ try:
 
         @override
         async def call_api(
-            self, messages: Iterable, *args, **kwargs
+            self, messages: Iterable, **kwargs
         ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
             """Plain text generation (no tool calls)"""
             preset: ModelPreset = self.preset
             preset_config: ModelConfig = preset.config
             config: AmritaConfig = self.config
+            if (
+                preset.thinking_config
+                and preset.thinking_config.thinking_type == "enabled"
+            ):
+                kwargs["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": int(
+                        preset.thinking_config.thinking_effort or 1024
+                    ),
+                }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -229,6 +250,8 @@ try:
 
             stream = preset_config.stream
             text_resp = StringIO()
+            reasoning = ""
+            reasoning_signature = ""
 
             if stream:
                 async with client.messages.stream(
@@ -237,10 +260,23 @@ try:
                     max_tokens=config.llm.max_tokens,
                     top_p=preset_config.top_p,
                     temperature=preset_config.temperature,
+                    **kwargs,
                 ) as resp:
-                    async for chunk in resp.text_stream:
-                        text_resp.write(chunk)
-                        yield chunk
+                    async for event in resp:
+                        if event.type == "thinking_delta":
+                            reasoning += event.thinking
+                            yield MessageWithMetadata(
+                                content=event.thinking,
+                                metadata=MessageMetadataPayload(
+                                    type="reasoning_chunk",
+                                    extra_type="thinking_delta",
+                                ),
+                            )
+                        elif event.type == "signature_delta":
+                            reasoning_signature += event.signature
+                        elif event.type == "text_delta":
+                            text_resp.write(event.text)
+                            yield event.text
                     last_msg = await resp.get_final_message()
                     usage: UniResponseUsage[int] = UniResponseUsage[int](
                         prompt_tokens=last_msg.usage.input_tokens,
@@ -255,10 +291,21 @@ try:
                     max_tokens=config.llm.max_tokens,
                     top_p=preset_config.top_p,
                     temperature=preset_config.temperature,
+                    **kwargs,
                 )
                 for ct in last_msg.content:
                     if isinstance(ct, TextBlock):
                         text_resp.write(ct.text)
+                    elif hasattr(ct, "thinking"):
+                        reasoning += ct.thinking
+                        if hasattr(ct, "signature"):
+                            reasoning_signature = ct.signature
+                        yield MessageWithMetadata(
+                            content=ct.thinking,
+                            metadata=MessageMetadataPayload(
+                                type="reasoning_chunk", extra_type="thinking"
+                            ),
+                        )
                 usage = UniResponseUsage[int](
                     prompt_tokens=last_msg.usage.input_tokens,
                     completion_tokens=last_msg.usage.output_tokens,
@@ -272,6 +319,8 @@ try:
                 content=text_resp.getvalue(),
                 usage=usage,
                 tool_calls=None,
+                reasoning_content=reasoning or None,
+                reasoning_signature=reasoning_signature or None,
             )
 
         @override
@@ -280,11 +329,22 @@ try:
             messages: Iterable,
             tools: list[ToolFunctionSchema],
             tool_choice: ToolChoice | None = None,
+            **kwargs,
         ) -> UniResponse[None, list[ToolCall] | None]:
             """Tool call specific interface; returns tool_calls in UniResponse"""
             preset: ModelPreset = self.preset
             preset_config: ModelConfig = preset.config
             config: AmritaConfig = self.config
+            if (
+                preset.thinking_config
+                and preset.thinking_config.thinking_type == "enabled"
+            ):
+                kwargs["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": int(
+                        preset.thinking_config.thinking_effort or 1024
+                    ),
+                }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -310,6 +370,7 @@ try:
                 temperature=preset_config.temperature,
                 tools=anthropic_tools,
                 tool_choice=anthropic_tool_choice,
+                **kwargs,
             )
 
             usage = None
@@ -322,9 +383,11 @@ try:
                 )
 
             tool_calls = []
-            if response.stop_reason == "tool_use":
-                tool_calls.extend(
-                    [
+            reasoning = ""
+            reasoning_signature = ""
+            for block in response.content:
+                if isinstance(block, ToolUseBlock):
+                    tool_calls.append(
                         ToolCall(
                             id=block.id,
                             type="function",
@@ -333,15 +396,18 @@ try:
                                 arguments=json.dumps(block.input, ensure_ascii=False),
                             ),
                         )
-                        for block in response.content
-                        if isinstance(block, ToolUseBlock)
-                    ]
-                )
+                    )
+                elif hasattr(block, "thinking"):
+                    reasoning += block.thinking
+                    if hasattr(block, "signature"):
+                        reasoning_signature = block.signature
             return UniResponse(
                 role="assistant",
                 content=None,
                 tool_calls=tool_calls if tool_calls else None,
                 usage=usage,
+                reasoning_content=reasoning or None,
+                reasoning_signature=reasoning_signature or None,
             )
 
         @staticmethod

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
+from amrita_core.contents import MessageMetadataPayloadSystem
 from amrita_core.protocol import MessageWithMetadata
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.tools.manager import ToolsManager
@@ -203,14 +204,14 @@ class StrategyLikedObject(ABC):
             This method is used by 'agent' and 'agent-mixed' category strategies.
             'rag' and 'workflow' category strategies should implement run() instead.
         """
-        await self.chat_object.yield_response(
+        await self.chat_object.io_stream.yield_response(
             MessageWithMetadata(
                 content="[AmritaAgent] Too many tool calls! Workflow terminated!",
-                metadata={
-                    "type": "system",
-                    "message": "[AmritaAgent] Too many tool calls! Workflow terminated!",
-                    "extra_type": "tool_call_limit",
-                },
+                metadata=MessageMetadataPayloadSystem(
+                    type="system",
+                    message="[AmritaAgent] Too many tool calls! Workflow terminated!",
+                    extra_type="tool_call_limit",
+                ),
             )
         )
         self.ctx.original_context.append(
@@ -413,14 +414,14 @@ class AgentStrategy(ABC):
             This method is used by 'agent' and 'agent-mixed' category strategies.
             'rag' and 'workflow' category strategies should implement run() instead.
         """
-        await self.chat_object.yield_response(
+        await self.chat_object.io_stream.yield_response(
             MessageWithMetadata(
                 content="[AmritaAgent] Too many tool calls! Workflow terminated!",
-                metadata={
-                    "type": "system",
-                    "message": "[AmritaAgent] Too many tool calls! Workflow terminated!",
-                    "extra_type": "tool_call_limit",
-                },
+                metadata=MessageMetadataPayloadSystem(
+                    type="system",
+                    message="[AmritaAgent] Too many tool calls! Workflow terminated!",
+                    extra_type="tool_call_limit",
+                ),
             )
         )
         self.ctx.original_context.append(

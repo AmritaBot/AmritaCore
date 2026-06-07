@@ -219,7 +219,7 @@ AmritaCore uses streaming for all responses to provide real-time feedback:
 
 ```python
 # Responses are returned as asynchronous generators
-async for chunk in chat.get_response_generator():
+async for chunk in chat.io_stream.get_response_generator():
     # Process each chunk in real-time
     print(chunk, end="")
 ```
@@ -232,7 +232,7 @@ AmritaCore supports callback-based responses:
 async def callback(chunk):
     print(chunk, end="")
 
-chat.set_callback_func(callback)
+chat.io_stream.set_callback_func(callback)
 await chat.begin()
 ```
 

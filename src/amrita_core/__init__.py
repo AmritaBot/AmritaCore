@@ -94,7 +94,7 @@ __all__ = [
 
 
 @deprecated(
-    "Init method is no loger necessary. Please use minimal_init or load_amrita() instead for async initialization.",
+    "Init method is no loger necessary. Please use minimal_init or load_amrita() instead for async initialization. Will be removed in v0.10.0",
     category=DeprecationWarning,
 )
 def init(): ...

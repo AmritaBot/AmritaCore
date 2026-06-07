@@ -68,6 +68,7 @@ class ModelAdapter:
         messages: Iterable,
         tools: list[ToolFunctionSchema],
         tool_choice: ToolChoice | None = None,
+        **kwargs,
     ) -> UniResponse[None, list[ToolCall] | None]:
         raise NotImplementedError
 

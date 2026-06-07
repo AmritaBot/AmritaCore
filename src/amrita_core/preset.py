@@ -132,8 +132,10 @@ class MultiPresetManager(ContextThreadsafe):
                     role="assistant",
                     content=[TextContent(type="text", text=data.content)],
                 ),
-                token_prompt=(data.usage.prompt_tokens or -1) if data.usage else -1,
-                token_completion=(data.usage.completion_tokens or -1) if data.usage else -1,
+                token_prompt=((data.usage.prompt_tokens or -1) if data.usage else -1),
+                token_completion=(
+                    (data.usage.completion_tokens or -1) if data.usage else -1
+                ),
                 status=True,
                 message="",
                 time_used=time_delta,

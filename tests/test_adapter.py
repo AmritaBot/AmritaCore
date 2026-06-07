@@ -764,10 +764,15 @@ class TestAnthropicAdapter:
         """Test call_api with streaming Anthropic response"""
         from anthropic.types import TextBlock, Usage
 
-        # Create a simple async generator to simulate text_stream
-        async def mock_text_stream():
-            yield "Hello"
-            yield " there!"
+        # Create event-like objects matching Anthropic stream event types
+        class MockEvent:
+            def __init__(self, type, text=None):
+                self.type = type
+                self.text = text
+
+        async def mock_events():
+            yield MockEvent("text_delta", "Hello")
+            yield MockEvent("text_delta", " there!")
 
         # Create a mock final message
         mock_final_message = MagicMock()
@@ -776,10 +781,10 @@ class TestAnthropicAdapter:
             input_tokens=10, output_tokens=5, total_tokens=15
         )
 
-        # Create a simple mock context manager
+        # Create a simple mock context manager with async iteration
         class SimpleMockContext:
-            def __init__(self, text_stream_gen, final_msg):
-                self._text_stream = text_stream_gen
+            def __init__(self, events_gen, final_msg):
+                self._events = events_gen
                 self._final_msg = final_msg
 
             async def __aenter__(self):
@@ -788,16 +793,15 @@ class TestAnthropicAdapter:
             async def __aexit__(self, *args):
                 pass
 
-            @property
-            def text_stream(self):
-                return self._text_stream()
+            def __aiter__(self):
+                return self._events()
 
             async def get_final_message(self):
                 return self._final_msg
 
         # Directly mock the stream method to return our context manager (not async!)
         def mock_stream_method(**kwargs):
-            return SimpleMockContext(mock_text_stream, mock_final_message)
+            return SimpleMockContext(mock_events, mock_final_message)
 
         with patch(
             "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"
@@ -829,8 +833,13 @@ class TestAnthropicAdapter:
         """Test call_api with streaming Anthropic response that has empty content"""
         from anthropic.types import TextBlock, Usage
 
-        async def mock_text_stream():
-            yield ""
+        class MockEvent:
+            def __init__(self, type, text=None):
+                self.type = type
+                self.text = text
+
+        async def mock_events():
+            yield MockEvent("text_delta", "")
 
         mock_final_message = MagicMock()
         mock_final_message.content = [TextBlock(text="", type="text")]
@@ -839,8 +848,8 @@ class TestAnthropicAdapter:
         )
 
         class SimpleMockContext:
-            def __init__(self, text_stream_gen, final_msg):
-                self._text_stream = text_stream_gen
+            def __init__(self, events_gen, final_msg):
+                self._events = events_gen
                 self._final_msg = final_msg
 
             async def __aenter__(self):
@@ -849,15 +858,14 @@ class TestAnthropicAdapter:
             async def __aexit__(self, *args):
                 pass
 
-            @property
-            def text_stream(self):
-                return self._text_stream()
+            def __aiter__(self):
+                return self._events()
 
             async def get_final_message(self):
                 return self._final_msg
 
         def mock_stream_method(**kwargs):
-            return SimpleMockContext(mock_text_stream, mock_final_message)
+            return SimpleMockContext(mock_events, mock_final_message)
 
         with patch(
             "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"

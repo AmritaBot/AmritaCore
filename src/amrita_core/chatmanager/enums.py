@@ -12,7 +12,10 @@ class SuspendEnum(str, Enum):
     STRATEGY_START = "ChatObject::run_strategy_start"
     LLM_CALL = "ChatObject::call_llm"
     FINALIZE = "ChatObject::finalize"
+    ADVANCE_COUNTER = "ChatObject::advance_counter"
+    CALL_SINGLE_STRATEGY = "ChatObject::call_single_strategy"
 
 
 class BuiltinName(str, Enum):
     AGENT_STRATEGY = "ChatObject::__agent_main__"
+    STRATEGY_EOF = "ChatObject::__strategy_eof__"

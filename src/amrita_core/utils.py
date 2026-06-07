@@ -106,3 +106,15 @@ def gather_usage(
                 usage.completion_tokens
             )
     return u
+
+
+def on_none(value: Any | None) -> bool:
+    """Used for Pydantic's exclude_if
+
+    Args:
+        value (Any | None): Value to check
+
+    Returns:
+        bool: Returns True when Value is None
+    """
+    return value is None

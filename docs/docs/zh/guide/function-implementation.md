@@ -184,7 +184,7 @@ AmritaCore使用**AnyIO内存对象流**进行流式响应，提供内置的背�
 
 ```python
 # 处理流式响应
-async for message in chat.get_response_generator():
+async for message in chat.io_stream.get_response_generator():
     content = message if isinstance(message, str) else message.get_content()
     print(content, end="")
 ```
@@ -209,7 +209,7 @@ AmritaCore支持响应回调以实现实时交互：
 async def response_callback(message):
     print(message)
 
-chat.set_callback_func(response_callback)
+chat.io_stream.set_callback_func(response_callback)
 await chat.begin()
 ```
 
@@ -241,7 +241,7 @@ async with ChatObject(
     user_input="你好！",
     train=train.model_dump()
 ).begin() as chat:
-    async for message in chat.get_response_generator():
+    async for message in chat.io_stream.get_response_generator():
         print(message, end="")
 
 # 更新上下文以进行下次交互
@@ -632,7 +632,7 @@ chat = ChatObject(
 # 在捕获最终响应的同时流式传输响应
 async with chat.begin():
     final_response = await get_last_response(
-        chat.get_response_generator(),
+        chat.io_stream.get_response_generator(),
         yield_to=your_websocket_stream,
         yield_to_wrapper=lambda chunk: {"type": "stream", "content": str(chunk)}
     )

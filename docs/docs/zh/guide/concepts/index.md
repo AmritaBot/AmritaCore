@@ -194,7 +194,7 @@ AmritaCore 对所有响应使用流式传输以提供实时反馈：
 
 ```python
 # 响应以异步生成器形式返回
-async for chunk in chat.get_response_generator():
+async for chunk in chat.io_stream.get_response_generator():
     # 实时处理每个块
     print(chunk, end="")
 ```
@@ -207,7 +207,7 @@ AmritaCore 支持回调式响应：
 async def callback(chunk):
     print(chunk, end="")
 
-chat.set_callback_func(callback)
+chat.io_stream.set_callback_func(callback)
 await chat.begin()
 ```
 

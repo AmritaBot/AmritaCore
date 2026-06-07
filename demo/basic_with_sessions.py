@@ -106,7 +106,7 @@ async def basic_with_sessions_example():
 
     print("🤖 Assistant (Session 1): ", end="")
     async with chat1.begin():
-        async for message in chat1.get_response_generator():
+        async for message in chat1.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
 
@@ -129,7 +129,7 @@ async def basic_with_sessions_example():
 
     print("🤖 Assistant (Session 2): ", end="")
     async with chat2.begin():
-        async for message in chat2.get_response_generator():
+        async for message in chat2.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
 
@@ -153,7 +153,7 @@ async def basic_with_sessions_example():
 
     print("🤖 Assistant (Session 1): ", end="")
     async with chat1_followup.begin():
-        async for message in chat1_followup.get_response_generator():
+        async for message in chat1_followup.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
     print()
@@ -176,7 +176,7 @@ async def basic_with_sessions_example():
 
     print("🤖 Assistant (Session 2): ", end="")
     async with chat2_followup.begin():
-        async for message in chat2_followup.get_response_generator():
+        async for message in chat2_followup.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
     print("\n")

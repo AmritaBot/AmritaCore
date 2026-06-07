@@ -40,11 +40,32 @@ AmritaCore 提供了几种内置工具，以支持智能体的核心行为。这
 - **思维模式**: 只有当 `config.builtin.agent_thought_mode` 以"reasoning"开头时，`REASONING_TOOL` 才可用。
 - **处理消息**: 当 `config.function_config.agent_middle_message` 为True时，`PROCESS_MESSAGE` 工具被启用。
 
-## 9.2 内置适配器
+## 9.2 内置元数据类型
+
+> **自 v0.9.1 起**：新增 `amrita_core.builtins.types` 模块，提供基于 `MessageMetadataPayload` 的类型化元数据类，用于 agent 和 hook 工作流中的结构化元数据。
+
+这些类型化元数据类替代了普通字典，提供类型安全和 IDE 自动补全：
+
+| 类                            | 用途                                                        |
+| ----------------------------- | ----------------------------------------------------------- |
+| `AgentReasoningMetadata`      | 预解决推理摘要 (`last_step`, `summary`)                     |
+| `AgentReasoningChunkMetadata` | 流式推理块 (`content`)                                      |
+| `AgentToolCallMetadata`       | 工具调用通知 (`function_name`, `is_done`, `tool_id`, `err`) |
+| `AgentLoopErrorMetadata`      | 循环检测错误 (`chat_object_id`, `error`)                    |
+| `AgentMiddleMessageMetadata`  | LLM 中间消息 (`content`)                                    |
+| `HookErrorMetadata`           | Hook 级错误响应 (`content`)                                 |
+
+`amrita_core.contents` 中的基类：
+
+- `MessageMetadataPayload` — 基础类型化字典 (`type`, `extra_type`)
+- `MessageMetadataPayloadError` — 错误载荷 (`error`)
+- `MessageMetadataPayloadSystem` — 系统载荷 (`message`)
+
+## 9.3 内置适配器
 
 AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapter` 接口。
 
-### 9.2.1 OpenAIAdapter
+### 9.3.1 OpenAIAdapter
 
 `OpenAIAdapter` 是主要的模型适配器，实现了与OpenAI API及兼容端点的通信协议。
 
@@ -55,10 +76,12 @@ AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapt
 - **工具调用**: 完全支持OpenAI的函数调用功能，具有适当的工具选择处理
 - **使用统计**: 跟踪API调用使用信息，包括令牌计数
 - **错误处理**: 具有可配置重试逻辑的健壮错误处理
+- **推理/思考**: 通过 `ThinkingConfig` 支持 OpenAI o 系列推理（流式和非流式）
+- **嵌入 API**: 提供 `call_embed()` 方法用于生成文本嵌入（向量检索工作流）
 
 **支持的协议**: `"openai"`, `"__main__"`
 
-### 9.2.2 AnthropicAdapter
+### 9.3.2 AnthropicAdapter
 
 `AnthropicAdapter` 为Anthropic的Claude模型提供完整支持。
 
@@ -69,14 +92,15 @@ AmritaCore 提供了多个LLM提供商的内置适配器，实现了 `ModelAdapt
 - **令牌跟踪**: 为Anthropic的使用模型提供适当的输入/输出令牌跟踪
 - **消息过滤**: 自动过滤无效消息（content=None的assistant消息和所有tool消息），以符合Anthropic API要求
 - **工具调用**: 完全支持Anthropic的工具使用功能，具有适当的工具选择处理
+- **扩展思考**: 通过 `ThinkingConfig` 支持 Anthropic 扩展思考，包括思考增量流式传输和签名跟踪
 
 **支持的协议**: `"anthropic"`, `"claude"`
 
-## 9.3 内置Agent系统
+## 9.4 内置Agent系统
 
 AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完成任务。该系统通过**模板方法模式**架构得到了显著增强，提供了统一的执行流程，同时允许策略特定的自定义。
 
-### 9.3.1 BaseReActAgentStrategy (抽象基类)
+### 9.4.1 BaseReActAgentStrategy (抽象基类)
 
 `BaseReActAgentStrategy` 是实现ReAct风格Agent模板方法模式的抽象基类。它提供共享功能包括：
 
@@ -89,7 +113,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 
 这个抽象类定义了所有ReAct风格策略继承的通用执行框架，确保行为一致性，同时通过抽象方法允许自定义。
 
-### 9.3.2 ReActAgentStrategy
+### 9.4.2 ReActAgentStrategy
 
 `ReActAgentStrategy` 是标准实现，继承自 `BaseReActAgentStrategy` 并实现 `"agent-mixed"` 类别，支持在同一执行框架内同时进行检索增强生成（RAG）和迭代工具调用。
 
@@ -110,7 +134,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 - **中间消息**: 控制处理消息和推理步骤的可见性
 - **错误通知**: 可配置的错误报告给用户
 
-### 9.3.3 HybridReActAgentStrategy
+### 9.4.3 HybridReActAgentStrategy
 
 `HybridReActAgentStrategy` 是一种专门针对**混合专家（MoE）架构模型**优化的Agent策略。它解决了某些MoE模型在区分工具和完成标识符时内部状态机的模糊性问题。
 
@@ -148,7 +172,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 - **最小化清理**: 此策略仅提供基本的标签对转义，**不执行**语义级过滤或内容验证
 - **安全责任**: 用户**必须**在生产环境中为工具结果实现全面的输入验证、语义分析和内容清理
 
-### 9.3.4 NoActionAgentStrategy
+### 9.4.4 NoActionAgentStrategy
 
 `NoActionAgentStrategy` 是一个简单的工作流策略，不执行任何操作。当需要放弃工具调用过程时可以使用。
 
@@ -156,7 +180,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 - **用例**: 当您需要完全跳过工具执行时
 - **实现**: 空的 `run()` 方法，立即返回
 
-### 9.3.5 Agent工作流和模板方法模式
+### 9.4.5 Agent工作流和模板方法模式
 
 内置Agent系统遵循使用模板方法模式的增强工作流：
 
@@ -172,7 +196,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 
 模板方法模式确保步骤1-4和6在所有策略中遵循一致的流程，而步骤5（结果处理）和错误处理则根据策略实现进行自定义。
 
-### 9.3.6 策略选择指南
+### 9.4.6 策略选择指南
 
 根据您的用例选择合适的内置策略：
 
@@ -181,7 +205,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 - **跳过工具执行**: 使用 `NoActionAgentStrategy`
 - **自定义行为**: 扩展 `BaseReActAgentStrategy` 或实现您自己的 `AgentStrategy`
 
-## 9.4 内置事件钩子
+## 9.5 内置事件钩子
 
 AmritaCore为常见场景提供内置事件钩子：
 

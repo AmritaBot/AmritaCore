@@ -116,13 +116,12 @@ class TestChatObject:
             preset=default_preset,  # Pass a preset to avoid the error
         )
 
-        # Add some mock responses to queue
-        await chat_obj._put_to_queue("Hello")
-        await chat_obj._put_to_queue("World")
-        await chat_obj.set_queue_done()
+        await chat_obj.io_stream._put_to_queue("Hello")
+        await chat_obj.io_stream._put_to_queue("World")
+        await chat_obj.io_stream.set_queue_done()
 
         # Get response generator and verify
-        gen = chat_obj.get_response_generator()
+        gen = chat_obj.io_stream.get_response_generator()
         responses = [resp async for resp in gen]
 
         assert len(responses) == 2
@@ -493,10 +492,10 @@ class TestChatObjectAdvanced:
             session_id=session_id,
             config=config,
             preset=default_preset,
-            callback=callback_func,
         )
+        chat_obj.io_stream.set_callback_func(callback_func)
 
-        await chat_obj.yield_response("test response")
+        await chat_obj.io_stream.yield_response("test response")
 
         assert len(received_responses) == 1
         assert received_responses[0] == "test response"
@@ -526,10 +525,10 @@ class TestChatObjectAdvanced:
             preset=default_preset,
         )
 
-        await chat_obj._put_to_queue("Hello")
-        await chat_obj._put_to_queue(" ")
-        await chat_obj._put_to_queue("World!")
-        await chat_obj.set_queue_done()
+        await chat_obj.io_stream._put_to_queue("Hello")
+        await chat_obj.io_stream._put_to_queue(" ")
+        await chat_obj.io_stream._put_to_queue("World!")
+        await chat_obj.io_stream.set_queue_done()
 
         full_resp = await chat_obj.full_response()
         assert full_resp == "Hello World!"
@@ -605,14 +604,14 @@ class TestChatObjectAdvanced:
             session_id=session_id,
             config=config,
             preset=default_preset,
-            callback=callback1,
         )
+        chat_obj.io_stream.set_callback_func(callback1)
 
         with pytest.raises(
             RuntimeError,
             match="The callback function of this chat object has already been set!",
         ):
-            chat_obj.set_callback_func(callback2)
+            chat_obj.io_stream.set_callback_func(callback2)
 
 
 @pytest.mark.asyncio

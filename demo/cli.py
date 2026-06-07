@@ -89,7 +89,7 @@ async def handle_user_input(
 
     async with chat.begin():
         print("💬 Assistant: ", end="")
-        async for message in chat.get_response_generator():
+        async for message in chat.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
         print("\n")  # New line

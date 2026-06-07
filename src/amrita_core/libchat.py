@@ -25,6 +25,7 @@ from .types import (
     EmbeddingChunk,
     Message,
     ModelPreset,
+    ThinkingConfig,
     ToolCall,
     ToolResult,
     UniResponse,
@@ -125,11 +126,13 @@ def get_tokens(
 
 def _validate_msg_list(
     messages: Sequence[typing.Any],
+    thinking_config: ThinkingConfig | None = None,
 ) -> CONTENT_LIST_TYPE:
     """Validate a list of message dictionaries and convert them to Message objects.
 
     Args:
         messages (Sequence[Any]): List of message dictionaries or Message objects
+        thinking_config (ThinkingConfig | None): Thinking config to filter reasoning_content
 
     Returns:
         CONTENT_LIST_TYPE: List of validated Message objects
@@ -137,7 +140,7 @@ def _validate_msg_list(
     Raises:
         ValueError: If a message dictionary is invalid
     """
-    validated_messages = []
+    validated_messages: CONTENT_LIST_TYPE = []
     for msg in messages:
         if isinstance(msg, dict):
             # Ensure message has role field
@@ -158,6 +161,26 @@ def _validate_msg_list(
             raise TypeError(
                 f"Invalid message type: {type(msg)}, this is not assignable to CONTENT_LIST_TYPE_ITEM"
             )
+
+    # Filter reasoning_content according to thinking_config
+    if thinking_config is not None and thinking_config.thinking_type == "enabled":
+        for m in validated_messages:
+            if not isinstance(m, Message):
+                continue
+            match thinking_config.content_mode:
+                case "never":
+                    m.reasoning_content = None
+                case "by-tool":
+                    if m.role == "assistant":
+                        if m.tool_calls:
+                            if m.reasoning_content is None:
+                                raise ValueError(
+                                    "by-tool mode: assistant with tool_calls must have reasoning_content"
+                                )
+                        else:
+                            m.reasoning_content = None
+                # "optional" -> no-op
+
     return validated_messages
 
 
@@ -250,9 +273,9 @@ async def call_completion(
     Yields:
         Individual response parts as strings or UniResponse objects
     """
-    messages = _validate_msg_list(messages)
     preset = preset or PresetManager().get_default_preset()
     config = config or get_config()
+    messages = _validate_msg_list(messages, thinking_config=preset.thinking_config)
 
     async def _call_api(
         adapter: ModelAdapter,
