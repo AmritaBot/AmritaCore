@@ -268,7 +268,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiologic", specifier = ">=0.16.0" },
     { name = "amrita-core", extras = ["anthropic", "jieba"], marker = "extra == 'all'" },
-    { name = "amrita-sense", specifier = ">=0.2.4" },
+    { name = "amrita-sense", specifier = ">=0.3.0" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.84.0" },
     { name = "fastmcp", specifier = ">=3.2.0" },
     { name = "filetype", specifier = ">=1.2.0" },
@@ -297,16 +297,16 @@ dev = [
 
 [[package]]
 name = "amrita-sense"
-version = "0.2.4"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiologic" },
     { name = "anyio" },
     { name = "loguru" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/af/e6/405f62d26c7d85b027c6f102960df3483b624c2128e29000bfd127011e81/amrita_sense-0.2.4.tar.gz", hash = "sha256:a23cb838fba7b0c210941d10e936a14b0eedc29a19595bd9215025b9d1a826b2", size = 52846, upload-time = "2026-06-05T07:29:27.69Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/60/a6/59dbf636e4947ce43c2d9f0268fbc3dc9ebb29b982a1f456065314350b19/amrita_sense-0.3.0.tar.gz", hash = "sha256:ed3b7040bbad49121454241b17c23260b1e931f92b76d12c1228989c5468154c", size = 60928, upload-time = "2026-06-07T03:01:35.651Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/08/a2/5541b7edb0bfc0405bc2c4a4bcbbb72fb874c5df09144dba6f26838ebce5/amrita_sense-0.2.4-py3-none-any.whl", hash = "sha256:f4a5bdc1532184fb7d3ad40fb32a4d753cf09cca90d25a5da15877ad14ac90a9", size = 51805, upload-time = "2026-06-05T07:29:26.518Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/f8/04e0a5b7cdebcbaf8b2f18ef694e71775687673c162d30bfb70978518644/amrita_sense-0.3.0-py3-none-any.whl", hash = "sha256:fce4502168fa540b7d4d316dd0c37920d4f58ca1c4cfcd75f2ada5615bf237ff", size = 57196, upload-time = "2026-06-07T03:01:36.659Z" },
 ]
 
 [[package]]

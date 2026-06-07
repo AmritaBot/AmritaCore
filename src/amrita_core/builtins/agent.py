@@ -127,7 +127,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         summary: str = resp_msg["summary"]
         self.agent_last_step = last_step
 
-        await self.chat_object.yield_response(
+        await self.chat_object.io_stream.yield_response(
             MessageWithMetadata(
                 summary,
                 AgentReasoningMetadata(
@@ -154,7 +154,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 preset=self.ctx.chat_object.preset,
                 config=self.chat_object.config,
             ),
-            yield_to=self.ctx.chat_object,
+            yield_to=self.ctx.chat_object.io_stream,
             yield_to_wrapper=lambda chunk: (
                 MessageWithMetadata(
                     chunk,
@@ -273,7 +273,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         config = self.chat_object.config
         if config.builtin.agent_tool_call_notice == "notify":
             for rslt in result_msg_list:
-                await self.chat_object.yield_response(
+                await self.chat_object.io_stream.yield_response(
                     MessageWithMetadata(
                         content=f"Called tool {rslt.name}\n",
                         metadata=AgentToolCallMetadata(
@@ -358,7 +358,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
             debug_log(f"Function arguments are {tool_call.function.arguments}")
             logger.info(f"Calling function {function_name}")
-            await self.chat_object.yield_response(
+            await self.chat_object.io_stream.yield_response(
                 MessageWithMetadata(
                     content=f"Calling function {function_name}\n",
                     metadata=AgentToolCallMetadata(
@@ -429,7 +429,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 prompt = self._check_and_handle_loop_reasoning()
                 if prompt is not None:
                     await self._handle_loop_reasoning_cleanup(prompt)
-                    await self.chat_object.yield_response(
+                    await self.chat_object.io_stream.yield_response(
                         MessageWithMetadata(
                             content=prompt,
                             metadata=AgentLoopErrorMetadata(
@@ -499,7 +499,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             and function_name not in BUILTIN_TOOLS_NAME
             and config.builtin.agent_tool_call_notice
         ):
-            await self.chat_object.yield_response(
+            await self.chat_object.io_stream.yield_response(
                 MessageWithMetadata(
                     content=f"Error: {function_name} failed.",
                     metadata=AgentToolCallMetadata(

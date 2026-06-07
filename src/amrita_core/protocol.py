@@ -17,7 +17,7 @@ from .contents import (
 )
 
 warnings.warn(
-    "amrita_core.protocol is deprecated and will be removed in a future release. Please use amrita_core.base.adapter and amrita_core.contents instead.",
+    "amrita_core.protocol is deprecated and will be removed in a future release. Please use amrita_core.base.adapter and amrita_core.contents instead.Will be removed in v0.10.0",
     DeprecationWarning,
     stacklevel=2,
 )

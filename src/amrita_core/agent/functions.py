@@ -114,16 +114,14 @@ class AgentRuntime:
             user_input (USER_INPUT): Input from the user
             context (Memory | None): Memory context for the session
             session_id (str): Unique identifier for the session
-            callback (RESPONSE_CALLBACK_TYPE, optional): Callback function to be called when returning response. Defaults to None.
             config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
             preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
             auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
             jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
             train_template (Template, optional): Jinja2 template used to format system message.
-            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to ReActAgentStrategy.
+            agent_strategy (type[AgentStrategy] | StrategyLikedObject, optional):  Agent strategy to be used for execution. Defaults to ReActAgentStrategy.
             hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
-            exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().\n            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 25.
             overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 15.
 
         Returns:

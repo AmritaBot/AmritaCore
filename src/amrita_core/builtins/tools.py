@@ -86,7 +86,7 @@ REASONING_TOOL = ToolFunctionSchema(
 async def _(ctx: ToolContext) -> str | None:
     msg: str = ctx.data["content"]
     logger.debug(f"[LLM-ProcessMessage] {msg}")
-    await ctx.ctx.chat_object.yield_response(
+    await ctx.ctx.chat_object.io_stream.yield_response(
         MessageWithMetadata(
             content=msg,
             metadata=AgentMiddleMessageMetadata(

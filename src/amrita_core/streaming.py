@@ -3,7 +3,7 @@ import warnings
 from amrita_sense.streaming import SUSPEND_ON_YIELD, ObjectTypeT, SuspendObjectStream
 
 warnings.warn(
-    "amrita_core.streaming is deprecated and will be removed in a future release. Please use amrita_sense.streaming instead.",
+    "amrita_core.streaming is deprecated and will be removed in a future release. Please use amrita_sense.streaming instead.Will be removed in v0.10.0",
     DeprecationWarning,
     stacklevel=2,
 )

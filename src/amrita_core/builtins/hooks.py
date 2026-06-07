@@ -14,7 +14,7 @@ async def cookie(event: CompletionEvent, config: AmritaConfig):
     if config.cookie.enable_cookie:
         if cookie := config.cookie.cookie:
             if cookie in response:
-                await event.chat_object.yield_response(
+                await event.chat_object.io_stream.yield_response(
                     response=MessageWithMetadata(
                         "Some error occurred, please try again later.",
                         metadata=HookErrorMetadata(
@@ -24,4 +24,4 @@ async def cookie(event: CompletionEvent, config: AmritaConfig):
                         ),
                     )
                 )
-                await event.chat_object.set_queue_done()
+                await event.chat_object.io_stream.set_queue_done()

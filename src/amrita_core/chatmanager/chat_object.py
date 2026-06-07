@@ -19,6 +19,7 @@ from amrita_sense import (
     NodeComposeRendered,
     WorkflowInterpreter,
 )
+from amrita_sense._unsafe import __flags__
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
 from amrita_sense.instructions import GOTO
@@ -26,7 +27,7 @@ from amrita_sense.instructions.subprogram import SubprogramStorage
 from amrita_sense.node.core import Node as NodeType
 from jinja2 import Template
 from pytz import utc
-from typing_extensions import Self
+from typing_extensions import Self, deprecated
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import (
@@ -79,7 +80,7 @@ RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 FUNC_RET_T = TypeVar("FUNC_RET_T")
 
 
-class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
+class ChatObject:
     """Chat processing object - The minimal unit of chat processing.
 
     This class is responsible for processing a single chat session, including message receiving,
@@ -110,6 +111,9 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
     train: Message[str]  # System message
     template: Template
     jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
+
+    # IO-Stream
+    io_stream: SuspendObjectStream[RESPONSE_TYPE]
 
     # Context
     context_wrap: SendMessageWrap  # (lateinit) Context message
@@ -155,13 +159,13 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         user_input: USER_INPUT,
         context: Memory | None,
         session_id: str,
-        callback: RESPONSE_CALLBACK_TYPE = None,
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
         auto_create_session: bool = False,
         *,
         chat_man: ChatManager | None = None,
         train_template: Template = DEFAULT_TEMPLATE,
+        io_stream: SuspendObjectStream[RESPONSE_TYPE] | None = None,
         jinja2_vars: dict[str, Any] | None = None,
         agent_strategy: type[AgentStrategy] | StrategyLikedObject = ReActAgentStrategy,
         hook_args: tuple[Any, ...] = (),
@@ -169,8 +173,6 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         exception_ignored: tuple[type[BaseException], ...] = (),
         middleware: Callable[[Self], Awaitable[Any]] | None = None,
         archived_nodes: SubprogramStorage | None = None,
-        queue_size: int = 45,
-        queue_timeout: float | None = 10.0,
     ) -> None:
         """Initialize a chat object
 
@@ -191,13 +193,14 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
             middleware (Callable[[Self],Awaitable[Any]] | None, optional): Middleware for the whole workflow. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
-            queue_size (int, optional): Maximum number of message chunks to be stored in the queue. Defaults to 45.
         """
         global chat_manager
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
             sm.init_session(session_id)
-        self._raised_exc = exception_ignored
+        self._raised_exc = (
+            exception_ignored if not __flags__.DISABLE_EXC_IGNORED else ()
+        )
         session: SessionData | None = sm.get_session_data(session_id, None)
         self.session = session
         self.train = (
@@ -206,9 +209,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         self.data = context or sm.get_session_data(session_id).memory
         self.session_id = session_id
         # initialize iostream
-        super().__init__(
-            queue_size=queue_size, callback=callback, queue_timeout=queue_timeout
-        )
+        self.io_stream = io_stream or SuspendObjectStream()
         # data
         self.user_input = user_input
         self.user_message = Message(role="user", content=user_input)
@@ -239,29 +240,14 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         self._hook_kwargs = hook_kwargs
         self._hook_args = hook_args
         self._middleware = middleware
-
-        workflow: NodeCompose = (
-            _render_train
-            >> _limiting_memory
-            >> _prepare_messages
-            >> _pre_runner
-            >> _run_strategy
-            >> (
-                GOTO(BuiltinName.STRATEGY_EOF)
-                >> ALIAS(_agent_entry, BuiltinName.AGENT_STRATEGY)
-                >> WHILE(_single_strategy_exec).ACTION(_counter_factory(self))
-                >> _strategy_post
-                >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
-            )
-            >> _call_completion
-            >> _post_runner
-        )
+        # Workflow system
+        wkfl = None
         if archived_nodes is not None:
-            workflow = workflow >> archived_nodes
-        self._workflow = workflow.render()
+            wkfl = NodeCompose(*_workflow._graph) >> archived_nodes
+        self._workflow = wkfl.render() if wkfl else _workflow_rendered
         self._interpreter = WorkflowInterpreter(
             self._workflow,
-            self,
+            self.io_stream,
             exception_ignored=exception_ignored,
             extra_args=(*hook_args, self),
             extra_kwargs=hook_kwargs,
@@ -282,7 +268,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
     async def __aenter__(self) -> Self:
         if not hasattr(self, "_task"):
             raise RuntimeError("ChatObject not running")
-        if self._has_consumer:
+        if self.io_stream._has_consumer:
             raise RuntimeError("ChatObject already has a consumer")
         return self
 
@@ -338,6 +324,64 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
         if hasattr(self, "_task") and not self._task.done():
             self._task.cancel()
 
+    # Backward-compatible SuspendObjectStream forwarding methods (will be removed in 0.10.0)
+
+    @deprecated("Will be removed in 0.10.0. Use io_stream.queue_closed() instead.")
+    def queue_closed(self) -> bool:
+        """Check if the response queue is closed."""
+        return self.io_stream.queue_closed()
+
+    @deprecated("Will be removed in 0.10.0. Use io_stream.set_queue_done() instead.")
+    async def set_queue_done(self) -> None:
+        """Mark the response queue as done."""
+        await self.io_stream.set_queue_done()
+
+    @deprecated("Will be removed in 0.10.0. Use io_stream.push_object() instead.")
+    async def push_object(self, obj: RESPONSE_TYPE) -> None:
+        """Push an object to the sending queue."""
+        await self.io_stream.push_object(obj)
+
+    @deprecated("Will be removed in 0.10.0. Use io_stream.yield_response() instead.")
+    async def yield_response(self, response: RESPONSE_TYPE) -> None:
+        """Send response to the sending queue."""
+        await self.io_stream.yield_response(response)
+
+    @deprecated("Will be removed in 0.10.0. Use io_stream.set_callback_func() instead.")
+    def set_callback_func(self, func: RESPONSE_CALLBACK_TYPE) -> None:
+        """Set a callback function to be executed when a response is yielded."""
+        self.io_stream.set_callback_func(func)  # pyright: ignore[reportArgumentType]
+
+    @deprecated(
+        "Will be removed in 0.10.0. Use io_stream.set_callback_fun_sending() instead."
+    )
+    def set_callback_fun_sending(self, func: RESPONSE_CALLBACK_TYPE) -> None:
+        """Set a callback function to be executed when a response is sent for producer."""
+        self.io_stream.set_callback_fun_sending(func)  # pyright: ignore[reportArgumentType]
+
+    @deprecated(
+        "Will be removed in 0.10.0. Use io_stream.yield_response_iteration() instead."
+    )
+    async def yield_response_iteration(self, iterator: Any) -> None:
+        """Send chat model response to the queue from an async generator."""
+        await self.io_stream.yield_response_iteration(iterator)
+
+    @deprecated(
+        "Will be removed in 0.10.0. Use io_stream.get_response_generator() instead."
+    )
+    def get_response_generator(self) -> Any:
+        """Return an async generator to iterate over responses from the queue."""
+        return self.io_stream.get_response_generator()
+
+    @deprecated("Will be removed in 0.10.0. Use io_stream.wait_to_suspend() instead.")
+    async def wait_to_suspend(self, *tags: str, timeout: float | None = None) -> None:
+        """Tell SuspendObjectStream to suspend and wait for it."""
+        await self.io_stream.wait_to_suspend(*tags, timeout=timeout)
+
+    @deprecated("Will be removed in 0.10.0. Use io_stream.resume() instead.")
+    def resume(self) -> None:
+        """Resume to run when suspend."""
+        self.io_stream.resume()
+
     async def full_response(self) -> str:
         """Return full response from the queue as a single string.
 
@@ -345,7 +389,7 @@ class ChatObject(SuspendObjectStream[RESPONSE_TYPE]):
             Complete response string combining all chunks in the queue
         """
         builder = StringIO()
-        async for item in self.get_response_generator():
+        async for item in self.io_stream.get_response_generator():
             if isinstance(item, str):
                 builder.write(item)
             elif isinstance(item, MessageContent):
@@ -472,7 +516,7 @@ async def _limiting_memory(chat_obj: ChatObject):
     async with MemoryLimiter(
         chat_obj.data, chat_obj.train, config=chat_obj.config
     ) as lim:
-        await chat_obj._wait_for_continue(SuspendEnum.MEMORY.value)
+        await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY.value)
         await lim.run_enforce()
 
         if abs_usage := lim.usage:
@@ -566,12 +610,12 @@ def _agent_entry(chat_obj: ChatObject) -> None:
     chat_obj._ctx_backup_tmp = chat_obj.context_wrap.copy()
 
 
-def _counter_factory(chat_obj: ChatObject) -> NodeType[None]:
+def _counter_factory() -> NodeType[None]:
 
     now = 1
 
     @Node(SuspendEnum.ADVANCE_COUNTER, False)
-    async def advance():
+    async def advance(chat_obj: ChatObject):
         nonlocal now
         max_times: int = chat_obj.config.function_config.agent_tool_call_limit + 1
         if now > max_times:
@@ -594,7 +638,7 @@ async def _single_strategy_exec(chat_obj: ChatObject) -> bool:
         logger.warning(
             f"ERROR\n{e!s}\n!Failed to call Strategy! Continuing with old data..."
         )
-        await chat_obj.yield_response(
+        await chat_obj.io_stream.yield_response(
             MessageWithMetadata(
                 content=f"Agent run failed:{e!s}",
                 metadata=MessageMetadataPayloadError(
@@ -634,7 +678,7 @@ async def _call_completion(chat_obj: ChatObject):
                 if isinstance(chunk, UniResponse):
                     response = chunk
                 elif isinstance(chunk, MessageContent | str):
-                    await chat_obj.yield_response(chunk)
+                    await chat_obj.io_stream.yield_response(chunk)
             break
         except Exception as e:
             logger.warning(
@@ -662,7 +706,7 @@ async def _post_runner(chat_obj: ChatObject):
     chat_event = CompletionEvent(
         chat_obj.user_input, chat_obj.context_wrap, chat_obj, chat_obj.response.content
     )
-    await chat_obj._wait_for_continue(SuspendEnum.COMPLE.value)
+    await chat_obj.io_stream._wait_for_continue(SuspendEnum.COMPLE.value)
     await MatcherManager.trigger_event(
         chat_event,
         chat_obj.config,
@@ -685,3 +729,23 @@ async def _post_runner(chat_obj: ChatObject):
     )
 
     logger.debug("Chat processing completed")
+
+
+# pre-compile workflows
+_workflow: NodeCompose = (
+    _render_train
+    >> _limiting_memory
+    >> _prepare_messages
+    >> _pre_runner
+    >> _run_strategy
+    >> (
+        GOTO(BuiltinName.STRATEGY_EOF)
+        >> ALIAS(_agent_entry, BuiltinName.AGENT_STRATEGY)
+        >> WHILE(_single_strategy_exec).ACTION(_counter_factory())
+        >> _strategy_post
+        >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
+    )
+    >> _call_completion
+    >> _post_runner
+)
+_workflow_rendered = _workflow.render()

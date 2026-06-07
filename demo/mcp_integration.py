@@ -52,7 +52,7 @@ async def mcp_integration_example():
     chat = agent.get_chatobject(weather_input)
 
     async with chat.begin():
-        async for message in chat.get_response_generator():
+        async for message in chat.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
 
@@ -67,7 +67,7 @@ async def mcp_integration_example():
     chat2 = agent.get_chatobject(db_input)
 
     async with chat2.begin():
-        async for message in chat2.get_response_generator():
+        async for message in chat2.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
 
