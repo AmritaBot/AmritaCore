@@ -4,7 +4,7 @@
 
 **注意：这是一个用于特殊场景的高级功能。大多数用户不需要直接使用它。**
 
-AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `ChatObject` 的执行流程，在指定节点暂停和恢复处理。此机制通过 `SuspendObjectStream` 基类实现，`ChatObject` 继承自该基类。
+AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `ChatObject` 的执行流程，在指定节点暂停和恢复处理。此机制由 `SuspendObjectStream` 类提供，`ChatObject` 通过其 `io_stream` 属性使用（自 v0.9.1 起采用组合方式）。
 
 适用场景：
 
@@ -87,9 +87,9 @@ graph TD
 基础使用步骤：
 
 1. 调用 `chat.begin()` 启动 ChatObject 内部任务
-2. 从 ChatObject 执行上下文**外部**，单独异步任务中调用 `await chat.wait_to_suspend(timeout)` 监听挂起状态
+2. 从 ChatObject 执行上下文**外部**，单独异步任务中调用 `await chat.io_stream.wait_to_suspend(timeout)` 监听挂起状态
 3. ChatObject 运行到下一个被 `@SuspendObjectStream.suspend` 装饰的方法时自动暂停
-4. 调用 `chat.resume()` 恢复正常执行流程
+4. 调用 `chat.io_stream.resume()` 恢复正常执行流程
 
 ## 使用 Tag 标记断点
 
@@ -114,13 +114,13 @@ chat = ChatObject(
 # 外部控制器监听特定的标准断点
 async def external_controller(chat_obj):
     # 等待标准的 "single_tool_call" 断点
-    await chat_obj.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
+    await chat_obj.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
     print("在工具调用前挂起！")
 
     # 可以在此检查或修改状态
     # ...
 
-    chat_obj.resume()
+    chat_obj.io_stream.resume()
 
 chat.begin()
 # 启动控制器任务
@@ -161,18 +161,18 @@ class MyAgent:
 # 示例：多断点控制流程
 async def multi_breakpoint_controller(chat_obj):
     # 等待第一个断点
-    await chat_obj.wait_to_suspend("step1")
+    await chat_obj.io_stream.wait_to_suspend("step1")
     print("步骤1完成")
 
     # 继续等待第二个断点
-    await chat_obj.wait_to_suspend("step2")
+    await chat_obj.io_stream.wait_to_suspend("step2")
     print("步骤2完成")
 
     # 最后等待任意断点
-    await chat_obj.wait_to_suspend()  # 匹配任何被 suspend 装饰的方法
+    await chat_obj.io_stream.wait_to_suspend()  # 匹配任何被 suspend 装饰的方法
     print("任意步骤完成")
 
-    chat_obj.resume()
+    chat_obj.io_stream.resume()
 ```
 
 ## 手动使用 `_wait_for_continue()`
@@ -206,10 +206,10 @@ async def main():
 
     # 外部独立控制任务
     async def external_controller(chat_obj):
-        await chat_obj.wait_to_suspend(timeout=5.0)
+        await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
         print("聊天已挂起！")
         await asyncio.sleep(1)
-        chat_obj.resume()
+        chat_obj.io_stream.resume()
         print("聊天已恢复！")
 
     controller_task = asyncio.create_task(external_controller(chat))
@@ -218,7 +218,7 @@ async def main():
         await custom_processing_step(chat)
         chat.begin()
         async with chat:
-            async for response in chat.get_response_generator():
+            async for response in chat.io_stream.get_response_generator():
                 content = response if isinstance(response, str) else response.get_content()
                 print(content, end="", flush=True)
     finally:
@@ -270,14 +270,14 @@ async def monitor(response):
     if "error" in str(response):
         await send_alert(response)
 
-chat.set_callback_func(monitor)  # 设置内断点（回调）
+chat.io_stream.set_callback_func(monitor)  # 设置内断点（回调）
 
 # 外断点：在特定时刻暂停
 async def controller():
-    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    await chat.io_stream.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
     print("即将调用 LLM，是否继续？")
     await asyncio.to_thread(input, "按回车继续...")
-    chat.resume()
+    chat.io_stream.resume()
 
 # 启动任务和控制任务
 chat.begin()
@@ -298,15 +298,15 @@ await chat
 
 # 外断点控制任务
 async def controller():
-    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    await chat.io_stream.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
     print("\n[系统] 即将调用 LLM，暂停中...")
     input("按回车继续...")
-    chat.resume()
+    chat.io_stream.resume()
 
 chat.begin()
 async with chat:
     asyncio.create_task(controller())
-    async for chunk in chat.get_response_generator():
+    async for chunk in chat.io_stream.get_response_generator():
         content = chunk if isinstance(chunk, str) else chunk.get_content()
         print(content, end="", flush=True)
     # 迭代器自然耗尽后，上下文退出
@@ -339,17 +339,17 @@ async def main():
 
     # 外部并发控制逻辑
     async def external_controller(chat_obj):
-        await chat_obj.wait_to_suspend(timeout=5.0)
+        await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
         print("聊天已挂起。")
         await asyncio.sleep(1)
-        chat_obj.resume()
+        chat_obj.io_stream.resume()
         print("聊天已恢复。")
 
     chat.begin()
     async with chat:
         controller_task = asyncio.create_task(external_controller(chat))
         try:
-            async for response in chat.get_response_generator():
+            async for response in chat.io_stream.get_response_generator():
                 content = response if isinstance(response, str) else response.get_content()
                 print(content, end="", flush=True)
         finally:
@@ -364,13 +364,13 @@ asyncio.run(main())
 async def handle_chunk(chunk):
     print(chunk, end="", flush=True)
 
-chat.set_callback_func(handle_chunk)
+chat.io_stream.set_callback_func(handle_chunk)
 
 async def external_controller(chat_obj):
-    await chat_obj.wait_to_suspend(timeout=5.0)
+    await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
     print("\n[挂起]")
     await asyncio.sleep(1)
-    chat_obj.resume()
+    chat_obj.io_stream.resume()
 
 chat.begin()
 asyncio.create_task(external_controller(chat))
@@ -401,8 +401,8 @@ await chat
 
 普通业务开发请优先使用标准交互模式：
 
-- 流式响应输出：`chat.begin(); async with chat: async for response in chat.get_response_generator()`
-- 回调式响应：`chat.set_callback_func(callback); chat.begin(); await chat`
+- 流式响应输出：`chat.begin(); async with chat: async for response in chat.io_stream.get_response_generator()`
+- 回调式响应：`chat.io_stream.set_callback_func(callback); chat.begin(); await chat`
 - 完整一次性应答：`chat.begin(); response = await chat.full_response()`
 
 仅在需要外部精细控制内部执行流程的高阶场景，才启用挂起/恢复能力。

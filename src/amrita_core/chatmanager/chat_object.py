@@ -434,9 +434,9 @@ class ChatObject:
     # Entry point
 
     @monitoring
-    @SuspendObjectStream.suspend_with_tag(SuspendEnum.ENTRY_POINT.value)
     async def _entry(self) -> None:
         """Call chat object to process messages"""
+        await self.io_stream._wait_for_continue(SuspendEnum.ENTRY_POINT)
         if not self._is_running and not self._is_done:
             self.stream_id = uuid4().hex
             logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
@@ -487,7 +487,7 @@ class ChatObject:
     # Workflow nodes (in execution order)
 
 
-@Node(SuspendEnum.TRAIN_RENDER.value)
+@Node(SuspendEnum.TRAIN_RENDER)
 async def _render_train(chat_obj: ChatObject):
     logger.debug("Starting chat processing flow..")
     data = chat_obj.data
@@ -510,13 +510,13 @@ async def _render_train(chat_obj: ChatObject):
     debug_log(chat_obj.train.content)
 
 
-@Node(SuspendEnum.MEMORY.value)
+@Node(SuspendEnum.MEMORY)
 async def _limiting_memory(chat_obj: ChatObject):
     logger.debug("Starting applying memory limitations..")
     async with MemoryLimiter(
         chat_obj.data, chat_obj.train, config=chat_obj.config
     ) as lim:
-        await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY.value)
+        await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY)
         await lim.run_enforce()
 
         if abs_usage := lim.usage:
@@ -525,7 +525,7 @@ async def _limiting_memory(chat_obj: ChatObject):
     logger.debug("Memory limitation application completed")
 
 
-@Node(SuspendEnum.MESSAGES_PREPARED.value, wrap_to_async=False)
+@Node(SuspendEnum.MESSAGES_PREPARED, wrap_to_async=False)
 def _prepare_messages(chat_obj: ChatObject):
     send_messages = chat_obj._prepare_send_messages()
     chat_obj.context_wrap = SendMessageWrap.validate_messages(send_messages)
@@ -534,7 +534,7 @@ def _prepare_messages(chat_obj: ChatObject):
     )
 
 
-@Node(SuspendEnum.PRECOMPLE.value)
+@Node(SuspendEnum.PRECOMPLE)
 async def _pre_runner(chat_obj: ChatObject):
     logger.debug(
         f"Starting chat processing, sending message count: {len(chat_obj.context_wrap)}"
@@ -562,7 +562,7 @@ async def _pre_runner(chat_obj: ChatObject):
     )
 
 
-@Node(SuspendEnum.STRATEGY_START.value)
+@Node(SuspendEnum.STRATEGY_START)
 async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None:
     """Run workflow of strategy given."""
 
@@ -577,7 +577,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
             )
             ctx = StrategyContext(chat_obj.user_input, context, chat_obj)
             chat_obj._stg_ctx_tmp = ctx
-            return intp.jump_to(intp.find_addr_alias(BuiltinName.AGENT_STRATEGY.value))
+            return intp.jump_to(intp.find_addr_alias(BuiltinName.AGENT_STRATEGY))
 
         case "rag":
             context = SendMessageWrap.validate_messages(
@@ -626,7 +626,7 @@ def _counter_factory() -> NodeType[None]:
     return advance
 
 
-@Node(SuspendEnum.SINGLE_TOOL.value)
+@Node(SuspendEnum.SINGLE_TOOL)
 async def _single_strategy_exec(chat_obj: ChatObject) -> bool:
     try:
         return await chat_obj._tmp_strategy.single_execute()
@@ -662,7 +662,7 @@ async def _strategy_post(chat_obj: ChatObject):
     del chat_obj._stg_ctx_tmp
 
 
-@Node(SuspendEnum.LLM_CALL.value)
+@Node(SuspendEnum.LLM_CALL)
 async def _call_completion(chat_obj: ChatObject):
     logger.debug("Calling chat model..")
     response: UniResponse[str, None] | None = None
@@ -700,13 +700,13 @@ async def _call_completion(chat_obj: ChatObject):
     chat_obj.response = response
 
 
-@Node(SuspendEnum.COMPLE.value)
+@Node(SuspendEnum.COMPLE)
 async def _post_runner(chat_obj: ChatObject):
     logger.debug("Triggering chat events..")
     chat_event = CompletionEvent(
         chat_obj.user_input, chat_obj.context_wrap, chat_obj, chat_obj.response.content
     )
-    await chat_obj.io_stream._wait_for_continue(SuspendEnum.COMPLE.value)
+    await chat_obj.io_stream._wait_for_continue(SuspendEnum.COMPLE)
     await MatcherManager.trigger_event(
         chat_event,
         chat_obj.config,

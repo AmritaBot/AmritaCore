@@ -31,19 +31,42 @@ graph LR
     E --> F[_run_strategy]
     F --> G[_call_completion]
     G --> H[_post_runner]
-    H --> I[archived_nodes]
+    F -.->|agent mode| I[_agent_entry]
+    I --> J[_single_strategy_exec]
+    J -->|WHILE| J
+    J --> K[_strategy_post]
 ```
 
-| Node                | SuspendEnum Tag     | Description                                 |
-| ------------------- | ------------------- | ------------------------------------------- |
-| `_render_train`     | `TRAIN_RENDER`      | Renders the Jinja2 system prompt template   |
-| `_limiting_memory`  | `MEMORY`            | Applies memory length and token limits      |
-| `_prepare_messages` | `MESSAGES_PREPARED` | Prepares the final message list for the LLM |
-| `_pre_runner`       | `PRECOMPLE`         | Triggers pre-completion matcher events      |
-| `_run_strategy`     | `STRATEGY_START`    | Executes the agent strategy                 |
-| `_call_completion`  | `LLM_CALL`          | Calls the LLM via the adapter               |
-| `_post_runner`      | `COMPLE`            | Triggers post-completion matcher events     |
-| `archived_nodes`    | —                   | User-defined extension nodes                |
+The `_run_strategy` node branches into an agent sub-workflow when using `"agent"` or `"agent-mixed"` strategy categories. The sub-workflow uses a `WHILE` loop with a counter factory to iterate over tool calls.
+
+| Node                    | SuspendEnum Tag     | Description                                       |
+| ----------------------- | ------------------- | ------------------------------------------------- |
+| `_render_train`         | `TRAIN_RENDER`      | Renders the Jinja2 system prompt template         |
+| `_limiting_memory`      | `MEMORY`            | Applies memory length and token limits            |
+| `_prepare_messages`     | `MESSAGES_PREPARED` | Prepares the final message list for the LLM       |
+| `_pre_runner`           | `PRECOMPLE`         | Triggers pre-completion matcher events            |
+| `_run_strategy`         | `STRATEGY_START`    | Executes strategy; branches to agent sub-workflow |
+| `_agent_entry`          | —                   | Initializes agent strategy instance               |
+| `_single_strategy_exec` | `SINGLE_TOOL`       | Executes one tool call iteration                  |
+| `_strategy_post`        | —                   | Post-processes strategy after all tool calls      |
+| `_call_completion`      | `LLM_CALL`          | Calls the LLM via the adapter                     |
+| `_post_runner`          | `COMPLE`            | Triggers post-completion matcher events           |
+
+### Control Flow Instructions
+
+The agent sub-workflow uses AmritaSense v0.3.0+ control flow instructions:
+
+- **`GOTO(BuiltinName.STRATEGY_EOF)`** — Skips the agent sub-workflow when using non-agent strategies
+- **`ALIAS(_agent_entry, BuiltinName.AGENT_STRATEGY)`** — Registers the agent entry point as a subprogram target
+- **`WHILE(_single_strategy_exec).ACTION(_counter_factory())`** — Loops tool call execution with a counter to enforce call limits
+- **`ALIAS(NOP, BuiltinName.STRATEGY_EOF)`** — Marks the end of the agent sub-workflow
+
+### SuspendEnum Tags
+
+Since v0.9.1, additional suspend tags are available:
+
+- `SuspendEnum.ADVANCE_COUNTER` — Before advancing the tool call counter
+- `SuspendEnum.STRATEGY_EOF` — At the end of the agent strategy sub-workflow
 
 ## AmritaCore-Specific Concepts
 

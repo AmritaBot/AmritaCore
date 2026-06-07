@@ -7,6 +7,8 @@ The Message class represents a single message in the conversation.
 - `role` (Literal["user", "assistant", "system"]): Role of the message
 - `content` (T): Content of the message, where T is a generic parameter
 - `tool_calls` (list[[ToolCall](ToolCall.md)] | None): List of tool calls, optional
+- `reasoning_content` (str | None): Reasoning/thinking content from the model (only valid for `role="assistant"`)
+- `reasoning_signature` (str | None): Anthropic thinking signature for round-tripping
 
 ## Example
 

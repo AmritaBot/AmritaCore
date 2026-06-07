@@ -18,7 +18,7 @@ from amrita_sense.streaming import SuspendObjectStream
 
 ## Usage in AmritaCore
 
-ChatObject inherits from `SuspendObjectStream[RESPONSE_TYPE]`. All streaming interaction methods come from this base class:
+ChatObject uses `SuspendObjectStream` via its `io_stream` attribute (composition since v0.9.1). All streaming interaction methods are accessed through `chat.io_stream.*`:
 
 | Method                     | Purpose                                      |
 | -------------------------- | -------------------------------------------- |

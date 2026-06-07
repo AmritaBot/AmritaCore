@@ -52,20 +52,20 @@ async def main():
     # 사용标准断점의 외부 컨트롤러
     async def controller(chat_obj):
         # 대기 도구 호출 중단점
-        await chat_obj.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value)
+        await chat_obj.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value)
         print("도구 호출 예정입니다!")
 
         # 복구하고 완료 중단점 대기
-        chat_obj.resume()
-        await chat_obj.wait_to_suspend(SuspendEnum.COMPLE.value)
+        chat_obj.io_stream.resume()
+        await chat_obj.io_stream.wait_to_suspend(SuspendEnum.COMPLE.value)
         print("모델 응답을 받았습니다!")
-        chat_obj.resume()
+        chat_obj.io_stream.resume()
 
     controller_task = asyncio.create_task(controller(chat))
 
     try:
         async with chat.begin():
-            async for response in chat.get_response_generator():
+            async for response in chat.io_stream.get_response_generator():
                 print(response, end="", flush=True)
     finally:
         controller_task.cancel()

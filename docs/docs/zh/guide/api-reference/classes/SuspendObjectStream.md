@@ -18,7 +18,7 @@ from amrita_sense.streaming import SuspendObjectStream
 
 ## 在 AmritaCore 中的使用
 
-ChatObject 继承自 `SuspendObjectStream[RESPONSE_TYPE]`。所有流式交互方法均来自此基类：
+ChatObject 通过其 `io_stream` 属性使用 `SuspendObjectStream`（自 v0.9.1 起采用组合方式）。所有流式交互方法通过 `chat.io_stream.*` 访问：
 
 | 方法                       | 用途                     |
 | -------------------------- | ------------------------ |
@@ -232,11 +232,11 @@ from amrita_core import ChatObject
 chat = ChatObject(...)
 
 # 直接使用挂起/恢复方法
-await chat.wait_to_suspend("custom_tag")
-chat.resume()
+await chat.io_stream.wait_to_suspend("custom_tag")
+chat.io_stream.resume()
 
 # 流式传输响应
-async for response in chat.get_response_generator():
+async for response in chat.io_stream.get_response_generator():
     print(response)
 ```
 

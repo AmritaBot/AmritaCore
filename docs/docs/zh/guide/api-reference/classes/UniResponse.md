@@ -8,6 +8,8 @@ The UniResponse class provides a unified response format.
 - `usage` ([UniResponseUsage](UniResponseUsage.md) | None): Usage information, optional
 - `content` (T): Response content, T is a generic parameter
 - `tool_calls` (T_TOOL): Tool call results, T_TOOL is a generic parameter
+- `reasoning_content` (str | None): Reasoning/thinking content from the model, if the model supports it (e.g., o1, Claude with extended thinking)
+- `reasoning_signature` (str | None): Anthropic thinking signature, required for round-tripping thinking content with Anthropic API
 
 ## Description
 

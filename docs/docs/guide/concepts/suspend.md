@@ -4,7 +4,7 @@
 
 **Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
 
-AmritaCore provides a simple and explicit suspend mechanism that allows external control over the execution flow of `ChatObject`, pausing and resuming processing at specified nodes. This mechanism is implemented through the `SuspendObjectStream` base class, from which `ChatObject` inherits.
+AmritaCore provides a simple and explicit suspend mechanism that allows external control over the execution flow of `ChatObject`, pausing and resuming processing at specified nodes. This mechanism is provided by the `SuspendObjectStream` class, which `ChatObject` uses via its `io_stream` attribute (composition since v0.9.1).
 
 Applicable scenarios:
 
@@ -93,9 +93,9 @@ Since v0.9.0rc1, the core lifecycle of `ChatObject` is driven by a [composable w
 Basic usage steps:
 
 1. Call `chat.begin()` to start the internal task of the ChatObject
-2. From **outside** the ChatObject execution context, in a separate asynchronous task, call `await chat.wait_to_suspend(timeout)` to listen for the suspend state
+2. From **outside** the ChatObject execution context, in a separate asynchronous task, call `await chat.io_stream.wait_to_suspend(timeout)` to listen for the suspend state
 3. The ChatObject automatically pauses when it reaches the next method decorated with `@SuspendObjectStream.suspend`
-4. Call `chat.resume()` to resume normal execution flow
+4. Call `chat.io_stream.resume()` to resume normal execution flow
 
 ## Using Tags to Mark Breakpoints
 
@@ -120,13 +120,13 @@ chat = ChatObject(
 # External controller listening for a specific standard breakpoint
 async def external_controller(chat_obj):
     # Wait for the standard "single_tool_call" breakpoint
-    await chat_obj.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
+    await chat_obj.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
     print("Suspended before tool call!")
 
     # You can inspect or modify state here
     # ...
 
-    chat_obj.resume()
+    chat_obj.io_stream.resume()
 
 chat.begin()
 # Start the controller task
@@ -167,18 +167,18 @@ class MyAgent:
 # Example: Multi-breakpoint control flow
 async def multi_breakpoint_controller(chat_obj):
     # Wait for first breakpoint
-    await chat_obj.wait_to_suspend("step1")
+    await chat_obj.io_stream.wait_to_suspend("step1")
     print("Step 1 completed")
 
     # Continue waiting for second breakpoint
-    await chat_obj.wait_to_suspend("step2")
+    await chat_obj.io_stream.wait_to_suspend("step2")
     print("Step 2 completed")
 
     # Finally wait for any breakpoint
-    await chat_obj.wait_to_suspend()  # Matches any method decorated with suspend
+    await chat_obj.io_stream.wait_to_suspend()  # Matches any method decorated with suspend
     print("Any step completed")
 
-    chat_obj.resume()
+    chat_obj.io_stream.resume()
 ```
 
 ## Manual Use of `_wait_for_continue()`
@@ -212,10 +212,10 @@ async def main():
 
     # External independent control task
     async def external_controller(chat_obj):
-        await chat_obj.wait_to_suspend(timeout=5.0)
+        await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
         print("Chat suspended!")
         await asyncio.sleep(1)
-        chat_obj.resume()
+        chat_obj.io_stream.resume()
         print("Chat resumed!")
 
     controller_task = asyncio.create_task(external_controller(chat))
@@ -224,7 +224,7 @@ async def main():
         await custom_processing_step(chat)
         chat.begin()
         async with chat:
-            async for response in chat.get_response_generator():
+            async for response in chat.io_stream.get_response_generator():
                 content = response if isinstance(response, str) else response.get_content()
                 print(content, end="", flush=True)
     finally:
@@ -276,14 +276,14 @@ async def monitor(response):
     if "error" in str(response):
         await send_alert(response)
 
-chat.set_callback_func(monitor)  # Set inner suspend (callback)
+chat.io_stream.set_callback_func(monitor)  # Set inner suspend (callback)
 
 # Outer suspend: pause at specific moment
 async def controller():
-    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    await chat.io_stream.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
     print("About to call LLM, continue?")
     await asyncio.to_thread(input, "Press Enter to continue...")
-    chat.resume()
+    chat.io_stream.resume()
 
 # Start the task and controller task
 chat.begin()
@@ -304,15 +304,15 @@ If not using callbacks and only consuming via iterator, outer suspension is also
 
 # Outer suspend control task
 async def controller():
-    await chat.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
+    await chat.io_stream.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
     print("\n[System] About to call LLM, pausing...")
     input("Press Enter to continue...")
-    chat.resume()
+    chat.io_stream.resume()
 
 chat.begin()
 async with chat:
     asyncio.create_task(controller())
-    async for chunk in chat.get_response_generator():
+    async for chunk in chat.io_stream.get_response_generator():
         content = chunk if isinstance(chunk, str) else chunk.get_content()
         print(content, end="", flush=True)
     # Iterator exhausts naturally, then context exits
@@ -345,17 +345,17 @@ async def main():
 
     # External concurrent control logic
     async def external_controller(chat_obj):
-        await chat_obj.wait_to_suspend(timeout=5.0)
+        await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
         print("Chat suspended.")
         await asyncio.sleep(1)
-        chat_obj.resume()
+        chat_obj.io_stream.resume()
         print("Chat resumed.")
 
     chat.begin()
     async with chat:
         controller_task = asyncio.create_task(external_controller(chat))
         try:
-            async for response in chat.get_response_generator():
+            async for response in chat.io_stream.get_response_generator():
                 content = response if isinstance(response, str) else response.get_content()
                 print(content, end="", flush=True)
         finally:
@@ -370,13 +370,13 @@ asyncio.run(main())
 async def handle_chunk(chunk):
     print(chunk, end="", flush=True)
 
-chat.set_callback_func(handle_chunk)
+chat.io_stream.set_callback_func(handle_chunk)
 
 async def external_controller(chat_obj):
-    await chat_obj.wait_to_suspend(timeout=5.0)
+    await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
     print("\n[Suspended]")
     await asyncio.sleep(1)
-    chat_obj.resume()
+    chat_obj.io_stream.resume()
 
 chat.begin()
 asyncio.create_task(external_controller(chat))
@@ -407,8 +407,8 @@ Do not set a callback function and use `get_response_generator()` simultaneously
 
 For normal business development, prefer the standard interaction patterns:
 
-- Streaming response output: `chat.begin(); async with chat: async for response in chat.get_response_generator()`
-- Callback-style response: `chat.set_callback_func(callback); chat.begin(); await chat`
+- Streaming response output: `chat.begin(); async with chat: async for response in chat.io_stream.get_response_generator()`
+- Callback-style response: `chat.io_stream.set_callback_func(callback); chat.begin(); await chat`
 - Complete one-time response: `chat.begin(); response = await chat.full_response()`
 
 Enable the suspend/resume capability only in advanced scenarios that require fine-grained external control over internal execution flow.

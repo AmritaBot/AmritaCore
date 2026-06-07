@@ -97,20 +97,20 @@ async def main():
     # External controller using standard breakpoints
     async def controller(chat_obj):
         # Wait for tool call breakpoint
-        await chat_obj.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value)
+        await chat_obj.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value)
         print("About to call a tool!")
 
         # Resume and wait for completion breakpoint
-        chat_obj.resume()
-        await chat_obj.wait_to_suspend(SuspendEnum.COMPLE.value)
+        chat_obj.io_stream.resume()
+        await chat_obj.io_stream.wait_to_suspend(SuspendEnum.COMPLE.value)
         print("Received model response!")
-        chat_obj.resume()
+        chat_obj.io_stream.resume()
 
     controller_task = asyncio.create_task(controller(chat))
 
     try:
         async with chat.begin():
-            async for response in chat.get_response_generator():
+            async for response in chat.io_stream.get_response_generator():
                 print(response, end="", flush=True)
     finally:
         controller_task.cancel()

@@ -215,7 +215,7 @@ AmritaCore uses **AnyIO memory object streams** for streaming responses, which p
 
 ```python
 # Process streaming responses
-async for message in chat.get_response_generator():
+async for message in chat.io_stream.get_response_generator():
     content = message if isinstance(message, str) else message.get_content()
     print(content, end="")
 ```
@@ -240,7 +240,7 @@ AmritaCore supports response callbacks for real-time interaction:
 async def response_callback(message):
     print(message)
 
-chat.set_callback_func(response_callback)
+chat.io_stream.set_callback_func(response_callback)
 await chat.begin()
 ```
 
@@ -272,7 +272,7 @@ async with ChatObject(
     user_input="Hello!",
     train=train.model_dump()
 ).begin() as chat:
-    async for message in chat.get_response_generator():
+    async for message in chat.io_stream.get_response_generator():
         print(message, end="")
 
 # Update context for next interaction
@@ -663,7 +663,7 @@ chat = ChatObject(
 # Stream responses while capturing final response
 async with chat.begin():
     final_response = await get_last_response(
-        chat.get_response_generator(),
+        chat.io_stream.get_response_generator(),
         yield_to=your_websocket_stream,
         yield_to_wrapper=lambda chunk: {"type": "stream", "content": str(chunk)}
     )
