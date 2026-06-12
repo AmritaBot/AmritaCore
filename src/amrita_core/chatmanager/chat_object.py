@@ -24,7 +24,6 @@ from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
 from amrita_sense.instructions import GOTO
 from amrita_sense.instructions.subprogram import SubprogramStorage
-from amrita_sense.node.core import Node as NodeType
 from jinja2 import Template
 from pytz import utc
 from typing_extensions import Self, deprecated
@@ -149,6 +148,7 @@ class ChatObject:
     _tmp_strategy: AgentStrategy | StrategyLikedObject
     _ctx_backup_tmp: SendMessageWrap
     _stg_ctx_tmp: StrategyContext
+    _agt_called_count: int
 
     # Manager
     _chatman: ChatManager
@@ -223,6 +223,7 @@ class ChatObject:
             prompt_tokens=0, completion_tokens=0, total_tokens=0
         )
         self._chatman = chat_man or chat_manager
+        self._agt_called_count = 0
         # other
         self.last_call = datetime.now(utc)
         self.preset = preset or (
@@ -610,20 +611,13 @@ def _agent_entry(chat_obj: ChatObject) -> None:
     chat_obj._ctx_backup_tmp = chat_obj.context_wrap.copy()
 
 
-def _counter_factory() -> NodeType[None]:
-
-    now = 1
-
-    @Node(SuspendEnum.ADVANCE_COUNTER, False)
-    async def advance(chat_obj: ChatObject):
-        nonlocal now
-        max_times: int = chat_obj.config.function_config.agent_tool_call_limit + 1
-        if now > max_times:
-            await chat_obj._tmp_strategy.on_limited()
-            raise BreakLoop(f"Counter has reached the maximum limit of {max_times}")
-        now += 1
-
-    return advance
+@Node(SuspendEnum.ADVANCE_COUNTER, False)
+async def _advance_ctr(chat_obj: ChatObject):
+    max_times: int = chat_obj.config.function_config.agent_tool_call_limit + 1
+    if chat_obj._agt_called_count > max_times:
+        await chat_obj._tmp_strategy.on_limited()
+        raise BreakLoop(f"Counter has reached the maximum limit of {max_times}")
+    chat_obj._agt_called_count += 1
 
 
 @Node(SuspendEnum.SINGLE_TOOL)
@@ -741,7 +735,7 @@ _workflow: NodeCompose = (
     >> (
         GOTO(BuiltinName.STRATEGY_EOF)
         >> ALIAS(_agent_entry, BuiltinName.AGENT_STRATEGY)
-        >> WHILE(_single_strategy_exec).ACTION(_counter_factory())
+        >> WHILE(_single_strategy_exec).ACTION(_advance_ctr)
         >> _strategy_post
         >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
     )
