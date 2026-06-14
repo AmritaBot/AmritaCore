@@ -25,6 +25,16 @@ uv venv
 uv add amrita-core
 ```
 
+Create a  AmritaCore project using `Amctl` (our template tool, based on `uv`):
+
+```bash
+# If you haven't installed Amctl yet, run these command first
+# pip install amctl
+# or use uv:
+# uv tool install amctl
+amctl create -t amrita_core
+```
+
 Install AmritaCore using pip:
 
 ```bash

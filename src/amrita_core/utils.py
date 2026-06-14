@@ -10,7 +10,6 @@ from typing import Any, Generic, TypeVar
 import pytz
 from pydantic import BaseModel
 
-from amrita_core._env import _MODULE_LOADED, TEST_MODE
 from amrita_core.types import UniResponseUsage
 
 T = TypeVar("T")
@@ -126,10 +125,14 @@ def on_none(value: Any | None) -> bool:
 
 def side_effect_import(module: ModuleType):
     """Import module and side effect import all submodules"""
+    from . import _env
+
     name_base = module.__package__
     if name_base is None:
         raise TypeError("Side effect import only works for package")
-    if (TEST_MODE.value and name_base not in _MODULE_LOADED) or not TEST_MODE.value:
-        _MODULE_LOADED[name_base] = True
+    if (
+        _env.TEST_MODE.value and name_base not in _env._MODULE_LOADED
+    ) or not _env.TEST_MODE.value:
+        _env._MODULE_LOADED[name_base] = True
         for loader, module_name, is_pkg in pkgutil.iter_modules(module.__path__):
-            module = importlib.import_module(f"{name_base}.{module_name}")
+            importlib.import_module(f"{name_base}.{module_name}")

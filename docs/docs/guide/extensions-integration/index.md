@@ -475,14 +475,24 @@ class CustomLLMAdapter(ModelAdapter):
         return "custom_llm_protocol"  # Return the protocol identifier
 ```
 
-### 5.3.4 Publishing and Sharing Extensions
+### 5.3.4 Package Naming Convention & Publishing
 
-To share your extensions:
+To maintain ecosystem consistency, use the following naming prefix when publishing AmritaCore extensions to PyPI:
 
-1. Package them as a separate Python module
-2. Document the functionality and usage
-3. Publish to PyPI or host in a Git repository
-4. Provide examples and best practices
+| Extension Type | Package Name Prefix  | Example                      |
+| -------------- | -------------------- | ---------------------------- |
+| **Adapter**    | `amcore-adapter-*`   | `amcore-adapter-grok`        |
+| **Tokenizer**  | `amcore-tokenizer-*` | `amcore-tokenizer-bert`      |
+| **Strategy**   | `amcore-strategy-*`  | `amcore-strategy-reflection` |
+| **Hook/Event** | `amcore-hook-*`      | `amcore-hook-rate-limiter`   |
+| **Tool**       | `amcore-tool-*`      | `amcore-tool-calculator`     |
+
+To publish and share your extensions:
+
+1. Package as a separate Python module following the naming convention above
+2. Add relevant classifiers in `pyproject.toml`, e.g. `Framework :: AmritaCore`
+3. Document functionality, usage examples, and dependencies
+4. Publish to PyPI or host in a Git repository
 
 ## 5.4 Third-Party Integration
 

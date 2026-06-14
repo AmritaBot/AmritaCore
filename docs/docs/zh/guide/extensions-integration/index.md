@@ -474,14 +474,24 @@ class CustomLLMAdapter(ModelAdapter):
         return "custom_llm_protocol"  # 返回协议标识符
 ```
 
-### 5.3.4 发布和共享扩展
+### 5.3.4 包命名规范与发布
 
-要共享您的扩展：
+为保持生态系统一致性，在发布 AmritaCore 扩展到 PyPI 时，请使用以下命名前缀：
 
-1. 将它们打包为单独的 Python 模块
-2. 记录功能和用法
-3. 发布到 PyPI 或托管在 Git 存储库中
-4. 提供示例和最佳实践
+| 扩展类型      | 包名称前缀           | 示例                         |
+| ------------- | -------------------- | ---------------------------- |
+| **适配器**    | `amcore-adapter-*`   | `amcore-adapter-grok`        |
+| **分词器**    | `amcore-tokenizer-*` | `amcore-tokenizer-bert`      |
+| **策略**      | `amcore-strategy-*`  | `amcore-strategy-reflection` |
+| **钩子/事件** | `amcore-hook-*`      | `amcore-hook-rate-limiter`   |
+| **工具**      | `amcore-tool-*`      | `amcore-tool-calculator`     |
+
+发布和共享扩展：
+
+1. 按照上述命名约定打包为独立的 Python 模块
+2. 在 `pyproject.toml` 中添加相关分类器，例如 `Framework :: AmritaCore`
+3. 记录功能、使用示例和依赖关系
+4. 发布到 PyPI 或托管在 Git 存储库中
 
 ## 5.4 第三方集成
 

@@ -24,8 +24,8 @@ dependencies = [
 "Source" = "https://github.com/AmritaBot/AmritaCore"
 "Issue Tracker" = "https://github.com/AmritaBot/AmritaCore/issues"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "ruff>=0.12.8",
     "pytest>=8.4.1",
     "py-spy>=0.4.1",
@@ -36,7 +36,6 @@ dev-dependencies = [
     "pytest-cov>=7.0.0",
     "setuptools>=82.0.1",
 ]
-package = true
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.84.0"]
