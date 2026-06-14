@@ -39,6 +39,9 @@ jobs:
         run: |
           PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
           echo "PYTHON_BIN=$PYTHON_BIN" >> $GITHUB_ENV
+      
+      - name: Add dependencies
+        run: uv pip install .
 
       - name: Run Pyright
         uses: jakebailey/pyright-action@v2

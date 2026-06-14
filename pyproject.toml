@@ -9,7 +9,7 @@ dependencies = [
     "aiohttp>=3.13.3",
     "aiologic>=0.16.0",
     "amrita-sense>=0.3.0",
-    "fastmcp>=3.2.0", # Updated, see https://github.com/advisories/GHSA-rww4-4w9c-7733 for details.
+    "fastmcp>=3.2.0",        # Updated, see https://github.com/advisories/GHSA-rww4-4w9c-7733 for details.
     "filetype>=1.2.0",
     "importlib>=1.0.4",
     "jinja2>=3.1.6",
@@ -74,3 +74,11 @@ ignore = [
 
 [tool.pyright]
 typeCheckingMode = "standard"
+
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+amrita-core = { workspace = true }
