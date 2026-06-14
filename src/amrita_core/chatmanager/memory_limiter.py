@@ -144,7 +144,9 @@ class MemoryLimiter:
                 Message[str](
                     role="user",
                     content=(
-                        "Make a summary of full informations in message list:\n\n```text\n".join(
+                        "Make a summary of full informations in message list:"
+                        + "\n\n```text\n"
+                        + "".join(
                             [
                                 f"{it}\n"
                                 for it in text_generator(
