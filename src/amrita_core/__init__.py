@@ -48,7 +48,7 @@ from .utils import side_effect_import
 
 
 @deprecated(
-    "Init method is no loger necessary. Please use minimal_init or load_amrita() instead for async initialization. Will be removed in v0.10.0",
+    "Init method is no longer necessary. Please use minimal_init or load_amrita() instead for async initialization. Will be removed in v0.10.0",
     category=DeprecationWarning,
 )
 def init(): ...

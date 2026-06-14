@@ -39,15 +39,14 @@ jobs:
         run: |
           PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
           echo "PYTHON_BIN=$PYTHON_BIN" >> $GITHUB_ENV
-      
-      - name: Add dependencies
-        run: uv pip install .
 
       - name: Run Pyright
         uses: jakebailey/pyright-action@v2
         with:
           python-path: ${{ env.PYTHON_BIN }}
           pylance-version: latest-release
+      - name: Add dependencies
+        run: uv pip install .
 
       - name: Run Unit Tests with JUnit XML output
         run: uv run pytest tests/ --cov=src/amrita_core --cov-report=term-missing
