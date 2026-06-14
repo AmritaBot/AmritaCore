@@ -1,6 +1,5 @@
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.streaming import SuspendObjectStream
-from amrita_sense.utils import TimeInsighter
 from typing_extensions import deprecated
 
 from amrita_core.base.adapter import AdapterManager
@@ -74,18 +73,15 @@ async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
     await load_amrita()
 
 
-logger.info("Loading extensions......")
+logger.info("Loading tokenizers and adapters......")
 
-# load all adapters and tokenizers
-with TimeInsighter() as t:
-    side_effect_import(adapters)
-    logger.debug(f"Loaded adapters: {','.join(AdapterManager().get_adapters().keys())}")
-    side_effect_import(tokenizers)
-    logger.debug(
-        f"Loaded tokenizers: {','.join(TokenizerManager().get_tokenizers().keys())}"
-    )
 
-logger.info(f"Done! cost {(t.t_diff.microseconds / 1000)}ms")
+side_effect_import(adapters)
+logger.debug(f"Loaded adapters: {','.join(AdapterManager().get_adapters().keys())}")
+side_effect_import(tokenizers)
+logger.debug(
+    f"Loaded tokenizers: {','.join(TokenizerManager().get_tokenizers().keys())}"
+)
 
 __all__ = [
     "AgentRuntime",
