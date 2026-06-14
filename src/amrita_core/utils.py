@@ -1,7 +1,10 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import importlib
+import pkgutil
+from collections.abc import Generator, Iterable, Sequence
 from datetime import datetime
+from types import ModuleType
 from typing import Any, Generic, TypeVar
 
 import pytz
@@ -118,3 +121,39 @@ def on_none(value: Any | None) -> bool:
         bool: Returns True when Value is None
     """
     return value is None
+
+
+def safe_side_effect_import(
+    module: ModuleType,
+) -> Generator[ModuleType | BaseException]:
+    """Import module and side effect import all submodules"""
+    from . import _env
+
+    name_base = module.__package__
+
+    if name_base is None:
+        raise TypeError("Side effect import only works for package")
+
+    if (
+        _env.TEST_MODE.value and name_base not in _env._MODULE_LOADED
+    ) or not _env.TEST_MODE.value:
+        _env._MODULE_LOADED[name_base] = True
+
+        for loader, module_name, is_pkg in pkgutil.iter_modules(module.__path__):
+            try:
+                yield importlib.import_module(f"{name_base}.{module_name}")
+            except BaseException as e:  # noqa: PERF203
+                yield e
+    else:
+        return
+
+
+def side_effect_import(module: ModuleType) -> list[ModuleType]:
+    """Import module and side effect import all submodules"""
+    rst = []
+    for rl in safe_side_effect_import(module):
+        if isinstance(rl, BaseException):
+            raise rl
+        else:
+            rst.append(rl)
+    return rst

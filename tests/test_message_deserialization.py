@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from src.amrita_core.types import Content, ImageContent, Message, TextContent
+from amrita_core.types import Content, ImageContent, Message, TextContent
 
 
 def test_message_generic_validation():

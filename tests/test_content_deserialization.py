@@ -2,7 +2,7 @@ import contextlib
 
 import pytest
 
-from src.amrita_core.types import ImageContent, Message, TextContent
+from amrita_core.types import ImageContent, Message, TextContent
 
 
 def test_message_content_discriminated_union():

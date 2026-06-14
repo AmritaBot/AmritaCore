@@ -3,7 +3,7 @@ from typing import Literal
 import pytest
 from pydantic import Field
 
-from src.amrita_core.types import (
+from amrita_core.types import (
     CT_MAP,
     Content,
     ImageContent,
@@ -46,26 +46,38 @@ def test_register_content_existing_classes():
 
 def test_register_content_with_default():
     """Test registering a Content class with explicit default value."""
+    original_map = CT_MAP.copy()
     CT_MAP.clear()
+    try:
 
-    class CustomContent(Content[Literal["custom"]]):
-        type: Literal["custom"] = "custom"
-        custom_field: str = Field(..., description="Custom field")
+        class CustomContent(Content[Literal["custom"]]):
+            type: Literal["custom"] = "custom"
+            custom_field: str = Field(..., description="Custom field")
 
-    register_content(CustomContent)
+        register_content(CustomContent)
 
-    assert "custom" in CT_MAP
-    assert CT_MAP["custom"] == CustomContent
+        assert "custom" in CT_MAP
+        assert CT_MAP["custom"] == CustomContent
+    finally:
+        # Restore original map
+        CT_MAP.clear()
+        CT_MAP.update(original_map)
 
 
 def test_register_content_without_default():
     """Test registering a Content class without explicit default (should use Literal type)."""
+    original_map = CT_MAP.copy()
     CT_MAP.clear()
+    try:
 
-    class AnotherContent(Content[Literal["another"]]):
-        type: Literal["another"]  # No default, should extract from Literal
+        class AnotherContent(Content[Literal["another"]]):
+            type: Literal["another"]  # No default, should extract from Literal
 
-    register_content(AnotherContent)
+        register_content(AnotherContent)
 
-    assert "another" in CT_MAP
-    assert CT_MAP["another"] == AnotherContent
+        assert "another" in CT_MAP
+        assert CT_MAP["another"] == AnotherContent
+    finally:
+        # Restore original map
+        CT_MAP.clear()
+        CT_MAP.update(original_map)

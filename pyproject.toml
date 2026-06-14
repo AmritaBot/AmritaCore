@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "0.9.2"
+version = "0.9.3"
 description = "High performance, flexable, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
@@ -9,7 +9,7 @@ dependencies = [
     "aiohttp>=3.13.3",
     "aiologic>=0.16.0",
     "amrita-sense>=0.3.0",
-    "fastmcp>=3.2.0", # Updated, see https://github.com/advisories/GHSA-rww4-4w9c-7733 for details.
+    "fastmcp>=3.2.0",        # Updated, see https://github.com/advisories/GHSA-rww4-4w9c-7733 for details.
     "filetype>=1.2.0",
     "importlib>=1.0.4",
     "jinja2>=3.1.6",
@@ -24,8 +24,8 @@ dependencies = [
 "Source" = "https://github.com/AmritaBot/AmritaCore"
 "Issue Tracker" = "https://github.com/AmritaBot/AmritaCore/issues"
 
-[tool.uv]
-dev-dependencies = [
+[dependency-groups]
+dev = [
     "ruff>=0.12.8",
     "pytest>=8.4.1",
     "py-spy>=0.4.1",
@@ -36,7 +36,6 @@ dev-dependencies = [
     "pytest-cov>=7.0.0",
     "setuptools>=82.0.1",
 ]
-package = true
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.84.0"]
@@ -75,3 +74,11 @@ ignore = [
 
 [tool.pyright]
 typeCheckingMode = "standard"
+
+[tool.uv.workspace]
+members = [
+    ".",
+]
+
+[tool.uv.sources]
+amrita-core = { workspace = true }

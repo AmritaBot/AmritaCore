@@ -177,11 +177,65 @@ async def log_response(event: CompletionEvent):
 
 ```
 
-### 5.1.5 Protocol Adapters
+### 5.1.5 Protocol Adapters & Custom Tokenizers
 
-Protocol adapters allow AmritaCore to work with different LLM providers or communication protocols:
+Protocol adapters allow AmritaCore to work with different LLM providers or communication protocols. Tokenizers handle text tokenization for memory management and context windows.
+
+Both adapters and tokenizers support **two registration mechanisms**:
+
+#### Mechanism 1: Implicit Registration via Subclassing (Anywhere)
+
+Subclass `ModelAdapter` or `BaseTokenizer` anywhere in your codebase — the `__init_subclass__` hook automatically registers the class in the corresponding manager (`AdapterManager` or `TokenizerManager`) when the module is imported.
 
 ```python
+# my_project/adapters.py
+from amrita_core.base.adapter import ModelAdapter
+from amrita_core.base.tokenizer import BaseTokenizer
+from amrita_core.types import ModelPreset
+
+class MyCustomAdapter(ModelAdapter):
+    # Manually import this module to trigger registration
+    ...
+
+class MyCustomTokenizer(BaseTokenizer):
+    # Manually import this module to trigger registration
+    ...
+```
+
+Then explicitly import to trigger registration:
+
+```python
+import my_project.adapters  # Triggers __init_subclass__ registration
+```
+
+#### Mechanism 2: Namespace Package Auto-Discovery (Recommended for Built-in Style)
+
+AmritaCore uses Python's **namespace package** mechanism (PEP 420) to auto-discover adapters and tokenizers at startup. Simply place your file in the `adapters/` or `tokenizers/` directory **without an `__init__.py`** — the directory becomes a namespace package, and `side_effect_import` (called during `amrita_core` import) discovers and imports all submodules automatically.
+
+```
+src/amrita_core/
+├── adapters/          # ← MUST NOT have __init__.py
+│   ├── openai.py      # Auto-discovered
+│   ├── anthropic.py   # Auto-discovered
+│   └── my_adapter.py  # ← Your custom adapter
+├── tokenizers/        # ← MUST NOT have __init__.py
+│   ├── simple.py      # Auto-discovered
+│   └── my_tokenizer.py # ← Your custom tokenizer
+```
+
+**What happens at import time:**
+
+1. `import amrita_core` runs `side_effect_import(adapters)` and `side_effect_import(tokenizers)`
+2. These scan the namespace package directories for all `.py` files (via `pkgutil.iter_modules`)
+3. Each discovered module is imported, which triggers the `__init_subclass__` hook in `ModelAdapter` / `BaseTokenizer`
+4. The class is automatically registered in `AdapterManager` / `TokenizerManager`
+
+**Critical rule**: The `adapters/` and `tokenizers/` directories **must NOT contain `__init__.py`**. An `__init__.py` would turn them into regular packages, breaking the namespace package auto-discovery mechanism.
+
+#### Example: Creating an Adapter
+
+```python
+# src/amrita_core/adapters/custom_protocol.py
 from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset
 from collections.abc import AsyncGenerator, Iterable
@@ -195,9 +249,8 @@ class CustomAdapter(ModelAdapter):
     async def call_api(
         self, messages: Iterable
     ) -> AsyncGenerator[str | UniResponse[str, None], None]:
-        # Implementation for custom protocol
-        # This should yield chunks of response as they arrive, then finally a UniResponse
-        yield "response chunk"  # Yield response chunks as they arrive
+        # Yield response chunks as they arrive, then finally a UniResponse
+        yield "response chunk"
         yield UniResponse(
             role="assistant",
             content="Complete response",
@@ -369,7 +422,7 @@ async def security_check(event: PreCompletionEvent):
 
 ### 5.3.3 Creating Custom Protocol Adapters
 
-Build adapters for different LLM providers:
+Build adapters for different LLM providers. See [5.1.5 Protocol Adapters & Custom Tokenizers](#515-protocol-adapters--custom-tokenizers) for the two registration mechanisms (implicit subclassing and namespace package auto-discovery).
 
 ```python
 from amrita_core.base.adapter import ModelAdapter
@@ -422,14 +475,24 @@ class CustomLLMAdapter(ModelAdapter):
         return "custom_llm_protocol"  # Return the protocol identifier
 ```
 
-### 5.3.4 Publishing and Sharing Extensions
+### 5.3.4 Package Naming Convention & Publishing
 
-To share your extensions:
+To maintain ecosystem consistency, use the following naming prefix when publishing AmritaCore extensions to PyPI:
 
-1. Package them as a separate Python module
-2. Document the functionality and usage
-3. Publish to PyPI or host in a Git repository
-4. Provide examples and best practices
+| Extension Type | Package Name Prefix  | Example                      |
+| -------------- | -------------------- | ---------------------------- |
+| **Adapter**    | `amcore-adapter-*`   | `amcore-adapter-grok`        |
+| **Tokenizer**  | `amcore-tokenizer-*` | `amcore-tokenizer-bert`      |
+| **Strategy**   | `amcore-strategy-*`  | `amcore-strategy-reflection` |
+| **Hook/Event** | `amcore-hook-*`      | `amcore-hook-rate-limiter`   |
+| **Tool**       | `amcore-tool-*`      | `amcore-tool-calculator`     |
+
+To publish and share your extensions:
+
+1. Package as a separate Python module following the naming convention above
+2. Add relevant classifiers in `pyproject.toml`, e.g. `Framework :: AmritaCore`
+3. Document functionality, usage examples, and dependencies
+4. Publish to PyPI or host in a Git repository
 
 ## 5.4 Third-Party Integration
 

@@ -177,11 +177,64 @@ async def log_response(event: CompletionEvent):
 
 ```
 
-### 5.1.5 协议适配器
+### 5.1.5 协议适配器与自定义分词器
 
-协议适配器允许 AmritaCore 与不同的 LLM 提供商或通信协议一起工作：
+协议适配器允许 AmritaCore 与不同的 LLM 提供商或通信协议一起工作。分词器用于处理文本的分词，支持内存管理和上下文窗口控制。
+
+适配器和分词器均支持 **两种注册机制**：
+
+#### 机制一：通过子类化隐式注册（任意位置）
+
+在任何位置继承 `ModelAdapter` 或 `BaseTokenizer` — 当模块被导入时，`__init_subclass__` 钩子会自动将类注册到对应的管理器（`AdapterManager` / `TokenizerManager`）。
 
 ```python
+# my_project/adapters.py
+from amrita_core.base.adapter import ModelAdapter
+from amrita_core.base.tokenizer import BaseTokenizer
+
+class MyCustomAdapter(ModelAdapter):
+    # 手动导入此模块以触发注册
+    ...
+
+class MyCustomTokenizer(BaseTokenizer):
+    # 手动导入此模块以触发注册
+    ...
+```
+
+然后显式导入以触发注册：
+
+```python
+import my_project.adapters  # 触发 __init_subclass__ 注册
+```
+
+#### 机制二：命名空间包自动发现（推荐，用于内置风格）
+
+AmritaCore 使用 Python 的**命名空间包**机制（PEP 420）在启动时自动发现适配器和分词器。只需将文件放入 `adapters/` 或 `tokenizers/` 目录且**不包含 `__init__.py`** — 该目录即成为命名空间包，`side_effect_import`（在 `amrita_core` 导入时调用）会自动发现并导入所有子模块。
+
+```
+src/amrita_core/
+├── adapters/          # ← 绝对不能有 __init__.py
+│   ├── openai.py      # 自动发现
+│   ├── anthropic.py   # 自动发现
+│   └── my_adapter.py  # ← 你的自定义适配器
+├── tokenizers/        # ← 绝对不能有 __init__.py
+│   ├── simple.py      # 自动发现
+│   └── my_tokenizer.py # ← 你的自定义分词器
+```
+
+**导入时的执行流程：**
+
+1. `import amrita_core` 运行 `side_effect_import(adapters)` 和 `side_effect_import(tokenizers)`
+2. 这些函数扫描命名空间包目录中的所有 `.py` 文件（通过 `pkgutil.iter_modules`）
+3. 每个发现的模块被导入，触发 `ModelAdapter` / `BaseTokenizer` 的 `__init_subclass__` 钩子
+4. 类自动注册到 `AdapterManager` / `TokenizerManager`
+
+**重要规则**：`adapters/` 和 `tokenizers/` 目录**绝对不能包含 `__init__.py`**。`__init__.py` 会将其变为常规包，破坏命名空间包的自动发现机制。
+
+#### 示例：创建适配器
+
+```python
+# src/amrita_core/adapters/custom_protocol.py
 from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset
 from collections.abc import AsyncGenerator, Iterable
@@ -195,9 +248,8 @@ class CustomAdapter(ModelAdapter):
     async def call_api(
         self, messages: Iterable
     ) -> AsyncGenerator[str | UniResponse[str, None], None]:
-        # 自定义协议的实现
-        # 这应该在响应到达时产生响应块，最后产生一个 UniResponse
-        yield "响应块"  # 在到达时产生响应块
+        # 在响应到达时产生响应块，最后产生一个 UniResponse
+        yield "响应块"
         yield UniResponse(
             role="assistant",
             content="完整响应",
@@ -369,7 +421,7 @@ async def security_check(event: PreCompletionEvent):
 
 ### 5.3.3 创建自定义协议适配器
 
-为不同 LLM 提供商构建适配器：
+为不同 LLM 提供商构建适配器。关于两种注册机制（隐式子类化和命名空间包自动发现），请参见 [5.1.5 协议适配器与自定义分词器](#515-协议适配器与自定义分词器)。
 
 ```python
 from amrita_core.base.adapter import ModelAdapter
@@ -422,14 +474,24 @@ class CustomLLMAdapter(ModelAdapter):
         return "custom_llm_protocol"  # 返回协议标识符
 ```
 
-### 5.3.4 发布和共享扩展
+### 5.3.4 包命名规范与发布
 
-要共享您的扩展：
+为保持生态系统一致性，在发布 AmritaCore 扩展到 PyPI 时，请使用以下命名前缀：
 
-1. 将它们打包为单独的 Python 模块
-2. 记录功能和用法
-3. 发布到 PyPI 或托管在 Git 存储库中
-4. 提供示例和最佳实践
+| 扩展类型      | 包名称前缀           | 示例                         |
+| ------------- | -------------------- | ---------------------------- |
+| **适配器**    | `amcore-adapter-*`   | `amcore-adapter-grok`        |
+| **分词器**    | `amcore-tokenizer-*` | `amcore-tokenizer-bert`      |
+| **策略**      | `amcore-strategy-*`  | `amcore-strategy-reflection` |
+| **钩子/事件** | `amcore-hook-*`      | `amcore-hook-rate-limiter`   |
+| **工具**      | `amcore-tool-*`      | `amcore-tool-calculator`     |
+
+发布和共享扩展：
+
+1. 按照上述命名约定打包为独立的 Python 模块
+2. 在 `pyproject.toml` 中添加相关分类器，例如 `Framework :: AmritaCore`
+3. 记录功能、使用示例和依赖关系
+4. 发布到 PyPI 或托管在 Git 存储库中
 
 ## 5.4 第三方集成
 

@@ -1,4 +1,4 @@
-from src.amrita_core.types import CT_MAP, ImageContent, Message, TextContent
+from amrita_core.types import CT_MAP, ImageContent, Message, TextContent
 
 
 def test_message_content_validation_with_registered_types():
