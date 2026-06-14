@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "0.9.2"
+version = "0.9.3"
 description = "High performance, flexable, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
