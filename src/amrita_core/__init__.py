@@ -1,6 +1,10 @@
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.streaming import SuspendObjectStream
+from amrita_sense.utils import TimeInsighter
 from typing_extensions import deprecated
+
+from amrita_core.base.adapter import AdapterManager
+from amrita_core.base.tokenizer import TokenizerManager
 
 from . import adapters, tokenizers
 from .agent.functions import AgentRuntime, create_agent
@@ -40,6 +44,48 @@ from .types import (
     UniResponse,
     UniResponseUsage,
 )
+from .utils import side_effect_import
+
+
+@deprecated(
+    "Init method is no loger necessary. Please use minimal_init or load_amrita() instead for async initialization. Will be removed in v0.10.0",
+    category=DeprecationWarning,
+)
+def init(): ...
+
+
+def load_session(session_id: str):
+    logger.info("Loading session %s......", session_id)
+    sm = SessionsManager()
+    sm.init_session(session_id)
+
+
+async def load_amrita():
+    logger.info("Loading AmritaCore built-in components......")
+    config = get_config()
+    if config.function_config.agent_mcp_client_enable:
+        logger.info("Loading MCP clients......")
+        clients = list(config.function_config.agent_mcp_server_scripts)
+        await mcp.ClientManager().initialize_scripts_all(clients)
+
+
+async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
+    set_config(config)
+    await load_amrita()
+
+
+logger.info("Loading extensions......")
+
+# load all adapters and tokenizers
+with TimeInsighter() as t:
+    side_effect_import(adapters)
+    logger.debug(f"Loaded adapters: {','.join(AdapterManager().get_adapters().keys())}")
+    side_effect_import(tokenizers)
+    logger.debug(
+        f"Loaded tokenizers: {','.join(TokenizerManager().get_tokenizers().keys())}"
+    )
+
+logger.info(f"Done! cost {(t.t_diff.microseconds / 1000)}ms")
 
 __all__ = [
     "AgentRuntime",
@@ -86,35 +132,9 @@ __all__ = [
     "on_precompletion",
     "on_tools",
     "set_config",
+    "side_effect_import",
     "simple_tool",
     "text_generator",
     "tokenizers",
     "tools_caller",
 ]
-
-
-@deprecated(
-    "Init method is no loger necessary. Please use minimal_init or load_amrita() instead for async initialization. Will be removed in v0.10.0",
-    category=DeprecationWarning,
-)
-def init(): ...
-
-
-def load_session(session_id: str):
-    logger.info("Loading session %s......", session_id)
-    sm = SessionsManager()
-    sm.init_session(session_id)
-
-
-async def load_amrita():
-    logger.info("Loading AmritaCore......")
-    config = get_config()
-    if config.function_config.agent_mcp_client_enable:
-        logger.info("Loading MCP clients......")
-        clients = list(config.function_config.agent_mcp_server_scripts)
-        await mcp.ClientManager().initialize_scripts_all(clients)
-
-
-async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
-    set_config(config)
-    await load_amrita()
