@@ -61,14 +61,8 @@ class FallbackContext(BaseEvent[EventTypeEnum]):
     if not TYPE_CHECKING:
 
         def __setattr__(self, name: str, value: Any) -> None:
-            if hasattr(self, "_readonly"):
-                if name in self._readonly:
-                    raise AttributeError(
-                        f"Cannot modify attribute {name},"
-                        + " force change it by setattr `!important:<attr_name>`"
-                    )
-                elif name.startswith("!important:"):
-                    name = name[11:]
+            if hasattr(self, "_readonly") and name in self._readonly:
+                raise AttributeError(f"Cannot modify read-only attribute {name}")
             super().__setattr__(name, value)
 
 

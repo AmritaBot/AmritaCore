@@ -3,6 +3,7 @@ import contextlib
 import copy
 from asyncio import Task
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from io import StringIO
@@ -79,6 +80,16 @@ RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 FUNC_RET_T = TypeVar("FUNC_RET_T")
 
 
+@dataclass
+class AgentLoopState:
+    """Transient state for the framework-managed agent loop."""
+
+    stg_ctx: StrategyContext
+    strategy: AgentStrategy | StrategyLikedObject | None = None
+    ctx_backup: SendMessageWrap | None = None
+    called_count: int = 0
+
+
 class ChatObject:
     """Chat processing object - The minimal unit of chat processing.
 
@@ -144,11 +155,8 @@ class ChatObject:
         Callable[[Self], Awaitable[Any]] | None
     )  # Middleware for the whole workflow, will be set in __init__.
 
-    # Agent Temp (lateinit)
-    _tmp_strategy: AgentStrategy | StrategyLikedObject
-    _ctx_backup_tmp: SendMessageWrap
-    _stg_ctx_tmp: StrategyContext
-    _agt_called_count: int
+    # Agent loop state
+    _agent_loop: AgentLoopState | None = None
 
     # Manager
     _chatman: ChatManager
@@ -194,7 +202,6 @@ class ChatObject:
             middleware (Callable[[Self],Awaitable[Any]] | None, optional): Middleware for the whole workflow. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
         """
-        global chat_manager
         sm = SessionsManager()
         if auto_create_session and not sm.is_session_registered(session_id):
             sm.init_session(session_id)
@@ -223,7 +230,7 @@ class ChatObject:
             prompt_tokens=0, completion_tokens=0, total_tokens=0
         )
         self._chatman = chat_man or chat_manager
-        self._agt_called_count = 0
+        self._agent_loop = None
         # other
         self.last_call = datetime.now(utc)
         self.preset = preset or (
@@ -577,7 +584,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
                 else chat_obj.context_wrap.copy()
             )
             ctx = StrategyContext(chat_obj.user_input, context, chat_obj)
-            chat_obj._stg_ctx_tmp = ctx
+            chat_obj._agent_loop = AgentLoopState(stg_ctx=ctx)
             return intp.jump_to(intp.find_addr_alias(BuiltinName.AGENT_STRATEGY))
 
         case "rag":
@@ -607,23 +614,31 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
 
 @Node()
 def _agent_entry(chat_obj: ChatObject) -> None:
-    chat_obj._tmp_strategy = chat_obj.strategy(chat_obj._stg_ctx_tmp)
-    chat_obj._ctx_backup_tmp = chat_obj.context_wrap.copy()
+    loop = chat_obj._agent_loop
+    assert loop is not None
+    loop.strategy = chat_obj.strategy(loop.stg_ctx)
+    loop.ctx_backup = chat_obj.context_wrap.copy()
 
 
 @Node(SuspendEnum.ADVANCE_COUNTER, False)
 async def _advance_ctr(chat_obj: ChatObject):
+    loop = chat_obj._agent_loop
+    assert loop is not None
+    assert loop.strategy is not None
     max_times: int = chat_obj.config.function_config.agent_tool_call_limit + 1
-    if chat_obj._agt_called_count > max_times:
-        await chat_obj._tmp_strategy.on_limited()
+    if loop.called_count > max_times:
+        await loop.strategy.on_limited()
         raise BreakLoop(f"Counter has reached the maximum limit of {max_times}")
-    chat_obj._agt_called_count += 1
+    loop.called_count += 1
 
 
 @Node(SuspendEnum.SINGLE_TOOL)
 async def _single_strategy_exec(chat_obj: ChatObject) -> bool:
+    loop = chat_obj._agent_loop
+    assert loop is not None
+    assert loop.strategy is not None
     try:
-        return await chat_obj._tmp_strategy.single_execute()
+        return await loop.strategy.single_execute()
     except Exception as e:
         if isinstance(e, chat_obj._raised_exc) or isinstance(
             e, chat_obj._interpreter._exc_ignored
@@ -640,20 +655,20 @@ async def _single_strategy_exec(chat_obj: ChatObject) -> bool:
                 ),
             )
         )
-        await chat_obj._tmp_strategy.on_exception(e)
-        chat_obj.context_wrap = chat_obj._ctx_backup_tmp
+        await loop.strategy.on_exception(e)
+        assert loop.ctx_backup is not None
+        chat_obj.context_wrap = loop.ctx_backup
         return False
 
 
 @Node()
 async def _strategy_post(chat_obj: ChatObject):
-    await chat_obj._tmp_strategy.on_post_process()
-    chat_obj.context_wrap.extend(
-        chat_obj._tmp_strategy.ctx.original_context.end_messages
-    )
-    del chat_obj._tmp_strategy
-    del chat_obj._ctx_backup_tmp
-    del chat_obj._stg_ctx_tmp
+    loop = chat_obj._agent_loop
+    assert loop is not None
+    assert loop.strategy is not None
+    await loop.strategy.on_post_process()
+    chat_obj.context_wrap.extend(loop.strategy.ctx.original_context.end_messages)
+    chat_obj._agent_loop = None
 
 
 @Node(SuspendEnum.LLM_CALL)
