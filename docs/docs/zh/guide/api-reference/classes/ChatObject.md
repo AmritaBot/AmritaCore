@@ -264,25 +264,6 @@ ChatObject 类负责处理单个聊天会话，包括消息接收、上下文管
 
 这种设计为模板自定义提供了最大的灵活性，同时通过防止与内置变量的意外冲突来保持安全性。
 
-### 参数
-
-- **`train`** (`dict[str, str] | Message[str]`): 定义Agent行为的系统消息或训练数据
-- **`user_input`** (`str | list[TextContent | ImageContent]`): 用户输入消息
-- **`context`** (`MemoryModel | None`): 对话内存上下文（可选）
-- **`session_id`** (`str`): 对话会话的唯一标识符
-- **`callback`** (`Callable[[str | MessageContent], Awaitable[Any]] | None`, 可选): 异步回调函数，在生成响应块时接收它们。默认为 `None`。
-- **`config`** (`AmritaConfig | None`, 可选): 此聊天实例的配置。默认为全局配置。
-- **`preset`** (`ModelPreset | None`, 可选): 模型预设配置。默认为会话或全局默认值。
-- **`auto_create_session`** (`bool`, 可选): 如果会话不存在是否自动创建。默认为 `False`。
-- **`train_template`** (`Template`, 可选): 用于格式化系统消息的Jinja2模板。默认为内置模板。
-- **`jinja2_vars`** (`dict[str, Any] | None`, 可选): 传递给Jinja2模板系统的变量。
-- **`agent_strategy`** (`type[AgentStrategy]`, 可选): Agent执行策略。默认为 `ReActAgentStrategy`。
-- **`hook_args`** (`tuple[Any, ...]`, 可选): 传递给匹配器函数的参数。默认为空元组。
-- **`hook_kwargs`** (`dict[str, Any] | None`, 可选): 传递给匹配器函数的关键字参数。
-- **`exception_ignored`** (`tuple[type[BaseException], ...]`, 可选): 如果在匹配器函数中发生，应该重新抛出的异常类型。
-- **`queue_size`** (`int`, 可选): 响应流的最大缓冲区大小。使用AnyIO的内存对象流与内置背压，而不是之前的双队列溢出机制。默认为 `45`。
-- **`queue_timeout`** (`float | None`, 可选): 队列操作的超时时间（秒）。如果为 `None`，操作将无限等待。默认为 `10.0`。
-
 ### 流式响应处理
 
 AmritaCore使用**AnyIO内存对象流**进行流式响应，提供内置的背压处理：
