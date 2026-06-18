@@ -13,7 +13,7 @@
     </a>
     <img src="https://img.shields.io/badge/AmritaCore-Soma-blue?style=flat-square" alt="AmritaCore">
     <a href="https://discord.gg/byAD3sbjjj">
-      <img src="https://img.shields.io/badge/Discord-Proj.Amrita-blue?logo=discord&style=flat-square" alt="Discord">
+      <img src="https://img.shields.io/badge/Discord-Project.Amrita-blue?logo=discord&style=flat-square" alt="Discord">
     </a>
     <a href="https://qm.qq.com/q/9J23pPZN3a">
       <img src="https://img.shields.io/badge/QQ-1006893368-blue?style=flat-square" alt="QQ Group">
@@ -22,59 +22,53 @@
 
 </center>
 
-AmritaCore is a **lightweight agent framework with infrastructure-level positioning**, serving as the foundational building block for intelligent agent development. **AmritaCore is designed to be interactive-first**, enabling real-time, responsive agent applications through its native async streaming architecture. Think of it as providing the essential "operating system" capabilities for AI agents – offering core primitives and abstractions that enable robust, production-ready agent applications without the overhead of heavyweight frameworks.
+AmritaCore is a **lightweight Agent runtime** built on top of **AmritaSense**. It delivers native async streaming, tool integration, event hooks, and memory management — everything you need to build interactive, production‑ready Agent applications without the overhead of heavyweight frameworks.
 
-## 🚀 What is AmritaCore?
+## 🚀 Fast Lookup
 
-AmritaCore is **not a replacement for existing frameworks** like LangChain or LlamaIndex. Instead, it is a **lightweight, infrastructure-focused agent framework** designed to provide the essential building blocks for AI agent development. Built with modern Python technologies, it delivers fundamental components needed for AI-powered applications with features like event-driven architecture, tool integration, and multi-modal support – all while maintaining minimal dependencies and maximum performance.
+```python
+import asyncio
+from amrita_core import create_agent
 
-## 🎯 Mission and Value Proposition
+async def main():
+    agent = create_agent(
+        base_url="https://api.openai.com/v1",
+        api_key="your-api-key",
+        model="gpt-4o-mini",
+    )
+    chat = agent.get_chatobject("Hello, how are you?")
+    print(await chat.full_response())
 
-The mission of AmritaCore is to provide a lightweight yet powerful foundation for agent development that prioritizes simplicity, performance, and flexibility. Our core value propositions include:
-
-- **Stream-based Design**: All message outputs are designed as asynchronous streams for real-time responses
-- **Security**: Built-in cookie security detection to ensure session safety
-- **Vendor Agnostic**: Data types and conversation management are independent of specific providers, offering high portability
-- **Extensibility**: Integrated MCP client in extension mechanisms for enhanced system scalability
+asyncio.run(main())
+```
 
 ## 🔑 Key Features
 
-1. **Every is a Stream**: All message outputs are asynchronous stream-based designs supporting real-time responses
-2. **Cookie Security Detection**: Built-in cookie security detection functionality to protect session security
-3. **Provider Independent Mechanism**: Data types and conversation management are independent of specific vendors, with high portability
-4. **MCP Client Support**: Extension mechanisms integrate MCP clients, enhancing system expansion capabilities
-5. **Event-Driven Architecture**: Comprehensive event system for flexible and reactive agent behavior
-6. **Tool Integration Framework**: Robust system for integrating external tools and services
-7. **Advanced Memory Management**: Sophisticated context handling with automatic summarization and token optimization
-8. **Built-in Anthropic support**: AmritaCore provides a native adapter for Anthropic's AI models
-9. **High-Performance**: Lightweight and efficient, with high performance.
+- **Interactive‑first design** — native async streaming with suspend/resume
+- **Vendor‑agnostic adapter system** — OpenAI, Anthropic, and extensible
+- **Declarative dependency injection** — type‑safe, based on function signatures
+- **Event‑driven hooks** — intercept and modify the processing pipeline
+- **Tool system** — `@simple_tool`, `@on_tools`, and MCP client support
+- **Advanced memory management** — automatic context window and token optimisation
 
 ## 📖 Documentation
 
-Please view [Docs](https://core.amritabot.com) for more information.
-
-## 🛠️ Quick Start
-
-To quickly start using AmritaCore, check out the examples in the [demo](./demo/) directory. The basic example demonstrates how to initialize the core, configure settings, and run a simple chat session with the AI assistant.
+Full guides, API references, and examples at [core.amritabot.com](https://core.amritabot.com).
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our contribution guidelines for more information.
+We welcome contributions! Please see our [contribution guidelines](./CONTRIBUTING.md) for more information.
 
 ## 📄 License
 
-This project is licensed under the Apache 2.0 License - see the [LICENSE](./LICENSE) file for details.
-
-### Notes
-
-All versions of AmritaCore are released under the Apache 2.0 License (Although the past versions are released under the MIT/LGPL V3 License, when this readme is created, we will release all versions under the Apache 2.0 License).
+This project is licensed under the **Apache 2.0 License** — see the [LICENSE](./LICENSE) file for details. All versions of AmritaCore are released under Apache 2.0.
 
 ## Other files
 
-- [CONTRIBUTING.md](./CONTRIBUTING.md) - Contribution guidelines
-- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) - Code of conduct
-- [ZH-CN.md](./readmes/ZH_CN.md)
-- [EN-US.md](./readmes/EN_US.md)
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — Contribution guidelines
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) — Code of conduct
+- [ZH-CN.md](./readmes/ZH_CN.md) — 简体中文
+- [EN-US.md](./readmes/EN_US.md) — English (US)
 
 ## Unstable Features
 
