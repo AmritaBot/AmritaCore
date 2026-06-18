@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
 
@@ -40,9 +40,6 @@ class FallbackContext(BaseEvent[EventTypeEnum]):
     config: "AmritaConfig"
     context: SendMessageWrap
     term: int
-    _readonly: tuple[str, ...] = field(
-        init=False, default=("exc_info", "config", "context", "term")
-    )
 
     def __post_init__(self):
         self._event_type = EventTypeEnum.PRESET_FALLBACK
@@ -57,13 +54,6 @@ class FallbackContext(BaseEvent[EventTypeEnum]):
     def fail(self, reason: Any | None = None) -> Never:  # pragma: no cover
         """Mark the event as failed"""
         raise FallbackFailed(reason)
-
-    if not TYPE_CHECKING:
-
-        def __setattr__(self, name: str, value: Any) -> None:
-            if hasattr(self, "_readonly") and name in self._readonly:
-                raise AttributeError(f"Cannot modify read-only attribute {name}")
-            super().__setattr__(name, value)
 
 
 @dataclass
