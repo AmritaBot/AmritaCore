@@ -3,9 +3,12 @@ name: CI/CD Pipeline
 on:
   push:
     branches:
-      - "**"
+      - "main"
     paths:
       - "**"
+  pull_request:
+    branches:
+      - "main"
 
 permissions:
   checks: write
