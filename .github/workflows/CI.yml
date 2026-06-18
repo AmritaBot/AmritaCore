@@ -6,6 +6,9 @@ on:
       - "**"
     paths:
       - "**"
+  pull_request:
+    branches:
+      - "main"
 
 permissions:
   checks: write
