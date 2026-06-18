@@ -48,9 +48,6 @@ jobs:
         with:
           python-path: ${{ env.PYTHON_BIN }}
           pylance-version: latest-release
-      - name: Add dependencies
-        run: uv pip install .
-
       - name: Run Unit Tests with JUnit XML output
         run: uv run pytest tests/ --cov=src/amrita_core --cov-report=term-missing
           --cov-report=xml --junitxml=test-results.xml -v

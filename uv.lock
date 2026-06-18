@@ -221,7 +221,7 @@ wheels = [
 [[package]]
 name = "amrita-core"
 version = "0.9.3"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
     { name = "aiohttp" },
@@ -267,7 +267,7 @@ requires-dist = [
     { name = "aiofiles", specifier = ">=25.1.0" },
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiologic", specifier = ">=0.16.0" },
-    { name = "amrita-core", extras = ["anthropic", "jieba"], marker = "extra == 'all'", virtual = "." },
+    { name = "amrita-core", extras = ["anthropic", "jieba"], marker = "extra == 'all'", editable = "." },
     { name = "amrita-sense", specifier = ">=0.3.0" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.84.0" },
     { name = "fastmcp", specifier = ">=3.2.0" },

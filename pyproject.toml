@@ -24,6 +24,9 @@ dependencies = [
 "Source" = "https://github.com/AmritaBot/AmritaCore"
 "Issue Tracker" = "https://github.com/AmritaBot/AmritaCore/issues"
 
+[tool.uv]
+package=true
+
 [dependency-groups]
 dev = [
     "ruff>=0.12.8",
