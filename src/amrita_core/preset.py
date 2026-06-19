@@ -6,7 +6,6 @@ from amrita_sense.logging import debug_log, logger
 from typing_extensions import Self
 
 from amrita_core.base.adapter import AdapterManager
-from amrita_core.threadsafe import ContextThreadsafe
 
 from .types import BaseModel, Message, ModelPreset, TextContent, UniResponse
 
@@ -39,7 +38,7 @@ class PresetReport(BaseModel):
     time_used: float
 
 
-class MultiPresetManager(ContextThreadsafe):
+class MultiPresetManager:
     """
     MultiPresetManager is a class that manages presets.
     """

@@ -17,7 +17,6 @@ from mcp.types import TextContent
 from typing_extensions import Self, deprecated
 
 from amrita_core.logging import logger
-from amrita_core.threadsafe import ContextThreadsafe
 
 from .manager import MultiToolsManager, ToolsManager
 from .models import (
@@ -198,7 +197,7 @@ class MCPClient:
         return self.tools
 
 
-class MultiClientManager(ContextThreadsafe):
+class MultiClientManager:
     clients: list[MCPClient]
     script_to_clients: dict[str, MCPClient]
     name_to_clients: dict[str, MCPClient]  # Map from FunctionName to MCPClient
@@ -280,13 +279,12 @@ class MultiClientManager(ContextThreadsafe):
     async def update_tools(self, client: MCPClient):
         tools = client.get_tools()
         async with self._lock:
-            async with self.tools_manager:
-                for tool in tools:
-                    name = tool.function.name
-                    self.tools_manager.remove_tool(name)
-                    self.name_to_clients.pop(name, None)
-                    if remap := self.tools_remapping.pop(name, None):
-                        self.reversed_remappings.pop(remap, None)
+            for tool in tools:
+                name = tool.function.name
+                self.tools_manager.remove_tool(name)
+                self.name_to_clients.pop(name, None)
+                if remap := self.tools_remapping.pop(name, None):
+                    self.reversed_remappings.pop(remap, None)
         await self._load_this(client)
 
     async def initialize_scripts_all(
@@ -318,34 +316,35 @@ class MultiClientManager(ContextThreadsafe):
             reversed_remappings_tmp = {}
             name_to_clients_tmp = {}
             tm: MultiToolsManager = self.tools_manager
-            async with tm:
-                async with client as c:
-                    tools = deepcopy(c.get_tools())
-                    for tool in tools:
-                        if (
-                            tool.function.name in self.tools_remapping
-                            or tool.function.name in self.name_to_clients
-                        ):
-                            logger.warning(
-                                f"{client}@{client.server_script} has a tool named {tool.function.name}, which is already registered, the old tool will be replaced."
-                            )
-                        name_to_clients_tmp[tool.function.name] = client
-                        origin_name = tool.function.name
-                        if tm.has_tool(tool.function.name):
-                            remapped_name = f"referred_{random.randint(1, 100)}_{tool.function.name}"
-                            logger.warning(
-                                f"Tool already exists: {tool.function.name}, it will be remapped to: {remapped_name}"
-                            )
-                            tools_remapping_tmp[origin_name] = remapped_name
-                            reversed_remappings_tmp[remapped_name] = origin_name
-                            tool.function.name = remapped_name
-
-                        tm.register_tool(
-                            ToolData(
-                                data=tool,
-                                func=self._tools_wrapper(origin_name),
-                            )
+            async with client as c:
+                tools = deepcopy(c.get_tools())
+                for tool in tools:
+                    if (
+                        tool.function.name in self.tools_remapping
+                        or tool.function.name in self.name_to_clients
+                    ):
+                        logger.warning(
+                            f"{client}@{client.server_script} has a tool named {tool.function.name}, which is already registered, the old tool will be replaced."
                         )
+                    name_to_clients_tmp[tool.function.name] = client
+                    origin_name = tool.function.name
+                    if tm.has_tool(tool.function.name):
+                        remapped_name = (
+                            f"referred_{random.randint(1, 100)}_{tool.function.name}"
+                        )
+                        logger.warning(
+                            f"Tool already exists: {tool.function.name}, it will be remapped to: {remapped_name}"
+                        )
+                        tools_remapping_tmp[origin_name] = remapped_name
+                        reversed_remappings_tmp[remapped_name] = origin_name
+                        tool.function.name = remapped_name
+
+                    tm.register_tool(
+                        ToolData(
+                            data=tool,
+                            func=self._tools_wrapper(origin_name),
+                        )
+                    )
 
         except Exception as e:
             if fail_then_raise:
@@ -386,22 +385,21 @@ class MultiClientManager(ContextThreadsafe):
     async def unregister_client(self, script_name: str | Path, lock: bool = True):
         """Unregister an MCP Server"""
         tools_manager: MultiToolsManager = self.tools_manager
-        async with tools_manager:
-            async with self._lock if lock else nullcontext():
-                script_name = str(script_name)
-                if script_name in self.script_to_clients:
-                    client = self.script_to_clients.pop(script_name)
-                    for tool in client.openai_tools:
-                        name = tool.function.name
-                        tools_manager.remove_tool(name)
-                        self.name_to_clients.pop(name, None)
-                        if remap := self.tools_remapping.pop(name, None):
-                            tools_manager.remove_tool(remap)
-                            self.reversed_remappings.pop(remap, None)
-                    for idx, client in enumerate(self.clients):
-                        if client.server_script == script_name:
-                            self.clients.pop(idx)
-                            break
+        async with self._lock if lock else nullcontext():
+            script_name = str(script_name)
+            if script_name in self.script_to_clients:
+                client = self.script_to_clients.pop(script_name)
+                for tool in client.openai_tools:
+                    name = tool.function.name
+                    tools_manager.remove_tool(name)
+                    self.name_to_clients.pop(name, None)
+                    if remap := self.tools_remapping.pop(name, None):
+                        tools_manager.remove_tool(remap)
+                        self.reversed_remappings.pop(remap, None)
+                for idx, client in enumerate(self.clients):
+                    if client.server_script == script_name:
+                        self.clients.pop(idx)
+                        break
 
 
 class ClientManager(MultiClientManager):

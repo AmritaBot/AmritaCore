@@ -58,6 +58,58 @@ class FunctionConfig(BaseModel):
     )
 
 
+class ReactConfig(BaseModel):
+    """ReAct agent reasoning enhancement configuration.
+
+    All options default to False/off for full backward compatibility.
+    When enabled, these options progressively strengthen the ReAct agent's
+    reasoning capabilities through structured chain-of-thought decomposition,
+    post-reasoning self-reflection, and reasoning-aware tool selection.
+    """
+
+    structured_reasoning: bool = Field(
+        default=False,
+        description="Enable step-by-step structured reasoning with explicit "
+        "phase markers (analyze/plan/execute/verify). When True, the reasoning "
+        "template guides the model to decompose problems into numbered steps.",
+    )
+    reasoning_depth: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Maximum reasoning chain depth (number of sub-problems). "
+        "Used as a soft hint in the structured reasoning template.",
+    )
+
+    enable_reflection: bool = Field(
+        default=False,
+        description="Enable post-reasoning self-reflection. When True, the agent "
+        "will call a verify_reasoning tool after STOP_TOOL to check for "
+        "contradictions, completeness, and alignment with user goals before "
+        "generating the final answer.",
+    )
+    reflection_depth: int = Field(
+        default=1,
+        ge=1,
+        le=5,
+        description="Maximum number of reflection rounds. Each round may produce "
+        "a correction that is fed back into the reasoning loop.",
+    )
+
+    reasoning_aware_tools: bool = Field(
+        default=False,
+        description="Enable reasoning-aware tool prioritization. When True, tools "
+        "predicted during structured reasoning are placed ahead of other tools in "
+        "the tool list, nudging the model toward the most relevant tools first.",
+    )
+    tool_prediction: bool = Field(
+        default=False,
+        description="Enable explicit tool prediction during reasoning. When True, "
+        "the structured reasoning template asks the model to list which tools it "
+        "expects to need. Requires structured_reasoning=True to be effective.",
+    )
+
+
 class BuiltinAgentConfig(BaseModel):
     tool_calling_mode: Literal["agent", "rag", "none"] = Field(
         default="agent",
@@ -83,6 +135,12 @@ class BuiltinAgentConfig(BaseModel):
     loop_reasoning_trigger: int = Field(
         default=5,
         description="How many times to repeat reasoning before giving up",
+    )
+    react_config: ReactConfig = Field(
+        default_factory=ReactConfig,
+        description="ReAct agent reasoning enhancement configuration. "
+        "Controls structured reasoning, self-reflection, and reasoning-aware "
+        "tool selection. All options default to off for backward compatibility.",
     )
 
 

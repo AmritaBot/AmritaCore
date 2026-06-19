@@ -309,7 +309,6 @@ async def setup_mcp_client():
 - **原子操作**：绑定操作是原子的 - 要么完全成功，要么在失败时完全回滚
 - **错误安全**：如果注册失败，客户端会自动注销以防止部分状态
 - **直接控制**：提供对客户端注册的显式控制，无需通过脚本初始化
-- **线程安全**：由于新的 [ContextThreadsafe](../api-reference/classes/ContextThreadsafe.md) 基类，该操作是线程安全的
 
 ### 对比：传统方法 vs 新方法
 
