@@ -35,6 +35,7 @@ jobs:
 
       - name: Set up environment
         run: |
+          echo "${{ matrix.python-version }}" > .python-version
           uv venv
           uv sync
 
