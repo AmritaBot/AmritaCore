@@ -315,7 +315,6 @@ async def setup_mcp_client():
 - **Atomic Operation**: The binding operation is atomic - either fully succeeds or fully rolls back on failure
 - **Error Safety**: If registration fails, the client is automatically unregistered to prevent partial state
 - **Direct Control**: Provides explicit control over client registration without going through script initialization
-- **Thread Safety**: The operation is thread-safe due to the new [ContextThreadsafe](../api-reference/classes/ContextThreadsafe.md) base class
 
 ### Comparison: Traditional vs New Approach
 

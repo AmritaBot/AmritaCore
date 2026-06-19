@@ -30,7 +30,7 @@ uv add amrita-core
 ```bash
 # 如果您还没有安装 amctl，请使用：
 # pip install amctl
-# 或者 
+# 或者
 # uv tool install amctl
 amctl create -t amrita_core
 ```

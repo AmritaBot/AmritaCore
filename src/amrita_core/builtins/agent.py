@@ -104,8 +104,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     #  Reasoning Enhancement State
     _predicted_tools: list[str]  # Tools predicted during structured reasoning
-    _reasoning_step_index: int  # Current step index in structured reasoning
-    _total_reasoning_steps: int  # Total steps in current reasoning chain
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -117,8 +115,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         self.tools.extend(self.tools_manager.tools_meta_dict().values())
         #  Initialize reasoning enhancement state
         self._predicted_tools = []
-        self._reasoning_step_index = 0
-        self._total_reasoning_steps = 0
         self.origin_msg: str = (
             "".join(
                 chunk.text
@@ -184,30 +180,19 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             content=template_content,
         )
 
-        # Custom yield wrapper that emits structured step metadata when applicable
+        # Custom yield wrapper that emits reasoning chunk metadata during streaming.
+        # Note: accurate per-step metadata is emitted post-hoc by _emit_step_metadata
+        # once the full structured reasoning text has been parsed.
         def _yield_wrapper(chunk):
             if isinstance(chunk, str):
-                if use_structured:
-                    return MessageWithMetadata(
-                        chunk,
-                        metadata=AgentStructuredReasoningChunkMetadata(
-                            type="text",
-                            extra_type="structured_reasoning_step",
-                            step_index=self._reasoning_step_index,
-                            total_steps=self._total_reasoning_steps or None,
-                            sub_problem=None,
-                            phase=None,
-                        ),
-                    )
-                else:
-                    return MessageWithMetadata(
-                        chunk,
-                        metadata=AgentReasoningChunkMetadata(
-                            type="text",
-                            extra_type="reasoning_chunk",
-                            content=chunk,
-                        ),
-                    )
+                return MessageWithMetadata(
+                    chunk,
+                    metadata=AgentReasoningChunkMetadata(
+                        type="text",
+                        extra_type="reasoning_chunk",
+                        content=chunk,
+                    ),
+                )
             return chunk
 
         ct: UniResponse[str, None] = await get_last_response(
@@ -226,7 +211,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             # Parse steps for metadata tracking
             steps = self._parse_reasoning_steps(reasoning_text)
             if steps:
-                self._total_reasoning_steps = len(steps)
                 # Emit per-step metadata for front-end consumption
                 for step in steps:
                     await self._emit_step_metadata(step)
@@ -284,11 +268,11 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     def _parse_reasoning_steps(text: str) -> list[dict[str, str | None]]:
         """Parse structured reasoning output into step dictionaries.
 
-        Extracts ``[Step N/M] [phase]`` markers and their associated content,
-        as well as any ``[TOOL_PREDICTION]`` block.
+        Extracts ``[Step N/M] [phase]`` markers and their associated content.
+        (``[TOOL_PREDICTION]`` blocks are parsed separately in ``_parse_tool_prediction``.)
 
         Returns:
-            List of dicts with keys: step_idx, phase, content, predicted_tools
+            List of dicts with keys: step_idx, total, phase, content
         """
 
         # Match [Step N/M] [phase] blocks
@@ -326,9 +310,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """Emit a structured reasoning step as stream metadata."""
         phase_str = step.get("phase")
         phase: Literal["analyze", "plan", "execute", "verify"] | None = (
-            phase_str  # type: ignore[assignment]
-            if phase_str in ("analyze", "plan", "execute", "verify")
-            else None
+            phase_str if phase_str in ("analyze", "plan", "execute", "verify") else None
         )
         step_idx_raw = step.get("step_idx", "0")
         step_idx = int(step_idx_raw) if step_idx_raw is not None else 0
@@ -387,7 +369,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 break
 
             tc: ToolCall = tool_response.tool_calls[0]
-            args: dict[str, str] = json.loads(tc.function.arguments)
+            try:
+                args: dict[str, str] = json.loads(tc.function.arguments)
+            except json.JSONDecodeError as exc:
+                logger.warning(
+                    f"Failed to parse reflection tool arguments: {exc!s}. "
+                    f"Raw: {tc.function.arguments!r}"
+                )
+                continue
             check_type: str = args.get("check_type", "self_check")
             result: str = args.get("result", "warning")
             detail: str = args.get("detail", "")

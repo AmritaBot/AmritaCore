@@ -683,7 +683,9 @@ def test_reasoning_parsing_helpers():
 
 
 def test_react_config_validation():
-    """Test ReactConfig field constraints."""
+    """Test ReactConfig field constraints (positive and negative paths)."""
+    from pydantic import ValidationError
+
     from amrita_core.config import ReactConfig
 
     # Valid: within bounds
@@ -694,6 +696,22 @@ def test_react_config_validation():
     # Valid: min bounds
     cfg2 = ReactConfig(reasoning_depth=1, reflection_depth=1)
     assert cfg2.reasoning_depth == 1
+
+    # Invalid: reasoning_depth below minimum (ge=1)
+    with pytest.raises(ValidationError):
+        ReactConfig(reasoning_depth=0)
+
+    # Invalid: reasoning_depth above maximum (le=10)
+    with pytest.raises(ValidationError):
+        ReactConfig(reasoning_depth=999)
+
+    # Invalid: reflection_depth below minimum (ge=1)
+    with pytest.raises(ValidationError):
+        ReactConfig(reflection_depth=0)
+
+    # Invalid: reflection_depth above maximum (le=5)
+    with pytest.raises(ValidationError):
+        ReactConfig(reflection_depth=999)
 
 
 @pytest.mark.asyncio
