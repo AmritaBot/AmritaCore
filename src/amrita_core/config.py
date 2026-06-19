@@ -67,7 +67,6 @@ class ReactConfig(BaseModel):
     post-reasoning self-reflection, and reasoning-aware tool selection.
     """
 
-    #  Direction A: Structured Deep Reasoning
     structured_reasoning: bool = Field(
         default=False,
         description="Enable step-by-step structured reasoning with explicit "
@@ -82,7 +81,6 @@ class ReactConfig(BaseModel):
         "Used as a soft hint in the structured reasoning template.",
     )
 
-    #  Direction B: Post-Reasoning Reflection
     enable_reflection: bool = Field(
         default=False,
         description="Enable post-reasoning self-reflection. When True, the agent "
@@ -98,7 +96,6 @@ class ReactConfig(BaseModel):
         "a correction that is fed back into the reasoning loop.",
     )
 
-    #  Direction E: Reasoning-Aware Tool Selection
     reasoning_aware_tools: bool = Field(
         default=False,
         description="Enable reasoning-aware tool prioritization. When True, tools "

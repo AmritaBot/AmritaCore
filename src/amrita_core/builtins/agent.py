@@ -156,7 +156,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
         )
 
-        #  Direction A: Structured vs Flat Reasoning
         use_structured = self._should_use_structured_reasoning()
         predict_tools = self._should_predict_tools()
 
@@ -232,7 +231,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 for step in steps:
                     await self._emit_step_metadata(step)
 
-            #  Direction E: Parse tool predictions
             if predict_tools:
                 predicted = self._parse_tool_prediction(reasoning_text)
                 if predicted:
@@ -253,8 +251,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             self.chat_object.extra_usage, ct.usage
         )
         return ct
-
-    #  Direction A: Structured Reasoning Helpers
 
     def _should_use_structured_reasoning(self) -> bool:
         """Check whether structured reasoning should be used."""
@@ -351,8 +347,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 ),
             )
         )
-
-    #  Direction B: Post-Reasoning Reflection
 
     async def _run_reflection(
         self,
@@ -652,7 +646,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         self._suggested_stop = True
                         logger.info("Agent work has been terminated.")
 
-                        #  Direction B: Post-reasoning reflection
                         if self._should_enable_reflection():
                             logger.debug("Running post-reasoning reflection...")
                             reason_ctx = self.ctx.original_context.unwrap()
@@ -1039,7 +1032,6 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         if config.builtin.agent_thought_mode.startswith("reasoning"):
             tools.append(REASONING_TOOL.model_dump())
 
-        #  Direction E: Reasoning-aware tool prioritization
         if (
             self._predicted_tools
             and hasattr(config.builtin, "react_config")
@@ -1238,7 +1230,6 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         if config.builtin.agent_thought_mode.startswith("reasoning"):
             tools.append(REASONING_TOOL.model_dump())
 
-        #  Direction E: Reasoning-aware tool prioritization
         if (
             self._predicted_tools
             and hasattr(config.builtin, "react_config")

@@ -125,7 +125,7 @@ Tools:
 Now generate the complete reasoning paragraph based on the user input in the `user` message and the context above.
 """)
 
-#  Direction A: Structured Deep Reasoning
+
 STRUCTURED_REASONING_TEMPLATE = Template("""# Structured Reasoning Instructions
 
 ## Task
@@ -210,7 +210,7 @@ next_action: <one-sentence description of what you will do next>
 Now generate the structured reasoning. Remember to include the step numbers and phase tags.
 """)
 
-#  Direction B: Post-Reasoning Reflection
+
 REFLECTION_TEMPLATE = Template("""# Reflection and Verification Instructions
 
 ## Task

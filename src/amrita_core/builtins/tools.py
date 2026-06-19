@@ -77,7 +77,7 @@ REASONING_TOOL = ToolFunctionSchema(
     strict=True,
 )
 
-#  Direction B: Post-Reasoning Reflection
+
 REFLECTION_TOOL = ToolFunctionSchema(
     type="function",
     function=FunctionDefinitionSchema(
