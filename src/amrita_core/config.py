@@ -153,7 +153,7 @@ class LLMConfig(BaseModel):
         default=50, description="Maximum number of messages in memory context"
     )
     max_tokens: int = Field(
-        default=100,
+        default=1000,
         description="Maximum number of tokens generated in a single response",
     )
     tokens_count_mode: Literal["word", "bpe", "char"] = Field(

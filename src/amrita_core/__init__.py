@@ -42,7 +42,7 @@ from .types import (
     UniResponse,
     UniResponseUsage,
 )
-from .utils import side_effect_import
+from .utils import load_and_notice, side_effect_import
 
 
 def load_session(session_id: str):
@@ -67,10 +67,9 @@ async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
 
 logger.info("Loading tokenizers and adapters......")
 
-
-side_effect_import(adapters)
+load_and_notice(adapters, "Adapters")
 logger.debug(f"Loaded adapters: {','.join(AdapterManager().get_adapters().keys())}")
-side_effect_import(tokenizers)
+load_and_notice(tokenizers, "Tokenizers")
 logger.debug(
     f"Loaded tokenizers: {','.join(TokenizerManager().get_tokenizers().keys())}"
 )
@@ -113,7 +112,6 @@ __all__ = [
     "get_config",
     "get_last_response",
     "get_tokens",
-    "logger",
     "mcp",
     "on_completion",
     "on_event",
