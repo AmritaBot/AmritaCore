@@ -12,8 +12,6 @@ from typing import Any, get_args, get_origin, get_type_hints, overload
 from pydantic import BaseModel
 from typing_extensions import Self
 
-from amrita_core.threadsafe import ContextThreadsafe
-
 from .models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
@@ -26,7 +24,7 @@ from .models import (
 T = typing.TypeVar("T")
 
 
-class MultiToolsManager(ContextThreadsafe):
+class MultiToolsManager:
     _models: dict[str, ToolData]
     _disabled_tools: set[
         str

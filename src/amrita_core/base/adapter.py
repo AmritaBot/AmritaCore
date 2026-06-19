@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 from amrita_core.config import AmritaConfig, get_config
-from amrita_core.threadsafe import ContextThreadsafe
 
 from ..logging import logger
 from ..tools.models import ToolChoice, ToolFunctionSchema
@@ -93,7 +92,7 @@ class ModelAdapter:
         return self.get_adapter_protocol()
 
 
-class AdapterManager(ContextThreadsafe):
+class AdapterManager:
     __instance = None
     __inited = False
     _adapter_class: dict[str, type[ModelAdapter]]

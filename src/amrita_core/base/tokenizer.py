@@ -3,8 +3,6 @@ from typing import Literal
 
 from amrita_sense.logging import logger
 
-from amrita_core.threadsafe import ContextThreadsafe
-
 
 class BaseTokenizer(ABC):
     __override__: bool = False  # Whether to allow overriding existing tokenizers
@@ -64,7 +62,7 @@ class BaseTokenizer(ABC):
         ...
 
 
-class TokenizerManager(ContextThreadsafe):
+class TokenizerManager:
     __instance = None
     __inited = False
     _tokenizer_class: dict[str, type[BaseTokenizer]]
