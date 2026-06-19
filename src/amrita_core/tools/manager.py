@@ -464,6 +464,7 @@ def on_tools(
     custom_run: bool = False,
     strict: bool = False,
     enable_if: Callable[[], bool] = lambda: True,
+    bound_to: MultiToolsManager | None = None,
 ) -> Callable[
     ...,
     Callable[[dict[str, Any]], Awaitable[str]]
@@ -476,6 +477,7 @@ def on_tools(
         custom_run (bool, optional): Whether to enable custom run mode. Defaults to False.
         strict (bool, optional): Whether to enable strict mode. Defaults to False.
         show_call (bool, optional): Whether to show tool call. Defaults to True.
+        bound_to (MultiToolsManager | None, optional): Bound to tools manager. Defaults to None.
     """
 
     def decorator(
@@ -488,7 +490,8 @@ def on_tools(
             custom_run=custom_run,
             enable_if=enable_if,
         )
-        ToolsManager().register_tool(tool_data)
+        tm = bound_to or ToolsManager()
+        tm.register_tool(tool_data)
         return func
 
     return decorator

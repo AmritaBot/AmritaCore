@@ -5,7 +5,7 @@ import json
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar, Literal, cast
 
 from jinja2 import Template
 from typing_extensions import Self, override
@@ -35,17 +35,23 @@ from .consts import (
     HYBRID_TEMPLATE,
     REASONING_CONTENT_TEMPLATE,
     REASONING_TEMPLATE,
+    REFLECTION_TEMPLATE,
+    STRUCTURED_REASONING_TEMPLATE,
 )
 from .tools import (
     PROCESS_MESSAGE,
     REASONING_TOOL,
+    REFLECTION_TOOL,
     STOP_TOOL,
 )
 from .types import (
     AgentLoopErrorMetadata,
     AgentReasoningChunkMetadata,
     AgentReasoningMetadata,
+    AgentReflectionMetadata,
+    AgentStructuredReasoningChunkMetadata,
     AgentToolCallMetadata,
+    AgentToolPredictionMetadata,
 )
 
 
@@ -93,6 +99,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     _suggested_stop: bool = False  # Flag to switch tool_choice from required to auto
     _reasoning_tool_template: Template = REASONING_TEMPLATE
     _reasoning_content_template: Template = REASONING_CONTENT_TEMPLATE
+    _structured_reasoning_template: Template = STRUCTURED_REASONING_TEMPLATE
+    _reflection_template: Template = REFLECTION_TEMPLATE
+
+    #  Reasoning Enhancement State
+    _predicted_tools: list[str]  # Tools predicted during structured reasoning
+    _reasoning_step_index: int  # Current step index in structured reasoning
+    _total_reasoning_steps: int  # Total steps in current reasoning chain
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -102,6 +115,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if config.builtin.tool_calling_mode == "agent":
             self.tools.append(STOP_TOOL.model_dump())
         self.tools.extend(self.tools_manager.tools_meta_dict().values())
+        #  Initialize reasoning enhancement state
+        self._predicted_tools = []
+        self._reasoning_step_index = 0
+        self._total_reasoning_steps = 0
         self.origin_msg: str = (
             "".join(
                 chunk.text
@@ -138,16 +155,62 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 ),
             )
         )
-        reasoning_trigger_msg[0] = Message(
-            role="system",
-            content=await asyncio.to_thread(
+
+        #  Direction A: Structured vs Flat Reasoning
+        use_structured = self._should_use_structured_reasoning()
+        predict_tools = self._should_predict_tools()
+
+        if use_structured:
+            depth = self.chat_object.config.builtin.react_config.reasoning_depth
+            template_content = await asyncio.to_thread(
+                self._structured_reasoning_template.render,
+                tools=tools,
+                last_step=last_step,
+                summary=summary,
+                stg=self,
+                depth=depth,
+                predict_tools=predict_tools,
+            )
+        else:
+            template_content = await asyncio.to_thread(
                 self._reasoning_content_template.render,
                 tools=tools,
                 last_step=last_step,
                 summary=summary,
                 stg=self,
-            ),
+            )
+
+        reasoning_trigger_msg[0] = Message(
+            role="system",
+            content=template_content,
         )
+
+        # Custom yield wrapper that emits structured step metadata when applicable
+        def _yield_wrapper(chunk):
+            if isinstance(chunk, str):
+                if use_structured:
+                    return MessageWithMetadata(
+                        chunk,
+                        metadata=AgentStructuredReasoningChunkMetadata(
+                            type="text",
+                            extra_type="structured_reasoning_step",
+                            step_index=self._reasoning_step_index,
+                            total_steps=self._total_reasoning_steps or None,
+                            sub_problem=None,
+                            phase=None,
+                        ),
+                    )
+                else:
+                    return MessageWithMetadata(
+                        chunk,
+                        metadata=AgentReasoningChunkMetadata(
+                            type="text",
+                            extra_type="reasoning_chunk",
+                            content=chunk,
+                        ),
+                    )
+            return chunk
+
         ct: UniResponse[str, None] = await get_last_response(
             call_completion(
                 reasoning_trigger_msg,
@@ -155,23 +218,222 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 config=self.chat_object.config,
             ),
             yield_to=self.ctx.chat_object.io_stream,
-            yield_to_wrapper=lambda chunk: (
-                MessageWithMetadata(
-                    chunk,
-                    metadata=AgentReasoningChunkMetadata(
-                        type="text",
-                        extra_type="reasoning_chunk",
-                        content=chunk,
-                    ),
-                )
-                if isinstance(chunk, str)
-                else chunk
-            ),
+            yield_to_wrapper=_yield_wrapper,
         )
+
+        #  Post-process structured reasoning
+        if use_structured:
+            reasoning_text = ct.content
+            # Parse steps for metadata tracking
+            steps = self._parse_reasoning_steps(reasoning_text)
+            if steps:
+                self._total_reasoning_steps = len(steps)
+                # Emit per-step metadata for front-end consumption
+                for step in steps:
+                    await self._emit_step_metadata(step)
+
+            #  Direction E: Parse tool predictions
+            if predict_tools:
+                predicted = self._parse_tool_prediction(reasoning_text)
+                if predicted:
+                    self._predicted_tools = predicted
+                    await self.chat_object.io_stream.yield_response(
+                        MessageWithMetadata(
+                            content=f"[ToolPrediction] Expecting: {', '.join(predicted)}",
+                            metadata=AgentToolPredictionMetadata(
+                                type="tool_prediction",
+                                extra_type="reasoning_prediction",
+                                predicted_tools=predicted,
+                                predicted_next_action="See reasoning steps",
+                            ),
+                        )
+                    )
+
         self.chat_object.extra_usage = gather_usage(
             self.chat_object.extra_usage, ct.usage
         )
         return ct
+
+    #  Direction A: Structured Reasoning Helpers
+
+    def _should_use_structured_reasoning(self) -> bool:
+        """Check whether structured reasoning should be used."""
+        config = self.chat_object.config
+        return (
+            hasattr(config, "builtin")
+            and hasattr(config.builtin, "react_config")
+            and config.builtin.react_config is not None
+            and config.builtin.react_config.structured_reasoning
+        )
+
+    def _should_predict_tools(self) -> bool:
+        """Check whether tool prediction during reasoning should be used."""
+        config = self.chat_object.config
+        return self._should_use_structured_reasoning() and (
+            hasattr(config.builtin.react_config, "tool_prediction")
+            and config.builtin.react_config.tool_prediction
+        )
+
+    def _should_enable_reflection(self) -> bool:
+        """Check whether post-reasoning reflection should be used."""
+        config = self.chat_object.config
+        return (
+            hasattr(config, "builtin")
+            and hasattr(config.builtin, "react_config")
+            and config.builtin.react_config is not None
+            and config.builtin.react_config.enable_reflection
+        )
+
+    @staticmethod
+    def _parse_reasoning_steps(text: str) -> list[dict[str, str | None]]:
+        """Parse structured reasoning output into step dictionaries.
+
+        Extracts ``[Step N/M] [phase]`` markers and their associated content,
+        as well as any ``[TOOL_PREDICTION]`` block.
+
+        Returns:
+            List of dicts with keys: step_idx, phase, content, predicted_tools
+        """
+
+        # Match [Step N/M] [phase] blocks
+        step_pattern = re.compile(
+            r"\[Step\s+(\d+)(?:/(\d+))?\]\s*\[(\w+)\]\s*\n(.*?)(?=\n\[Step\s+\d|\n\[TOOL_PREDICTION\]|\Z)",
+            re.DOTALL,
+        )
+        steps: list[dict[str, str | None]] = [
+            {
+                "step_idx": m.group(1),
+                "total": m.group(2),
+                "phase": m.group(3),
+                "content": m.group(4).strip(),
+            }
+            for m in step_pattern.finditer(text)
+        ]
+
+        return steps
+
+    @staticmethod
+    def _parse_tool_prediction(text: str) -> list[str] | None:
+        """Parse the [TOOL_PREDICTION] block from structured reasoning output."""
+        pred_match = re.search(
+            r"\[TOOL_PREDICTION\]\s*\ntools:\s*(.+?)\nnext_action:\s*(.+?)(?:\n|\Z)",
+            text,
+            re.IGNORECASE,
+        )
+        if pred_match:
+            tools_str = pred_match.group(1).strip()
+            # Split by comma, strip whitespace
+            return [t.strip() for t in tools_str.split(",") if t.strip()]
+        return None
+
+    async def _emit_step_metadata(self, step: dict[str, str | None]) -> None:
+        """Emit a structured reasoning step as stream metadata."""
+        phase_str = step.get("phase")
+        phase: Literal["analyze", "plan", "execute", "verify"] | None = (
+            phase_str  # type: ignore[assignment]
+            if phase_str in ("analyze", "plan", "execute", "verify")
+            else None
+        )
+        step_idx_raw = step.get("step_idx", "0")
+        step_idx = int(step_idx_raw) if step_idx_raw is not None else 0
+        total_raw = step.get("total")
+        total = int(total_raw) if total_raw is not None else None
+        await self.chat_object.io_stream.yield_response(
+            MessageWithMetadata(
+                content=cast(str, step.get("content", "")),
+                metadata=AgentStructuredReasoningChunkMetadata(
+                    type="text",
+                    extra_type="structured_reasoning_step",
+                    step_index=step_idx,
+                    total_steps=total,
+                    sub_problem=None,
+                    phase=phase,
+                ),
+            )
+        )
+
+    #  Direction B: Post-Reasoning Reflection
+
+    async def _run_reflection(
+        self,
+        reason_context: list[CONTENT_LIST_TYPE_ITEM],
+    ) -> list[dict[str, str]]:
+        """Run the post-reasoning reflection flow.
+
+        Calls ``verify_reasoning`` tool up to ``reflection_depth`` times,
+        streaming each result as ``AgentReflectionMetadata``.
+
+        Returns:
+            List of reflection result dicts with keys:
+            check_type, result, detail
+        """
+        config = self.chat_object.config
+        max_rounds = config.builtin.react_config.reflection_depth
+        reflection_results: list[dict[str, str]] = []
+
+        for _ in range(max_rounds):
+            # Build system message via Jinja2 (CPU-bound, run in thread)
+            reflection_system_msg = await asyncio.to_thread(
+                self._reflection_template.render,
+                last_step=self.agent_last_step or "No previous step",
+                original_msg=self.origin_msg,
+            )
+            msg_list: list[CONTENT_LIST_TYPE_ITEM] = [
+                Message(role="system", content=reflection_system_msg),
+                *reason_context,
+            ]
+
+            tool_response = await tools_caller(
+                msg_list,
+                [REFLECTION_TOOL.model_dump()],
+                tool_choice=REFLECTION_TOOL,
+                preset=self.ctx.chat_object.preset,
+            )
+            if not tool_response.tool_calls:
+                break
+
+            tc: ToolCall = tool_response.tool_calls[0]
+            args: dict[str, str] = json.loads(tc.function.arguments)
+            check_type: str = args.get("check_type", "self_check")
+            result: str = args.get("result", "warning")
+            detail: str = args.get("detail", "")
+
+            reflection_results.append(
+                {
+                    "check_type": check_type,
+                    "result": result,
+                    "detail": detail,
+                }
+            )
+
+            # Stream reflection result to user
+            await self.chat_object.io_stream.yield_response(
+                MessageWithMetadata(
+                    content=f"[Reflection] {check_type}: {result}",
+                    metadata=AgentReflectionMetadata(
+                        type="reflection",
+                        extra_type=check_type,
+                        reflection_type=cast(
+                            Literal[
+                                "self_check",
+                                "contradiction_check",
+                                "completeness_check",
+                            ],
+                            check_type,
+                        ),
+                        result=cast(Literal["pass", "warning", "fail"], result),
+                        detail=detail,
+                    ),
+                )
+            )
+
+            logger.info(f"Reflection {check_type}: {result} — {detail}")
+
+            # If any reflection passes, we consider it satisfactory
+            if result == "pass":
+                break
+
+        return reflection_results
 
     async def _generate_reasoning_msg(
         self,
@@ -389,6 +651,37 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         self.reasoning_pc = 0
                         self._suggested_stop = True
                         logger.info("Agent work has been terminated.")
+
+                        #  Direction B: Post-reasoning reflection
+                        if self._should_enable_reflection():
+                            logger.debug("Running post-reasoning reflection...")
+                            reason_ctx = self.ctx.original_context.unwrap()
+                            reflection_results = await self._run_reflection(reason_ctx)
+                            # Check for failures and inject correction
+                            failures = [
+                                r for r in reflection_results if r["result"] == "fail"
+                            ]
+                            if failures:
+                                correction_msg = (
+                                    "<BEGIN_OF_REFLECTION_CORRECTION>\n"
+                                    + "Your reasoning was checked and the following issues were found:\n"
+                                    + "\n".join(
+                                        f"- [{r['check_type']}] {r['detail']}"
+                                        for r in failures
+                                    )
+                                    + "\nPlease re-examine your reasoning and correct these issues "
+                                    + "before providing the final answer.\n"
+                                    + "<END_OF_REFLECTION_CORRECTION>"
+                                )
+                                self.ctx.message.append(
+                                    Message(
+                                        role="user",
+                                        content=correction_msg,
+                                    )
+                                )
+                                # Don't build stop response yet — let the agent re-reason
+                                continue
+
                         func_response = self._build_stop_response(function_args)
                         await self._build_stop_response_and_append(
                             function_args,
@@ -746,6 +1039,25 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         if config.builtin.agent_thought_mode.startswith("reasoning"):
             tools.append(REASONING_TOOL.model_dump())
 
+        #  Direction E: Reasoning-aware tool prioritization
+        if (
+            self._predicted_tools
+            and hasattr(config.builtin, "react_config")
+            and config.builtin.react_config is not None
+            and config.builtin.react_config.reasoning_aware_tools
+        ):
+            prioritized = [
+                t for t in tools if t["function"]["name"] in self._predicted_tools
+            ]
+            others = [
+                t for t in tools if t["function"]["name"] not in self._predicted_tools
+            ]
+            tools = prioritized + others
+            logger.debug(
+                f"Reasoning-aware tools: {[t['function']['name'] for t in prioritized]} "
+                f"ahead of {len(others)} others"
+            )
+
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             msg_list.unwrap(),
             tools,
@@ -925,6 +1237,26 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         tools = self.tools.copy()
         if config.builtin.agent_thought_mode.startswith("reasoning"):
             tools.append(REASONING_TOOL.model_dump())
+
+        #  Direction E: Reasoning-aware tool prioritization
+        if (
+            self._predicted_tools
+            and hasattr(config.builtin, "react_config")
+            and config.builtin.react_config is not None
+            and config.builtin.react_config.reasoning_aware_tools
+        ):
+            prioritized = [
+                t for t in tools if t["function"]["name"] in self._predicted_tools
+            ]
+            others = [
+                t for t in tools if t["function"]["name"] not in self._predicted_tools
+            ]
+            tools = prioritized + others
+            logger.debug(
+                f"Reasoning-aware tools: {[t['function']['name'] for t in prioritized]} "
+                f"ahead of {len(others)} others"
+            )
+
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             msg_list.unwrap(),
             tools,

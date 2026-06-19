@@ -77,6 +77,46 @@ REASONING_TOOL = ToolFunctionSchema(
     strict=True,
 )
 
+#  Direction B: Post-Reasoning Reflection
+REFLECTION_TOOL = ToolFunctionSchema(
+    type="function",
+    function=FunctionDefinitionSchema(
+        name="verify_reasoning",
+        description="Verify your reasoning chain before delivering the final answer. "
+        "Check for logical soundness, internal consistency, and completeness. "
+        "Call this tool after you believe you are ready to answer, to catch errors "
+        "before they reach the user.",
+        parameters=FunctionParametersSchema(
+            type="object",
+            properties={
+                "check_type": FunctionPropertySchema(
+                    type="string",
+                    enum=["self_check", "contradiction_check", "completeness_check"],
+                    description="Type of verification to perform: "
+                    "'self_check' for logical soundness, "
+                    "'contradiction_check' for internal consistency, "
+                    "'completeness_check' for coverage of all user requirements.",
+                ),
+                "result": FunctionPropertySchema(
+                    type="string",
+                    enum=["pass", "warning", "fail"],
+                    description="Outcome of the verification. "
+                    "'pass' if the reasoning is sound, "
+                    "'warning' if there is a minor issue, "
+                    "'fail' if there is a significant problem.",
+                ),
+                "detail": FunctionPropertySchema(
+                    type="string",
+                    description="Explanation of the finding (one or two sentences). "
+                    "If result is 'fail', describe what went wrong and how to fix it.",
+                ),
+            },
+            required=["check_type", "result", "detail"],
+        ),
+    ),
+    strict=True,
+)
+
 
 @on_tools(
     data=PROCESS_MESSAGE_TOOL,
