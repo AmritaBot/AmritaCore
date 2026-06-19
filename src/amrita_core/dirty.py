@@ -144,7 +144,7 @@ class DirtyDict(dict):
         self._mark_dirty()
 
     def update(self, *args, **kwargs):
-        """ Update with another dict and mark the attribute as dirty. """
+        """Update with another dict and mark the attribute as dirty."""
         other = dict(*args, **kwargs)
         for k, v in other.items():
             other[k] = self._wrap_value(v)
@@ -241,7 +241,7 @@ def _wrap_container(obj: list | dict | set, parent: DirtyAwareModel, attr: str):
 class DirtyAwareModel(BaseModel):
     # Set of attribute names that have been marked as dirty.
     dirtyvars__: set[str] = Field(default_factory=set, init=False, exclude=True)
-    dirty_exclude__: tuple[str,...] = Field(default=(), init=False, exclude=True)
+    dirty_exclude__: tuple[str, ...] = Field(default=(), init=False, exclude=True)
 
     def model_post_init(self, __context, /):
         """Wrap initial field values as dirty-aware containers after model initialization."""

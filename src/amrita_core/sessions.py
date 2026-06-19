@@ -9,7 +9,7 @@ from typing_extensions import Self
 
 from amrita_core.config import AmritaConfig
 from amrita_core.preset import MultiPresetManager
-from amrita_core.tools.mcp import MultiClientManager as ClientManager
+from amrita_core.tools.mcp import MultiClientManager
 from amrita_core.types import MemoryModel
 
 from .tools.manager import MultiToolsManager
@@ -35,7 +35,7 @@ class SessionData:
     memory: MemoryModel = field(default_factory=MemoryModel)
     tools: MultiToolsManager = field(default_factory=MultiToolsManager)
     presets: MultiPresetManager = field(default_factory=MultiPresetManager)
-    mcp: ClientManager = field(default_factory=ClientManager)
+    mcp: MultiClientManager = field(default_factory=MultiClientManager)
     config: AmritaConfig = field(default_factory=AmritaConfig)
     extra: dict[str, Any] = field(default_factory=dict)
 
