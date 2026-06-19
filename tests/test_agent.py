@@ -33,7 +33,7 @@ from amrita_core.builtins.tools import (
 )
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, set_config
-from amrita_core.protocol import MessageWithMetadata
+from amrita_core.contents import MessageWithMetadata
 from amrita_core.tools.manager import ToolsManager
 from amrita_core.types import (
     Message,

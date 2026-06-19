@@ -2,6 +2,7 @@ import asyncio
 import copy
 from types import TracebackType
 
+from amrita_sense.logging import logger
 from typing_extensions import Self
 
 from amrita_core.config import AmritaConfig, get_config
@@ -12,7 +13,6 @@ from amrita_core.libchat import (
     get_tokens,
     text_generator,
 )
-from amrita_core.logging import logger
 from amrita_core.tokenizer import hybrid_token_count
 from amrita_core.types import (
     CONTENT_LIST_TYPE,

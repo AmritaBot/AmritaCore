@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from amrita_core.base.adapter import AdapterManager
 from amrita_core.libchat import (
     _call_with_reflection,
     _validate_msg_list,
@@ -10,7 +11,6 @@ from amrita_core.libchat import (
     text_generator,
     tools_caller,
 )
-from amrita_core.protocol import AdapterManager
 from amrita_core.types import CONTENT_LIST_TYPE, Message, ToolResult, UniResponse
 
 

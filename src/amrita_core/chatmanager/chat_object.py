@@ -25,9 +25,11 @@ from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
 from amrita_sense.instructions import GOTO
 from amrita_sense.instructions.subprogram import SubprogramStorage
+from amrita_sense.logging import debug_log, logger
+from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
 from pytz import utc
-from typing_extensions import Self, deprecated
+from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import (
@@ -49,10 +51,8 @@ from amrita_core.libchat import (
     RESPONSE_TYPE,
     call_completion,
 )
-from amrita_core.logging import debug_log, logger
 from amrita_core.preset import PresetManager
 from amrita_core.sessions import SessionData, SessionsManager
-from amrita_core.streaming import SuspendObjectStream
 from amrita_core.types import (
     USER_INPUT,
     Message,
@@ -331,64 +331,6 @@ class ChatObject:
         self._is_running = False
         if hasattr(self, "_task") and not self._task.done():
             self._task.cancel()
-
-    # Backward-compatible SuspendObjectStream forwarding methods (will be removed in 0.10.0)
-
-    @deprecated("Will be removed in 0.10.0. Use io_stream.queue_closed() instead.")
-    def queue_closed(self) -> bool:
-        """Check if the response queue is closed."""
-        return self.io_stream.queue_closed()
-
-    @deprecated("Will be removed in 0.10.0. Use io_stream.set_queue_done() instead.")
-    async def set_queue_done(self) -> None:
-        """Mark the response queue as done."""
-        await self.io_stream.set_queue_done()
-
-    @deprecated("Will be removed in 0.10.0. Use io_stream.push_object() instead.")
-    async def push_object(self, obj: RESPONSE_TYPE) -> None:
-        """Push an object to the sending queue."""
-        await self.io_stream.push_object(obj)
-
-    @deprecated("Will be removed in 0.10.0. Use io_stream.yield_response() instead.")
-    async def yield_response(self, response: RESPONSE_TYPE) -> None:
-        """Send response to the sending queue."""
-        await self.io_stream.yield_response(response)
-
-    @deprecated("Will be removed in 0.10.0. Use io_stream.set_callback_func() instead.")
-    def set_callback_func(self, func: RESPONSE_CALLBACK_TYPE) -> None:
-        """Set a callback function to be executed when a response is yielded."""
-        self.io_stream.set_callback_func(func)  # pyright: ignore[reportArgumentType]
-
-    @deprecated(
-        "Will be removed in 0.10.0. Use io_stream.set_callback_fun_sending() instead."
-    )
-    def set_callback_fun_sending(self, func: RESPONSE_CALLBACK_TYPE) -> None:
-        """Set a callback function to be executed when a response is sent for producer."""
-        self.io_stream.set_callback_fun_sending(func)  # pyright: ignore[reportArgumentType]
-
-    @deprecated(
-        "Will be removed in 0.10.0. Use io_stream.yield_response_iteration() instead."
-    )
-    async def yield_response_iteration(self, iterator: Any) -> None:
-        """Send chat model response to the queue from an async generator."""
-        await self.io_stream.yield_response_iteration(iterator)
-
-    @deprecated(
-        "Will be removed in 0.10.0. Use io_stream.get_response_generator() instead."
-    )
-    def get_response_generator(self) -> Any:
-        """Return an async generator to iterate over responses from the queue."""
-        return self.io_stream.get_response_generator()
-
-    @deprecated("Will be removed in 0.10.0. Use io_stream.wait_to_suspend() instead.")
-    async def wait_to_suspend(self, *tags: str, timeout: float | None = None) -> None:
-        """Tell SuspendObjectStream to suspend and wait for it."""
-        await self.io_stream.wait_to_suspend(*tags, timeout=timeout)
-
-    @deprecated("Will be removed in 0.10.0. Use io_stream.resume() instead.")
-    def resume(self) -> None:
-        """Resume to run when suspend."""
-        self.io_stream.resume()
 
     async def full_response(self) -> str:
         """Return full response from the queue as a single string.

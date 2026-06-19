@@ -6,12 +6,12 @@ from amrita_sense.logging import logger
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
-from amrita_core.config import AmritaConfig
-from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
-from amrita_core.protocol import (
+from amrita_core.base.adapter import (
     COMPLETION_RETURNING,
     ModelAdapter,
 )
+from amrita_core.config import AmritaConfig
+from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
 from amrita_core.tools.models import (
     FunctionParametersSchema,
     ToolChoice,

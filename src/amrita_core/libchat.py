@@ -5,6 +5,7 @@ from collections.abc import AsyncGenerator, Callable, Generator, Sequence
 from io import StringIO
 
 from amrita_sense.logging import debug_log
+from amrita_sense.streaming import SuspendObjectStream
 from pydantic import ValidationError
 
 from amrita_core.base.adapter import (
@@ -14,7 +15,6 @@ from amrita_core.base.adapter import (
     ModelAdapter,
 )
 from amrita_core.preset import PresetManager
-from amrita_core.streaming import SuspendObjectStream
 
 from .config import AmritaConfig, get_config
 from .tokenizer import hybrid_token_count

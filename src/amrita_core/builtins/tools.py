@@ -1,6 +1,7 @@
+from amrita_sense.logging import logger
+
 from amrita_core.config import get_config
-from amrita_core.logging import logger
-from amrita_core.protocol import MessageWithMetadata
+from amrita_core.contents import MessageWithMetadata
 from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import (
     FunctionDefinitionSchema,

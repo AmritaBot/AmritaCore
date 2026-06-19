@@ -9,8 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
-from amrita_core.contents import MessageMetadataPayloadSystem
-from amrita_core.protocol import MessageWithMetadata
+from amrita_core.contents import MessageMetadataPayloadSystem, MessageWithMetadata
 from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.tools.manager import ToolsManager
 from amrita_core.tools.models import ToolContext

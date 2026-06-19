@@ -3,14 +3,16 @@ from io import BytesIO
 
 import pytest
 
+from amrita_core.base.adapter import (
+    AdapterManager,
+    MessageContent,
+    ModelAdapter,
+)
 from amrita_core.builtins.types import AgentReasoningChunkMetadata
 from amrita_core.config import AmritaConfig, set_config
-from amrita_core.protocol import (
-    AdapterManager,
+from amrita_core.contents import (
     ImageMessage,
-    MessageContent,
     MessageWithMetadata,
-    ModelAdapter,
     RawMessageContent,
     StringMessageContent,
     get_image_format,

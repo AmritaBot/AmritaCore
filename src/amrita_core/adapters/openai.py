@@ -2,6 +2,7 @@ from collections.abc import AsyncGenerator, Iterable, Sequence
 from typing import cast
 
 import openai
+from amrita_sense.logging import debug_log
 from openai._types import SequenceNotStr
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
@@ -17,13 +18,12 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 )
 from typing_extensions import override
 
-from amrita_core.config import AmritaConfig
-from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
-from amrita_core.logging import debug_log
-from amrita_core.protocol import (
+from amrita_core.base.adapter import (
     COMPLETION_RETURNING,
     ModelAdapter,
 )
+from amrita_core.config import AmritaConfig
+from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
 from amrita_core.tools.models import (
     ToolChoice,
     ToolFunctionSchema,

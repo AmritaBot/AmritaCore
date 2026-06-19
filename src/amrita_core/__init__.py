@@ -1,6 +1,5 @@
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.streaming import SuspendObjectStream
-from typing_extensions import deprecated
 
 from amrita_core.base.adapter import AdapterManager
 from amrita_core.base.tokenizer import TokenizerManager
@@ -44,13 +43,6 @@ from .types import (
     UniResponseUsage,
 )
 from .utils import side_effect_import
-
-
-@deprecated(
-    "Init method is no longer necessary. Please use minimal_init or load_amrita() instead for async initialization. Will be removed in v0.10.0",
-    category=DeprecationWarning,
-)
-def init(): ...
 
 
 def load_session(session_id: str):
