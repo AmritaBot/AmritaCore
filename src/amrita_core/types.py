@@ -10,8 +10,10 @@ from pathlib import Path
 from typing import Any, Generic, Literal
 
 from pydantic import BaseModel as B_Model
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from typing_extensions import Self
+
+from amrita_core.dirty import DirtyAwareModel
 
 # Pydantic models
 
@@ -35,6 +37,9 @@ class BaseModel(B_Model):
 
     def __setitem__(self, key: str, value: Any) -> None:
         self.__setattr__(key, value)
+
+
+class DirtyAwareBaseModel(BaseModel, DirtyAwareModel): ...
 
 
 class ModelConfig(BaseModel):
@@ -165,6 +170,8 @@ class UniResponse(
     Generic[T, T_TOOL],
 ):
     """Unified response format"""
+
+    model_config = ConfigDict(extra="allow")
 
     role: Literal["assistant"] = Field(
         default="assistant",  # Regardless of whether there's content/tool_call, role is assistant
@@ -310,6 +317,7 @@ class EmbeddingChunk(BaseModel):
 
 
 class Message(BaseModel, Generic[_T]):
+    model_config = ConfigDict(extra="allow")
     role: Literal["user", "assistant", "system"] = Field(..., description="Role")
     content: _T = Field(..., description="Content")
     tool_calls: list[ToolCall] | None = Field(
@@ -369,7 +377,9 @@ class ToolResult(BaseModel):
     tool_call_id: str = Field(..., description="Tool call ID")
 
 
-class MemoryModel(BaseModel):
+class MemoryModel(DirtyAwareBaseModel):
+    dirty_exclude__ = ("model_config",)
+    model_config = ConfigDict(extra="allow")
     messages: list[CONTENT_LIST_TYPE_ITEM] = Field(default_factory=list)
     time: float = Field(default_factory=time.time, description="Timestamp")
     abstract: str = Field(default="", description="Summary")
