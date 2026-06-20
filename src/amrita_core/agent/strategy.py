@@ -10,8 +10,6 @@ from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.contents import MessageMetadataPayloadSystem, MessageWithMetadata
-from amrita_core.sessions import SessionData, SessionsManager
-from amrita_core.tools.manager import ToolsManager
 from amrita_core.tools.models import ToolContext
 from amrita_core.types import Message, ToolCall
 
@@ -30,7 +28,6 @@ class _StrategyBase(ABC):
     """Shared execution logic for AgentStrategy and StrategyLikedObject, which
     differ only in how the context is injected (``__init__`` vs ``__call__``)."""
 
-    session: SessionData | None = None
     tools_manager: "MultiToolsManager"
     chat_object: "ChatObject"
     ctx: StrategyContext
@@ -38,9 +35,7 @@ class _StrategyBase(ABC):
     def _bind(self, ctx: StrategyContext) -> None:
         self.ctx = ctx
         self.chat_object = ctx.chat_object
-        session_id = ctx.chat_object.session_id
-        self.session = SessionsManager().get_session_data(session_id, None)
-        self.tools_manager = self.session.tools if self.session else ToolsManager()
+        self.tools_manager = ctx.chat_object.state.ability.tools
 
     async def single_execute(
         self,

@@ -37,7 +37,9 @@ from amrita_core.agent.strategy import (
     NoExceptionHandler,
     StrategyLikedObject,
 )
+from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.agent import ReActAgentStrategy
+from amrita_core.builtins.backends import LegacyBackend
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
 from amrita_core.contents import (
@@ -45,14 +47,13 @@ from amrita_core.contents import (
     MessageMetadataPayloadError,
     MessageWithMetadata,
 )
+from amrita_core.contexts import StateContext
 from amrita_core.hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
 from amrita_core.hook.exception import FallbackFailed
 from amrita_core.libchat import (
     RESPONSE_TYPE,
     call_completion,
 )
-from amrita_core.preset import PresetManager
-from amrita_core.sessions import SessionData, SessionsManager
 from amrita_core.types import (
     USER_INPUT,
     Message,
@@ -61,9 +62,7 @@ from amrita_core.types import (
     UniResponse,
     UniResponseUsage,
 )
-from amrita_core.types import (
-    MemoryModel as Memory,
-)
+from amrita_core.types.memory import MemoryModel
 from amrita_core.utils import gather_usage, get_current_datetime_timestamp
 
 from .chat_libs import ChatManager, chat_manager
@@ -90,6 +89,18 @@ class AgentLoopState:
     called_count: int = 0
 
 
+@dataclass
+class DatabackendOptions:
+    """Transient state for the framework-managed fetch strategy."""
+
+    skip_memory_fetch: bool = False
+    skip_tools_fetch: bool = False
+    skip_mcp_fetch: bool = False
+    skip_presets_fetch: bool = False
+    skip_ability_extra_setting: bool = False
+    skip_memory_commit: bool = False
+
+
 class ChatObject:
     """Chat processing object - The minimal unit of chat processing.
 
@@ -99,7 +110,7 @@ class ChatObject:
 
     # Identity
     stream_id: str  # Chat object ID
-    session_id: str  # Session ID
+    _s_id: str  # Temprorary session ID if assigned `session_id`
 
     # Timing
     timestamp: str  # Timestamp (for LLM)
@@ -110,24 +121,23 @@ class ChatObject:
 
     # Config & Preset
     config: AmritaConfig  # config used in this call
-    preset: ModelPreset  # preset used in this call
-    session: SessionData | None  # (lateinit) Session data
+    preset: ModelPreset  # (lateinit) preset used in this call, set on runtime
     strategy: type[AgentStrategy] | StrategyLikedObject
+
+    # Core State
+    slot: BackendSlots
+    state: StateContext  # (lateinit) state of chat_obj will be set in runtime.
 
     # Input / Data
     user_input: USER_INPUT
-    user_message: Message[USER_INPUT]  # (lateinit) User message
-    data: Memory  # (lateinit) Memory file
+    user_message: Message[USER_INPUT]  # User message
     train: Message[str]  # System message
     template: Template
     jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
+    context_wrap: SendMessageWrap
 
     # IO-Stream
     io_stream: SuspendObjectStream[RESPONSE_TYPE]
-
-    # Context
-    context_wrap: SendMessageWrap  # (lateinit) Context message
-
     # Response
     response: UniResponse[str, None]  # (lateinit) Response
     extra_usage: UniResponseUsage[int]
@@ -135,11 +145,12 @@ class ChatObject:
     # Runtime State
     _is_running: bool = False  # Whether it is running
     _is_done: bool = False  # Whether it has completed
-    _task: Task[None]
-    _err: BaseException | None = None
-    _q_tout: float | None
+    _task: Task[None]  # (lateinit) set on runtime
+    _err: BaseException | None = None  # Exception in runtime
 
-    # Hooks
+    # Options
+    _bke_opt: DatabackendOptions
+    # Args for DI system
     _hook_args: tuple[Any, ...]
     _hook_kwargs: dict[str, Any]
     _raised_exc: tuple[type[BaseException], ...]
@@ -158,19 +169,19 @@ class ChatObject:
     # Agent loop state
     _agent_loop: AgentLoopState | None = None
 
-    # Manager
+    # ChatObject temp storage
     _chatman: ChatManager
 
     def __init__(
         self,
         train: dict[str, str] | Message[str],
         user_input: USER_INPUT,
-        context: Memory | None,
-        session_id: str,
+        context: StateContext | None,
+        session_id: str | None = None,
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
-        auto_create_session: bool = False,
         *,
+        backend: BackendSlots | None = None,
         chat_man: ChatManager | None = None,
         train_template: Template = DEFAULT_TEMPLATE,
         io_stream: SuspendObjectStream[RESPONSE_TYPE] | None = None,
@@ -181,6 +192,7 @@ class ChatObject:
         exception_ignored: tuple[type[BaseException], ...] = (),
         middleware: Callable[[Self], Awaitable[Any]] | None = None,
         archived_nodes: SubprogramStorage | None = None,
+        backend_options: DatabackendOptions | None = None,
     ) -> None:
         """Initialize a chat object
 
@@ -202,47 +214,54 @@ class ChatObject:
             middleware (Callable[[Self],Awaitable[Any]] | None, optional): Middleware for the whole workflow. Defaults to None.
             exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
         """
-        sm = SessionsManager()
-        if auto_create_session and not sm.is_session_registered(session_id):
-            sm.init_session(session_id)
+        # Special flags
         self._raised_exc = (
             exception_ignored if not __flags__.DISABLE_EXC_IGNORED else ()
         )
-        session: SessionData | None = sm.get_session_data(session_id, None)
-        self.session = session
-        self.train = (
-            train if isinstance(train, Message) else Message[str].model_validate(train)
-        )
-        self.data = context or sm.get_session_data(session_id).memory
-        self.session_id = session_id
+        self.last_call = datetime.now(utc)
+        # initialize id
+        self.stream_id = uuid4().hex
+
         # initialize iostream
         self.io_stream = io_stream or SuspendObjectStream()
         # data
+        if not context and not session_id:
+            raise ValueError("Either context or session_id must be provided")
+        if session_id:
+            if context:
+                raise ValueError("Both context and session_id cannot be provided")
+            self._s_id = session_id
+        self.train = (
+            train if isinstance(train, Message) else Message[str].model_validate(train)
+        )
+        if context:
+            self.state = context
+        if preset:
+            self.preset = preset
+        if backend:
+            self.slot = backend
+        else:
+            bknd = LegacyBackend()
+            self.slot = BackendSlots(bknd, bknd)
         self.user_input = user_input
         self.user_message = Message(role="user", content=user_input)
         self.timestamp = get_current_datetime_timestamp()
         self.time = datetime.now(utc)
-        self.config: AmritaConfig = config or (
-            session.config if session else get_config()
-        )
+        self.config = config or get_config()
         self.strategy = agent_strategy
         self.extra_usage = UniResponseUsage(
             prompt_tokens=0, completion_tokens=0, total_tokens=0
         )
+        # other
         self._chatman = chat_man or chat_manager
         self._agent_loop = None
-        # other
-        self.last_call = datetime.now(utc)
-        self.preset = preset or (
-            session.presets.get_default_preset()
-            if session
-            else PresetManager().get_default_preset()
-        )
         self.template = train_template
         jinja2_vars = jinja2_vars or {}
         if any(name in jinja2_vars for name in ("train", "self", "memory", "chatobj")):
             raise RuntimeError("Received a reserved keyword, please use another name.")
         self.jinja2_vars = jinja2_vars
+        # Options
+        self._bke_opt = backend_options or DatabackendOptions()
         # Hook args
         hook_kwargs = hook_kwargs or {}
         self._hook_kwargs = hook_kwargs
@@ -260,8 +279,31 @@ class ChatObject:
             extra_args=(*hook_args, self),
             extra_kwargs=hook_kwargs,
         )
-        # initialize id
-        self.stream_id = uuid4().hex
+
+    # Properties
+    @property
+    def session_id(self) -> str:
+        """
+        Get the session ID for the workflow
+        """
+        if not hasattr(self, "state"):
+            raise RuntimeError("The state of ChatObject hasn't initialized")
+        return self.state.session_id
+
+    @property
+    def data(self) -> MemoryModel:
+        """
+        Get the memory model for the workflow
+        """
+        if not hasattr(self, "state"):
+            raise RuntimeError("The state of ChatObject hasn't initialized")
+        return self.state.memory
+
+    @data.setter
+    def data(self, val: MemoryModel):
+        if not hasattr(self, "state"):
+            raise RuntimeError("The state of ChatObject hasn't initialized")
+        self.state.memory = val
 
     # Dunder / Magic methods
 
@@ -434,7 +476,43 @@ class ChatObject:
         logger.debug(f"Messages preparation completed, total {len(messages)} messages")
         return messages
 
-    # Workflow nodes (in execution order)
+
+# Workflow nodes (in execution order)
+
+
+@Node(SuspendEnum.LOAD_STATE)
+async def _load_state(chat_obj: ChatObject):
+    logger.debug("Loading state..")
+    if not hasattr(chat_obj, "state"):
+        if not hasattr(chat_obj, "_s_id"):
+            raise RuntimeError("Session id is not assigned, cannot load state.")
+        chat_obj.state = StateContext(chat_obj._s_id)
+    opt = chat_obj._bke_opt
+    slot = chat_obj.slot
+    if not (
+        opt.skip_mcp_fetch
+        or opt.skip_ability_extra_setting
+        or opt.skip_tools_fetch
+        or opt.skip_presets_fetch
+    ):
+        chat_obj.state.ability = await slot.ability.load_ability_all(
+            chat_obj.state.session_id
+        )
+    else:
+        if not opt.skip_mcp_fetch:
+            chat_obj.state.ability.mcp = await slot.ability.load_mcp_clients(
+                chat_obj.state.session_id
+            )
+        if not opt.skip_tools_fetch:
+            chat_obj.state.ability.tools = await slot.ability.load_tools(
+                chat_obj.state.session_id
+            )
+        if not opt.skip_presets_fetch:
+            chat_obj.state.ability.presets = await slot.ability.load_presets(
+                chat_obj.state.session_id
+            )
+    if not (opt.skip_memory_fetch):
+        chat_obj.state.memory = await slot.memory.load_memory(chat_obj.state.session_id)
 
 
 @Node(SuspendEnum.TRAIN_RENDER)
@@ -503,7 +581,8 @@ async def _pre_runner(chat_obj: ChatObject):
         chat_obj,
         chat_obj.preset,
         *chat_obj._hook_args,
-        session=chat_obj.session,
+        state=chat_obj.state,
+        slot=chat_obj.slot,
         exception_ignored=chat_obj._raised_exc,
         **chat_obj._hook_kwargs,
     )
@@ -664,7 +743,8 @@ async def _post_runner(chat_obj: ChatObject):
         chat_obj,
         chat_obj.preset,
         *chat_obj._hook_args,
-        session=chat_obj.session,
+        state=chat_obj.state,
+        slot=chat_obj.slot,
         exception_ignored=chat_obj._raised_exc,
         **chat_obj._hook_kwargs,
     )
@@ -682,9 +762,17 @@ async def _post_runner(chat_obj: ChatObject):
     logger.debug("Chat processing completed")
 
 
+@Node(SuspendEnum.COMMIT_MEMORY)
+async def _commit_memory(chat_obj: ChatObject) -> None:
+    opt = chat_obj._bke_opt
+    if not opt.skip_memory_commit:
+        await chat_obj.slot.memory.commit_memory(chat_obj.session_id, chat_obj.data)
+
+
 # pre-compile workflows
 _workflow: NodeCompose = (
-    _render_train
+    _load_state
+    >> _render_train
     >> _limiting_memory
     >> _prepare_messages
     >> _pre_runner
@@ -698,5 +786,6 @@ _workflow: NodeCompose = (
     )
     >> _call_completion
     >> _post_runner
+    >> _commit_memory
 )
 _workflow_rendered = _workflow.render()

@@ -19,7 +19,6 @@ from .libchat import (
     tools_caller,
 )
 from .preset import PresetManager, PresetReport
-from .sessions import SessionsManager
 from .tools import mcp
 from .tools.manager import ToolsManager, on_tools, simple_tool
 from .tools.models import (
@@ -43,12 +42,6 @@ from .types import (
     UniResponseUsage,
 )
 from .utils import load_and_notice, side_effect_import
-
-
-def load_session(session_id: str):
-    logger.info("Loading session %s......", session_id)
-    sm = SessionsManager()
-    sm.init_session(session_id)
 
 
 async def load_amrita():
@@ -93,7 +86,6 @@ __all__ = [
     "PreCompletionEvent",
     "PresetManager",
     "PresetReport",
-    "SessionsManager",
     "SuspendEnum",
     "SuspendObjectStream",
     "TextContent",
