@@ -7,18 +7,18 @@ from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
 from typing import Any, ClassVar, Literal, cast
 
+from amrita_sense.logging import debug_log, logger
 from jinja2 import Template
 from typing_extensions import Self, override
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
+from amrita_core.contents import MessageWithMetadata
 from amrita_core.libchat import (
     call_completion,
     get_last_response,
     tools_caller,
 )
-from amrita_core.logging import debug_log, logger
-from amrita_core.protocol import MessageWithMetadata
 from amrita_core.types import (
     CONTENT_LIST_TYPE_ITEM,
     Message,

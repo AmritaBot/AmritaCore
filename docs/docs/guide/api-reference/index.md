@@ -101,9 +101,10 @@ agent = create_agent(
 
 - `url` (str): The API endpoint URL
 - `key` (str): The API key for authentication
+- `model` (str, optional): The model to use. Defaults to `"auto"`.
 - `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, optional): Optional model configuration. Defaults to None.
 - `config` ([AmritaConfig](classes/AmritaConfig.md) | None, optional): Configuration for the agent. Defaults to global config.
-- `**kwargs`: Additional keyword arguments to pass to AgentRuntime
+- `**kwargs`: Additional keyword arguments forwarded to [AgentRuntime](classes/AgentRuntime.md) (e.g. `strategy`, `template`, `session_id`, `backend`)
 
 **Returns**: `AgentRuntime` - Configured agent runtime instance
 
@@ -122,30 +123,29 @@ The [ChatObject](classes/ChatObject.md) class is the primary interface for conve
 
 ```python
 from amrita_core import ChatObject
-from amrita_core.types import MemoryModel, Message
+from amrita_core.types import Message
 
-context = MemoryModel()
 train = Message(content="You are a helpful assistant.", role="system")
 
 chat = ChatObject(
-    context=context,
-    session_id="session_123",
+    train=train.model_dump(),
     user_input="Hello!",
-    train=train.model_dump()
+    session_id="session_123",
 )
 ```
 
 **Constructor Parameters**:
 
-- `context` ([MemoryModel](classes/MemoryModel.md)): Memory context for the conversation
-- `session_id` (str): Unique identifier for the session
-- `user_input` (str): The user's input message
-- `train` (dict): Training/prompt data for the AI
+- `train` (dict | [Message](classes/Message.md)): Training/prompt data for the AI
+- `user_input` (str | Sequence[Content] | None): The user's input message
+- `context` ([StateContext](classes/StateContext.md) | None, optional): Pre-built state context (mutually exclusive with `session_id`)
+- `session_id` (str | None, optional): Unique identifier for the session (mutually exclusive with `context`)
+- `backend` ([BackendSlots](classes/BackendSlots.md) | None, optional): Backend slots for memory and ability I/O (default: LegacyBackend)
+- `preset` ([ModelPreset](classes/ModelPreset.md) | None, optional): Model preset (resolved at runtime)
 
 **Methods**:
 
 - `begin()`: Executes the conversation
-- `get_response_generator()`: Returns an async generator for streaming responses
 - `full_response()`: Returns the complete response
 
 **Specials**:
@@ -174,6 +174,28 @@ chat = ChatObject(
     agent_strategy=MyStatefulStrategy()
 )
 ```
+
+### 7.2.1b BackendSlots - Backend Mechanism
+
+The [BackendSlots](classes/BackendSlots.md) dataclass bundles [AbilityBackend](classes/AbilityBackend.md) and [MemoryBackend](classes/MemoryBackend.md) for data I/O.
+
+```python
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
+
+slot = BackendSlots(
+    ability=LegacyBackend(),
+    memory=LegacyBackend(),
+)
+```
+
+- [AbilityBackend](classes/AbilityBackend.md): Abstract base for loading tools, MCP clients, and presets
+- [MemoryBackend](classes/MemoryBackend.md): Abstract base for loading and committing memory
+- [LegacyBackend](classes/LegacyBackend.md): Default in-process implementation
+- [AbilityContext](classes/AbilityContext.md): Runtime ability state (tools, presets, MCP clients)
+- [StateContext](classes/StateContext.md): Runtime session state (session_id, memory, ability)
+- [DatabackendOptions](classes/DatabackendOptions.md): Fine-grained control over backend fetch/commit operations
+- [DirtyAwareBaseModel](classes/DirtyAwareBaseModel.md): Base model with automatic mutation tracking
 
 ### 7.2.2 Message - Message Class
 

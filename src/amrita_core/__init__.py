@@ -1,6 +1,5 @@
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.streaming import SuspendObjectStream
-from typing_extensions import deprecated
 
 from amrita_core.base.adapter import AdapterManager
 from amrita_core.base.tokenizer import TokenizerManager
@@ -8,8 +7,11 @@ from amrita_core.base.tokenizer import TokenizerManager
 from . import adapters, tokenizers
 from .agent.functions import AgentRuntime, create_agent
 from .agent.strategy import AgentStrategy
+from .base.backend import AbilityBackend, BackendSlots, MemoryBackend
+from .builtins.backends import LegacyBackend
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
 from .config import AmritaConfig, get_config, set_config
+from .contexts import AbilityContext, StateContext
 from .hook.event import CompletionEvent, EventTypeEnum, PreCompletionEvent
 from .hook.on import on_completion, on_event, on_precompletion
 from .libchat import (
@@ -20,7 +22,6 @@ from .libchat import (
     tools_caller,
 )
 from .preset import PresetManager, PresetReport
-from .sessions import SessionsManager
 from .tools import mcp
 from .tools.manager import ToolsManager, on_tools, simple_tool
 from .tools.models import (
@@ -43,20 +44,7 @@ from .types import (
     UniResponse,
     UniResponseUsage,
 )
-from .utils import side_effect_import
-
-
-@deprecated(
-    "Init method is no longer necessary. Please use minimal_init or load_amrita() instead for async initialization. Will be removed in v0.10.0",
-    category=DeprecationWarning,
-)
-def init(): ...
-
-
-def load_session(session_id: str):
-    logger.info("Loading session %s......", session_id)
-    sm = SessionsManager()
-    sm.init_session(session_id)
+from .utils import load_and_notice, side_effect_import
 
 
 async def load_amrita():
@@ -75,17 +63,19 @@ async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
 
 logger.info("Loading tokenizers and adapters......")
 
-
-side_effect_import(adapters)
+load_and_notice(adapters, "Adapters")
 logger.debug(f"Loaded adapters: {','.join(AdapterManager().get_adapters().keys())}")
-side_effect_import(tokenizers)
+load_and_notice(tokenizers, "Tokenizers")
 logger.debug(
     f"Loaded tokenizers: {','.join(TokenizerManager().get_tokenizers().keys())}"
 )
 
 __all__ = [
+    "AbilityBackend",
+    "AbilityContext",
     "AgentRuntime",
     "AgentStrategy",
+    "BackendSlots",
     "BaseModel",
     "ChatManager",
     "ChatObject",
@@ -96,13 +86,15 @@ __all__ = [
     "FunctionDefinitionSchema",
     "FunctionParametersSchema",
     "FunctionPropertySchema",
+    "LegacyBackend",
+    "MemoryBackend",
     "MemoryModel",
     "ModelConfig",
     "ModelPreset",
     "PreCompletionEvent",
     "PresetManager",
     "PresetReport",
-    "SessionsManager",
+    "StateContext",
     "SuspendEnum",
     "SuspendObjectStream",
     "TextContent",
@@ -121,7 +113,6 @@ __all__ = [
     "get_config",
     "get_last_response",
     "get_tokens",
-    "logger",
     "mcp",
     "on_completion",
     "on_event",

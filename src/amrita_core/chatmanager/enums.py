@@ -2,6 +2,7 @@ from enum import Enum
 
 
 class SuspendEnum(str, Enum):
+    LOAD_STATE = "ChatObject::load_state"
     MEMORY = "ChatObject::memory_limiting"
     SINGLE_TOOL = "ChatObject::single_tool_call"
     PRECOMPLE = "matcher_call::pre_completion"
@@ -14,6 +15,7 @@ class SuspendEnum(str, Enum):
     FINALIZE = "ChatObject::finalize"
     ADVANCE_COUNTER = "ChatObject::advance_counter"
     CALL_SINGLE_STRATEGY = "ChatObject::call_single_strategy"
+    COMMIT_MEMORY = "ChatObject::commit_memory"
 
 
 class BuiltinName(str, Enum):

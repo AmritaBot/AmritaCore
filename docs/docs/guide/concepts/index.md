@@ -178,16 +178,21 @@ These aliases enable the workflow interpreter to locate and invoke specific node
 ```python
 import asyncio
 from amrita_core import ChatObject
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
+
+backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 
 chat = ChatObject(
-    context=memory_model,      # Memory context
-    session_id="session_123",  # Unique session identifier
-    user_input="Hello!",       # User input
-    train=system_prompt        # System prompt
+    train={"role": "system", "content": "You are a helpful assistant."},
+    user_input="Hello!",
+    context=None,
+    session_id="session_123",
+    backend=backend,
 )
 
 async def msg_getter(chatobj: ChatObject) -> None:
-    async for message in chatobj.get_response_generator():
+    async for message in chatobj.io_stream.get_response_generator():
         print(message if isinstance(message, str) else message.get_content(), end="")
     print("\n")
 

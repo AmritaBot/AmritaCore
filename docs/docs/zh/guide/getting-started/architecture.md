@@ -17,9 +17,16 @@ graph TB
         G[Agent策略]
     end
 
+    subgraph "AmritaSense 运行时"
+        WI[WorkflowInterpreter]
+        MF[MatcherFactory]
+        SOS[SuspendObjectStream]
+        DI[依赖注入]
+        NC[节点组合 >>]
+    end
+
     subgraph "支撑系统"
         B[配置]
-        C[事件系统]
         D[工具管理器]
         E[记忆模型]
     end
@@ -40,8 +47,13 @@ graph TB
     Adapter --> LLM
     F --> MCP
 
+    A -.->|由 WI 驱动| WI
+    A -.->|通过 MF 挂钩| MF
+    A -.->|通过 SOS 流式| SOS
+    MF -.->|解析| DI
+    WI -.->|执行| NC
+
     B --> F
-    C --> F
     D --> F
     E --> F
 
@@ -50,42 +62,54 @@ graph TB
     F --> E
 ```
 
-### Session 与 Global 数据容器架构
+### 后端架构与会话数据流
 
-#### Global 全局容器与 Session 对话上下文
+#### 后端驱动的数据管理
 
 ```mermaid
 graph TB
-    subgraph "Global 全局容器"
-        G_Tools[全局工具]
-        G_Presets[全局预设]
-        G_Config[全局配置]
+    subgraph "入口层"
+        AR[AgentRuntime]
     end
 
-    subgraph "SessionsManager"
-        S1[Session 1]
-        S2[Session 2]
-        SN[Session N]
+    subgraph "后端层"
+        BS[BackendSlots]
+        AB[AbilityBackend]
+        MB[MemoryBackend]
     end
 
-    subgraph "Session 结构"
-        Mem[记忆模型]
-        Tools[工具管理器]
-        Conf[配置]
-        Strat[Agent策略]
-        MCP_Client[MCP客户端]
+    subgraph "运行时状态"
+        SC[StateContext]
+        AC[AbilityContext]
+        MM[MemoryModel]
     end
 
-    G_Tools --> Tools
-    G_Presets --> S1
-    G_Config --> Conf
+    subgraph "全局单例"
+        G_Tools[全局 ToolsManager]
+        G_Presets[全局 PresetManager]
+        G_MCP[全局 MCP ClientManager]
+    end
 
-    S1 --> Mem
-    S1 --> Tools
-    S1 --> Conf
-    S1 --> Strat
-    S1 --> MCP_Client
+    AR -->|slot| BS
+    BS -->|ability| AB
+    BS -->|memory| MB
+    AB -->|load_ability_all| AC
+    MB -->|load_memory| MM
+    SC -->|包含| AC
+    SC -->|包含| MM
+    AC -->|默认使用| G_Tools
+    AC -->|默认使用| G_Presets
+    AC -->|默认使用| G_MCP
+
+    subgraph "内置实现"
+        LB[LegacyBackend]
+    end
+
+    AB -.- LB
+    MB -.- LB
 ```
+
+`LegacyBackend` 同时实现了 `AbilityBackend` 和 `MemoryBackend`，使用进程内全局容器。自定义后端（如数据库支持的后端）可以独立替换任一槽位。
 
 ### 基于策略的执行流程
 
@@ -112,15 +136,45 @@ graph LR
     RunMethod --> AgentLoop
 ```
 
-## 2.4.2 AmritaSense 基础
+## 2.4.2 AmritaSense — 运行时基座
 
-AmritaCore 构建于 [**AmritaSense**](https://sense.amritabot.com) 之上，后者提供核心基础设施：
+AmritaCore 构建于 [**AmritaSense**](https://sense.amritabot.com) 之上，后者作为**运行时**为每一次 `ChatObject` 执行提供动力。可以将 AmritaSense 理解为 Agent 工作流的"操作系统"——它提供调度、组合和事件管道，而 AmritaCore 在其上定义领域特定的 Agent 逻辑。
 
-- **工作流引擎**：`WorkflowInterpreter` 驱动 ChatObject 的节点链（训练渲染 → 内存限制 → 策略执行 → LLM 调用 → 后处理）
-- **事件系统**：`MatcherFactory`、`EventRegistry` 和依赖注入，实现可组合的钩子机制
-- **流式处理**：`SuspendObjectStream` 提供挂起/恢复和实时流式能力
+### 运行时组件
 
-这种分离使得 AmritaCore 的 Agent 层保持轻量，专注于策略、会话、工具、MCP 和适配器。
+| 组件                      | 在 ChatObject 中的角色                                                                                                                |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **`WorkflowInterpreter`** | 驱动节点链（`_load_state → _render_train → _limiting_memory → … → _commit_memory`）。每个节点是一个可组合的 `@Node` 装饰协程。        |
+| **`MatcherFactory`**      | 管理事件系统。`PreCompletionEvent`、`CompletionEvent`、`FallbackContext` 通过 `@on_precompletion().handle()` 等注册的匹配器进行分发。 |
+| **`SuspendObjectStream`** | 流式 I/O 主干。所有 LLM 块、工具调用通知和推理内容都通过这个内置挂起/恢复的双向流传输。                                               |
+| **依赖注入**              | `WorkflowInterpreter` 解析节点签名中的 `Depends()` 标记，自动注入 `ChatObject`、配置和自定义依赖。                                    |
+| **节点组合 (`>>`)**       | 节点通过 `>>` 操作符链接成 `NodeCompose` 图。解释器根据 `GOTO`/`WHILE`/`ALIAS` 指令进行控制流跳转。                                   |
+
+### AmritaSense 如何驱动 ChatObject
+
+```mermaid
+sequenceDiagram
+    participant CO as ChatObject
+    participant WI as WorkflowInterpreter
+    participant MF as MatcherFactory
+    participant SOS as SuspendObjectStream
+    participant Node as 工作流节点
+
+    CO->>WI: run()
+    loop 对链中的每个节点
+        WI->>SOS: 检查挂起信号
+        SOS-->>WI: 继续 / 阻塞
+        WI->>Node: 使用 DI 解析的参数执行
+        Node->>MF: trigger_event(PreCompletionEvent, ...)
+        MF-->>Node: 事件处理完毕
+        Node-->>WI: 结果
+        WI->>WI: 评估 GOTO/WHILE/ALIAS
+    end
+    Note over CO,SOS: ChatObject 通过 io_stream 产出响应
+    WI-->>CO: 执行完成
+```
+
+这种分离使得 AmritaCore 的 Agent 层保持轻量，专注于策略、会话、工具、MCP 和适配器——所有编排由 AmritaSense 处理。
 
 ## 2.4.3 核心组件关系
 
@@ -143,11 +197,12 @@ AmritaCore 构建于 [**AmritaSense**](https://sense.amritabot.com) 之上，后
   - `适配器层`: 抽象LLM提供商通信，实现厂商无关集成
   - `MCP客户端`: 提供模型上下文协议支持，用于外部服务集成
 
-- **数据容器**: 管理数据隔离和共享
-  - `Global 全局容器`: 存储所有会话可访问的共享资源
-  - `Session 上下文`: 维护具有独立状态的隔离对话上下文
+- **数据后端**: 管理数据隔离与持久化
+  - `BackendSlots`：持有 `AbilityBackend` + `MemoryBackend` 引用
+  - `LegacyBackend`：内置内存后端，使用全局容器
+  - 自定义后端可替换记忆或能力槽位，实现数据库/云端持久化
 
-## 2.4.4 Agent 循环与 Session 隔离机制
+## 2.4.4 Agent 循环与后端数据流
 
 ```mermaid
 sequenceDiagram
@@ -164,7 +219,7 @@ sequenceDiagram
     User->>Entry: get_chatobject("输入")
     Entry->>Core: 创建 ChatObject
     Core->>Core: 初始化 Agent 策略
-    Core->>Support: 加载配置、工具、记忆
+    Core->>Support: Load ability and memory via BackendSlots
     Core->>External: 通过适配器发送请求
     External->>External: 使用 LLM/MCP 处理
     External-->>Core: 返回响应
@@ -177,9 +232,10 @@ sequenceDiagram
 1. **分层架构**: 系统遵循清晰的分层结构，具有明确的层次：
    - 入口层: 简化的用户界面
    - 核心执行层: 主要处理逻辑
-   - 支撑系统: 基本服务
-   - 外部集成: 第三方通信
-   - 数据容器: 状态管理
+   - **AmritaSense 运行时**: 工作流引擎、事件系统、流式处理、依赖注入——驱动执行的基座
+   - 支撑系统: 基本服务（配置、工具、记忆）
+   - 外部集成: 第三方通信（适配器、MCP）
+   - 数据后端: 状态隔离与持久化
 
 2. **策略模式实现**: 四种执行策略提供灵活的行为：
    - **'agent'**: 使用 `single_execute()` 进行迭代式工具调用，逐步执行

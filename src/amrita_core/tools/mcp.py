@@ -11,12 +11,11 @@ from pathlib import Path
 from typing import Any, overload
 
 import aiologic
+from amrita_sense.logging import logger
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
-from typing_extensions import Self, deprecated
-
-from amrita_core.logging import logger
+from typing_extensions import Self
 
 from .manager import MultiToolsManager, ToolsManager
 from .models import (
@@ -368,12 +367,6 @@ class MultiClientManager:
                 await self.unregister_client(client.server_script, False)
                 self.register_only(client=client)
                 await self._load_this(client, fail_then_raise=False)
-
-    @deprecated(
-        "This is a typo issue, please use `initialize_this` instead.Will be removed in v0.10.0"
-    )
-    def reinitalize_all(self):
-        return self.reinitialize_all()
 
     async def initialize_all(self, lock: bool = True):
         """Connect to all MCP Servers"""

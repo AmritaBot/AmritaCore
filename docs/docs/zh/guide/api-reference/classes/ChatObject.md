@@ -7,7 +7,13 @@ ChatObject 类是与 AI 进行对话的主要接口。它通过 `io_stream` 属�
 ### 标识
 
 - `stream_id` (str): 聊天对象 ID
-- `session_id` (str): 会话 ID
+- `session_id` (str): 会话 ID（运行时从 `state.session_id` 计算）
+
+### 状态与后端
+
+- `slot` ([BackendSlots](BackendSlots.md)): 提供记忆和能力后端的后端插槽
+- `state` ([StateContext](StateContext.md)): 运行时状态上下文，包含记忆、能力和会话 ID
+- `_bke_opt` ([DatabackendOptions](DatabackendOptions.md)): 控制后端获取/提交行为的选项
 
 ### 时间
 
@@ -27,7 +33,7 @@ ChatObject 类是与 AI 进行对话的主要接口。它通过 `io_stream` 属�
 
 - `user_input` (USER_INPUT): 用户输入
 - `user_message` (Message[USER_INPUT]): 用户消息
-- `data` (Memory): 记忆文件
+- `data` ([MemoryModel](MemoryModel.md)): 记忆模型（运行时从 `state.memory` 计算）
 - `train` (Message[str]): 系统消息
 - `template` (Template): Jinja2 模板
 - `jinja2_vars` (dict[str, Any]): 传递给模板系统的变量
@@ -47,22 +53,23 @@ ChatObject 类是与 AI 进行对话的主要接口。它通过 `io_stream` 属�
 
 ## 构造函数参数
 
-- `context` ([MemoryModel](MemoryModel.md)): 对话的内存上下文
-- `session_id` (str): 会话的唯一标识符
-- `user_input` (str): 用户输入消息
-- `train` (dict): AI的训练/提示数据
-- `io_stream` (SuspendObjectStream[RESPONSE_TYPE] | None): 外部 SuspendObjectStream 实例。如果为 None，则自动创建一个新的（默认：None）
-- `config` (AmritaConfig): 聊天的配置设置，覆盖全局配置
-- `preset` (ModelPreset): 聊天的模型预设
-- `auto_create_session` (bool): 如果会话不存在是否自动创建（默认：False）
-- `train_template` (Template): 用于格式化系统消息的Jinja2模板（默认：DEFAULT_TEMPLATE）
-- `jinja2_vars` (dict[str, Any] | None): 传递给模板系统的变量，用于自定义模板变量（默认：None）。**重要**：此字典中的键不能与内置变量名（`train`、`memory`、`chatobj`、`config`）匹配，否则会导致TypeError，因为函数调用中不允许重复的关键字参数。
-- `agent_strategy` (type[AgentStrategy]): 用于执行的Agent策略（默认：ReActAgentStrategy）
-- `hook_args` (tuple[Any, ...]): 触发事件时传递给事件处理器的位置参数（默认：空元组）
-- `hook_kwargs` (dict[str, Any] | None): 触发事件时传递给事件处理器的关键字参数（默认：None）
-- `exception_ignored` (tuple[type[BaseException], ...]): 在事件处理器中应该被忽略并再次抛出的异常类型（默认：空元组）
-- `queue_size` (int): 响应流缓冲区大小（默认：**45**）
-- `queue_timeout` (float | None): 队列操作超时时间（秒）（默认：**10.0**）
+- `train` (dict[str, str] | [Message](Message.md)[str]): AI 的训练/提示数据（系统提示）
+- `user_input` (str | Sequence[Content] | None): 用户输入消息
+- `context` ([StateContext](StateContext.md) | None, 可选): 预构建的状态上下文。如果提供，则不能同时提供 `session_id`（互斥）。当两者都为 None 时，ChatObject 需要 `session_id` 在运行时创建新的 StateContext（默认：None）
+- `session_id` (str | None, 可选): 会话的唯一标识符。如果提供，则不能同时提供 `context`（互斥）。会话 ID 由 Backend 用于加载/保存记忆和能力状态（默认：None）
+- `preset` ([ModelPreset](ModelPreset.md) | None, 可选): 聊天的模型预设（默认：None，运行时解析）
+- `backend` ([BackendSlots](BackendSlots.md) | None, 可选): 提供记忆和能力后端的后端插槽。如果为 None，则两个插槽都使用 `LegacyBackend`（默认：None）
+- `config` ([AmritaConfig](AmritaConfig.md) | None, 可选): 聊天的配置设置，覆盖全局配置（默认：None）
+- `io_stream` (SuspendObjectStream[RESPONSE_TYPE] | None, 可选): 外部 SuspendObjectStream 实例。如果为 None，则自动创建一个新的（默认：None）
+- `agent_strategy` (type[AgentStrategy] | [StrategyLikedObject](StrategyLikedObject.md), 可选): 用于执行的 Agent 策略。接受策略**类**（`type[AgentStrategy]`）或预初始化的策略**实例**（`StrategyLikedObject`），后者支持有状态的策略（默认：ReActAgentStrategy）
+- `train_template` (Template | str, 可选): 用于格式化系统消息的 Jinja2 模板（默认：DEFAULT_TEMPLATE）
+- `jinja2_vars` (dict[str, Any] | None, 可选): 传递给模板系统的变量，用于自定义模板变量（默认：None）。**重要**：此字典中的键不能与内置变量名（`train`、`memory`、`chatobj`、`config`）匹配，否则会导致 TypeError，因为函数调用中不允许重复的关键字参数。
+- `hook_args` (tuple[Any, ...], 可选): 触发事件时传递给事件处理器的位置参数（默认：空元组）
+- `hook_kwargs` (dict[str, Any] | None, 可选): 触发事件时传递给事件处理器的关键字参数（默认：None）
+- `exception_ignored` (tuple[type[BaseException], ...], 可选): 在事件处理器中应该被忽略并再次抛出的异常类型（默认：空元组）
+- `middleware` (Callable[[Self], Awaitable[Any]] | None, 可选): 异步中间件函数，包装整个工作流执行。设置后，工作流引擎将执行委托给中间件而不是运行默认流水线。用于自定义编排、监控或横切关注点（默认：None）
+- `archived_nodes` (SubprogramStorage | None, 可选): 附加到工作流流水线末尾的额外节点子程序。允许在标准流水线完成后使用自定义步骤扩展 ChatObject 执行。当为 `None` 时，默认为 `amrita_sense.instructions` 中的 `ARCHIVED_NODES`（默认：None）
+- `backend_options` ([DatabackendOptions](DatabackendOptions.md) | None, 可选): 控制后端获取和提交行为的选项。允许选择性地跳过记忆获取、工具获取、MCP 获取、预设获取、能力额外设置和记忆提交（默认：None）
 
 ## 方法
 
@@ -76,24 +83,7 @@ ChatObject 类是与 AI 进行对话的主要接口。它通过 `io_stream` 属�
 - `is_done()`: 检查任务是否已完成
 - `get_snapshot()`: 获取聊天对象的快照（`ChatObjectMeta`）
 
-### 已弃用的流式方法（0.10.0 移除）
-
-> **自 v0.9.1 起**：所有流式/挂起方法已迁移至 `io_stream`。以下方法为已弃用的转发包装器，将在 v0.10.0 中移除：
-
-- `get_response_generator()` → 使用 `io_stream.get_response_generator()`
-- `set_callback_func(func)` → 使用 `io_stream.set_callback_func(func)`
-- `set_callback_fun_sending(func)` → 使用 `io_stream.set_callback_fun_sending(func)`
-- `yield_response(response)` → 使用 `io_stream.yield_response(response)`
-- `yield_response_iteration(iterator)` → 使用 `io_stream.yield_response_iteration(iterator)`
-- `push_object(obj)` → 使用 `io_stream.push_object(obj)`
-- `queue_closed()` → 使用 `io_stream.queue_closed()`
-- `set_queue_done()` → 使用 `io_stream.set_queue_done()`
-- `wait_to_suspend(*tags, timeout)` → 使用 `io_stream.wait_to_suspend(*tags, timeout)`
-- `resume()` → 使用 `io_stream.resume()`
-
-### 挂起与恢复方法详情
-
-> **自 v0.9.1 起**：请改用 `io_stream.wait_to_suspend()` 和 `io_stream.resume()`。ChatObject 上的这些方法为已弃用的转发包装器。
+### 挂起与恢复方法
 
 #### `io_stream.wait_to_suspend(*tags: str, timeout: float | None = None)`
 
@@ -176,31 +166,33 @@ class MyProcessor:
 
 ```python
 from amrita_core import ChatObject
-from amrita_core.types import MemoryModel, Message
+from amrita_core.types import Message
 
-context = MemoryModel()
 train = Message(content="You are a helpful assistant.", role="system")
+
+# 基本用法（后端默认为 LegacyBackend）
+chat = ChatObject(
+    train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
+)
 
 # 带回调的示例（推荐用于 Web 场景）
 async def callback_handler(message):
     print("Received:", message)
 
-chat = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
+chat_with_callback = ChatObject(
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
 )
-
-# 通过 io_stream 设置回调（替代之前的 `callback=` 构造参数）
-chat.io_stream.set_callback_func(callback_handler)
+chat_with_callback.io_stream.set_callback_func(callback_handler)
 
 # 带自定义事件参数的示例
 chat_with_event_params = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
     hook_args=("custom_arg1", "custom_arg2"),
     hook_kwargs={"custom_key": "custom_value"},
     exception_ignored=(ValueError, TypeError)
@@ -208,10 +200,9 @@ chat_with_event_params = ChatObject(
 
 # 带自定义 Jinja2 变量的示例
 chat_with_jinja2_vars = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
     jinja2_vars={"custom_role": "AI expert", "company_name": "Amrita Corp"}
 )
 
@@ -219,19 +210,17 @@ chat_with_jinja2_vars = ChatObject(
 from amrita_sense.streaming import SuspendObjectStream
 custom_stream = SuspendObjectStream(queue_size=100, queue_timeout=30.0)
 chat_with_custom_stream = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
     io_stream=custom_stream,
 )
 
 # ❌ 无效 - 这将导致 TypeError：
 # chat_with_override = ChatObject(
-#     context=context,
-#     session_id="session_123",
-#     user_input="Hello!",
 #     train=train.model_dump(),
+#     user_input="Hello!",
+#     session_id="session_123",
 #     jinja2_vars={"config": {"custom_setting": "value"}}  # 错误：'config' 是内置参数
 # )
 ```

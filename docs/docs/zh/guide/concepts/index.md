@@ -150,18 +150,21 @@ security_config = CookieConfig(
 ```python
 import asyncio
 from amrita_core import ChatObject
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
 
-
+backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 
 chat = ChatObject(
-    context=memory_model,      # 记忆上下文
-    session_id="session_123",  # 唯一会话标识符
-    user_input="Hello!",       # 用户输入
-    train=system_prompt        # 系统指令
+    train={"role": "system", "content": "您是一个有用的助手。"},
+    user_input="你好！",
+    context=None,
+    session_id="session_123",
+    backend=backend,
 )
 
 async def msg_getter(chatobj: ChatObject) -> None:
-    async for message in chatobj.get_response_generator():
+    async for message in chatobj.io_stream.get_response_generator():
         print(message if isinstance(message, str) else message.get_content(), end="")
     print("\n")
 

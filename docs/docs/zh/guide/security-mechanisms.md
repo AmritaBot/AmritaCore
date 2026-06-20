@@ -267,118 +267,70 @@ def detect_sensitive_information(text: str):
 
 ## 6.4 会话隔离
 
-### 6.4.1 会话管理器 (SessionsManager)
+会话隔离由[数据后端](../guide/concepts/data-backend.md)机制处理。每个 `ChatObject` 接收一个 `BackendSlots` 实例，控制每个会话的记忆和能力的加载与持久化方式。
 
-AmritaCore 通过 SessionsManager 类实现了一个强大的会话隔离机制，该类是一个单例类，用于管理不同会话的工具、配置和预设，确保各个会话之间的状态相互独立。
+### 6.4.1 后端驱动的隔离
 
-SessionsManager 的主要功能包括：
-
-1. **会话生命周期管理**
-   - `new_session()`: 创建一个新会话并返回其唯一ID
-   - `init_session(session_id)`: 初始化指定会话的相关资源
-   - `drop_session(session_id)`: 删除指定会话及其相关资源
-
-2. **会话资源访问**
-   - `get_session_data(session_id)`: 获取包含工具、配置、预设等的完整会话数据对象
-   - 通过返回的 SessionData 对象访问会话资源：
-     - `session_data.tools`: 获取会话的工具管理器
-     - `session_data.config`: 获取会话的配置对象
-     - `session_data.presets`: 获取会话的预设管理器
-
-3. **会话状态查询**
-   - `get_registered_sessions()`: 获取所有已注册的会话ID
-   - `get_session_data(session_id, default)`: 安全获取会话数据（如果会话不存在则返回默认值）
-
-以下是使用 SessionsManager 的示例：
+默认的 `LegacyBackend` 将所有会话数据存储在进程内全局容器中。如需更强的隔离，可实现自定义后端：
 
 ```python
-from amrita_core.sessions import SessionsManager
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
 
-# 获取会话管理器实例
-session_manager = SessionsManager()
-
-# 创建新会话
-session_id = session_manager.new_session()
-
-# 获取会话数据
-session_data = session_manager.get_session_data(session_id)
-config = session_data.config
-tools_manager = session_data.tools
-presets_manager = session_data.presets
-
-# 设置会话特定配置
-from amrita_core.config import AmritaConfig
-new_config = AmritaConfig()
-session_data.config = new_config
-
-# 删除会话
-session_manager.drop_session(session_id)
+# 默认：全局容器（所有会话共享工具/预设）
+backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 ```
 
 ### 6.4.2 会话ID管理
 
-正确的会话管理对于维持不同用户或对话之间的隔离至关重要：
+每个会话由唯一的 `session_id` 字符串标识。后端使用此 ID 查找或创建每个会话的状态：
 
 ```python
 import uuid
-from amrita_core.types import MemoryModel
-from amrita_core.sessions import SessionsManager
-
-def create_secure_session() -> tuple[str, MemoryModel]:
-    """
-    使用 SessionsManager 创建一个新的安全会话，具有唯一的ID和记忆上下文
-    """
-    session_manager = SessionsManager()
-    session_id = session_manager.new_session()
-    session_data = session_manager.get_session_data(session_id)
-    context = session_data.memory  # 使用会话数据中的记忆实例
-
-    return session_id, context
-
-# 示例用法
-session_id, context = create_secure_session()
+def create_session_id() -> str:
+    """生成唯一会话标识符。"""
+    return uuid.uuid4().hex
 ```
 
-### 6.4.3 数据隔离保证
+### 6.4.3 数据隔离示例
 
-通过 SessionsManager 正确分离对话上下文来确保数据隔离：
+使用严格分离每个会话记忆的自定义后端确保数据隔离：
 
 ```python
 from amrita_core import ChatObject
-from amrita_core.types import Message
-from amrita_core.sessions import SessionsManager
+from amrita_core.base.backend import BackendSlots, MemoryBackend
+from amrita_core.builtins.backends import LegacyBackend
+from amrita_core.types import MemoryModel
+
+class IsolatedMemoryBackend(MemoryBackend):
+    """基于字典的每个会话记忆。"""
+    def __init__(self):
+        self._store: dict[str, MemoryModel] = {}
+
+    async def load_memory(self, session_id: str) -> MemoryModel:
+        return self._store.get(session_id, MemoryModel())
+
+    async def commit_memory(self, session_id: str, memory: MemoryModel) -> None:
+        self._store[session_id] = memory
 
 class SecureConversationManager:
     def __init__(self):
-        self.session_manager = SessionsManager()
-
-    async def process_user_input(self, session_id: str, user_input: str):
-        """
-        在安全、隔离的会话中处理用户输入
-        """
-        # 验证会话是否存在
-        try:
-            session_data = self.session_manager.get_session_data(session_id)
-        except KeyError:
-            # 如果会话不存在则创建新会话
-            session_id = self.session_manager.new_session()
-            session_data = self.session_manager.get_session_data(session_id)
-
-        # 从会话数据获取配置
-        config = session_data.config
-
-        # 使用会话特定的配置
-        chat = ChatObject(
-            context=session_data.memory,  # 使用会话特定的记忆
-            session_id=session_id,
-            user_input=user_input,
-            config=config
+        self._mem = IsolatedMemoryBackend()
+        self._slot = BackendSlots(
+            ability=LegacyBackend(),
+            memory=self._mem,
         )
 
+    async def process_user_input(self, session_id: str, user_input: str):
+        chat = ChatObject(
+            train={"role": "system", "content": "您是一个有用的助手。"},
+            user_input=user_input,
+            context=None,
+            session_id=session_id,
+            backend=self._slot,
+        )
         async with chat.begin():
-            response = await chat.full_response()
-
-        return response
+            return await chat.full_response()
 ```
 
 ## 6.5 访问控制

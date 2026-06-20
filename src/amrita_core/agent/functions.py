@@ -5,12 +5,13 @@ from uuid import uuid4
 
 from jinja2 import Template
 
+from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.agent import ReActAgentStrategy
+from amrita_core.builtins.backends import LegacyBackend
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import get_config
 from amrita_core.consts import DEFAULT_INSTRUCTIONS, DEFAULT_TEMPLATE
-from amrita_core.sessions import SessionData, SessionsManager
-from amrita_core.types import USER_INPUT, MemoryModel, Message, ModelConfig, ModelPreset
+from amrita_core.types import USER_INPUT, Message, ModelConfig, ModelPreset
 
 if TYPE_CHECKING:
     from amrita_core.config import AmritaConfig
@@ -27,15 +28,21 @@ class AgentRuntime:
     API for agent interactions. It maintains session state, configuration, and
     strategy settings, making it a reusable object for multiple agent operations
     within the same context.
+
+    Session and memory management is delegated to the Backend mechanism
+    (:class:`BackendSlots`), which handles memory loading, committing, and
+    ability resolution transparently.  AgentRuntime itself only holds a
+    ``session_id`` string and a ``slot`` reference — the actual state lives
+    inside the Backend and is lazily resolved by :class:`ChatObject` at
+    runtime.
     """
 
     strategy: type[AgentStrategy]
     session_id: str
-    session: SessionData | None = None
+    slot: BackendSlots
     preset: ModelPreset
     config: AmritaConfig
     train: Message[str]
-    context: MemoryModel
     template: Template
 
     def __init__(
@@ -45,46 +52,28 @@ class AgentRuntime:
         train: dict[str, str] | Message[str],
         strategy: type[AgentStrategy] = ReActAgentStrategy,
         template: Template | str = DEFAULT_TEMPLATE,
-        session: SessionData | str | None = None,
-        no_session: bool = False,
+        session_id: str | None = None,
+        backend: BackendSlots | None = None,
     ):
         """
         Initialize an AgentRuntime instance.
 
         Args:
-            config (AmritaConfig): Amrita configuration object containing global configuration settings.
-            preset (ModelPreset): Model preset configuration defining basic model parameters and settings.
-            train (Message[str] | dict[str,str]): System prompt for agent.
-            strategy (type[AgentStrategy], optional): Agent strategy class, defaults to ReActAgentStrategy.
-            template (Template | str, optional): Train template to render system role message.
-            session (SessionData | str | None, optional): Session data or session ID string for restoring
-                existing sessions. If None, a new session will be created.
-            no_session (bool, optional): Whether to disable session functionality. If True, session
-                management will be disabled but a temporary session ID will still be assigned.
+            config: Amrita configuration object containing global configuration settings.
+            preset: Model preset configuration defining basic model parameters and settings.
+            train: System prompt for the agent (dict or Message).
+            strategy: Agent strategy class, defaults to ReActAgentStrategy.
+            template: Jinja2 template (or template string) used to render the system prompt.
+            session_id: Session identifier string. If None, a new UUID-based ID is generated.
+                The session_id is passed to every ChatObject created by this runtime,
+                allowing the Backend to isolate memory and abilities per session.
+            backend: Backend slots providing memory and ability backends. If None, a
+                :class:`LegacyBackend` is used for both slots, which stores data in
+                global in-process containers.
         """
-
-        if no_session:
-            # Assign a temporary session ID even when session functionality is disabled
-            self.session_id = (
-                uuid4().hex
-            )  # Actually we still need to assign a session id
-        else:
-            # Handle session initialization logic: determine session ID based on provided session parameter and initialize session
-            if not session:
-                session_id = SessionsManager().new_session()
-
-            elif isinstance(session, str):
-                session_id = session
-            else:
-                session_id = session.session_id
-            SessionsManager().init_session(session_id)
-            self.session = SessionsManager().get_session_data(session_id)
-            self.session_id = session_id
-        self.context = (
-            self.session.memory
-            if self.session and not self.no_session
-            else MemoryModel()
-        )
+        self.session_id = session_id or uuid4().hex
+        bkd = LegacyBackend()
+        self.slot = backend or BackendSlots(bkd, bkd)
         self.template = Template(template) if isinstance(template, str) else template
         self.strategy = strategy
         self.preset = preset
@@ -93,50 +82,40 @@ class AgentRuntime:
             train if isinstance(train, Message) else Message[str].model_validate(train)
         )
 
-    @property
-    def no_session(self) -> bool:
-        return self.session is None
-
     def set_strategy(self, strategy: type[AgentStrategy]) -> None:
         """
         Set the agent strategy to be used for execution.
 
         Args:
-            strategy (type[AgentStrategy]): The agent strategy to be used for execution.
+            strategy: The agent strategy class to be used for execution.
         """
         self.strategy = strategy
 
     def get_chatobject(self, user_input: USER_INPUT, **kwargs) -> ChatObject:
-        """Get a chat object
+        """Create a :class:`ChatObject` bound to this runtime's configuration.
+
+        The returned ChatObject reuses the runtime's preset, config, strategy,
+        system prompt template, session_id and backend slots.  Memory and
+        ability resolution is handled lazily by ChatObject via the backend.
 
         Args:
-            train (dict[str, str] | Message[str]): Training data (system prompts)
-            user_input (USER_INPUT): Input from the user
-            context (Memory | None): Memory context for the session
-            session_id (str): Unique identifier for the session
-            config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
-            preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
-            auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
-            jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
-            train_template (Template, optional): Jinja2 template used to format system message.
-            agent_strategy (type[AgentStrategy] | StrategyLikedObject, optional):  Agent strategy to be used for execution. Defaults to ReActAgentStrategy.
-            hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
-            hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
-            overflow_queue_size (int, optional): Maximum number of message chunks to be stored in the overflow queu. Defaults to 15.
+            user_input: The user's input message.
+            **kwargs: Additional keyword arguments forwarded to :class:`ChatObject`
+                (e.g. ``io_stream``, ``hook_args``, ``middleware``, etc.).
 
         Returns:
-            ChatObject: A chat object
+            A fully configured ChatObject ready for execution.
         """
         return ChatObject(
             train=self.train,
             user_input=user_input,
-            context=self.context,
+            context=None,
             session_id=self.session_id,
+            backend=self.slot,
             config=self.config,
             preset=self.preset,
             agent_strategy=self.strategy,
             train_template=self.template,
-            auto_create_session=not self.no_session,
             **kwargs,
         )
 
@@ -158,26 +137,26 @@ def create_agent(
     parameters like URL and API key, automatically creating a temporary preset.
 
     Args:
-        url (str): The API endpoint URL
-        key (str): The API key for authentication
-        model (str, optional): The model to use. Defaults to "auto".
-        model_config (ModelConfig | dict | None, optional): Optional model configuration. Defaults to None.
-        config (AmritaConfig | None, optional): Configuration for the agent. Defaults to global config.
-        **kwargs: Additional keyword arguments to pass to AgentRuntime
+        base_url: The API endpoint URL.
+        api_key: The API key for authentication.
+        model: The model to use. Defaults to "auto".
+        model_config: Optional model configuration (dict or ModelConfig).
+        config: Configuration for the agent. Defaults to global config.
+        **kwargs: Additional keyword arguments forwarded to :class:`AgentRuntime`
+            (e.g. ``strategy``, ``template``, ``session_id``, ``backend``).
 
     Returns:
-        AgentRuntime: Configured agent runtime instance
+        A configured :class:`AgentRuntime` instance.
 
     Example:
         ```python
         agent = create_agent(
-            "https://api.example.com", # Replace with your API URL
-            "your-api-key", # Replace with your API key
-            model="gpt-4", # Replace with your desired model
-            model_config={"temperature": 0.7}
+            "https://api.example.com",
+            "your-api-key",
+            model="gpt-4",
+            model_config={"temperature": 0.7},
         )
         ```
-
     """
     if train is None:
         train = DEFAULT_INSTRUCTIONS

@@ -92,6 +92,8 @@ class Event(BaseEvent[EventTypeEnum]):
 
 @dataclass
 class CompletionEvent(Event):
+    """Used after model completion"""
+
     model_response: str
 
     def __post_init__(self):
@@ -114,6 +116,8 @@ class CompletionEvent(Event):
 
 @dataclass
 class PreCompletionEvent(Event):
+    """Used before run strategy and completion"""
+
     def __post_init__(self):
         super().__post_init__()
         self._event_type = EventTypeEnum.BEFORE_COMPLETION

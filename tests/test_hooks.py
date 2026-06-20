@@ -4,8 +4,8 @@ import pytest
 
 from amrita_core.builtins.hooks import cookie, posthook
 from amrita_core.config import AmritaConfig
+from amrita_core.contents import MessageWithMetadata
 from amrita_core.hook.event import CompletionEvent
-from amrita_core.protocol import MessageWithMetadata
 
 
 class TestHooks:

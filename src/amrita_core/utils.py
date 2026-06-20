@@ -5,9 +5,10 @@ import pkgutil
 from collections.abc import Generator, Iterable, Sequence
 from datetime import datetime
 from types import ModuleType
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, Literal, TypeVar, overload
 
 import pytz
+from amrita_sense.logging import logger
 from pydantic import BaseModel
 
 from amrita_core.types import UniResponseUsage
@@ -123,8 +124,20 @@ def on_none(value: Any | None) -> bool:
     return value is None
 
 
-def safe_side_effect_import(
-    module: ModuleType,
+@overload
+def side_effect_import(
+    module: ModuleType, r_raise: Literal[False] = False
+) -> Generator[ModuleType | BaseException]: ...
+
+
+@overload
+def side_effect_import(
+    module: ModuleType, r_raise: Literal[True]
+) -> Generator[ModuleType]: ...
+
+
+def side_effect_import(
+    module: ModuleType, r_raise: bool = False
 ) -> Generator[ModuleType | BaseException]:
     """Import module and side effect import all submodules"""
     from . import _env
@@ -140,20 +153,23 @@ def safe_side_effect_import(
         _env._MODULE_LOADED[name_base] = True
 
         for loader, module_name, is_pkg in pkgutil.iter_modules(module.__path__):
-            try:
+            if not r_raise:
+                try:
+                    yield importlib.import_module(f"{name_base}.{module_name}")
+                except BaseException as e:
+                    yield e
+            else:
                 yield importlib.import_module(f"{name_base}.{module_name}")
-            except BaseException as e:  # noqa: PERF203
-                yield e
     else:
         return
 
 
-def side_effect_import(module: ModuleType) -> list[ModuleType]:
-    """Import module and side effect import all submodules"""
-    rst = []
-    for rl in safe_side_effect_import(module):
-        if isinstance(rl, BaseException):
-            raise rl
+def load_and_notice(module: ModuleType, name: str):
+    logger.info(f"Loading {name}......")
+    for item in side_effect_import(module, False):
+        if isinstance(item, BaseException):
+            logger.opt(exception=item, colors=True).warning(
+                f"[{name}] Failed to import because {item}"
+            )
         else:
-            rst.append(rl)
-    return rst
+            logger.debug(f"[{name}] Imported {item.__name__}")

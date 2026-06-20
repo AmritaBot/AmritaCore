@@ -4,16 +4,15 @@ Unit tests for AmritaCore Agent Runtime functions.
 This module tests the AgentRuntime class and create_agent factory function.
 """
 
-from unittest.mock import patch
-
 import pytest
 from jinja2 import Template
 
 from amrita_core.agent.functions import AgentRuntime, create_agent
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, set_config
-from amrita_core.sessions import SessionData, SessionsManager
-from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
+from amrita_core.types import Message, ModelConfig, ModelPreset
 
 TEST_TRAIN: dict[str, str] = {
     "role": "system",
@@ -48,94 +47,54 @@ def mock_preset():
     )
 
 
-def test_agent_runtime_init_no_session(mock_config, mock_preset):
-    """Test AgentRuntime initialization with no_session=True."""
-    runtime = AgentRuntime(
-        config=mock_config, train=TEST_TRAIN, preset=mock_preset, no_session=True
-    )
+def test_agent_runtime_init_defaults(mock_config, mock_preset):
+    """Test AgentRuntime initialization with defaults (no custom session_id/backend)."""
+    runtime = AgentRuntime(config=mock_config, train=TEST_TRAIN, preset=mock_preset)
 
-    assert runtime.session is None
     assert runtime.session_id is not None
-    assert isinstance(runtime.context, MemoryModel)
+    assert len(runtime.session_id) == 32  # uuid4 hex
+    assert isinstance(runtime.slot, BackendSlots)
+    assert isinstance(runtime.slot.ability, LegacyBackend)
+    assert isinstance(runtime.slot.memory, LegacyBackend)
     assert isinstance(runtime.template, Template)
     assert runtime.strategy is not None
     assert runtime.preset == mock_preset
     assert runtime.config == mock_config
 
 
-def test_agent_runtime_init_with_session_string(mock_config, mock_preset):
-    """Test AgentRuntime initialization with session as string."""
-    session_id = "test-session-id"
-
-    # Mock SessionsManager methods
-    with (
-        patch.object(SessionsManager, "init_session") as mock_init,
-        patch.object(SessionsManager, "get_session_data") as mock_get,
-    ):
-        mock_session_data = SessionData(session_id=session_id)
-        mock_get.return_value = mock_session_data
-
-        runtime = AgentRuntime(
-            config=mock_config, train=TEST_TRAIN, preset=mock_preset, session=session_id
-        )
-
-        mock_init.assert_called_once_with(session_id)
-        mock_get.assert_called_once_with(session_id)
-        assert runtime.session == mock_session_data
-        assert runtime.session_id == session_id
-        assert runtime.context == mock_session_data.memory
-
-
-def test_agent_runtime_init_new_session(mock_config, mock_preset):
-    """Test AgentRuntime initialization creating new session."""
-    with (
-        patch.object(SessionsManager, "new_session") as mock_new,
-        patch.object(SessionsManager, "init_session") as mock_init,
-        patch.object(SessionsManager, "get_session_data") as mock_get,
-    ):
-        mock_new.return_value = "new-session-id"
-        mock_session_data = SessionData(session_id="new-session-id")
-        mock_get.return_value = mock_session_data
-
-        runtime = AgentRuntime(
-            config=mock_config, train=TEST_TRAIN, preset=mock_preset, session=None
-        )
-
-        mock_new.assert_called_once()
-        mock_init.assert_called_once_with("new-session-id")
-        mock_get.assert_called_once_with("new-session-id")
-        assert runtime.session == mock_session_data
-        assert runtime.session_id == "new-session-id"
-
-
-def test_agent_runtime_no_session_property(mock_config, mock_preset):
-    """Test AgentRuntime no_session property."""
-    # Test with session disabled
-    runtime_no_session = AgentRuntime(
-        config=mock_config, train=TEST_TRAIN, preset=mock_preset, no_session=True
+def test_agent_runtime_init_with_session_id(mock_config, mock_preset):
+    """Test AgentRuntime initialization with explicit session_id."""
+    session_id = "my-custom-session-id"
+    runtime = AgentRuntime(
+        config=mock_config, train=TEST_TRAIN, preset=mock_preset, session_id=session_id
     )
-    assert runtime_no_session.no_session is True
 
-    # Test with session enabled
-    with (
-        patch.object(SessionsManager, "new_session", return_value="test-id"),
-        patch.object(SessionsManager, "init_session"),
-        patch.object(SessionsManager, "get_session_data") as mock_get,
-    ):
-        mock_get.return_value = SessionData(session_id="test-id")
-        runtime_with_session = AgentRuntime(
-            config=mock_config, train=TEST_TRAIN, preset=mock_preset, session=None
-        )
-        assert runtime_with_session.no_session is False
+    assert runtime.session_id == session_id
+
+
+def test_agent_runtime_init_with_backend(mock_config, mock_preset):
+    """Test AgentRuntime initialization with custom BackendSlots."""
+    mem = LegacyBackend()
+    abi = LegacyBackend()
+    custom_slot = BackendSlots(ability=abi, memory=mem)
+
+    runtime = AgentRuntime(
+        config=mock_config,
+        train=TEST_TRAIN,
+        preset=mock_preset,
+        backend=custom_slot,
+    )
+
+    assert runtime.slot is custom_slot
+    assert runtime.slot.ability is abi
+    assert runtime.slot.memory is mem
 
 
 def test_agent_runtime_set_strategy(mock_config, mock_preset):
     """Test AgentRuntime set_strategy method."""
     from amrita_core.builtins.agent import ReActAgentStrategy
 
-    runtime = AgentRuntime(
-        config=mock_config, train=TEST_TRAIN, preset=mock_preset, no_session=True
-    )
+    runtime = AgentRuntime(config=mock_config, train=TEST_TRAIN, preset=mock_preset)
 
     MockStrategy = type("MockStrategy", (ReActAgentStrategy,), {})
 
@@ -148,7 +107,6 @@ def test_agent_runtime_get_chatobject(mock_config, mock_preset):
     runtime = AgentRuntime(
         config=mock_config,
         preset=mock_preset,
-        no_session=True,
         train={"role": "system", "content": "test system message"},
     )
 
@@ -156,10 +114,22 @@ def test_agent_runtime_get_chatobject(mock_config, mock_preset):
     chat_object = runtime.get_chatobject(user_input)
 
     assert isinstance(chat_object, ChatObject)
-    assert chat_object.session_id == runtime.session_id
+    assert chat_object._s_id == runtime.session_id
     assert chat_object.config == runtime.config
     assert chat_object.preset == runtime.preset
-    assert chat_object.data == runtime.context
+    assert chat_object.slot is runtime.slot
+
+
+def test_agent_runtime_get_chatobject_extra_kwargs(mock_config, mock_preset):
+    """Test get_chatobject passes extra kwargs through to ChatObject."""
+    runtime = AgentRuntime(config=mock_config, train=TEST_TRAIN, preset=mock_preset)
+
+    chat_object = runtime.get_chatobject(
+        "hello",
+        jinja2_vars={"extra": "value"},
+    )
+
+    assert chat_object.jinja2_vars == {"extra": "value"}
 
 
 def test_create_agent_basic(mock_config):
@@ -216,22 +186,16 @@ def test_create_agent_no_model_config(mock_config):
 
 def test_create_agent_with_additional_kwargs(mock_config):
     """Test create_agent with additional kwargs passed to AgentRuntime."""
-    with (
-        patch.object(SessionsManager, "new_session", return_value="test-id"),
-        patch.object(SessionsManager, "init_session"),
-        patch.object(SessionsManager, "get_session_data") as mock_get,
-    ):
-        mock_get.return_value = SessionData(session_id="test-id")
+    agent = create_agent(
+        base_url="https://api.test.com",
+        api_key="test-key",
+        config=mock_config,
+        template="custom template content",
+        session_id="custom-session",
+    )
 
-        agent = create_agent(
-            base_url="https://api.test.com",
-            api_key="test-key",
-            config=mock_config,
-            template="custom template",
-            no_session=False,
-        )
-
-        assert "custom template" in agent.template.render()
+    assert "custom template content" in agent.template.render()
+    assert agent.session_id == "custom-session"
 
 
 def test_agent_runtime_train_message_handling(mock_config, mock_preset):
@@ -240,7 +204,6 @@ def test_agent_runtime_train_message_handling(mock_config, mock_preset):
     runtime_dict = AgentRuntime(
         config=mock_config,
         preset=mock_preset,
-        no_session=True,
         train={"role": "system", "content": "test content"},
     )
     assert isinstance(runtime_dict.train, Message)
@@ -248,7 +211,18 @@ def test_agent_runtime_train_message_handling(mock_config, mock_preset):
 
     # Test with Message object
     train_msg = Message(role="system", content="test message")
-    runtime_msg = AgentRuntime(
-        config=mock_config, preset=mock_preset, no_session=True, train=train_msg
-    )
+    runtime_msg = AgentRuntime(config=mock_config, preset=mock_preset, train=train_msg)
     assert runtime_msg.train == train_msg
+
+
+def test_agent_runtime_slot_is_independent_per_instance(mock_config, mock_preset):
+    """Test that separate AgentRuntime instances get independent BackendSlots."""
+    r1 = AgentRuntime(config=mock_config, train=TEST_TRAIN, preset=mock_preset)
+    r2 = AgentRuntime(config=mock_config, train=TEST_TRAIN, preset=mock_preset)
+
+    # Different session IDs
+    assert r1.session_id != r2.session_id
+    # Different BackendSlots instances (each gets its own LegacyBackend)
+    assert r1.slot is not r2.slot
+    assert r1.slot.ability is not r2.slot.ability
+    assert r1.slot.memory is not r2.slot.memory

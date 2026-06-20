@@ -4,6 +4,7 @@ import random
 
 from amrita_core import ChatObject, load_amrita, logger, set_config
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig
+from amrita_core.contexts import StateContext
 from amrita_core.preset import PresetManager
 from amrita_core.types import MemoryModel, Message, ModelConfig, ModelPreset
 
@@ -81,8 +82,7 @@ async def handle_user_input(
 
     # Process regular user input
     chat = ChatObject(
-        context=context,
-        session_id=session_id,
+        context=StateContext(session_id=session_id, memory=context),
         user_input=user_input,
         train=train.model_dump(),
     )

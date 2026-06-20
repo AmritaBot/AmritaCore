@@ -17,6 +17,10 @@ The BaseModel class provides extensions to Pydantic BaseModel, adding dictionary
 - Supports JSON serialization and deserialization
 - Integrates Pydantic's Field definition functionality
 
+## Related Classes
+
+- [`DirtyAwareBaseModel`](DirtyAwareBaseModel.md): Extends BaseModel with automatic dirty-mark tracking for mutation detection — useful for backends that need to know which fields changed
+
 ## Usage
 
-BaseModel is the base class for all data models and should not be instantiated directly. It is inherited by other model classes (such as Message, MemoryModel, etc.) for use.
+BaseModel is the base class for all data models and should not be instantiated directly. It is inherited by other model classes (such as Message, ModelConfig, etc.) for use.
