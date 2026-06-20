@@ -115,9 +115,9 @@ class ChatObject:
     # Timing
     timestamp: str  # Timestamp (for LLM)
     time: datetime  # Time
-    end_at: datetime | None = None
+    end_at: datetime | None
     last_call: datetime  # Last internal function call time
-    now_calling: str | None = None  # currently calling function name
+    now_calling: str | None  # currently calling function name
 
     # Config & Preset
     config: AmritaConfig  # config used in this call
@@ -143,10 +143,10 @@ class ChatObject:
     extra_usage: UniResponseUsage[int]
 
     # Runtime State
-    _is_running: bool = False  # Whether it is running
-    _is_done: bool = False  # Whether it has completed
+    _is_running: bool  # Whether it is running
+    _is_done: bool  # Whether it has completed
     _task: Task[None]  # (lateinit) set on runtime
-    _err: BaseException | None = None  # Exception in runtime
+    _err: BaseException | None  # Exception in runtime
 
     # Options
     _bke_opt: DatabackendOptions
@@ -156,21 +156,53 @@ class ChatObject:
     _raised_exc: tuple[type[BaseException], ...]
 
     # Workflow / Interpreter
-    _workflow: (
-        NodeComposeRendered  # (lateinit) ChatObject's runtime, will be set in __init__.
-    )
-    _interpreter: (
-        WorkflowInterpreter  # (lateinit) When _entry is called, this will be set.
-    )
+    _workflow: NodeComposeRendered
+    _interpreter: WorkflowInterpreter
     _middleware: (
         Callable[[Self], Awaitable[Any]] | None
     )  # Middleware for the whole workflow, will be set in __init__.
 
     # Agent loop state
-    _agent_loop: AgentLoopState | None = None
+    _agent_loop: AgentLoopState | None
 
     # ChatObject temp storage
     _chatman: ChatManager
+    __slots__ = (
+        "_agent_loop",
+        "_bke_opt",
+        "_chatman",
+        "_err",
+        "_hook_args",
+        "_hook_kwargs",
+        "_interpreter",
+        "_is_done",
+        "_is_running",
+        "_middleware",
+        "_raised_exc",
+        "_s_id",
+        "_task",
+        "_workflow",
+        "config",
+        "context_wrap",
+        "end_at",
+        "extra_usage",
+        "io_stream",
+        "jinja2_vars",
+        "last_call",
+        "now_calling",
+        "preset",
+        "response",
+        "slot",
+        "state",
+        "strategy",
+        "stream_id",
+        "template",
+        "time",
+        "timestamp",
+        "train",
+        "user_input",
+        "user_message",
+    )
 
     def __init__(
         self,
@@ -226,6 +258,13 @@ class ChatObject:
             backend_options: Fine-grained control over which backend
                 fetch/commit operations are performed.
         """
+        # Init as None in slots
+        self._agent_loop = None
+        self._err = None
+        self._is_done = False
+        self._is_running = False
+        self.now_calling = None
+        self.end_at = None
         # Special flags
         self._raised_exc = (
             exception_ignored if not __flags__.DISABLE_EXC_IGNORED else ()
@@ -530,6 +569,8 @@ async def _load_state(chat_obj: ChatObject):
             )
     if not (opt.skip_memory_fetch):
         chat_obj.state.memory = await slot.memory.load_memory(chat_obj.state.session_id)
+    if not hasattr(chat_obj, "preset"):
+        chat_obj.preset = chat_obj.state.ability.presets.get_default_preset()
 
 
 @Node(SuspendEnum.TRAIN_RENDER)
