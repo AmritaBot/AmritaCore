@@ -176,7 +176,7 @@ class ChatObject:
         self,
         train: dict[str, str] | Message[str],
         user_input: USER_INPUT,
-        context: StateContext | None,
+        context: StateContext | None = None,
         session_id: str | None = None,
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
@@ -296,10 +296,11 @@ class ChatObject:
     @property
     def session_id(self) -> str:
         """
-        Get the session ID for the workflow
+        Get the session ID for the workflow.
+        Falls back to ``_s_id`` if state has not been initialized yet.
         """
         if not hasattr(self, "state"):
-            raise RuntimeError("The state of ChatObject hasn't initialized")
+            return self._s_id
         return self.state.session_id
 
     @property
@@ -314,7 +315,11 @@ class ChatObject:
     @data.setter
     def data(self, val: MemoryModel):
         if not hasattr(self, "state"):
-            raise RuntimeError("The state of ChatObject hasn't initialized")
+            object.__setattr__(
+                self,
+                "state",
+                StateContext(self._s_id if hasattr(self, "_s_id") else ""),
+            )
         self.state.memory = val
 
     # Dunder / Magic methods

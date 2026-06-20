@@ -7,8 +7,11 @@ from amrita_core.base.tokenizer import TokenizerManager
 from . import adapters, tokenizers
 from .agent.functions import AgentRuntime, create_agent
 from .agent.strategy import AgentStrategy
+from .base.backend import AbilityBackend, BackendSlots, MemoryBackend
+from .builtins.backends import LegacyBackend
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
 from .config import AmritaConfig, get_config, set_config
+from .contexts import AbilityContext, StateContext
 from .hook.event import CompletionEvent, EventTypeEnum, PreCompletionEvent
 from .hook.on import on_completion, on_event, on_precompletion
 from .libchat import (
@@ -68,8 +71,11 @@ logger.debug(
 )
 
 __all__ = [
+    "AbilityBackend",
+    "AbilityContext",
     "AgentRuntime",
     "AgentStrategy",
+    "BackendSlots",
     "BaseModel",
     "ChatManager",
     "ChatObject",
@@ -80,12 +86,15 @@ __all__ = [
     "FunctionDefinitionSchema",
     "FunctionParametersSchema",
     "FunctionPropertySchema",
+    "LegacyBackend",
+    "MemoryBackend",
     "MemoryModel",
     "ModelConfig",
     "ModelPreset",
     "PreCompletionEvent",
     "PresetManager",
     "PresetReport",
+    "StateContext",
     "SuspendEnum",
     "SuspendObjectStream",
     "TextContent",
