@@ -625,15 +625,18 @@ set_config(AmritaConfig())
 
 @app.post("/chat/")
 async def chat_endpoint(user_input: str, session_id: str):
-    context = MemoryModel()
-    train = Message(content="You are a helpful assistant.", role="system")
+    from amrita_core.base.backend import BackendSlots
+    from amrita_core.builtins.backends import LegacyBackend
 
-    async with ChatObject(
-        context=context,
-        session_id=session_id,
+    chat = ChatObject(
+        train={"role": "system", "content": "You are a helpful assistant."},
         user_input=user_input,
-        train=train.model_dump()
-    ).begin() as chat:
+        context=None,
+        session_id=session_id,
+        backend=BackendSlots(ability=LegacyBackend(), memory=LegacyBackend()),
+    )
+
+    async with chat.begin():
         response = await chat.full_response()
 
     return {"response": response}

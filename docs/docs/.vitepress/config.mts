@@ -108,7 +108,6 @@ export default withMermaid({
               { text: "Index", link: "/guide/concepts/" },
               { text: "Event System", link: "/guide/concepts/event" },
               { text: "Tool System", link: "/guide/concepts/tool" },
-              { text: "Data Management", link: "/guide/concepts/management" },
               {
                 text: "Agent Strategy",
                 link: "/guide/concepts/agent-strategy",
@@ -117,6 +116,18 @@ export default withMermaid({
                 text: "Suspend Mechanism",
                 link: "/guide/concepts/suspend",
               },
+            ],
+          },
+          {
+            text: "Data Management",
+            collapsed: false,
+            items: [
+              {
+                text: "Data Containers",
+                link: "/guide/concepts/data-containers",
+              },
+              { text: "Data Backend", link: "/guide/concepts/data-backend" },
+              { text: "Data Misc", link: "/guide/concepts/data-misc" },
             ],
           },
           {
@@ -425,12 +436,20 @@ export default withMermaid({
               { text: "索引", link: "/zh/guide/concepts/" },
               { text: "事件系统", link: "/zh/guide/concepts/event" },
               { text: "工具系统", link: "/zh/guide/concepts/tool" },
-              { text: "数据管理", link: "/zh/guide/concepts/management" },
               { text: "Agent 策略", link: "/zh/guide/concepts/agent-strategy" },
               {
                 text: "挂起机制",
                 link: "/zh/guide/concepts/suspend",
               },
+            ],
+          },
+          {
+            text: "数据管理",
+            collapsed: false,
+            items: [
+              { text: "数据容器", link: "/zh/guide/concepts/data-containers" },
+              { text: "数据后端", link: "/zh/guide/concepts/data-backend" },
+              { text: "数据杂项", link: "/zh/guide/concepts/data-misc" },
             ],
           },
           {

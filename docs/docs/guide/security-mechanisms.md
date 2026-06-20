@@ -35,11 +35,9 @@ Here's how to implement and use the cookie security detection:
 
 ```python
 from amrita_core.config import AmritaConfig, CookieConfig
-from amrita_core import init, ChatObject
-from amrita_core.types import MemoryModel, Message
-
-# Initialize with security enabled
-init()
+from amrita_core import ChatObject
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
 
 # Set up security configuration
 security_config = AmritaConfig(
@@ -50,14 +48,12 @@ from amrita_core.config import set_config
 set_config(security_config)
 
 # The cookie security will automatically be applied to conversations
-context = MemoryModel()
-train = Message(content="You are a helpful assistant.", role="system")
-
 chat = ChatObject(
-    context=context,
-    session_id="secure_session",
+    train={"role": "system", "content": "You are a helpful assistant."},
     user_input="Hello!",
-    train=train.model_dump()
+    context=None,
+    session_id="secure_session",
+    backend=BackendSlots(ability=LegacyBackend(), memory=LegacyBackend()),
 )
 ```
 
@@ -267,121 +263,75 @@ These layers ensure that AmritaCore applications remain secure against common at
 
 ## 6.4 Session Isolation
 
-### 6.3.1 SessionsManager (Session Manager)
+Session isolation is handled by the [data backend](../guide/concepts/data-backend.md) mechanism. Each `ChatObject` receives a `BackendSlots` instance that controls how memory and abilities are loaded and persisted per session.
 
-AmritaCore implements a powerful session isolation mechanism through the SessionsManager class, which is a singleton class used to manage tools, configurations, and presets for different sessions, ensuring that the state between each session is independent of each other.
+### 6.4.1 Backend-Driven Isolation
 
-The main functions of SessionsManager include:
-
-1. **Session Lifecycle Management**
-   - `new_session()`: Creates a new session and returns its unique ID
-   - `init_session(session_id)`: Initializes resources for the specified session
-   - `drop_session(session_id)`: Deletes the specified session and its associated resources
-
-2. **Session Resource Access**
-   - `get_session_data(session_id)`: Gets the complete session data object containing tools, config, presets, etc.
-   - Access session resources through the returned SessionData object:
-     - `session_data.tools`: Gets the tool manager for the session
-     - `session_data.config`: Gets the configuration object for the session
-     - `session_data.presets`: Gets the preset manager for the session
-
-3. **Session Status Query**
-   - `get_registered_sessions()`: Gets all registered session IDs
-   - `get_session_data(session_id, default)`: Safely gets session data (returns default if session does not exist)
-
-Here is an example of using SessionsManager:
+The default `LegacyBackend` stores all session data in in-process global containers. For stronger isolation, implement a custom backend:
 
 ```python
-from amrita_core.sessions import SessionsManager
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
 
-# Get session manager instance
-session_manager = SessionsManager()
-
-# Create new session
-session_id = session_manager.new_session()
-
-# Get session data
-session_data = session_manager.get_session_data(session_id)
-config = session_data.config
-tools_manager = session_data.tools
-presets_manager = session_data.presets
-
-# Set session-specific configuration
-from amrita_core.config import AmritaConfig
-new_config = AmritaConfig()
-session_data.config = new_config
-
-# Delete session
-session_manager.drop_session(session_id)
+# Default: global containers (all sessions share tools/presets)
+backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 ```
 
-### 6.3.2 Session ID Management
+### 6.4.2 Session ID Management
 
-Proper session management is crucial for maintaining isolation between different users or conversations:
+Each session is identified by a unique `session_id` string. The backend uses this ID to look up or create per-session state:
 
 ```python
 import uuid
 from amrita_core.types import MemoryModel
-from amrita_core.sessions import SessionsManager
 
-def create_secure_session() -> tuple[str, MemoryModel]:
-    """
-    Create a new secure session with unique ID and memory context using SessionsManager
-    """
-    session_manager = SessionsManager()
-    session_id = session_manager.new_session()
-    session_data = session_manager.get_session_data(session_id)
-    context = session_data.memory  # Use the memory instance from session data
-
-    return session_id, context
-
-# Example usage
-session_id, context = create_secure_session()
+def create_session_id() -> str:
+    """Generate a unique session identifier."""
+    return uuid.uuid4().hex
 ```
 
-### 6.3.3 Data Isolation Assurance
+### 6.4.3 Data Isolation Example
 
-Ensure data isolation by properly separating conversation contexts using SessionsManager:
+Ensure data isolation by using a custom backend that strictly separates per-session memory:
 
 ```python
 from amrita_core import ChatObject
-from amrita_core.types import Message
-from amrita_core.sessions import SessionsManager
+from amrita_core.base.backend import BackendSlots, MemoryBackend
+from amrita_core.builtins.backends import LegacyBackend
+from amrita_core.types import MemoryModel
+
+class IsolatedMemoryBackend(MemoryBackend):
+    """Per-session memory backed by a dict."""
+    def __init__(self):
+        self._store: dict[str, MemoryModel] = {}
+
+    async def load_memory(self, session_id: str) -> MemoryModel:
+        return self._store.get(session_id, MemoryModel())
+
+    async def commit_memory(self, session_id: str, memory: MemoryModel) -> None:
+        self._store[session_id] = memory
 
 class SecureConversationManager:
     def __init__(self):
-        self.session_manager = SessionsManager()
-
-    async def process_user_input(self, session_id: str, user_input: str):
-        """
-        Process user input in a secure, isolated session
-        """
-        # Verify if session exists
-        try:
-            session_data = self.session_manager.get_session_data(session_id)
-        except KeyError:
-            # Create new session if it doesn't exist
-            session_id = self.session_manager.new_session()
-            session_data = self.session_manager.get_session_data(session_id)
-
-        # Get configuration from session data
-        config = session_data.config
-
-        # Use session-specific configuration
-        chat = ChatObject(
-            context=session_data.memory,  # Use session-specific memory
-            session_id=session_id,
-            user_input=user_input,
-            config=config
+        self._mem = IsolatedMemoryBackend()
+        self._slot = BackendSlots(
+            ability=LegacyBackend(),
+            memory=self._mem,
         )
 
+    async def process_user_input(self, session_id: str, user_input: str):
+        chat = ChatObject(
+            train={"role": "system", "content": "You are a helpful assistant."},
+            user_input=user_input,
+            context=None,
+            session_id=session_id,
+            backend=self._slot,
+        )
         async with chat.begin():
-            response = await chat.full_response()
-
-        return response
+            return await chat.full_response()
 ```
 
-### 6.3.4 Cross-Session Protection
+### 6.4.4 Cross-Session Protection
 
 Protect against cross-session contamination:
 

@@ -17,9 +17,16 @@ graph TB
         G[Agent Strategy]
     end
 
+    subgraph "AmritaSense Runtime"
+        WI[WorkflowInterpreter]
+        MF[MatcherFactory]
+        SOS[SuspendObjectStream]
+        DI[Dependency Injection]
+        NC[Node Compose >>]
+    end
+
     subgraph "Support System"
         B[Configuration]
-        C[Event System]
         D[Tool Manager]
         E[Memory Model]
     end
@@ -40,8 +47,13 @@ graph TB
     Adapter --> LLM
     F --> MCP
 
+    A -.->|driven by| WI
+    A -.->|hooks via| MF
+    A -.->|streams via| SOS
+    MF -.->|resolves| DI
+    WI -.->|executes| NC
+
     B --> F
-    C --> F
     D --> F
     E --> F
 
@@ -50,42 +62,54 @@ graph TB
     F --> E
 ```
 
-### Session and Global Data Container Architecture
+### Backend Architecture and Session Data Flow
 
-#### Global Container and Session Dialogue Context
+#### Backend-Driven Data Management
 
 ```mermaid
 graph TB
-    subgraph "Global Container"
-        G_Tools[Global Tools]
-        G_Presets[Global Presets]
-        G_Config[Global Configuration]
+    subgraph "Entry Layer"
+        AR[AgentRuntime]
     end
 
-    subgraph "SessionsManager"
-        S1[Session 1]
-        S2[Session 2]
-        SN[Session N]
+    subgraph "Backend Layer"
+        BS[BackendSlots]
+        AB[AbilityBackend]
+        MB[MemoryBackend]
     end
 
-    subgraph "Session Structure"
-        Mem[Memory Model]
-        Tools[Tool Manager]
-        Conf[Configuration]
-        Strat[Agent Strategy]
-        MCP_Client[MCP Client]
+    subgraph "Runtime State"
+        SC[StateContext]
+        AC[AbilityContext]
+        MM[MemoryModel]
     end
 
-    G_Tools --> Tools
-    G_Presets --> S1
-    G_Config --> Conf
+    subgraph "Global Singletons"
+        G_Tools[Global ToolsManager]
+        G_Presets[Global PresetManager]
+        G_MCP[Global MCP ClientManager]
+    end
 
-    S1 --> Mem
-    S1 --> Tools
-    S1 --> Conf
-    S1 --> Strat
-    S1 --> MCP_Client
+    AR -->|slot| BS
+    BS -->|ability| AB
+    BS -->|memory| MB
+    AB -->|load_ability_all| AC
+    MB -->|load_memory| MM
+    SC -->|contains| AC
+    SC -->|contains| MM
+    AC -->|defaults to| G_Tools
+    AC -->|defaults to| G_Presets
+    AC -->|defaults to| G_MCP
+
+    subgraph "Built-in Implementation"
+        LB[LegacyBackend]
+    end
+
+    AB -.- LB
+    MB -.- LB
 ```
+
+The `LegacyBackend` implements both `AbilityBackend` and `MemoryBackend` using in-process global containers. Custom backends (e.g., database-backed) can replace either slot independently.
 
 ### Strategy-Based Execution Flow
 
@@ -112,15 +136,45 @@ graph LR
     RunMethod --> AgentLoop
 ```
 
-## 2.4.2 AmritaSense Foundation
+## 2.4.2 AmritaSense — The Runtime Substrate
 
-AmritaCore is built on [**AmritaSense**](https://sense.amritabot.com), which provides the core infrastructure:
+AmritaCore is built on [**AmritaSense**](https://sense.amritabot.com), which serves as the **runtime** that powers every `ChatObject` execution. Think of AmritaSense as the "operating system" for agent workflows — it provides the scheduling, composition, and event plumbing, while AmritaCore defines the domain-specific agent logic on top.
 
-- **Workflow Engine**: `WorkflowInterpreter` drives ChatObject's node chain (train rendering → memory limiting → strategy execution → LLM call → post-processing)
-- **Event System**: `MatcherFactory`, `EventRegistry`, and dependency injection for composable hooks
-- **Streaming**: `SuspendObjectStream` for suspend/resume and real-time streaming
+### Runtime Components
 
-This separation keeps AmritaCore's Agent layer thin and focused on strategy, sessions, tools, MCP, and adapters.
+| Component                 | Role in ChatObject                                                                                                                                                      |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`WorkflowInterpreter`** | Drives the node chain (`_load_state → _render_train → _limiting_memory → … → _commit_memory`). Each node is a composable `@Node` decorated coroutine.                   |
+| **`MatcherFactory`**      | Manages the event system. `PreCompletionEvent`, `CompletionEvent`, `FallbackContext` are dispatched through matchers registered via `@on_precompletion().handle()` etc. |
+| **`SuspendObjectStream`** | The streaming I/O backbone. All LLM chunks, tool call notifications, and reasoning content flow through this bidirectional stream with built-in suspend/resume.         |
+| **Dependency Injection**  | `WorkflowInterpreter` resolves `Depends()` markers in node signatures, injecting `ChatObject`, config, and custom dependencies automatically.                           |
+| **Node Compose (`>>`)**   | Nodes are chained with the `>>` operator into a `NodeCompose` graph. The interpreter follows `GOTO`/`WHILE`/`ALIAS` instructions for control flow.                      |
+
+### How AmritaSense Drives a ChatObject
+
+```mermaid
+sequenceDiagram
+    participant CO as ChatObject
+    participant WI as WorkflowInterpreter
+    participant MF as MatcherFactory
+    participant SOS as SuspendObjectStream
+    participant Node as WorkflowNode
+
+    CO->>WI: run()
+    loop For each node in chain
+        WI->>SOS: check suspend signal
+        SOS-->>WI: proceed / block
+        WI->>Node: execute with DI-resolved args
+        Node->>MF: trigger_event(PreCompletionEvent, ...)
+        MF-->>Node: event processed
+        Node-->>WI: result
+        WI->>WI: evaluate GOTO/WHILE/ALIAS
+    end
+    Note over CO,SOS: ChatObject yields responses via io_stream
+    WI-->>CO: execution complete
+```
+
+This separation keeps AmritaCore's Agent layer thin and focused on strategy, sessions, tools, MCP, and adapters — all the orchestration is handled by AmritaSense.
 
 ## 2.4.3 Core Component Relationships
 
@@ -143,19 +197,20 @@ This separation keeps AmritaCore's Agent layer thin and focused on strategy, ses
   - `Adapter Layer`: Abstracts LLM provider communication, enabling vendor‑neutral integration
   - `MCP Client`: Provides Model Context Protocol support for external service integration
 
-- **Data Containers**: Manage data isolation and sharing
-  - `Global Container`: Stores shared resources accessible to all sessions
-  - `Session Context`: Maintains isolated conversation contexts with independent state
+- **Data Backend**: Manages data isolation and persistence
+  - `BackendSlots`: Holds `AbilityBackend` + `MemoryBackend` references
+  - `LegacyBackend`: Built-in in-memory backend using global containers
+  - Custom backends can replace memory or ability slots for database/cloud persistence
 
-## 2.4.4 Agent Loop and Session Isolation Mechanism
+## 2.4.4 Agent Loop and Backend Data Flow
 
 ```mermaid
 sequenceDiagram
     participant User as User
-    participant Entry as Entry Layer
-    participant Core as Core Execution
-    participant Support as Support System
-    participant External as External Integration
+    participant Entry as EntryLayer
+    participant Core as CoreExecution
+    participant Support as SupportSystem
+    participant External as ExternalIntegration
 
     User->>Entry: create_agent(url, key, ...)
     Entry->>Entry: Create AgentRuntime
@@ -164,7 +219,7 @@ sequenceDiagram
     User->>Entry: get_chatobject("input")
     Entry->>Core: Create ChatObject
     Core->>Core: Initialize Agent Strategy
-    Core->>Support: Load configuration, tools, memory
+    Core->>Support: Load ability and memory via BackendSlots
     Core->>External: Send request via adapter
     External->>External: Process with LLM/MCP
     External-->>Core: Return response
@@ -177,9 +232,10 @@ sequenceDiagram
 1. **Layered Architecture**: The system follows a clear hierarchical structure with well‑defined layers:
    - Entry Layer: Simplified user interface
    - Core Execution Layer: Main processing logic
-   - Support System: Essential services
-   - External Integration: Third‑party communication
-   - Data Containers: State management
+   - **AmritaSense Runtime**: Workflow engine, event system, streaming, DI — the substrate that drives execution
+   - Support System: Essential services (config, tools, memory)
+   - External Integration: Third‑party communication (adapters, MCP)
+   - Data Backend: State isolation and persistence
 
 2. **Strategy Pattern Implementation**: Four execution strategies provide flexible behavior:
    - **'agent'**: Uses `single_execute()` for iterative tool calling and step‑by‑step execution
@@ -187,7 +243,7 @@ sequenceDiagram
    - **'workflow'**: Uses `run()` for full manual control over tool calls and context management
    - **'agent-mixed'**: Uses `single_execute()` for dynamic mode switching between RAG and agent modes
 
-3. **Session Isolation**: Each conversation remains completely isolated through independent session contexts, while shared global resources are accessible when needed.
+3. **Backend-Driven Data**: Memory and ability resolution are delegated to `BackendSlots`. The default `LegacyBackend` stores data in in-process global containers, while custom backends enable persistence and distributed state.
 
 4. **Event‑Driven Design**: The system uses decorators and event handlers to allow behavior extension without modifying core logic.
 
