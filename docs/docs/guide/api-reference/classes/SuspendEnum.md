@@ -8,6 +8,12 @@ The `SuspendEnum` class provides standardized breakpoint tags for the suspend/re
 
 ## Enum Values
 
+### `LOAD_STATE`
+
+- **Value**: `"ChatObject::load_state"`
+- **Description**: Triggered when loading runtime state from backends
+- **Usage**: Occurs at the start of execution to load memory and ability context from the configured BackendSlots. Useful for debugging state loading or implementing custom state initialisation
+
 ### `ENTRY_POINT`
 
 - **Value**: `"ChatObject::_entry"`
@@ -61,6 +67,12 @@ The `SuspendEnum` class provides standardized breakpoint tags for the suspend/re
 - **Value**: `"matcher_call::post_completion"`
 - **Description**: Triggered after receiving the model response but before processing it
 - **Usage**: Great for response validation, content filtering, or implementing custom response handling logic
+
+### `COMMIT_MEMORY`
+
+- **Value**: `"ChatObject::commit_memory"`
+- **Description**: Triggered after the execution pipeline completes, when memory is being committed back to the backend
+- **Usage**: Occurs at the very end of the workflow to persist conversation state. Useful for monitoring persistence or implementing custom memory commit logic
 
 ### `FINALIZE`
 

@@ -103,9 +103,10 @@ agent = create_agent(
 
 - `url` (str): API 端点 URL
 - `key` (str): 用于身份验证的 API 密钥
+- `model` (str, 可选): 要使用的模型。默认为 `"auto"`。
 - `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, 可选): 可选的模型配置。默认为 None。
 - `config` ([AmritaConfig](classes/AmritaConfig.md) | None, 可选): agent 的配置。默认为全局配置。
-- `**kwargs`: 传递给 AgentRuntime 的其他关键字参数
+- `**kwargs`: 转发给 [AgentRuntime](classes/AgentRuntime.md) 的其他关键字参数（例如 `strategy`、`template`、`session_id`、`backend`）
 
 **返回**: `AgentRuntime` - 配置好的 agent 运行时实例
 
@@ -124,35 +125,56 @@ agent = create_agent(
 
 ```python
 from amrita_core import ChatObject
-from amrita_core.types import MemoryModel, Message
+from amrita_core.types import Message
 
-context = MemoryModel()
-train = Message(content="您是一个有用的助手。", role="system")
+train = Message(content="You are a helpful assistant.", role="system")
 
 chat = ChatObject(
-    context=context,
-    session_id="session_123",
+    train=train.model_dump(),
     user_input="你好！",
-    train=train.model_dump()
+    session_id="session_123",
 )
 ```
 
 **构造函数参数**:
 
-- `context` ([MemoryModel](classes/MemoryModel.md)): 对话的记忆上下文
-- `session_id` (str): 会话的唯一标识符
-- `user_input` (str): 用户的输入消息
-- `train` (dict): AI 的训练/提示数据
+- `train` (dict | [Message](classes/Message.md)): AI 的训练/提示数据
+- `user_input` (str | Sequence[Content] | None): 用户的输入消息
+- `context` ([StateContext](classes/StateContext.md) | None, 可选): 预构建的状态上下文（与 `session_id` 互斥）
+- `session_id` (str | None, 可选): 会话的唯一标识符（与 `context` 互斥）
+- `backend` ([BackendSlots](classes/BackendSlots.md) | None, 可选): 用于记忆和能力 I/O 的后端插槽（默认：LegacyBackend）
+- `preset` ([ModelPreset](classes/ModelPreset.md) | None, 可选): 模型预设（运行时解析）
 
 **方法**:
 
 - `begin()`: 执行对话
-- `get_response_generator()`: 返回用于流式响应的异步生成器
 - `full_response()`: 返回完整响应
 
 **特殊方法**:
 
 - `__await__`: 允许对象用作异步上下文管理器，我们建议使用它。
+
+### 7.2.1b BackendSlots - 后端机制
+
+[BackendSlots](classes/BackendSlots.md) 数据类将 [AbilityBackend](classes/AbilityBackend.md) 和 [MemoryBackend](classes/MemoryBackend.md) 捆绑用于数据 I/O。
+
+```python
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
+
+slot = BackendSlots(
+    ability=LegacyBackend(),
+    memory=LegacyBackend(),
+)
+```
+
+- [AbilityBackend](classes/AbilityBackend.md): 用于加载工具、MCP 客户端和预设的抽象基类
+- [MemoryBackend](classes/MemoryBackend.md): 用于加载和提交记忆的抽象基类
+- [LegacyBackend](classes/LegacyBackend.md): 默认的进程内实现
+- [AbilityContext](classes/AbilityContext.md): 运行时能力状态（工具、预设、MCP 客户端）
+- [StateContext](classes/StateContext.md): 运行时会话状态（session_id、memory、ability）
+- [DatabackendOptions](classes/DatabackendOptions.md): 对后端获取/提交操作的细粒度控制
+- [DirtyAwareBaseModel](classes/DirtyAwareBaseModel.md): 具有自动变更追踪的基础模型
 
 ### 7.2.2 Message - 消息类
 

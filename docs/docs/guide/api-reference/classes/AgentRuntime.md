@@ -8,22 +8,21 @@ This class encapsulates the complexity of ChatObject and provides a simplified A
 
 - `strategy` (type[AgentStrategy]): Agent strategy class used for execution
 - `session_id` (str): Session ID for the agent
-- `session` (SessionData | None): Session data or None if no session
+- `slot` ([BackendSlots](BackendSlots.md)): Backend slots providing memory and ability backends
 - `preset` (ModelPreset): Model preset configuration
 - `config` (AmritaConfig): Amrita configuration object
 - `train` (Message[str]): Training data (system prompts)
-- `context` (MemoryModel): Memory context for the conversation
 - `template` (Template): Jinja2 template used to render system role message
 
 ## Constructor Parameters
 
 - `config` ([AmritaConfig](AmritaConfig.md)): Amrita configuration object containing global configuration settings
 - `preset` ([ModelPreset](ModelPreset.md)): Model preset configuration defining basic model parameters and settings
+- `train` (dict[str, str] | [Message](Message.md)[str]): System prompt for the agent (dict or Message object)
 - `strategy` (type[AgentStrategy], optional): Agent strategy class, defaults to ReActAgentStrategy
-- `template` (Template | str, optional): Train template to render system role message, defaults to DEFAULT_TEMPLATE
-- `session` (SessionData | str | None, optional): Session data or session ID string for restoring existing sessions. If None, a new session will be created
-- `train` (dict[str, str] | Message[str] | None, optional): Training data (system prompts), can be in dictionary format or as a Message object
-- `no_session` (bool, optional): Whether to disable session functionality. If True, session management will be disabled but a temporary session ID will still be assigned
+- `template` (Template | str, optional): Jinja2 template used to render the system prompt, defaults to DEFAULT_TEMPLATE
+- `session_id` (str | None, optional): Session identifier string. If None, a new UUID-based ID is generated. The session_id is passed to every ChatObject created by this runtime, allowing the Backend to isolate memory and abilities per session
+- `backend` ([BackendSlots](BackendSlots.md) | None, optional): Backend slots providing memory and ability backends. If None, a `LegacyBackend` is used for both slots, which stores data in global in-process containers
 
 ## Methods
 

@@ -186,8 +186,16 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/AgentStrategy",
               },
               {
-                text: "AmritaAgentStrategy",
-                link: "/guide/api-reference/classes/AmritaAgentStrategy",
+                text: "AbilityBackend",
+                link: "/guide/api-reference/classes/AbilityBackend",
+              },
+              {
+                text: "AbilityContext",
+                link: "/guide/api-reference/classes/AbilityContext",
+              },
+              {
+                text: "BackendSlots",
+                link: "/guide/api-reference/classes/BackendSlots",
               },
               {
                 text: "BaseModel",
@@ -206,12 +214,20 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ClientManager",
               },
               {
+                text: "DatabackendOptions",
+                link: "/guide/api-reference/classes/DatabackendOptions",
+              },
+              {
                 text: "Depends",
                 link: "/guide/api-reference/classes/Depends",
               },
               {
                 text: "DependsFactory",
                 link: "/guide/api-reference/classes/DependsFactory",
+              },
+              {
+                text: "DirtyAwareBaseModel",
+                link: "/guide/api-reference/classes/DirtyAwareBaseModel",
               },
               {
                 text: "FallbackContext",
@@ -230,8 +246,16 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
+                text: "LegacyBackend",
+                link: "/guide/api-reference/classes/LegacyBackend",
+              },
+              {
                 text: "MemoryModel",
                 link: "/guide/api-reference/classes/MemoryModel",
+              },
+              {
+                text: "MemoryBackend",
+                link: "/guide/api-reference/classes/MemoryBackend",
               },
               {
                 text: "Message",
@@ -272,6 +296,10 @@ export default withMermaid({
               {
                 text: "StrategyContext",
                 link: "/guide/api-reference/classes/StrategyContext",
+              },
+              {
+                text: "StateContext",
+                link: "/guide/api-reference/classes/StateContext",
               },
               {
                 text: "SuspendEnum",
@@ -505,8 +533,16 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/AgentStrategy",
               },
               {
-                text: "AmritaAgentStrategy",
-                link: "/zh/guide/api-reference/classes/AmritaAgentStrategy",
+                text: "AbilityBackend",
+                link: "/guide/api-reference/classes/AbilityBackend",
+              },
+              {
+                text: "AbilityContext",
+                link: "/guide/api-reference/classes/AbilityContext",
+              },
+              {
+                text: "BackendSlots",
+                link: "/guide/api-reference/classes/BackendSlots",
               },
               {
                 text: "BaseModel",
@@ -525,12 +561,20 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/ClientManager",
               },
               {
+                text: "DatabackendOptions",
+                link: "/zh/guide/api-reference/classes/DatabackendOptions",
+              },
+              {
                 text: "Depends",
                 link: "/zh/guide/api-reference/classes/Depends",
               },
               {
                 text: "DependsFactory",
                 link: "/zh/guide/api-reference/classes/DependsFactory",
+              },
+              {
+                text: "DirtyAwareBaseModel",
+                link: "/zh/guide/api-reference/classes/DirtyAwareBaseModel",
               },
               {
                 text: "FallbackContext",
@@ -549,8 +593,16 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
+                text: "LegacyBackend",
+                link: "/zh/guide/api-reference/classes/LegacyBackend",
+              },
+              {
                 text: "MemoryModel",
                 link: "/zh/guide/api-reference/classes/MemoryModel",
+              },
+              {
+                text: "MemoryBackend",
+                link: "/zh/guide/api-reference/classes/MemoryBackend",
               },
               {
                 text: "Message",
@@ -591,6 +643,14 @@ export default withMermaid({
               {
                 text: "StrategyContext",
                 link: "/zh/guide/api-reference/classes/StrategyContext",
+              },
+              {
+                text: "StateContext",
+                link: "/zh/guide/api-reference/classes/StateContext",
+              },
+              {
+                text: "StateContext",
+                link: "/zh/guide/api-reference/classes/StateContext",
               },
               {
                 text: "SuspendEnum",

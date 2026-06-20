@@ -7,7 +7,13 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 ### Identity
 
 - `stream_id` (str): Chat object ID
-- `session_id` (str): Session ID
+- `session_id` (str): Session ID (computed from `state.session_id` at runtime)
+
+### State & Backend
+
+- `slot` ([BackendSlots](BackendSlots.md)): Backend slots providing memory and ability backends
+- `state` ([StateContext](StateContext.md)): Runtime state context containing memory, ability, and session ID
+- `_bke_opt` ([DatabackendOptions](DatabackendOptions.md)): Options controlling backend fetch/commit behavior
 
 ### Timing
 
@@ -27,7 +33,7 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 
 - `user_input` (USER_INPUT): User input
 - `user_message` (Message[USER_INPUT]): User message
-- `data` (Memory): Memory file
+- `data` ([MemoryModel](MemoryModel.md)): Memory model (computed from `state.memory` at runtime)
 - `train` (Message[str]): System message
 - `template` (Template): Jinja2 template
 - `jinja2_vars` (dict[str, Any]): Variables passed to template system
@@ -47,22 +53,23 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 
 ## Constructor Parameters
 
-- `context` ([MemoryModel](MemoryModel.md)): Memory context for the conversation
-- `session_id` (str): Unique identifier for the session
-- `user_input` (str): The user's input message
-- `train` (dict): Training/prompt data for the AI
-- `io_stream` (SuspendObjectStream[RESPONSE_TYPE] | None): External SuspendObjectStream instance to use. If None, a new one is created automatically (default: None)
-- `config` (AmritaConfig): configuration settings for the chat that overrides the global configuration.
-- `preset` (ModelPreset): model preset for the chat.
-- `auto_create_session` (bool): Whether to automatically create a session if it does not exist (default: False)
-- `train_template` (Template): Jinja2 template used to format system message (default: DEFAULT_TEMPLATE)
-- `jinja2_vars` (dict[str, Any] | None): Variables to be passed to the template system for custom template variables (default: None). **Important**: Keys in this dictionary must NOT match built-in variable names (`train`, `memory`, `chatobj`, `config`) as this would cause a TypeError due to duplicate keyword arguments.
-- `agent_strategy` (type[AgentStrategy] | [StrategyLikedObject](StrategyLikedObject.md)): Agent strategy to be used for execution. Accepts either a strategy **class** (`type[AgentStrategy]`) or a pre-initialised strategy **instance** (`StrategyLikedObject`). The latter enables stateful strategies with internal state machines (default: ReActAgentStrategy)
-- `hook_args` (tuple[Any, ...]): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
-- `hook_kwargs` (dict[str, Any] | None): Keyword arguments passed to event handlers when events are triggered (default: None)
-- `exception_ignored` (tuple[type[BaseException], ...]): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
-- `middleware` (Callable[[Self], Awaitable[Any]] | None): Async middleware function that wraps the entire workflow execution. When set, the workflow engine delegates execution to the middleware instead of running the default pipeline. Useful for custom orchestration, monitoring, or cross-cutting concerns (default: None)
-- `archived_nodes` (SubprogramStorage | None): Additional node subprograms to append at the end of the workflow pipeline. Allows extending the ChatObject execution with custom steps after the standard pipeline completes. When `None`, defaults to `ARCHIVED_NODES` from `amrita_sense.instructions` (default: None)
+- `train` (dict[str, str] | [Message](Message.md)[str]): Training/prompt data for the AI (system prompt)
+- `user_input` (str | Sequence[Content] | None): The user's input message
+- `context` ([StateContext](StateContext.md) | None, optional): Pre-built state context. If provided, `session_id` must NOT be provided (mutually exclusive). When both are None, ChatObject requires `session_id` to create a new StateContext at runtime (default: None)
+- `session_id` (str | None, optional): Unique identifier for the session. If provided, `context` must NOT be provided (mutually exclusive). The session ID is used by the Backend to load/save memory and ability state (default: None)
+- `preset` ([ModelPreset](ModelPreset.md) | None, optional): Model preset for the chat (default: None, resolved at runtime)
+- `backend` ([BackendSlots](BackendSlots.md) | None, optional): Backend slots providing memory and ability backends. If None, a `LegacyBackend` is used for both slots (default: None)
+- `config` ([AmritaConfig](AmritaConfig.md) | None, optional): Configuration settings for the chat that overrides the global configuration (default: None)
+- `io_stream` (SuspendObjectStream[RESPONSE_TYPE] | None, optional): External SuspendObjectStream instance to use. If None, a new one is created automatically (default: None)
+- `agent_strategy` (type[AgentStrategy] | [StrategyLikedObject](StrategyLikedObject.md), optional): Agent strategy to be used for execution. Accepts either a strategy **class** (`type[AgentStrategy]`) or a pre-initialised strategy **instance** (`StrategyLikedObject`). The latter enables stateful strategies with internal state machines (default: ReActAgentStrategy)
+- `train_template` (Template | str, optional): Jinja2 template used to format system message (default: DEFAULT_TEMPLATE)
+- `jinja2_vars` (dict[str, Any] | None, optional): Variables to be passed to the template system for custom template variables (default: None). **Important**: Keys in this dictionary must NOT match built-in variable names (`train`, `memory`, `chatobj`, `config`) as this would cause a TypeError due to duplicate keyword arguments.
+- `hook_args` (tuple[Any, ...], optional): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
+- `hook_kwargs` (dict[str, Any] | None, optional): Keyword arguments passed to event handlers when events are triggered (default: None)
+- `exception_ignored` (tuple[type[BaseException], ...], optional): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
+- `middleware` (Callable[[Self], Awaitable[Any]] | None, optional): Async middleware function that wraps the entire workflow execution. When set, the workflow engine delegates execution to the middleware instead of running the default pipeline. Useful for custom orchestration, monitoring, or cross-cutting concerns (default: None)
+- `archived_nodes` (SubprogramStorage | None, optional): Additional node subprograms to append at the end of the workflow pipeline. Allows extending the ChatObject execution with custom steps after the standard pipeline completes. When `None`, defaults to `ARCHIVED_NODES` from `amrita_sense.instructions` (default: None)
+- `backend_options` ([DatabackendOptions](DatabackendOptions.md) | None, optional): Options controlling backend fetch and commit behavior. Allows selectively skipping memory fetch, tools fetch, MCP fetch, presets fetch, ability extra settings, and memory commit (default: None)
 
 ## Methods
 
@@ -76,24 +83,7 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 - `is_done()`: Check if the task has completed
 - `get_snapshot()`: Get a snapshot of the chat object as `ChatObjectMeta`
 
-### Deprecated Streaming Methods (removed in 0.10.0)
-
-> **Since v0.9.1**: All streaming/suspend methods have moved to `io_stream`. The following methods are deprecated forwarding wrappers that will be removed in v0.10.0:
-
-- `get_response_generator()` → use `io_stream.get_response_generator()`
-- `set_callback_func(func)` → use `io_stream.set_callback_func(func)`
-- `set_callback_fun_sending(func)` → use `io_stream.set_callback_fun_sending(func)`
-- `yield_response(response)` → use `io_stream.yield_response(response)`
-- `yield_response_iteration(iterator)` → use `io_stream.yield_response_iteration(iterator)`
-- `push_object(obj)` → use `io_stream.push_object(obj)`
-- `queue_closed()` → use `io_stream.queue_closed()`
-- `set_queue_done()` → use `io_stream.set_queue_done()`
-- `wait_to_suspend(*tags, timeout)` → use `io_stream.wait_to_suspend(*tags, timeout)`
-- `resume()` → use `io_stream.resume()`
-
-### Suspend & Resume Methods Details
-
-> **Since v0.9.1**: Use `io_stream.wait_to_suspend()` and `io_stream.resume()` instead. The methods on `ChatObject` are deprecated forwarding wrappers.
+### Suspend & Resume Methods
 
 #### `io_stream.wait_to_suspend(*tags: str, timeout: float | None = None)`
 
@@ -176,31 +166,33 @@ class MyProcessor:
 
 ```python
 from amrita_core import ChatObject
-from amrita_core.types import MemoryModel, Message
+from amrita_core.types import Message
 
-context = MemoryModel()
 train = Message(content="You are a helpful assistant.", role="system")
+
+# Basic usage with session_id (backend defaults to LegacyBackend)
+chat = ChatObject(
+    train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
+)
 
 # Example with callback (recommended for web scenarios)
 async def callback_handler(message):
     print("Received:", message)
 
-chat = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
+chat_with_callback = ChatObject(
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
 )
-
-# Set callback via io_stream (replaces previous `callback=` constructor parameter)
-chat.io_stream.set_callback_func(callback_handler)
+chat_with_callback.io_stream.set_callback_func(callback_handler)
 
 # Example with custom event parameters
 chat_with_event_params = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
     hook_args=("custom_arg1", "custom_arg2"),
     hook_kwargs={"custom_key": "custom_value"},
     exception_ignored=(ValueError, TypeError)
@@ -208,10 +200,9 @@ chat_with_event_params = ChatObject(
 
 # Example with custom Jinja2 variables
 chat_with_jinja2_vars = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
     jinja2_vars={"custom_role": "AI expert", "company_name": "Amrita Corp"}
 )
 
@@ -219,19 +210,17 @@ chat_with_jinja2_vars = ChatObject(
 from amrita_sense.streaming import SuspendObjectStream
 custom_stream = SuspendObjectStream(queue_size=100, queue_timeout=30.0)
 chat_with_custom_stream = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
     train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
     io_stream=custom_stream,
 )
 
 # ❌ INVALID - This will cause a TypeError:
 # chat_with_override = ChatObject(
-#     context=context,
-#     session_id="session_123",
-#     user_input="Hello!",
 #     train=train.model_dump(),
+#     user_input="Hello!",
+#     session_id="session_123",
 #     jinja2_vars={"config": {"custom_setting": "value"}}  # ERROR: 'config' is a built-in parameter
 # )
 ```

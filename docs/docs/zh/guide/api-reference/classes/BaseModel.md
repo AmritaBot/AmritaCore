@@ -1,22 +1,26 @@
 # BaseModel
 
-The BaseModel class is the base class for all data models in AmritaCore, inheriting from Pydantic's BaseModel.
+BaseModel 类是 AmritaCore 中所有数据模型的基类，继承自 Pydantic 的 BaseModel。
 
-## Description
+## 描述
 
-The BaseModel class provides extensions to Pydantic BaseModel, adding dictionary-style access capabilities (duck typing):
+BaseModel 类扩展了 Pydantic BaseModel，增加了字典风格的访问能力（鸭子类型）：
 
-- `__str__` and `__repr__`: Convert the model to JSON string
-- `__getitem__` and `__setitem__`: Allow dictionary-style access and setting of model fields
-- Retains all validation and serialization features of Pydantic
+- `__str__` 和 `__repr__`: 将模型转换为 JSON 字符串
+- `__getitem__` 和 `__setitem__`: 允许以字典风格访问和设置模型字段
+- 保留 Pydantic 的所有验证和序列化功能
 
-## Features
+## 特性
 
-- Supports model validation and data serialization
-- Supports dictionary-style access methods
-- Supports JSON serialization and deserialization
-- Integrates Pydantic's Field definition functionality
+- 支持模型验证和数据序列化
+- 支持字典风格的访问方法
+- 支持 JSON 序列化和反序列化
+- 集成了 Pydantic 的 Field 定义功能
 
-## Usage
+## 相关类
 
-BaseModel is the base class for all data models and should not be instantiated directly. It is inherited by other model classes (such as Message, MemoryModel, etc.) for use.
+- [`DirtyAwareBaseModel`](DirtyAwareBaseModel.md): 扩展 BaseModel，增加自动脏标记追踪以检测变更——适用于需要知道哪些字段发生了更改的后端
+
+## 用法
+
+BaseModel 是所有数据模型的基类，不应直接实例化。它被其他模型类（如 Message、ModelConfig 等）继承使用。

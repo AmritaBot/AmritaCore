@@ -197,22 +197,34 @@ class ChatObject:
         """Initialize a chat object
 
         Args:
-            train (dict[str, str] | Message[str]): Training data (system prompts)
-            user_input (USER_INPUT): Input from the user
-            context (Memory | None): Memory context for the session
-            session_id (str): Unique identifier for the session
-            callback (RESPONSE_CALLBACK_TYPE, optional): Callback function to be called when returning response. Defaults to None.
-            config (AmritaConfig | None, optional): Config used for this call. Defaults to None.
-            preset (ModelPreset | None, optional): Preset used for this call. Defaults to None.
-            auto_create_session (bool, optional): Whether to automatically create a session if it does not exist. Defaults to False.
-            jinja2_vars (dict[str, Any] | None, optional): Variables to be passed to the template system. Defaults to None.
-            chat_man (ChatManager | None, optional): ChatManager that ChatObject will be bound to. Defaults to None(Global ChatManager).
-            train_template (Template, optional): Jinja2 template used to format system message.
-            agent_strategy (type[AgentStrategy], optional):  Agent strategy to be used for execution. Defaults to ReActAgentStrategy.
-            hook_args (tuple[Any, ...], optional): Arguments could be passed to the Matcher function. Defaults to ().
-            hook_kwargs (dict[str, Any] | None, optional): Keyword arguments could be passed to the Matcher function. Defaults to None.
-            middleware (Callable[[Self],Awaitable[Any]] | None, optional): Middleware for the whole workflow. Defaults to None.
-            exception_ignored (tuple[type[BaseException], ...], optional): These exceptions will be raised again if they are raised in the Matcher function. Defaults to ().
+            train: Training data (system prompts).
+            user_input: Input from the user.
+            context: Pre-built state context. Mutually exclusive with ``session_id``.
+            session_id: Unique identifier for the session. Mutually exclusive with
+                ``context``. When both are None, ChatObject requires ``session_id``
+                to create a new StateContext at runtime.
+            config: Config used for this call. Defaults to global config.
+            preset: Preset used for this call. Defaults to None (resolved at runtime).
+            backend: Backend slots for memory and ability I/O. Defaults to
+                LegacyBackend for both slots.
+            chat_man: ChatManager that ChatObject will be bound to.
+                Defaults to the global ChatManager.
+            train_template: Jinja2 template used to format the system message.
+            io_stream: External SuspendObjectStream instance.
+                If None, a new one is created automatically.
+            jinja2_vars: Variables to be passed to the template system.
+            agent_strategy: Agent strategy to be used for execution.
+                Accepts a strategy class or a pre-initialised StrategyLikedObject
+                instance. Defaults to ReActAgentStrategy.
+            hook_args: Positional arguments passed to event handlers.
+            hook_kwargs: Keyword arguments passed to event handlers.
+            exception_ignored: Exception types that should be re-raised
+                if caught in event handlers.
+            middleware: Async middleware for the whole workflow.
+            archived_nodes: Additional node subprograms appended after the
+                standard pipeline.
+            backend_options: Fine-grained control over which backend
+                fetch/commit operations are performed.
         """
         # Special flags
         self._raised_exc = (
