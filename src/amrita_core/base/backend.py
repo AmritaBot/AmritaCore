@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from amrita_core.types import MemoryModel
 
 
-class AbilityBackend:
+class AbilityBackend(ABC):
     @abstractmethod
     async def load_ability_all(self, session_id: str) -> AbilityContext:
         """Load ability"""
@@ -28,7 +28,7 @@ class AbilityBackend:
     async def load_presets(self, session_id: str) -> MultiPresetManager: ...
 
 
-class MemoryBackend:
+class MemoryBackend(ABC):
     @abstractmethod
     async def load_memory(self, session_id: str) -> MemoryModel:
         """Load memory"""
