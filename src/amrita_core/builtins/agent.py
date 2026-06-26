@@ -21,6 +21,7 @@ from amrita_core.libchat import (
 )
 from amrita_core.types import (
     CONTENT_LIST_TYPE_ITEM,
+    Function,
     Message,
     SendMessageWrap,
     TextContent,
@@ -578,158 +579,222 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """
         pass
 
+    async def _run_tool_calls_concurrently(
+        self,
+        tool_calls: list[ToolCall],
+    ) -> list[tuple[ToolCall, str]]:
+        """Execute multiple tool calls concurrently via asyncio.gather.
+
+        Built-in flow-control tools (REASONING, STOP) are dispatched to their
+        specialised handlers inside each coroutine.  Regular tools use
+        :meth:`call_tool`.  One failure does not cancel the others.
+        Results are returned in the same order as the input list.
+
+        Subclasses may override this to change the execution strategy (e.g. add
+        throttling, retries, or switch to sequential fallback).
+
+        Args:
+            tool_calls: ToolCall objects to execute concurrently.  Callers should
+                order them so that built-in tools appear **after** regular tools
+                so that the side-effects of built-in handlers do not race with
+                the context modifications produced by regular-tool result
+                processing.
+
+        Returns:
+            List of ``(tool_call, result_string)`` tuples in the same order as
+            input.  On error ``result_string`` is formatted as
+            ``"ERR: Tool {name} execution failed\\n{error}"``.
+        """
+
+        async def _exec_one(tc: ToolCall) -> tuple[ToolCall, str]:
+            fn = tc.function.name
+            try:
+                if fn == REASONING_TOOL.function.name:
+                    content: UniResponse[
+                        str, None
+                    ] = await self._generate_reasoning_content(
+                        tc, self.ctx.original_context.unwrap()
+                    )
+                    await self._append_reasoning(tc, content)
+                    return (tc, content.content)
+                if fn == STOP_TOOL.function.name:
+                    args: dict[str, Any] = json.loads(tc.function.arguments)
+                    self.agent_last_step = "Stopped"
+                    self.reasoning_pc = 0
+                    self._suggested_stop = True
+                    logger.info("Agent work has been terminated.")
+
+                    if self._should_enable_reflection():
+                        logger.debug("Running post-reasoning reflection...")
+                        reason_ctx = self.ctx.original_context.unwrap()
+                        reflection_results = await self._run_reflection(reason_ctx)
+                        failures = [
+                            r for r in reflection_results if r["result"] == "fail"
+                        ]
+                        if failures:
+                            correction_msg = (
+                                "<BEGIN_OF_REFLECTION_CORRECTION>\n"
+                                + "Your reasoning was checked and the following issues were found:\n"
+                                + "\n".join(
+                                    f"- [{r['check_type']}] {r['detail']}"
+                                    for r in failures
+                                )
+                                + "\nPlease re-examine your reasoning and correct these issues "
+                                + "before providing the final answer.\n"
+                                + "<END_OF_REFLECTION_CORRECTION>"
+                            )
+                            self.ctx.message.append(
+                                Message(role="user", content=correction_msg)
+                            )
+                            # Empty result → caller skips stop response.
+                            return (tc, "")
+
+                    result = self._build_stop_response(args)
+                    return (tc, result)
+
+                # Regular tool
+                result = await self.call_tool(tc)
+                return (tc, result)
+            except Exception as e:
+                error_content = await self._handle_tool_error_common(fn, e, tc.id)
+                return (tc, error_content)
+
+        return await asyncio.gather(*[_exec_one(tc) for tc in tool_calls])
+
     async def _execute_tool_loop(
         self,
         response_msg: UniResponse[None, list[ToolCall] | None],
     ) -> bool:
-        """Execute the main tool calling loop with strategy-specific behaviors.
+        """Execute the main tool calling loop.
 
-        This is a template method that defines the common execution flow while
-        delegating strategy-specific behaviors to abstract methods.
+        All tool calls are executed concurrently via
+        :meth:`_run_tool_calls_concurrently`.  Built-in tools are ordered last
+        so that their message-list side-effects (reasoning append, stop
+        response) are applied after regular-tool results.
 
         Args:
-            response_msg: The response from tools_caller containing tool calls
+            response_msg: The response from tools_caller containing tool calls.
 
         Returns:
-            True if execution should continue, False if it should stop
+            True if execution should continue, False if it should stop.
         """
         if not (tool_calls := response_msg.tool_calls):
             return False
 
-        result_msg_list: list[ToolResult] = []
-        ret: bool = True
-        for tool_call in tool_calls:
-            function_name = tool_call.function.name
-            function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
-            debug_log(f"Function arguments are {tool_call.function.arguments}")
-            logger.info(f"Calling function {function_name}")
+        # Built-in tools last so their side-effects don't race with regular tools.
+        tool_calls.sort(
+            key=lambda tc: (
+                tc.function.name
+                in (REASONING_TOOL.function.name, STOP_TOOL.function.name)
+            )
+        )
+
+        #  Notify "calling" for every tool
+        for tc in tool_calls:
             await self.chat_object.io_stream.yield_response(
                 MessageWithMetadata(
-                    content=f"Calling function {function_name}\n",
+                    content=f"Calling function {tc.function.name}\n",
                     metadata=AgentToolCallMetadata(
                         type="function_call",
                         extra_type=None,
-                        function_name=function_name,
+                        function_name=tc.function.name,
                         is_done=False,
-                        tool_id=tool_call.id,
+                        tool_id=tc.id,
                         err=None,
                     ),
                 )
             )
 
-            func_response: str = ""
-            try:
-                match function_name:
-                    case REASONING_TOOL.function.name:
-                        logger.debug("Generating task summary and reason.")
-                        content: UniResponse[
-                            str, None
-                        ] = await self._generate_reasoning_content(
-                            tool_call, self.ctx.original_context.unwrap()
-                        )
-                        await self._append_reasoning(tool_call, content)
-                        return True
-                    case STOP_TOOL.function.name:
-                        self.agent_last_step = "Stopped"
-                        self.reasoning_pc = 0
-                        self._suggested_stop = True
-                        logger.info("Agent work has been terminated.")
+        concurrent_results: list[
+            tuple[ToolCall, str]
+        ] = await self._run_tool_calls_concurrently(tool_calls)
 
-                        if self._should_enable_reflection():
-                            logger.debug("Running post-reasoning reflection...")
-                            reason_ctx = self.ctx.original_context.unwrap()
-                            reflection_results = await self._run_reflection(reason_ctx)
-                            # Check for failures and inject correction
-                            failures = [
-                                r for r in reflection_results if r["result"] == "fail"
-                            ]
-                            if failures:
-                                correction_msg = (
-                                    "<BEGIN_OF_REFLECTION_CORRECTION>\n"
-                                    + "Your reasoning was checked and the following issues were found:\n"
-                                    + "\n".join(
-                                        f"- [{r['check_type']}] {r['detail']}"
-                                        for r in failures
-                                    )
-                                    + "\nPlease re-examine your reasoning and correct these issues "
-                                    + "before providing the final answer.\n"
-                                    + "<END_OF_REFLECTION_CORRECTION>"
-                                )
-                                self.ctx.message.append(
-                                    Message(
-                                        role="user",
-                                        content=correction_msg,
-                                    )
-                                )
-                                # Don't build stop response yet — let the agent re-reason
-                                continue
+        #  Append results sequentially
+        result_msg_list: list[ToolResult] = []
+        should_continue = True  # default: keep looping (old `ret` semantics)
+        for tc, func_response in concurrent_results:
+            function_name = tc.function.name
+            is_reasoning = function_name == REASONING_TOOL.function.name
+            is_stop = function_name == STOP_TOOL.function.name
 
-                        func_response = self._build_stop_response(function_args)
-                        await self._build_stop_response_and_append(
-                            function_args,
-                            response_msg,
-                            function_name,
-                            tool_call.id,
-                            func_response,
-                        )
-                    case _:
-                        self.reasoning_pc = 0
-                        func_response = await self.call_tool(tool_call)
-                        await self._append_tool_result_to_context(
-                            tool_call, func_response, response_msg
-                        )
-            except Exception as err:
-                error_content = await self._handle_tool_error_common(
-                    function_name, err, tool_call.id
-                )
-                # Strategy-specific error handling with original exception
-                await self._handle_error_append(
+            if is_reasoning:
+                # _run_tool_calls_concurrently already called _append_reasoning.
+                should_continue = True
+                continue
+
+            if is_stop:
+                if not func_response:
+                    # Reflection failed — correction already injected, continue.
+                    continue
+                await self._build_stop_response_and_append(
+                    json.loads(tc.function.arguments),
+                    response_msg,
                     function_name,
-                    error_content,
-                    tool_call.id,
-                    original_exception=err,
+                    tc.id,
+                    func_response,
+                )
+            elif func_response.startswith("ERR:"):
+                self.reasoning_pc = 0
+                await self._handle_error_append(
+                    function_name, func_response, tc.id, original_exception=None
                 )
             else:
-                logger.debug(f"Function {function_name} returned: {func_response}")
-                msg: ToolResult = ToolResult(
+                self.reasoning_pc = 0
+                await self._append_tool_result_to_context(
+                    tc, func_response, response_msg
+                )
+
+            logger.debug(f"Function {function_name} returned: {func_response}")
+            result_msg_list.append(
+                ToolResult(
                     role="tool",
                     content=func_response,
                     name=function_name,
-                    tool_call_id=tool_call.id,
+                    tool_call_id=tc.id,
                 )
-                result_msg_list.append(msg)
+            )
+            self.call_count += 1
 
-            finally:
-                self.call_count += 1
-                prompt = self._check_and_handle_loop_reasoning()
-                if prompt is not None:
-                    await self._handle_loop_reasoning_cleanup(prompt)
-                    await self.chat_object.io_stream.yield_response(
-                        MessageWithMetadata(
-                            content=prompt,
-                            metadata=AgentLoopErrorMetadata(
-                                type="error",
-                                extra_type="loop_reasoning",
-                                chat_object_id=self.chat_object.stream_id,
-                                error=prompt,
-                            ),
-                        )
+            prompt = self._check_and_handle_loop_reasoning()
+            if prompt is not None:
+                await self._handle_loop_reasoning_cleanup(prompt)
+                await self.chat_object.io_stream.yield_response(
+                    MessageWithMetadata(
+                        content=prompt,
+                        metadata=AgentLoopErrorMetadata(
+                            type="error",
+                            extra_type="loop_reasoning",
+                            chat_object_id=self.chat_object.stream_id,
+                            error=prompt,
+                        ),
                     )
-                    ret = False
+                )
+                # Stop early — don't process remaining results.
+                should_continue = False
+                break
 
-            # Send tool call info to user
-            await self._notify_tool_calls(result_msg_list, function_name, tool_call.id)
+        #  Notify
+        for rslt in result_msg_list:
+            await self._notify_tool_calls(result_msg_list, rslt.name, rslt.tool_call_id)
 
-        return ret
+        return should_continue
 
     async def _handle_error_append(
         self,
         function_name: str,
         error_content: str,
         tool_call_id: str,
-        original_exception: BaseException,
+        original_exception: BaseException | None = None,
     ):
-        """Handle appending error messages to context (strategy-specific)."""
+        """Handle appending error messages to context (strategy-specific).
+
+        Args:
+            function_name: Name of the failed function.
+            error_content: Formatted error message to append.
+            tool_call_id: ID of the failed tool call.
+            original_exception: The original exception, or ``None`` when the error
+                was captured as a string during concurrent execution.
+        """
         ...
 
     @abstractmethod
@@ -1127,9 +1192,25 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         function_call_id: str,
         function_response: str,
     ):
-        """ReAct strategy: append assistant message before stop."""
+        """ReAct strategy: append assistant message with only this STOP tool_call before its ToolResult.
+
+        Only a single ToolCall is included in the assistant message to avoid the
+        "insufficient tool messages following tool_calls message" API error.
+        """
         self.ctx.message.append(
-            Message.model_validate(response_msg, from_attributes=True)
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id=function_call_id,
+                        function=Function(
+                            name=function_name,
+                            arguments=json.dumps(function_args),
+                        ),
+                    )
+                ],
+            )
         )
         self.ctx.message.append(
             ToolResult(
@@ -1147,14 +1228,16 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         func_response: str,
         response_msg: UniResponse[None, list[ToolCall] | None],
     ):
-        """ReAct strategy: append both assistant message and tool result as a pair.
+        """ReAct strategy: append assistant message with only this tool_call paired with its ToolResult.
 
         This follows OpenAI's ToolCall-ToolResult pairing requirement where every
         assistant message with tool_calls must be followed by corresponding tool messages.
+        Only a single ToolCall is included per assistant message to prevent the
+        "insufficient tool messages following tool_calls message" API error when the
+        model returns multiple tool_calls in one response.
         """
-        # First, append the assistant message containing the tool_calls
         msg_list = self.ctx.message
-        msg_list.append(Message.model_validate(response_msg, from_attributes=True))
+        msg_list.append(Message(role="assistant", content=None, tool_calls=[tool_call]))
         msg_list.append(
             ToolResult(
                 role="tool",
@@ -1170,20 +1253,36 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         function_name: str,
         error_content: str,
         tool_call_id: str,
-        original_exception: BaseException,
+        original_exception: BaseException | None = None,
     ):
-        """ReAct strategy: append error as ToolResult with optional exception context.
+        """ReAct strategy: append error as an assistant+tool message pair.
 
-        The original_exception parameter allows for advanced error handling strategies,
-        such as different recovery behaviors based on exception type (e.g., retry on
-        timeout, abort on authentication errors).
+        An assistant message with a single ToolCall is prepended to satisfy the
+        OpenAI API requirement that every ToolResult must follow an assistant
+        message containing the corresponding tool_call.
 
         Args:
             function_name: Name of the failed function
             error_content: Formatted error message to append
             tool_call_id: ID of the tool call
-            original_exception: The original exception object for type-based handling
+            original_exception: The original exception, or ``None`` when the
+                error was captured as a string during concurrent execution.
         """
+        self.ctx.message.append(
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id=tool_call_id,
+                        function=Function(
+                            name=function_name,
+                            arguments="{}",
+                        ),
+                    )
+                ],
+            )
+        )
         self.ctx.message.append(
             ToolResult(
                 role="tool",
@@ -1193,6 +1292,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
         )
 
+    @override
     async def single_execute(
         self,
     ) -> bool:

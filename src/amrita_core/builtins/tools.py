@@ -15,7 +15,8 @@ from .types import AgentMiddleMessageMetadata
 
 PROCESS_MESSAGE_TOOL = FunctionDefinitionSchema(
     name="processing_message",
-    description="Describe what the agent is currently doing and express the agent's internal thoughts to the user. Use this when you need to communicate your current actions or internal reasoning to the user, not for general completion.",
+    description="Describe what the agent is currently doing and express the agent's **internal ideas** to the user."
+    + " Use this when you need to communicate your current actions or internal ideas to the user, **not** for general completion.",
     parameters=FunctionParametersSchema(
         type="object",
         properties={
