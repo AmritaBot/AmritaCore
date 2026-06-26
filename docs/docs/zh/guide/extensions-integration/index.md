@@ -611,16 +611,16 @@ async def get_weather_data(data: dict) -> str:
 ```python
 # 示例: 与 FastAPI 集成为 Web 服务
 from fastapi import FastAPI
-from amrita_core import ChatObject, init
-from amrita_core.config import AmritaConfig
+from amrita_core import ChatObject, minimal_init
+from amrita_core.config import AmritaConfig, set_config
 from amrita_core.types import MemoryModel, Message
 
 app = FastAPI()
 
 # 启动应用时初始化 AmritaCore
-init()
-from amrita_core.config import set_config
-set_config(AmritaConfig())
+@app.on_event("startup")
+async def startup():
+    await minimal_init(AmritaConfig())
 
 @app.post("/chat/")
 async def chat_endpoint(user_input: str, session_id: str):

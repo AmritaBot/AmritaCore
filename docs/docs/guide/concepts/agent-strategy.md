@@ -197,22 +197,22 @@ async def use_builtin_strategies():
 
     # Standard ReAct strategy (recommended for most cases)
     standard_agent = create_agent(
-        url="https://api.openai.com",
-        key="your-api-key",
+        base_url="https://api.openai.com",
+        api_key="your-api-key",
         strategy=ReActAgentStrategy
     )
 
     # Hybrid strategy for MoE models
     hybrid_agent = create_agent(
-        url="https://api.moemodel.com",
-        key="your-api-key",
+        base_url="https://api.moemodel.com",
+        api_key="your-api-key",
         strategy=HybridReActAgentStrategy
     )
 
     # No-action strategy to skip tool execution
     no_action_agent = create_agent(
-        url="https://api.example.com",
-        key="your-api-key",
+        base_url="https://api.example.com",
+        api_key="your-api-key",
         strategy=NoActionAgentStrategy
     )
 
