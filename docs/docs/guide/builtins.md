@@ -38,7 +38,7 @@ Built-in tools are automatically enabled based on the agent configuration:
 
 - **Agent Mode**: When `config.builtin.tool_calling_mode == "agent"`, both `STOP_TOOL` and `REASONING_TOOL` are available.
 - **Thought Mode**: The `REASONING_TOOL` is only available when `config.builtin.agent_thought_mode` starts with "reasoning".
-- **Process Messages**: The `PROCESS_MESSAGE` tool is enabled when `config.function_config.agent_middle_message` is True.
+- **Process Messages**: The `PROCESS_MESSAGE` tool is used internally by the `HybridReActAgentStrategy` to communicate intermediate tool results to the user. It is **not** registered by `ReActAgentStrategy`; the `config.function_config.agent_middle_message` flag controls whether the agent may send intermediate notifications, but does not independently enable the `PROCESS_MESSAGE` tool.
 
 ## 9.2 Built-in Metadata Types
 
@@ -46,14 +46,17 @@ Built-in tools are automatically enabled based on the agent configuration:
 
 These typed metadata classes replace plain dictionaries, providing type safety and IDE autocompletion:
 
-| Class                         | Purpose                                                                |
-| ----------------------------- | ---------------------------------------------------------------------- |
-| `AgentReasoningMetadata`      | Pre-resolve reasoning summaries (`last_step`, `summary`)               |
-| `AgentReasoningChunkMetadata` | Streaming reasoning chunks (`content`)                                 |
-| `AgentToolCallMetadata`       | Tool call notifications (`function_name`, `is_done`, `tool_id`, `err`) |
-| `AgentLoopErrorMetadata`      | Loop detection errors (`chat_object_id`, `error`)                      |
-| `AgentMiddleMessageMetadata`  | LLM middle messages (`content`)                                        |
-| `HookErrorMetadata`           | Hook-level error responses (`content`)                                 |
+| Class                                   | Purpose                                                                           |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| `AgentReasoningMetadata`                | Pre-resolve reasoning summaries (`last_step`, `summary`)                          |
+| `AgentReasoningChunkMetadata`           | Streaming reasoning chunks (`content`)                                            |
+| `AgentToolCallMetadata`                 | Tool call notifications (`function_name`, `is_done`, `tool_id`, `err`)            |
+| `AgentLoopErrorMetadata`                | Loop detection errors (`chat_object_id`, `error`)                                 |
+| `AgentMiddleMessageMetadata`            | LLM middle messages (`content`)                                                   |
+| `HookErrorMetadata`                     | Hook-level error responses (`content`)                                            |
+| `AgentStructuredReasoningChunkMetadata` | Per-step structured CoT reasoning metadata (`step_index`, `total_steps`, `phase`) |
+| `AgentReflectionMetadata`               | Post-reasoning self-reflection results (`reflection_type`, `result`, `detail`)    |
+| `AgentToolPredictionMetadata`           | Tool prediction during structured reasoning (`predicted_tools`)                   |
 
 Base classes in `amrita_core.contents`:
 

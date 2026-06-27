@@ -59,7 +59,7 @@ set_config(config)
 
 **Usage Notes**:
 
-- Must be called after `init()` but before `load_amrita()`
+- Should be called before `load_amrita()`
 - Configuration affects all subsequent operations
 
 ### 7.1.4 get_config() - Getting Configuration

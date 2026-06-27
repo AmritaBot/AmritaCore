@@ -54,9 +54,9 @@ async def handle_fallback(event: FallbackContext):
 
     # Switch to a different preset for retry
     # The system will automatically use event.preset for the next attempt
-    if event.term == 1:  # First retry
+    if event.term == 0:  # First attempt
         event.preset = get_alternative_preset()  # Your custom function to get alternative preset
-    elif event.term == 2:  # Second retry
+    elif event.term == 1:  # First retry
         event.preset = get_safe_preset()  # Your custom function to get a safe/cheaper preset
     else:
         # Mark as failed if no more fallbacks available
@@ -70,7 +70,7 @@ The `FallbackContext` provides the following properties:
 - `exc_info`: The exception that caused the failure
 - `config`: The current [AmritaConfig](../api-reference/classes/AmritaConfig.md)
 - `context`: The [SendMessageWrap](../api-reference/classes/SendMessageWrap.md) containing the message context
-- `term`: The current retry attempt number (starting from 1)
+- `term`: The current retry attempt number, counting from **0** (first call) up to `max_retries - 1`.
 
 You can modify the `event.preset` to switch to a different model preset for the next retry attempt. If no suitable fallback is available, call `event.fail(reason)` to terminate the retry process.
 

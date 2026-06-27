@@ -197,22 +197,22 @@ async def use_builtin_strategies():
 
     # 标准ReAct策略（推荐用于大多数情况）
     standard_agent = create_agent(
-        url="https://api.openai.com",
-        key="your-api-key",
+        base_url="https://api.openai.com",
+        api_key="your-api-key",
         strategy=ReActAgentStrategy
     )
 
     # MoE模型的混合策略
     hybrid_agent = create_agent(
-        url="https://api.moemodel.com",
-        key="your-api-key",
+        base_url="https://api.moemodel.com",
+        api_key="your-api-key",
         strategy=HybridReActAgentStrategy
     )
 
     # 跳过工具执行的无操作策略
     no_action_agent = create_agent(
-        url="https://api.example.com",
-        key="your-api-key",
+        base_url="https://api.example.com",
+        api_key="your-api-key",
         strategy=NoActionAgentStrategy
     )
 
@@ -254,22 +254,22 @@ async def use_builtin_strategies():
 ```python
 from amrita_core.agent.strategy import StrategyLikedObject
 
-class 限流策略(StrategyLikedObject):
-    def __init__(self, 最大调用次数: int, api_key: str):
-        self.最大调用次数 = 最大调用次数
-        self.调用计数 = 0
+class RateLimitedStrategy(StrategyLikedObject):
+    def __init__(self, max_calls: int, api_key: str):
+        self.max_calls = max_calls
+        self.call_count = 0
         self.api_key = api_key
-        self.客户端 = MyAPIClient(api_key)  # 预加载资源
+        self.client = MyAPIClient(api_key)  # 预加载资源
 
     @classmethod
     def get_category(cls) -> str:
         return "agent"
 
     async def single_execute(self) -> bool:
-        self.调用计数 += 1
-        if self.调用计数 > self.最大调用次数:
+        self.call_count += 1
+        if self.call_count > self.max_calls:
             return False  # 停止
-        # 使用 self.客户端 进行 API 调用...
+        # 使用 self.client 进行 API 调用...
         return True
 
     async def on_limited(self) -> None:
@@ -278,13 +278,13 @@ class 限流策略(StrategyLikedObject):
         )
 
 # 传入实例 — 而非类
-策略 = 限流策略(最大调用次数=5, api_key="sk-...")
+strategy = RateLimitedStrategy(max_calls=5, api_key="sk-...")
 chat_obj = ChatObject(
     train={"system": "你是一个有用的助手"},
     user_input="你好",
     context=None,
     session_id="session_123",
-    agent_strategy=策略,  # 实例！
+    agent_strategy=strategy,  # 传入实例
 )
 ```
 

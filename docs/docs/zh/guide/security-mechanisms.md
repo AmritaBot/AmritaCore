@@ -34,30 +34,21 @@ default_security_config = CookieConfig(enable_cookie=True)
 下面是如何实现和使用 Cookie 安全检测：
 
 ```python
-from amrita_core.config import AmritaConfig, CookieConfig
-from amrita_core import init, ChatObject
-from amrita_core.types import MemoryModel, Message
+from amrita_core.config import AmritaConfig, CookieConfig, set_config
+from amrita_core import ChatObject
+from amrita_core.base.backend import BackendSlots
+from amrita_core.builtins.backends import LegacyBackend
 
-# 初始化并启用安全功能
-init()
+# Cookie 安全默认启用，无需显式初始化
 
 # 设置安全配置
 security_config = AmritaConfig(
     cookie=CookieConfig(enable_cookie=True)
 )
-
-from amrita_core.config import set_config
 set_config(security_config)
 
 # Cookie 安全将自动应用于对话
-context = MemoryModel()
-train = Message(content="您是一个有用的助手。", role="system")
-
 chat = ChatObject(
-    context=context,
-    session_id="secure_session",
-    user_input="你好！",
-    train=train.model_dump()
 )
 ```
 

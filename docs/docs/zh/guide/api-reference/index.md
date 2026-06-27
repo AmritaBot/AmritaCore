@@ -2,24 +2,18 @@
 
 ## 7.1 核心 API 函数
 
-### 7.1.1 init() - 初始化
+### 7.1.1 init() - 初始化（已废弃）
 
-`init()` 函数初始化 AmritaCore 的核心组件，必须在任何其他操作之前调用。
+> **已废弃**：`init()` 函数从 v0.9.0rc1 起已废弃。现在是空操作存根，不再执行任何初始化。请改用 `load_amrita()` 进行异步初始化。
 
 ```python
 from amrita_core import init
 
-# 初始化 AmritaCore
+# 不再必要 — 现在是一个空操作
 init()
 ```
 
-**用途**: 准备 AmritaCore 的内部组件，初始化 Jieba 用于文本处理，加载内置模块并设置核心框架。
-
-**使用注意事项**:
-
-- 必须在任何其他 AmritaCore 函数之前调用
-- 线程安全，可以多次调用（后续调用是无操作）
-- 设置日志记录和内部状态
+**迁移**: 删除代码中所有 `init()` 调用。需要异步初始化时（例如 MCP 客户端设置）使用 `load_amrita()`。
 
 ### 7.1.2 load_amrita() - 加载框架
 
@@ -39,7 +33,7 @@ asyncio.run(main())
 
 **使用注意事项**:
 
-- 必须在 `init()` 和 `set_config()` 之后调用
+- 必须在 `set_config()` 之后调用
 - 应该被等待，因为它是一个异步函数
 
 ### 7.1.3 set_config() - 设置配置
@@ -61,7 +55,7 @@ set_config(config)
 
 **使用注意事项**:
 
-- 必须在 `init()` 之后但在 `load_amrita()` 之前调用
+- 应该在 `load_amrita()` 之前调用
 - 配置会影响所有后续操作
 
 ### 7.1.4 get_config() - 获取配置
@@ -79,8 +73,8 @@ print(config.function_config.use_minimal_context)
 
 **使用注意事项**:
 
-- 如果 AmritaCore 未初始化则抛出 RuntimeError
-- 在初始化后调用是安全的
+- 如果尚未调用 `set_config()` 则抛出 RuntimeError
+- 初始化后调用是安全的
 
 ### 7.1.5 create_agent() - Agent 创建
 

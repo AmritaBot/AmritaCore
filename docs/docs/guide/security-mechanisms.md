@@ -12,18 +12,18 @@ The cookie system works by inserting a unique identifier into the conversation c
 
 ### 6.1.2 CookieConfig Configuration
 
-The [CookieConfig](../api-reference/classes/CookieConfig.md) class manages cookie-related security settings:
+The [CookieConfig](../api-reference/classes/CookieConfig.md) class manages cookie-related security settings. Cookie security is **enabled by default** (`enable_cookie=True`) — no explicit configuration is needed unless you want to customise the cookie string:
 
 ```python
 from amrita_core.config import CookieConfig
 
-# Enable cookie security detection
+# Cookie security is ON by default.  These examples show how to change the cookie.
 security_config = CookieConfig(
-    enable_cookie=True,              # Enable the cookie leak detection mechanism
+    enable_cookie=True,              # Already the default, shown for clarity
     cookie="custom_cookie_string"    # Custom cookie string (defaults to random string)
 )
 
-# Or let the system generate a random cookie automatically
+# Or let the system generate a random cookie automatically (this is the default behaviour)
 default_security_config = CookieConfig(enable_cookie=True)
 ```
 
