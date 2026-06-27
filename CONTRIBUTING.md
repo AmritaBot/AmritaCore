@@ -8,17 +8,7 @@ Before participating in the project, please read our [Code of Conduct](./CODE_OF
 
 ## AIGC Content Licensing Policy
 
-We welcome the use of AI-generated content as a tool to enhance development efficiency, while maintaining high standards for code quality and integrity:
-
-1. **AI as a Tool**: The use of AI for code generation is recognized as a technological advancement and valuable productivity tool.
-
-2. **Core Business Logic**: All core business logic code must be written manually by developers and undergo thorough code review. AI-generated core business logic will not be accepted.
-
-3. **Documentation**: AI-generated documentation is permitted, but must strictly conform to the project's API definitions and specifications.
-
-4. **Tests**: Test cases may be generated using LLMs, but must provide complete coverage of the corresponding code lines, logical branches, and edge cases.
-
-5. **Review Requirement**: All AI-generated content, regardless of type, must be reviewed and validated by human contributors before submission.
+We welcome the use of AI-generated content as a tool to enhance development efficiency, while maintaining high standards for code quality and integrity. See [AIGC Content Licensing Policy](./POLICY_OF_AIGC) for details.
 
 ## Setting Up the Development Environment
 

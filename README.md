@@ -59,6 +59,10 @@ Full guides, API references, and examples at [core.amritabot.com](https://core.a
 
 We welcome contributions! Please see our [contribution guidelines](./CONTRIBUTING.md) for more information.
 
+## AIGC Content Licensing Policy
+
+We use [AACLP v1.0](https://github.com/AmritaBot/AACLP/blob/v1.0/contents/AACLPV1) for AIGC content licensing. See [here](./POLICY_OF_AIGC) for more details.
+
 ## 📄 License
 
 This project is licensed under the **Apache 2.0 License** — see the [LICENSE](./LICENSE) file for details. All versions of AmritaCore are released under Apache 2.0.
