@@ -1,0 +1,55 @@
+AmritaConstant AIGC Content Licensing Policy
+
+AACLP v1.0
+
+Published: 2026
+
+This license (AmritaConstant AIGC Content Licensing Policy, abbreviated as AACLP) sets forth the terms applicable to all contributions involving AI-generated content (AIGC) in projects that adopt this license. By submitting content to the project, any natural person, legal entity, or other organization acknowledges that they have read, understood, and agreed to be bound by all the terms of this license.
+
+Article 1 – Definitions
+
+1.1 "AI-Generated Content" (AIGC) refers to code, documentation, test cases, and other project assets that are partially or fully produced by artificial intelligence systems, including but not limited to large language models, code completion engines, and documentation generators.
+1.2 "Contributor" refers to any natural person, legal entity, or other organization that submits content to the project.
+1.3 "Maintainer" refers to the designated person or organization responsible for project governance and quality assurance.
+1.4 "Core Business Logic" refers to the parts of the code that have a substantial impact on correctness, security, or data consistency. This policy does not provide an exhaustive definition; Maintainers should provide specific guidance for the project in the CONTRIBUTING file.
+
+Article 2 – Fundamental Principles
+
+2.1 AI-assisted tools are regarded as part of the development toolchain, on an equal footing with compilers, static analysis tools, and scaffolding tools.
+2.2 The technical platforms or service providers offering AI assistance bear no responsibility for the correctness, security, or suitability of the generated content.
+2.3 AI is the tool; the human is the helmsman. The ultimate responsibility for all AI-assisted output always rests with the Contributor who uses the tool.
+
+Article 3 – Core Business Logic
+
+3.1 Recommended Guideline: Maintainers recommend that all core business logic be written manually by Contributors.
+3.2 Conditional Permission: Contributors may use AI assistance to generate core business logic, provided that all of the following conditions are met:
+(a) Confirmation of Understanding: The Contributor must be able to explain the logic line by line, articulate the design decisions, and describe the role and impact of the code within the system context;
+(b) Attribution of Responsibility: The committer and reviewer of the code are the sole and final parties responsible for its quality and correctness. Defects, security vulnerabilities, or logic errors caused by AIGC are the responsibility of the Contributor, and the technical platform or AI service provider does not enter the project's chain of responsibility;
+(c) Additional Review: Maintainers have the right to require the Contributor to provide written or oral supplementary explanations for core logic generated with AI assistance, as a prerequisite for merge acceptance.
+
+Article 4 – Documentation
+
+4.1 AI may be used to generate initial documentation drafts.
+4.2 The final submitted documentation must satisfy the following:
+(a) Strictly conform to the project's API definitions and specifications, and contain no fictional interfaces, parameters, or behavioral descriptions;
+(b) The Contributor assumes full responsibility for the accuracy of all factual statements in the documentation.
+
+Article 5 – Tests
+
+5.1 AI may be used to generate test cases.
+5.2 The final submitted test code must satisfy the following:
+(a) Provide adequate coverage of the target code's logical branches and edge cases;
+(b) Possess actual verification effectiveness, and contain no meaningless placeholders or spurious pass logic.
+
+Article 6 – Review Obligations
+
+6.1 All AI-assisted content must be reviewed and verified by a Contributor before submission.
+6.2 The reviewer must not be an AI tool.
+6.3 The review must be clearly recorded, including but not limited to code review comments and commit message annotations.
+
+Article 7 – Supplementary Provisions
+
+7.1 Severability: If any provision of this license is held to be invalid or unenforceable, the remaining provisions shall remain in full force and effect.
+7.2 Revision: Subsequent revisions of this license must be reviewed and approved by the Maintainer, with a change log recorded. Once published, the revised version applies to all subsequent contributions to the project.
+
+  Author: [Your name or organization]
