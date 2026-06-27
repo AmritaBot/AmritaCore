@@ -582,7 +582,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _run_tool_calls_concurrently(
         self,
         tool_calls: list[ToolCall],
-    ) -> list[tuple[ToolCall, str]]:
+    ) -> list[tuple[ToolCall, str, BaseException | None]]:
         """Execute multiple tool calls concurrently via asyncio.gather.
 
         Built-in flow-control tools (REASONING, STOP) are dispatched to their
@@ -601,12 +601,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 processing.
 
         Returns:
-            List of ``(tool_call, result_string)`` tuples in the same order as
-            input.  On error ``result_string`` is formatted as
-            ``"ERR: Tool {name} execution failed\\n{error}"``.
+            List of ``(tool_call, result_string, original_exception)`` tuples.
+            ``original_exception`` is the exception instance when an error
+            occurred, ``None`` otherwise.  On error ``result_string`` is
+            formatted as ``"ERR: Tool {name} execution failed\\n{error}"``.
         """
 
-        async def _exec_one(tc: ToolCall) -> tuple[ToolCall, str]:
+        async def _exec_one(tc: ToolCall) -> tuple[ToolCall, str, BaseException | None]:
             fn = tc.function.name
             try:
                 if fn == REASONING_TOOL.function.name:
@@ -616,7 +617,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         tc, self.ctx.original_context.unwrap()
                     )
                     await self._append_reasoning(tc, content)
-                    return (tc, content.content)
+                    return (tc, content.content, None)
                 if fn == STOP_TOOL.function.name:
                     args: dict[str, Any] = json.loads(tc.function.arguments)
                     self.agent_last_step = "Stopped"
@@ -647,17 +648,17 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                                 Message(role="user", content=correction_msg)
                             )
                             # Empty result → caller skips stop response.
-                            return (tc, "")
+                            return (tc, "", None)
 
                     result = self._build_stop_response(args)
-                    return (tc, result)
+                    return (tc, result, None)
 
                 # Regular tool
                 result = await self.call_tool(tc)
-                return (tc, result)
+                return (tc, result, None)
             except Exception as e:
                 error_content = await self._handle_tool_error_common(fn, e, tc.id)
-                return (tc, error_content)
+                return (tc, error_content, e)
 
         return await asyncio.gather(*[_exec_one(tc) for tc in tool_calls])
 
@@ -706,13 +707,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
 
         concurrent_results: list[
-            tuple[ToolCall, str]
+            tuple[ToolCall, str, BaseException | None]
         ] = await self._run_tool_calls_concurrently(tool_calls)
 
         #  Append results sequentially
         result_msg_list: list[ToolResult] = []
         should_continue = True  # default: keep looping (old `ret` semantics)
-        for tc, func_response in concurrent_results:
+        for tc, func_response, exc in concurrent_results:
             function_name = tc.function.name
             is_reasoning = function_name == REASONING_TOOL.function.name
             is_stop = function_name == STOP_TOOL.function.name
@@ -736,7 +737,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             elif func_response.startswith("ERR:"):
                 self.reasoning_pc = 0
                 await self._handle_error_append(
-                    function_name, func_response, tc.id, original_exception=None
+                    function_name,
+                    func_response,
+                    tc.id,
+                    original_exception=exc,
                 )
             else:
                 self.reasoning_pc = 0
@@ -773,9 +777,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 should_continue = False
                 break
 
-        #  Notify
-        for rslt in result_msg_list:
-            await self._notify_tool_calls(result_msg_list, rslt.name, rslt.tool_call_id)
+        #  Notify once with the complete result list.
+        if result_msg_list:
+            await self._notify_tool_calls(
+                result_msg_list,
+                result_msg_list[-1].name,
+                result_msg_list[-1].tool_call_id,
+            )
 
         return should_continue
 
