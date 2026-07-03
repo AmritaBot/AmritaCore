@@ -110,11 +110,13 @@ class MCPClient:
         """Connect to MCP Server (idempotent, safe for concurrent calls)
         Args:
             update_tools (bool, optional): whether to update the tool list. Defaults to False.
+                When True, tools are always refreshed from the server, even if already connected.
         """
         async with self._connect_lock:
             await self._clean_waitter()
-            # Double-check: another coroutine may have connected while we waited for the lock
             if self.mcp_client is not None:
+                if update_tools:
+                    await self._refresh_tools()
                 return
 
             server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
@@ -122,12 +124,17 @@ class MCPClient:
             await self.mcp_client.__aenter__()
             logger.info(f"Successfully connected to MCP Server@{server_script}")
             if update_tools or not self.tools:
-                self.tools = [
-                    MCPToolSchema.model_validate(i.model_dump())
-                    for i in await self.mcp_client.list_tools()
-                ]
-                logger.info(f"Available tools: {[tool.name for tool in self.tools]}")
-                self._cast_tool_to_amrita()
+                await self._refresh_tools()
+
+    async def _refresh_tools(self) -> None:
+        """Refresh the cached tool list from the connected MCP server."""
+        assert self.mcp_client is not None, "Cannot refresh tools: not connected"
+        self.tools = [
+            MCPToolSchema.model_validate(i.model_dump())
+            for i in await self.mcp_client.list_tools()
+        ]
+        logger.info(f"Available tools: {[tool.name for tool in self.tools]}")
+        self._cast_tool_to_amrita()
 
     async def _clean_waitter(self):
         if self._close_waitter is not None:
