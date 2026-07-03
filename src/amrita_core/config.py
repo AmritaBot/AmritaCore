@@ -1,4 +1,3 @@
-# TODO:分实例的配置
 from __future__ import annotations
 
 import random

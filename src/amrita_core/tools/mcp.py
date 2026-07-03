@@ -39,6 +39,7 @@ class MCPClient:
     server_script: MCP_SERVER_SCRIPT_TYPE
     _close_waitter: asyncio.Future | None = None
     _close_ttl: int
+    _connect_lock: aiologic.Lock
 
     def __init__(
         self,
@@ -59,6 +60,7 @@ class MCPClient:
         if connection_ttl < -1:
             raise ValueError("connection_ttl must be greater than or equals to -1")
         self._close_ttl = connection_ttl
+        self._connect_lock = aiologic.Lock()
 
     async def __aenter__(self) -> Self:
         self._close_waitter = None
@@ -105,25 +107,27 @@ class MCPClient:
             await self._close()
 
     async def _connect(self, update_tools: bool = False):
-        """Connect to MCP Server
+        """Connect to MCP Server (idempotent, safe for concurrent calls)
         Args:
             update_tools (bool, optional): whether to update the tool list. Defaults to False.
         """
-        await self._clean_waitter()
-        if self.mcp_client is not None:
-            raise RuntimeError("MCP Server is already connected!")
+        async with self._connect_lock:
+            await self._clean_waitter()
+            # Double-check: another coroutine may have connected while we waited for the lock
+            if self.mcp_client is not None:
+                return
 
-        server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
-        self.mcp_client = Client(server_script)
-        await self.mcp_client.__aenter__()
-        logger.info(f"Successfully connected to MCP Server@{server_script}")
-        if update_tools or not self.tools:
-            self.tools = [
-                MCPToolSchema.model_validate(i.model_dump())
-                for i in await self.mcp_client.list_tools()
-            ]
-            logger.info(f"Available tools: {[tool.name for tool in self.tools]}")
-            self._cast_tool_to_amrita()
+            server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
+            self.mcp_client = Client(server_script)
+            await self.mcp_client.__aenter__()
+            logger.info(f"Successfully connected to MCP Server@{server_script}")
+            if update_tools or not self.tools:
+                self.tools = [
+                    MCPToolSchema.model_validate(i.model_dump())
+                    for i in await self.mcp_client.list_tools()
+                ]
+                logger.info(f"Available tools: {[tool.name for tool in self.tools]}")
+                self._cast_tool_to_amrita()
 
     async def _clean_waitter(self):
         if self._close_waitter is not None:
@@ -158,9 +162,10 @@ class MCPClient:
 
     async def _close(self) -> None:
         """Close connection"""
-        if self.mcp_client:
-            await self.mcp_client.__aexit__(None, None, None)
-            self.mcp_client = None
+        async with self._connect_lock:
+            if self.mcp_client:
+                await self.mcp_client.__aexit__(None, None, None)
+                self.mcp_client = None
 
     def _format_tools_for_openai(self):
         """Convert MCP tool format to OpenAI tool format"""
