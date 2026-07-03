@@ -112,8 +112,10 @@ class MCPClient:
             update_tools (bool, optional): whether to update the tool list. Defaults to False.
                 When True, tools are always refreshed from the server, even if already connected.
         """
+        # Cancel any pending close-waiter outside the lock to avoid deadlock:
+        # _clean_waitter cancels the waiter task whose _close() also needs _connect_lock.
+        await self._clean_waitter()
         async with self._connect_lock:
-            await self._clean_waitter()
             if self.mcp_client is not None:
                 if update_tools:
                     await self._refresh_tools()
