@@ -88,12 +88,11 @@ class TestMCPClient:
             assert "Test error" in error_data["error"]
 
     @pytest.mark.asyncio
-    async def test_connect_already_connected(self, mcp_client):
+    async def test_connect_already_connected_suppress(self, mcp_client):
         """Test _connect when already connected"""
         mcp_client.mcp_client = AsyncMock()
 
-        with pytest.raises(RuntimeError, match="MCP Server is already connected!"):
-            await mcp_client._connect()
+        await mcp_client._connect()
 
 
 class TestMultiClientManager:

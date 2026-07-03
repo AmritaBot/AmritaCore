@@ -60,8 +60,21 @@ class OpenAIAdapter(ModelAdapter):
         completion: ChatCompletion | openai.AsyncStream[ChatCompletionChunk] | None = (
             None
         )
+
+        kwargs.setdefault("extra_body", {})
         if preset.thinking_config is not None:
-            kwargs.update({"reasoning_effort": preset.thinking_config.thinking_effort})
+            if preset.thinking_config.thinking_type is not None:
+                kwargs["extra_body"].setdefault("thinking", {}).setdefault(
+                    "type", preset.thinking_config.thinking_type
+                )
+            if preset.thinking_config.enable_thinking:
+                kwargs["extra_body"].setdefault("enable_thinking", True)
+
+            if preset.thinking_config.thinking_effort:
+                kwargs.update(
+                    {"reasoning_effort": preset.thinking_config.thinking_effort}
+                )
+
         if stream := preset.config.stream:
             kwargs.update({"stream_options": {"include_usage": True}})
         completion = await client.chat.completions.create(
@@ -169,8 +182,19 @@ class OpenAIAdapter(ModelAdapter):
             api_key=key,
             timeout=config.llm.llm_timeout,
         )
+        kwargs.setdefault("extra_body", {})
         if preset.thinking_config is not None:
-            kwargs.update({"reasoning_effort": preset.thinking_config.thinking_effort})
+            if preset.thinking_config.thinking_type is not None:
+                kwargs["extra_body"].setdefault("thinking", {}).setdefault(
+                    "type", preset.thinking_config.thinking_type
+                )
+            if preset.thinking_config.enable_thinking:
+                kwargs["extra_body"].setdefault("enable_thinking", True)
+
+            if preset.thinking_config.thinking_effort:
+                kwargs.update(
+                    {"reasoning_effort": preset.thinking_config.thinking_effort}
+                )
         completion: ChatCompletion = await client.chat.completions.create(
             model=model,
             messages=messages,

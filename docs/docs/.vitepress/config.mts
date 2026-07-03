@@ -67,6 +67,9 @@ export default withMermaid({
       themeConfig: {
         // https://vitepress.dev/reference/default-theme-config
         siteTitle: "Amrita Core Docs",
+        search: {
+          provider: "local",
+        },
         nav: [
           { text: "Home", link: "/" },
           { text: "Start", link: "/guide/introduction" },
@@ -420,6 +423,9 @@ export default withMermaid({
       themeConfig: {
         // https://vitepress.dev/reference/default-theme-config
         siteTitle: "Amrita Core 文档",
+        search: {
+          provider: "local",
+        },
         nav: [
           { text: "首页", link: "/zh/" },
           { text: "开始", link: "/zh/guide/introduction" },

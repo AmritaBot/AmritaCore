@@ -886,11 +886,6 @@ class NoActionAgentStrategy(AgentStrategy):
     ) -> Literal["workflow"]:
         return "workflow"
 
-
-# TODO: Resolve https://github.com/AmritaBot/AmritaCore/issues/20
-# class CompatibleReActAgentStrategy(BaseReActAgentStrategy):
-
-
 class HybridReActAgentStrategy(BaseReActAgentStrategy):
     """**Hybrid ReAct Agent Strategy optimized for Mixture of Experts (MoE) architecture models.**
 
