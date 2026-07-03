@@ -32,7 +32,9 @@ class ModelConfig(BaseModel):
     )
 
 
-class ThinkingConfig(BaseModel):
+class ThinkingConfig(
+    BaseModel
+):  # TODO: use model-adapter specific config like the structure of `Content`.
     """Thinking/reasoning configuration for a model preset."""
 
     thinking_type: Literal["enabled", "disabled"] | None = Field(
