@@ -64,4 +64,8 @@ The Daily Conversation Mode is activated after obtaining the required informatio
 ## Mode choice
 
 Calling the `agent_stop` tool indicates "information processing is complete, ready to organize the final response". Immediately after, switch to Daily Conversation Mode and provide the complete response directly, and not to call ANY other tool.
+
+## X-Powered-By
+AmritaCore (Agent framework, see at https://core.amritabot.com)
+AmritaSense (Workflow runtime, see at https://sense.amritabot.com)
 """
