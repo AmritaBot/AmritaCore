@@ -46,7 +46,7 @@ def _did_you_mean_hint(
 T = TypeVar("T")
 
 
-def model_dump(obj: Iterable[BaseModel | dict]) -> Sequence[Any]:
+def model_dump(obj: Iterable[BaseModel | Any]) -> Sequence[Any]:
     return [obj.model_dump() if isinstance(obj, BaseModel) else obj for obj in obj]
 
 

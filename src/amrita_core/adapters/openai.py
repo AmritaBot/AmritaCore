@@ -36,6 +36,7 @@ from amrita_core.types import (
     UniResponse,
     UniResponseUsage,
 )
+from amrita_core.utils import model_dump
 
 
 class OpenAIAdapter(ModelAdapter):
@@ -51,6 +52,7 @@ class OpenAIAdapter(ModelAdapter):
         preset: ModelPreset = self.preset
         preset_config: ModelConfig = preset.config
         config: AmritaConfig = self.config
+        messages = model_dump(messages)
         client = openai.AsyncOpenAI(
             base_url=preset.base_url,
             api_key=preset.api_key,
@@ -171,6 +173,7 @@ class OpenAIAdapter(ModelAdapter):
             )
         else:
             choice = tool_choice
+        messages = model_dump(messages)
         config: AmritaConfig = self.config
         preset: ModelPreset = self.preset
         preset_config: ModelConfig = preset.config
@@ -195,6 +198,7 @@ class OpenAIAdapter(ModelAdapter):
                 kwargs.update(
                     {"reasoning_effort": preset.thinking_config.thinking_effort}
                 )
+        print(messages)
         completion: ChatCompletion = await client.chat.completions.create(
             model=model,
             messages=messages,
