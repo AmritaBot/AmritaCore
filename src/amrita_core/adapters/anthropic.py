@@ -291,8 +291,12 @@ try:
                         completion_tokens=last_msg.usage.output_tokens,
                         total_tokens=last_msg.usage.input_tokens
                         + last_msg.usage.output_tokens,
-                        cache_creation=last_msg.usage.cache_creation_input_tokens,
-                        cache_hit=last_msg.usage.cache_read_input_tokens,
+                        cache_creation=getattr(
+                            last_msg.usage, "cache_creation_input_tokens", None
+                        ),
+                        cache_hit=getattr(
+                            last_msg.usage, "cache_read_input_tokens", None
+                        ),
                     )
             else:
                 last_msg: Message = await client.messages.create(
@@ -314,8 +318,10 @@ try:
                     completion_tokens=last_msg.usage.output_tokens,
                     total_tokens=last_msg.usage.input_tokens
                     + last_msg.usage.output_tokens,
-                    cache_creation=last_msg.usage.cache_creation_input_tokens,
-                    cache_hit=last_msg.usage.cache_read_input_tokens,
+                    cache_creation=getattr(
+                        last_msg.usage, "cache_creation_input_tokens", None
+                    ),
+                    cache_hit=getattr(last_msg.usage, "cache_read_input_tokens", None),
                 )
                 for ct in last_msg.content:
                     if isinstance(ct, TextBlock):
@@ -405,8 +411,10 @@ try:
                     completion_tokens=response.usage.output_tokens,
                     total_tokens=response.usage.input_tokens
                     + response.usage.output_tokens,
-                    cache_creation=response.usage.cache_creation_input_tokens,
-                    cache_hit=response.usage.cache_read_input_tokens,
+                    cache_creation=getattr(
+                        response.usage, "cache_creation_input_tokens", None
+                    ),
+                    cache_hit=getattr(response.usage, "cache_read_input_tokens", None),
                 )
             tool_calls = []
             reasoning = ""
