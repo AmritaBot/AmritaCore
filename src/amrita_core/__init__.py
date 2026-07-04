@@ -1,3 +1,48 @@
+"""AmritaCore — A lightweight Agent runtime.
+
+AmritaCore is a lightweight Agent runtime built on top of AmritaSense, providing
+native async streaming, tool integration, event hooks, and memory management.
+This module is the unified entry point for the AmritaCore library, organized
+by functional domain:
+
+Core Components
+    - **Config**: AmritaConfig, get_config, set_config
+    - **Preset Management**: PresetManager, PresetReport, ModelPreset, ModelConfig
+    - **Chat Management**: ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
+    - **Agent Strategy**: AgentStrategy, AgentRuntime, create_agent
+
+Type System
+    - **Message**: BaseModel, UniResponse, UniResponseUsage
+    - **Tools**: ToolCall, ToolResult, ToolFunctionSchema, FunctionDefinitionSchema,
+      FunctionParametersSchema, FunctionPropertySchema, ToolContext, ToolData
+    - **Content**: TextContent, Function, MemoryModel
+
+Backends & Contexts
+    - **Backends**: AbilityBackend, MemoryBackend, LegacyBackend, BackendSlots
+    - **Contexts**: AbilityContext, StateContext
+
+Event Hooks
+    - **Events**: CompletionEvent, PreCompletionEvent, EventTypeEnum
+    - **Registration**: on_completion, on_event, on_precompletion
+
+Tool System
+    - **Management**: ToolsManager, on_tools, simple_tool
+    - **MCP**: mcp
+
+Chat API
+    - call_completion, tools_caller, text_generator, get_last_response, get_tokens
+
+Initialization
+    - load_amrita(): Full initialization with built-in components and MCP clients
+    - minimal_init(): Minimal initialization
+
+Note: AmritaCore must NOT be run in Python optimized mode (-O / --optimize).
+"""
+
+if not __debug__:  # fast-fail in optimized mode
+    raise RuntimeError(
+        "AmritaCore is running in optimized mode, which will affect functionality. Please run without -O or --optimize flag."
+    )
 from amrita_sense.logging import debug_log, logger
 from amrita_sense.streaming import SuspendObjectStream
 

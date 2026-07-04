@@ -11,6 +11,7 @@ from amrita_core.libchat import (
     text_generator,
     tools_caller,
 )
+from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import CONTENT_LIST_TYPE, Message, ToolResult, UniResponse
 
 
@@ -93,6 +94,17 @@ class TestValidateMsgList:
         messages = [
             {"role": "user", "content": "Hello"},
             {
+                "role": "assistant",
+                "content": None,
+                "tool_calls": [
+                    {
+                        "id": "123",
+                        "type": "function",
+                        "function": {"name": "test_tool", "arguments": "{}"},
+                    }
+                ],
+            },
+            {
                 "role": "tool",
                 "content": "Tool result",
                 "tool_call_id": "123",
@@ -101,9 +113,10 @@ class TestValidateMsgList:
         ]
 
         result = _validate_msg_list(messages)
-        assert len(result) == 2
+        assert len(result) == 3
         assert isinstance(result[0], Message)
-        assert isinstance(result[1], ToolResult)
+        assert isinstance(result[1], Message)
+        assert isinstance(result[2], ToolResult)
 
     def test_validate_msg_list_with_message_objects(self):
         """Test validation with existing Message objects"""
@@ -128,7 +141,7 @@ class TestValidateMsgList:
         """Test validation with invalid message format"""
         messages = [{"role": "user", "invalid_field": "value"}]
 
-        with pytest.raises(ValueError, match="Invalid message format"):
+        with pytest.raises(ValueError, match="Payload at"):
             _validate_msg_list(messages)
 
 
@@ -182,7 +195,17 @@ class TestToolsCaller:
         messages: CONTENT_LIST_TYPE = [
             Message(role="user", content="What's the weather?")
         ]
-        tools = [{"name": "get_weather", "description": "Get weather info"}]
+        tools = [
+            ToolFunctionSchema.model_validate(
+                {
+                    "function": {
+                        "name": "get_weather",
+                        "description": "Get weather info",
+                        "parameters": {"type": "object", "properties": {}},
+                    }
+                }
+            )
+        ]
 
         preset = ModelPreset(
             model="test-model",

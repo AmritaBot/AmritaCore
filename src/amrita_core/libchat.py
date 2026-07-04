@@ -18,7 +18,7 @@ from amrita_core.preset import PresetManager
 
 from .config import AmritaConfig, get_config
 from .tokenizer import hybrid_token_count
-from .tools.models import ToolChoice
+from .tools.models import ToolChoice, ToolFunctionSchema
 from .types import (
     CONTENT_LIST_TYPE,
     EmbeddingChunk,
@@ -178,6 +178,28 @@ def _validate_msg_list(
                             f"Tool message {validated_msg.tool_call_id}@{it} must have a matching tool_call_id in a previous assistant message"
                         )
 
+            elif isinstance(msg, (Message, ToolResult)):
+                validated_messages.append(msg)
+                if isinstance(msg, Message):
+                    if isinstance(msg.content, list):
+                        msg.content = [
+                            content for content in msg.content if content
+                        ]  # filter out empty content
+                    if msg.role == "assistant" and msg.content is None:
+                        if msg.tool_calls is None:
+                            raise ValueError(
+                                "Assistant message must have content or tool_calls"
+                            )
+                        tool_pairs.update(
+                            {tc.id: tc.function.name for tc in msg.tool_calls}
+                        )
+                if msg.role == "tool":
+                    pl = tool_pairs.pop(msg.tool_call_id, None)
+                    if pl is None:
+                        raise ValueError(
+                            f"Tool message {msg.tool_call_id}@{it} must have a matching tool_call_id in a previous assistant message"
+                        )
+
             else:
                 raise TypeError(
                     f"Invalid message type: {type(msg)}, this is not assignable to CONTENT_LIST_TYPE_ITEM"
@@ -256,7 +278,7 @@ async def _call_with_reflection(
 
 async def tools_caller(
     messages: CONTENT_LIST_TYPE,
-    tools: list,
+    tools: list[ToolFunctionSchema],
     preset: ModelPreset | None = None,
     tool_choice: ToolChoice | None = None,
     config: AmritaConfig | None = None,
