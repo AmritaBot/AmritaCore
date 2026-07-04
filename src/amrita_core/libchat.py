@@ -21,7 +21,6 @@ from .tokenizer import hybrid_token_count
 from .tools.models import ToolChoice
 from .types import (
     CONTENT_LIST_TYPE,
-    CONTENT_LIST_TYPE_ITEM,
     EmbeddingChunk,
     Message,
     ModelPreset,
@@ -141,26 +140,58 @@ def _validate_msg_list(
         ValueError: If a message dictionary is invalid
     """
     validated_messages: CONTENT_LIST_TYPE = []
-    for msg in messages:
-        if isinstance(msg, dict):
-            # Ensure message has role field
-            if "role" not in msg:
-                raise ValueError("Message dictionary is missing 'role' field")
-            try:
+    it = -1
+    try:
+        tool_pairs: dict[str, str] = {}
+        for it, msg in enumerate(messages):
+            if isinstance(msg, dict):
+                # Ensure message has role field
+                if "role" not in msg:
+                    raise ValueError("Message dictionary is missing 'role' field")
                 validated_msg = (
                     Message.model_validate(msg)
                     if msg["role"] != "tool"
                     else ToolResult.model_validate(msg)
                 )
-            except ValidationError as e:
-                raise ValueError(f"Invalid message format: {e}")
-            validated_messages.append(validated_msg)
-        elif isinstance(msg, CONTENT_LIST_TYPE_ITEM):
-            validated_messages.append(msg)
-        else:
-            raise TypeError(
-                f"Invalid message type: {type(msg)}, this is not assignable to CONTENT_LIST_TYPE_ITEM"
+
+                validated_messages.append(validated_msg)
+                if isinstance(validated_msg, Message):
+                    if isinstance(validated_msg.content, list):
+                        validated_msg.content = [
+                            content for content in validated_msg.content if content
+                        ]  # filter out empty content
+                    if (
+                        validated_msg.role == "assistant"
+                        and validated_msg.content is None
+                    ):
+                        if validated_msg.tool_calls is None:
+                            raise ValueError(
+                                "Assistant message must have content or tool_calls"
+                            )
+                        tool_pairs.update(
+                            {tc.id: tc.function.name for tc in validated_msg.tool_calls}
+                        )
+                if validated_msg.role == "tool":
+                    pl = tool_pairs.pop(validated_msg.tool_call_id, None)
+                    if pl is None:
+                        raise ValueError(
+                            f"Tool message {validated_msg.tool_call_id}@{it} must have a matching tool_call_id in a previous assistant message"
+                        )
+
+            else:
+                raise TypeError(
+                    f"Invalid message type: {type(msg)}, this is not assignable to CONTENT_LIST_TYPE_ITEM"
+                )
+        if (
+            tool_pairs
+        ):  # tools-pairing check: if there are any tool call ids left in tool_pairs
+            raise ValueError(
+                f"Tool call ids@tool: {[f'{k}@{v}' for k, v in tool_pairs.items()]} do not have matching tool messages"
             )
+    except ValidationError as e:
+        raise ValueError(
+            f"Payload at {(str(it) + ': ' + str(messages[it])) if it != -1 else 'Unknown'}"
+        ) from e
 
     # Filter reasoning_content according to thinking_config
     if thinking_config is not None and thinking_config.thinking_type == "enabled":
@@ -250,6 +281,7 @@ async def tools_caller(
         return await adapter.call_tools(messages, tools, tool_choice)
 
     preset = preset or PresetManager().get_default_preset()
+    _validate_msg_list(messages, thinking_config=preset.thinking_config)
     return await _call_with_reflection(
         preset,
         _call_tools,
