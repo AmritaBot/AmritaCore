@@ -2,22 +2,7 @@
 
 ## 7.1 Core API Functions
 
-### 7.1.1 init() - Initialization (Deprecated)
-
-> **Deprecated**: The `init()` function is deprecated since v0.9.0rc1. It is now an empty stub and no longer performs any initialisation. Use `load_amrita()` for async initialisation instead.
-
-```python
-from amrita_core import init
-
-# No longer necessary - this is now a no-op
-init()
-```
-
-**Purpose**: Previously prepared internal components, initialized Jieba, and loaded built-in modules. Now deprecated.
-
-**Migration**: Remove any calls to `init()` in your code. Use `load_amrita()` when async initialisation is needed (e.g., for MCP client setup).
-
-### 7.1.2 load_amrita() - Loading Framework
+### 7.1.1 load_amrita() - Loading Framework
 
 The `load_amrita()` function asynchronously loads AmritaCore components, particularly when MCP client functionality is enabled.
 

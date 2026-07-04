@@ -217,14 +217,14 @@ async def use_builtin_strategies():
     )
 
     # 使用这些Agent
-    chat1 = standard_agent.get_chatobject("你能做什么？")
-    chat2 = hybrid_agent.get_chatobject("分析这些数据")
-    chat3 = no_action_agent.get_chatobject("直接回应")
+    chat = standard_agent.get_chatobject("你能做什么？")
 
-    async with chat1.begin(), chat2.begin(), chat3.begin():
-        response1 = await chat1.full_response()
-        response2 = await chat2.full_response()
-        response3 = await chat3.full_response()
+    chat.begin()
+    async with chat:
+        async for chunk in chat.io_stream.get_response_generator():
+            content = chunk if isinstance(chunk, str) else chunk.get_content()
+            print(content, end="", flush=True)
+    # 对话结束后 chat 自动清理
 ```
 
 ## 有状态策略：StrategyLikedObject

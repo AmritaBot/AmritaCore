@@ -1,6 +1,6 @@
 # Suspend and Resume Mechanism
 
-> **Starting from v0.9.0rc1**: `SuspendObjectStream` has been migrated to [AmritaSense](https://sense.amritabot.com). See the full docs at [Execution & Interrupt](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) and [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream). `amrita_core.streaming` is now a deprecated wrapper.
+> **Starting from v0.9.0rc1**: `SuspendObjectStream` has been migrated to [AmritaSense](https://sense.amritabot.com). See the full docs at [Execution & Interrupt](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) and [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream). The `amrita_core.streaming` compatibility endpoint was removed in v0.10.x+; import directly from `amrita_sense`.
 
 **Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
 
@@ -195,7 +195,7 @@ async def custom_processing_step(chat_obj):
     await asyncio.sleep(0.5)
 
     # Manual suspension point: blocks only if external wait_to_suspend triggered, otherwise returns immediately
-    await chat_obj._wait_for_continue()
+    await chat_obj.io_stream._wait_for_continue()
 
     print("Continuing after suspension point...")
     await asyncio.sleep(0.5)
@@ -239,7 +239,7 @@ asyncio.run(main())
 - Developers can manually insert it to customize internal business suspension points
 - When no pending suspend request exists, the call returns immediately without blocking the flow
 - Based on asynchronous signals, independent of the business execution flow
-- **Tag parameter passing**: When calling manually, you can pass a tag parameter: `await chat_obj._wait_for_continue(tag="custom_tag")`
+- **Tag parameter passing**: When calling manually, you can pass a tag parameter: `await chat_obj.io_stream._wait_for_continue(tag="custom_tag")`
 
 ## Combining Both Interruption Mechanisms
 
@@ -390,7 +390,7 @@ await chat
 - The `wait_to_suspend` timeout parameter is used to avoid indefinite blocking
 - **Tag parameters help precise positioning**: In complex flows, using tags enables accurate control of specific breakpoints
 - This is a low-level capability intended for framework extension, advanced debugging, and custom flow orchestration scenarios
-- **Inheritance relationship**: Since `ChatObject` inherits from `SuspendObjectStream`, all suspend/resume methods are available on ChatObject instances
+- **Composition relationship**: `ChatObject` uses `SuspendObjectStream` via its `io_stream` attribute (composition since v0.9.1). Access suspend/resume methods through `chat_obj.io_stream.*`.
 
 ::: warning Callback and Iterator Are Mutually Exclusive
 Do not set a callback function and use `get_response_generator()` simultaneously; this will cause a `RuntimeError`.

@@ -2,26 +2,7 @@
 
 ## 4.1 初始化和加载
 
-### 4.1.1 init() 初始化函数（已废弃）
-
-> **从 v0.9.0rc1 起已废弃**：`init()` 函数现在是空操作存根，不再执行任何初始化。请改用 `minimal_init()` 或 `load_amrita()` 进行异步初始化。
-
-```python
-from amrita_core import init
-
-# 不再必要 — 现在是一个空操作
-init()
-```
-
-此函数以前执行几项关键任务：
-
-- 设置内部日志记录
-- 初始化Jieba进行文本处理
-- 加载内置模块
-
-这些任务现在由框架自动处理，或通过 `amrita-sense` 完成。
-
-### 4.1.2 load_amrita() 异步加载
+### 4.1.1 load_amrita() 异步加载
 
 `load_amrita()` 函数异步加载AmritaCore组件，特别是当启用了MCP客户端功能时：
 
@@ -36,7 +17,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 4.1.3 minimal_init() 最小化初始化
+### 4.1.2 minimal_init() 最小化初始化
 
 `minimal_init()` 结合了配置设置和异步加载，是推荐的初始化方式：
 
@@ -48,9 +29,9 @@ from amrita_core.config import AmritaConfig
 await minimal_init(AmritaConfig())
 ```
 
-### 4.1.4 配置设置和检索
+### 4.1.3 配置设置和检索
 
-#### 4.1.4.1 set_config() 设置配置
+#### 4.1.3.1 set_config() 设置配置
 
 `set_config()` 函数将配置应用到AmritaCore：
 

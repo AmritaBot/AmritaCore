@@ -2,26 +2,7 @@
 
 ## 4.1 Initialization and Loading
 
-### 4.1.1 init() Initialization Function (Deprecated)
-
-> **Deprecated since v0.9.0rc1**: The `init()` function is now a no-op stub. Use `load_amrita()` for async initialisation instead.
-
-```python
-from amrita_core import init
-
-# No longer necessary — this is now a no-op
-init()
-```
-
-Previously this function performed several key tasks:
-
-- Set up internal logging
-- Initialized Jieba for text processing
-- Loaded built-in modules
-
-These tasks are now handled automatically by the framework or through `amrita-sense`.
-
-### 4.1.2 load_amrita() Asynchronous Loading
+### 4.1.1 load_amrita() Asynchronous Loading
 
 The `load_amrita()` function asynchronously loads AmritaCore components, especially when MCP client functionality is enabled:
 
@@ -36,9 +17,9 @@ async def main():
 asyncio.run(main())
 ```
 
-### 4.1.3 Configuration Setting and Retrieval
+### 4.1.2 Configuration Setting and Retrieval
 
-#### 4.1.3.1 set_config() Setting Configuration
+#### 4.1.2.1 set_config() Setting Configuration
 
 The `set_config()` function applies a configuration to AmritaCore:
 
@@ -50,7 +31,7 @@ config = AmritaConfig()
 set_config(config)
 ```
 
-#### 4.1.3.2 get_config() Retrieving Configuration
+#### 4.1.2.2 get_config() Retrieving Configuration
 
 The `get_config()` function retrieves the current AmritaCore configuration:
 

@@ -1,6 +1,6 @@
 # Event System
 
-> **Since v0.9.0rc1**: The event system core (`BaseEvent`, `MatcherFactory`, `EventRegistry`, `MatcherException`, `CancelException`, `PassException`) has been migrated to [AmritaSense](https://sense.amritabot.com). Full documentation at [AmritaSense Event System](https://sense.amritabot.com/guide/advanced/event_system). The `amrita_core.hook.*` modules are now deprecated wrappers.
+> **Since v0.9.0rc1**: The event system core (`BaseEvent`, `MatcherFactory`, `EventRegistry`, `MatcherException`, `CancelException`, `PassException`) has been migrated to [AmritaSense](https://sense.amritabot.com). Full documentation at [AmritaSense Event System](https://sense.amritabot.com/guide/advanced/event_system). The `amrita_core.hook.*` compatibility endpoints were removed in v0.10.x+; import directly from `amrita_sense`.
 
 ## 3.3.1 Event-Driven Design
 
@@ -76,16 +76,13 @@ You can modify the `event.preset` to switch to a different model preset for the 
 
 ## 3.3.5 MatcherManager Event Matcher
 
-> **Note**: Since v0.9.0rc1, `MatcherManager` (`MatcherFactory`) has been moved to the `amrita-sense` package. The `amrita_core.hook.matcher` module is now a deprecated re-export wrapper.
+> **Note**: Since v0.9.0rc1, `MatcherManager` (`MatcherFactory`) has been moved to the `amrita-sense` package. The `amrita_core.hook.matcher` compatibility endpoint was removed in v0.10.x+; import directly from `amrita_sense`.
 
 The [MatcherManager](../api-reference/classes/MatcherManager.md) handles matching events to appropriate handlers:
 
 ```python
-# From amrita-sense (recommended)
+# From amrita-sense
 from amrita_sense.hook.matcher import MatcherFactory
-
-# Or via the deprecated re-export (will be removed in a future release)
-from amrita_core.hook.matcher import MatcherManager
 ```
 
 ## 3.3.6 Event Registration and Triggering

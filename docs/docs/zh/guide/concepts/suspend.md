@@ -1,6 +1,6 @@
 # 挂起与恢复机制
 
-> **v0.9.0rc1 起**：`SuspendObjectStream` 已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [执行与中断](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) 和 [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream)。`amrita_core.streaming` 现为弃用包装器。
+> **v0.9.0rc1 起**：`SuspendObjectStream` 已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [执行与中断](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) 和 [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream)。`amrita_core.streaming` 兼容端点在 v0.10.x+ 已移除，请直接从 `amrita_sense` 导入。
 
 **注意：这是一个用于特殊场景的高级功能。大多数用户不需要直接使用它。**
 
@@ -189,7 +189,7 @@ async def custom_processing_step(chat_obj):
     await asyncio.sleep(0.5)
 
     # 手动挂起点：仅外部触发 wait_to_suspend 时阻塞，否则立即返回
-    await chat_obj._wait_for_continue()
+    await chat_obj.io_stream._wait_for_continue()
 
     print("在挂起点后继续...")
     await asyncio.sleep(0.5)
@@ -233,7 +233,7 @@ asyncio.run(main())
 - 支持开发者手动植入，定制业务内部挂点
 - 无待处理挂起请求时，调用会立即返回，不阻塞流程
 - 基于异步信号实现，独立于业务执行流
-- **tag 参数传递**：手动调用时可传入 tag 参数 `await chat_obj._wait_for_continue(tag="custom_tag")`
+- **tag 参数传递**：手动调用时可传入 tag 参数 `await chat_obj.io_stream._wait_for_continue(tag="custom_tag")`
 
 ## 组合使用两种中断机制
 
