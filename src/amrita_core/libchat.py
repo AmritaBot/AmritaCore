@@ -18,10 +18,9 @@ from amrita_core.preset import PresetManager
 
 from .config import AmritaConfig, get_config
 from .tokenizer import hybrid_token_count
-from .tools.models import ToolChoice
+from .tools.models import ToolChoice, ToolFunctionSchema
 from .types import (
     CONTENT_LIST_TYPE,
-    CONTENT_LIST_TYPE_ITEM,
     EmbeddingChunk,
     Message,
     ModelPreset,
@@ -124,6 +123,37 @@ def get_tokens(
     )
 
 
+def _normalize_message_content(msg: Message) -> None:
+    """Strip empty content items from a message whose content is a list."""
+    if isinstance(msg.content, list):
+        msg.content = [c for c in msg.content if c]
+
+
+def _register_assistant_tool_calls(msg: Message, tool_pairs: dict[str, str]) -> None:
+    """Register tool_call_id → function_name pairs from an assistant message.
+
+    Raises ValueError if the message is assistant with no content and no tool_calls.
+    """
+    if msg.role != "assistant" or msg.content is not None:
+        return
+    if msg.tool_calls is None:
+        raise ValueError("Assistant message must have content or tool_calls")
+    tool_pairs.update({tc.id: tc.function.name for tc in msg.tool_calls})
+
+
+_MAX_PAYLOAD_CHARS = 500
+
+
+def _format_payload(it: int, messages: Sequence[typing.Any]) -> str:
+    """Format a payload location string, truncating large bodies."""
+    if it == -1:
+        return "Unknown"
+    raw = str(messages[it])
+    if len(raw) > _MAX_PAYLOAD_CHARS:
+        raw = raw[:_MAX_PAYLOAD_CHARS] + "...<truncated>"
+    return f"{it}: {raw}"
+
+
 def _validate_msg_list(
     messages: Sequence[typing.Any],
     thinking_config: ThinkingConfig | None = None,
@@ -131,57 +161,112 @@ def _validate_msg_list(
     """Validate a list of message dictionaries and convert them to Message objects.
 
     Args:
-        messages (Sequence[Any]): List of message dictionaries or Message objects
-        thinking_config (ThinkingConfig | None): Thinking config to filter reasoning_content
+        messages: List of message dictionaries or Message objects.
+        thinking_config: Thinking config to filter reasoning_content.
 
     Returns:
-        CONTENT_LIST_TYPE: List of validated Message objects
+        List of validated Message/ToolResult objects.
 
     Raises:
-        ValueError: If a message dictionary is invalid
+        ValueError: If a message dictionary is invalid or tool-call pairing fails.
+        TypeError: If a message has an unrecognised type.
     """
     validated_messages: CONTENT_LIST_TYPE = []
-    for msg in messages:
-        if isinstance(msg, dict):
-            # Ensure message has role field
-            if "role" not in msg:
-                raise ValueError("Message dictionary is missing 'role' field")
-            try:
+    it = -1
+    try:
+        tool_pairs: dict[str, str] = {}
+        for it, msg in enumerate(messages):
+            if isinstance(msg, dict):
+                if "role" not in msg:
+                    raise ValueError("Message dictionary is missing 'role' field")
                 validated_msg = (
                     Message.model_validate(msg)
                     if msg["role"] != "tool"
                     else ToolResult.model_validate(msg)
                 )
-            except ValidationError as e:
-                raise ValueError(f"Invalid message format: {e}")
-            validated_messages.append(validated_msg)
-        elif isinstance(msg, CONTENT_LIST_TYPE_ITEM):
-            validated_messages.append(msg)
-        else:
-            raise TypeError(
-                f"Invalid message type: {type(msg)}, this is not assignable to CONTENT_LIST_TYPE_ITEM"
+                validated_messages.append(validated_msg)
+
+                if isinstance(validated_msg, Message):
+                    _normalize_message_content(validated_msg)
+                    _register_assistant_tool_calls(validated_msg, tool_pairs)
+                if validated_msg.role == "tool":
+                    pl = tool_pairs.pop(validated_msg.tool_call_id, None)
+                    if pl is None:
+                        raise ValueError(
+                            f"Tool message {validated_msg.tool_call_id}@{it} must"
+                            " have a matching tool_call_id in a previous"
+                            " assistant message"
+                        )
+
+            elif isinstance(msg, (Message, ToolResult)):
+                validated_messages.append(msg)
+                if isinstance(msg, Message):
+                    _normalize_message_content(msg)
+                    _register_assistant_tool_calls(msg, tool_pairs)
+                if msg.role == "tool":
+                    pl = tool_pairs.pop(msg.tool_call_id, None)
+                    if pl is None:
+                        raise ValueError(
+                            f"Tool message {msg.tool_call_id}@{it} must have a"
+                            " matching tool_call_id in a previous assistant message"
+                        )
+
+            else:
+                raise TypeError(
+                    f"Invalid message type: {type(msg)}, this is not assignable"
+                    " to CONTENT_LIST_TYPE_ITEM"
+                )
+
+        if tool_pairs:
+            raise ValueError(
+                "Tool call ids@tool:"
+                f" {[f'{k}@{v}' for k, v in tool_pairs.items()]} do not have"
+                " matching tool messages"
             )
+    except ValidationError as e:
+        details = _format_validation_errors(e)
+        raise ValueError(
+            f"Payload at {_format_payload(it, messages)}: {details}"
+        ) from e
 
-    # Filter reasoning_content according to thinking_config
-    if thinking_config is not None and thinking_config.thinking_type == "enabled":
-        for m in validated_messages:
-            if not isinstance(m, Message):
-                continue
-            match thinking_config.content_mode:
-                case "never":
-                    m.reasoning_content = None
-                case "by-tool":
-                    if m.role == "assistant":
-                        if m.tool_calls:
-                            if m.reasoning_content is None:
-                                raise ValueError(
-                                    "by-tool mode: assistant with tool_calls must have reasoning_content"
-                                )
-                        else:
-                            m.reasoning_content = None
-                # "optional" -> no-op
-
+    _apply_thinking_filter(validated_messages, thinking_config)
     return validated_messages
+
+
+def _format_validation_errors(e: ValidationError) -> str:
+    """Extract human-readable details from a pydantic ValidationError."""
+    parts: list[str] = []
+    for err in e.errors():
+        loc = ".".join(str(seg) for seg in err["loc"])
+        msg = err.get("msg", "Unknown error")
+        parts.append(f"{loc}: {msg}")
+    return "; ".join(parts) if parts else str(e)
+
+
+def _apply_thinking_filter(
+    validated_messages: CONTENT_LIST_TYPE,
+    thinking_config: ThinkingConfig | None,
+) -> None:
+    """Filter reasoning_content according to thinking_config."""
+    if thinking_config is None or thinking_config.thinking_type != "enabled":
+        return
+    for m in validated_messages:
+        if not isinstance(m, Message):
+            continue
+        match thinking_config.content_mode:
+            case "never":
+                m.reasoning_content = None
+            case "by-tool":
+                if m.role == "assistant":
+                    if m.tool_calls:
+                        if m.reasoning_content is None:
+                            raise ValueError(
+                                "by-tool mode: assistant with tool_calls must"
+                                " have reasoning_content"
+                            )
+                    else:
+                        m.reasoning_content = None
+            # "optional" -> no-op
 
 
 async def _call_with_reflection(
@@ -225,7 +310,7 @@ async def _call_with_reflection(
 
 async def tools_caller(
     messages: CONTENT_LIST_TYPE,
-    tools: list,
+    tools: list[ToolFunctionSchema],
     preset: ModelPreset | None = None,
     tool_choice: ToolChoice | None = None,
     config: AmritaConfig | None = None,
@@ -250,6 +335,7 @@ async def tools_caller(
         return await adapter.call_tools(messages, tools, tool_choice)
 
     preset = preset or PresetManager().get_default_preset()
+    _validate_msg_list(messages, thinking_config=preset.thinking_config)
     return await _call_with_reflection(
         preset,
         _call_tools,

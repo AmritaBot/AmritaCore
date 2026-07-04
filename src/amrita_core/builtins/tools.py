@@ -73,6 +73,7 @@ REASONING_TOOL = ToolFunctionSchema(
             },
             required=[
                 "summary",
+                "last_step",
             ],
         ),
     ),

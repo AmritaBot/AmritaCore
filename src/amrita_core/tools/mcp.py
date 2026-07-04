@@ -17,6 +17,8 @@ from fastmcp.client.client import CallToolResult
 from mcp.types import TextContent
 from typing_extensions import Self
 
+from amrita_core.utils import _did_you_mean_hint
+
 from .manager import MultiToolsManager, ToolsManager
 from .models import (
     FunctionDefinitionSchema,
@@ -250,8 +252,11 @@ class MultiClientManager:
             name = self.tools_remapping.get(tool_name) or tool_name
             if name in self.name_to_clients:
                 return self.name_to_clients[name]
+            hint = _did_you_mean_hint(tool_name, list(self.name_to_clients.keys()))
             raise RuntimeError(
-                f"Tool not found: {tool_name}{f' (remapped from `{name}`)' if name != tool_name else ''}"
+                f"Tool not found: '{tool_name}'"
+                f"{f' (remapped from `{name}`)' if name != tool_name else ''}."
+                f"{hint}"
             )
 
     def _tools_wrapper(

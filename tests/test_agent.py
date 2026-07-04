@@ -36,6 +36,7 @@ from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, set_conf
 from amrita_core.contents import MessageWithMetadata
 from amrita_core.contexts import AbilityContext, StateContext
 from amrita_core.tools.manager import ToolsManager
+from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import (
     Message,
     SendMessageWrap,
@@ -313,7 +314,17 @@ async def test_amrita_agent_strategy_single_execute_with_tool_calls(
         fun = strategy.tools_manager.get_tool
         try:
             # Add a mock tool
-            strategy.tools = [{"name": "test_tool", "description": "Test tool"}]
+            strategy.tools = [
+                ToolFunctionSchema.model_validate(
+                    {
+                        "function": {
+                            "name": "test_tool",
+                            "description": "Test tool",
+                            "parameters": {"type": "object", "properties": {}},
+                        }
+                    }
+                )
+            ]
 
             # Mock the tools manager to return a tool
             mock_tool_data = MagicMock()
@@ -355,7 +366,7 @@ async def test_amrita_agent_strategy_single_execute_stop_tool(
 
     with patch("amrita_core.builtins.agent.tools_caller", return_value=mock_response):
         strategy = ReActAgentStrategy(mock_strategy_context)
-        strategy.tools = [STOP_TOOL.model_dump()]
+        strategy.tools = [STOP_TOOL]
 
         result = await strategy.single_execute()
         assert result is True
@@ -421,7 +432,17 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
             "amrita_core.builtins.agent.tools_caller", return_value=mock_response
         ):
             strategy = ReActAgentStrategy(mock_strategy_context)
-            strategy.tools = [{"name": "failing_tool", "description": "Failing tool"}]
+            strategy.tools = [
+                ToolFunctionSchema.model_validate(
+                    {
+                        "function": {
+                            "name": "failing_tool",
+                            "description": "Failing tool",
+                            "parameters": {"type": "object", "properties": {}},
+                        }
+                    }
+                )
+            ]
 
             result = await strategy.single_execute()
             assert result is True
@@ -612,7 +633,17 @@ async def test_hybrid_vs_react_append_difference(mock_strategy_context, mock_con
         custom_run=False,
     )
     react_strategy = ReActAgentStrategy(mock_strategy_context)
-    react_strategy.tools = [{"name": "test_tool"}]
+    react_strategy.tools = [
+        ToolFunctionSchema.model_validate(
+            {
+                "function": {
+                    "name": "test_tool",
+                    "description": "Test tool",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            }
+        )
+    ]
     original_get_tool = react_strategy.tools_manager.get_tool
 
     try:
@@ -796,9 +827,33 @@ async def test_reasoning_aware_tool_prioritization(mock_strategy_context, mock_c
     # Simulate predicted tools from prior reasoning
     strategy._predicted_tools = ["search", "calculator"]
     strategy.tools = [
-        {"function": {"name": "calculator", "description": "Math tool"}},
-        {"function": {"name": "weather", "description": "Weather tool"}},
-        {"function": {"name": "search", "description": "Search tool"}},
+        ToolFunctionSchema.model_validate(
+            {
+                "function": {
+                    "name": "calculator",
+                    "description": "Math tool",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            }
+        ),
+        ToolFunctionSchema.model_validate(
+            {
+                "function": {
+                    "name": "weather",
+                    "description": "Weather tool",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            }
+        ),
+        ToolFunctionSchema.model_validate(
+            {
+                "function": {
+                    "name": "search",
+                    "description": "Search tool",
+                    "parameters": {"type": "object", "properties": {}},
+                }
+            }
+        ),
     ]
 
     from unittest.mock import patch

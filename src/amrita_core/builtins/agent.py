@@ -19,6 +19,7 @@ from amrita_core.libchat import (
     get_last_response,
     tools_caller,
 )
+from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import (
     CONTENT_LIST_TYPE_ITEM,
     Function,
@@ -54,6 +55,13 @@ from .types import (
     AgentToolCallMetadata,
     AgentToolPredictionMetadata,
 )
+
+
+def _resolve_tool_name(tool: ToolFunctionSchema | dict) -> str:
+    """Resolve the function name from a tool schema (object or dict form)."""
+    if isinstance(tool, dict):
+        return tool.get("function", {}).get("name", "")
+    return tool.function.name
 
 
 class BaseReActAgentStrategy(AgentStrategy, ABC):
@@ -93,7 +101,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     agent_last_step: str | None = None
     call_count = 1
-    tools: list[Any]
+    tools: list[ToolFunctionSchema]
     origin_msg: str = ""
     origin_instruction: str = ""
     reasoning_pc = 0
@@ -112,8 +120,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         self.origin_instruction = self.chat_object.train.content
         config = self.chat_object.config
         if config.builtin.tool_calling_mode == "agent":
-            self.tools.append(STOP_TOOL.model_dump())
-        self.tools.extend(self.tools_manager.tools_meta_dict().values())
+            self.tools.append(STOP_TOOL)
+        self.tools.extend(self.tools_manager.tools_meta().values())
         #  Initialize reasoning enhancement state
         self._predicted_tools = []
         self.origin_msg: str = (
@@ -131,8 +139,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     ) -> UniResponse[str, None]:
         tools = [
             {
-                "name": tool["function"]["name"],
-                "description": tool["function"]["description"],
+                "name": tool.function.name,
+                "description": tool.function.description,
             }
             for tool in self.tools
         ]
@@ -362,7 +370,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
             tool_response = await tools_caller(
                 msg_list,
-                [REFLECTION_TOOL.model_dump()],
+                [REFLECTION_TOOL],
                 tool_choice=REFLECTION_TOOL,
                 preset=self.ctx.chat_object.preset,
             )
@@ -421,7 +429,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     async def _generate_reasoning_msg(
         self,
-        tools_ctx: list[dict[str, Any]],
+        tools_ctx: list[ToolFunctionSchema],
         /,
         then: Callable[
             [
@@ -447,7 +455,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         ]
         tool_response: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             reasoning_trigger_msg,
-            [REASONING_TOOL.model_dump(), *tools_ctx],
+            [REASONING_TOOL, *tools_ctx],
             tool_choice=REASONING_TOOL,
             preset=self.ctx.chat_object.preset,
         )
@@ -840,7 +848,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         Returns:
             Error message string
         """
-        logger.error(f"Function {function_name} execution failed: {err}")
+        logger.opt(exception=err, colors=True).error(
+            f"Function {function_name} execution failed: {err}"
+        )
         config = self.chat_object.config
         if (
             config.builtin.tool_calling_mode == "agent"
@@ -885,6 +895,7 @@ class NoActionAgentStrategy(AgentStrategy):
         cls,
     ) -> Literal["workflow"]:
         return "workflow"
+
 
 class HybridReActAgentStrategy(BaseReActAgentStrategy):
     """**Hybrid ReAct Agent Strategy optimized for Mixture of Experts (MoE) architecture models.**
@@ -1087,7 +1098,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
             return False
         tools = self.tools.copy()
         if config.builtin.agent_thought_mode.startswith("reasoning"):
-            tools.append(REASONING_TOOL.model_dump())
+            tools.append(REASONING_TOOL)
 
         if (
             self._predicted_tools
@@ -1096,15 +1107,16 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
             and config.builtin.react_config.reasoning_aware_tools
         ):
             prioritized = [
-                t for t in tools if t["function"]["name"] in self._predicted_tools
+                t for t in tools if _resolve_tool_name(t) in self._predicted_tools
             ]
             others = [
-                t for t in tools if t["function"]["name"] not in self._predicted_tools
+                t for t in tools if _resolve_tool_name(t) not in self._predicted_tools
             ]
             tools = prioritized + others
             logger.debug(
-                f"Reasoning-aware tools: {[t['function']['name'] for t in prioritized]} "
-                f"ahead of {len(others)} others"
+                f"Reasoning-aware tools:"
+                f" {[_resolve_tool_name(t) for t in prioritized]}"
+                f" ahead of {len(others)} others"
             )
 
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
@@ -1320,7 +1332,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             return False
         tools = self.tools.copy()
         if config.builtin.agent_thought_mode.startswith("reasoning"):
-            tools.append(REASONING_TOOL.model_dump())
+            tools.append(REASONING_TOOL)
 
         if (
             self._predicted_tools
@@ -1329,15 +1341,16 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             and config.builtin.react_config.reasoning_aware_tools
         ):
             prioritized = [
-                t for t in tools if t["function"]["name"] in self._predicted_tools
+                t for t in tools if _resolve_tool_name(t) in self._predicted_tools
             ]
             others = [
-                t for t in tools if t["function"]["name"] not in self._predicted_tools
+                t for t in tools if _resolve_tool_name(t) not in self._predicted_tools
             ]
             tools = prioritized + others
             logger.debug(
-                f"Reasoning-aware tools: {[t['function']['name'] for t in prioritized]} "
-                f"ahead of {len(others)} others"
+                f"Reasoning-aware tools:"
+                f" {[_resolve_tool_name(t) for t in prioritized]}"
+                f" ahead of {len(others)} others"
             )
 
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
