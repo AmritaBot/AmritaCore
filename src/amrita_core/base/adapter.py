@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Literal
 from amrita_sense.logging import logger
 
 from amrita_core.config import AmritaConfig, get_config
+from amrita_core.utils import _did_you_mean_hint
 
 from ..tools.models import ToolChoice, ToolFunctionSchema
 from ..types import EmbeddingChunk, ModelPreset, ToolCall, UniResponse
@@ -120,7 +121,8 @@ class AdapterManager:
     def get_adapter(self, protocol: str) -> type[ModelAdapter]:
         """Get adapter"""
         if protocol not in self._adapter_class:
-            raise ValueError(f"No adapter found for protocol {protocol}")
+            hint = _did_you_mean_hint(protocol, list(self._adapter_class.keys()))
+            raise ValueError(f"No adapter found for protocol '{protocol}'.{hint}")
         return self._adapter_class[protocol]
 
     def register_adapter(self, adapter: type[ModelAdapter]):

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import importlib
 import pkgutil
 from collections.abc import Generator, Iterable, Sequence
@@ -12,6 +13,35 @@ from amrita_sense.logging import logger
 from pydantic import BaseModel
 
 from amrita_core.types import UniResponseUsage
+
+
+def _did_you_mean_hint(
+    candidate: str,
+    choices: list[str],
+    cutoff: float = 0.6,
+    max_hints: int = 3,
+) -> str:
+    """Generate a 'Did you mean ...?' hint string.
+
+    Uses ``difflib.get_close_matches`` to find the closest matches among
+    *choices* for the given *candidate*.  Returns an empty string when no
+    match clears the *cutoff* threshold.
+
+    Args:
+        candidate: The user-supplied string that was not found.
+        choices: The list of valid names to match against.
+        cutoff: Minimum similarity ratio (0.0–1.0).
+        max_hints: Maximum number of suggestions to include.
+
+    Returns:
+        A hint like ``" Did you mean: 'foo', 'bar'?"`` or an empty string.
+    """
+    matches = difflib.get_close_matches(candidate, choices, n=max_hints, cutoff=cutoff)
+    if not matches:
+        return ""
+    quoted = ", ".join(f"'{m}'" for m in matches)
+    return f" Did you mean: {quoted}?"
+
 
 T = TypeVar("T")
 

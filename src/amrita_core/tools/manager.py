@@ -12,6 +12,8 @@ from typing import Any, get_args, get_origin, get_type_hints, overload
 from pydantic import BaseModel
 from typing_extensions import Self
 
+from amrita_core.utils import _did_you_mean_hint
+
 from .models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
@@ -119,7 +121,7 @@ class MultiToolsManager:
         if tool.data.function.name not in self._models:
             self._models[tool.data.function.name] = tool
         else:
-            raise ValueError(f"Tool {tool.data.function.name} already exists")
+            raise ValueError(f"Tool '{tool.data.function.name}' already exists.")
 
     def remove_tool(self, name: str) -> None:
         self._models.pop(name, None)
@@ -130,13 +132,17 @@ class MultiToolsManager:
         if name in self._disabled_tools:
             self._disabled_tools.remove(name)
         else:
-            raise ValueError(f"Tool {name} is not disabled")
+            hint = _did_you_mean_hint(name, list(self._disabled_tools))
+            raise ValueError(f"Tool '{name}' is not disabled.{hint}")
 
     def disable_tool(self, name: str) -> None:
         if self.has_tool(name):
             self._disabled_tools.add(name)
         else:
-            raise ValueError(f"Tool {name} does not exist or has been disabled")
+            hint = _did_you_mean_hint(name, list(self._models.keys()))
+            raise ValueError(
+                f"Tool '{name}' does not exist or has been disabled.{hint}"
+            )
 
     def get_disabled_tools(self) -> list[str]:
         return list(self._disabled_tools)

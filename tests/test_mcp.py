@@ -165,7 +165,7 @@ class TestMultiClientManager:
     @pytest.mark.asyncio
     async def test_get_client_by_tool_name_not_found(self, manager):
         """Test get_client_by_tool_name when tool doesn't exist"""
-        with pytest.raises(RuntimeError, match="Tool not found: nonexistent_tool"):
+        with pytest.raises(RuntimeError, match=r"Tool not found: 'nonexistent_tool'"):
             await manager.get_client_by_tool_name("nonexistent_tool")
 
 

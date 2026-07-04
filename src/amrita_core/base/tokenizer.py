@@ -3,6 +3,8 @@ from typing import Literal
 
 from amrita_sense.logging import logger
 
+from amrita_core.utils import _did_you_mean_hint
+
 
 class BaseTokenizer(ABC):
     __override__: bool = False  # Whether to allow overriding existing tokenizers
@@ -89,7 +91,8 @@ class TokenizerManager:
     def get_tokenizer(self, tok_type: str) -> type[BaseTokenizer]:
         """Get tokenizer"""
         if tok_type not in self._tokenizer_class:
-            raise ValueError(f"No tokenizer found for tok_type {tok_type}")
+            hint = _did_you_mean_hint(tok_type, list(self._tokenizer_class.keys()))
+            raise ValueError(f"No tokenizer found for tok_type '{tok_type}'.{hint}")
         return self._tokenizer_class[tok_type]
 
     def register_tokenizer(self, tokenizer: type[BaseTokenizer]):
