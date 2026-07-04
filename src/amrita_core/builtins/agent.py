@@ -57,6 +57,13 @@ from .types import (
 )
 
 
+def _resolve_tool_name(tool: ToolFunctionSchema | dict) -> str:
+    """Resolve the function name from a tool schema (object or dict form)."""
+    if isinstance(tool, dict):
+        return tool.get("function", {}).get("name", "")
+    return tool.function.name
+
+
 class BaseReActAgentStrategy(AgentStrategy, ABC):
     """
     Abstract base class for ReAct agent strategies with common execution logic.
@@ -889,6 +896,7 @@ class NoActionAgentStrategy(AgentStrategy):
     ) -> Literal["workflow"]:
         return "workflow"
 
+
 class HybridReActAgentStrategy(BaseReActAgentStrategy):
     """**Hybrid ReAct Agent Strategy optimized for Mixture of Experts (MoE) architecture models.**
 
@@ -1098,18 +1106,17 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
             and config.builtin.react_config is not None
             and config.builtin.react_config.reasoning_aware_tools
         ):
-
-            def _tool_name(t: ToolFunctionSchema | dict):
-                if isinstance(t, dict):
-                    return t.get("function", {}).get("name", "")
-                return t.function.name
-
-            prioritized = [t for t in tools if _tool_name(t) in self._predicted_tools]
-            others = [t for t in tools if _tool_name(t) not in self._predicted_tools]
+            prioritized = [
+                t for t in tools if _resolve_tool_name(t) in self._predicted_tools
+            ]
+            others = [
+                t for t in tools if _resolve_tool_name(t) not in self._predicted_tools
+            ]
             tools = prioritized + others
             logger.debug(
-                f"Reasoning-aware tools: {[_tool_name(t) for t in prioritized]} "
-                f"ahead of {len(others)} others"
+                f"Reasoning-aware tools:"
+                f" {[_resolve_tool_name(t) for t in prioritized]}"
+                f" ahead of {len(others)} others"
             )
 
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
@@ -1333,18 +1340,17 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             and config.builtin.react_config is not None
             and config.builtin.react_config.reasoning_aware_tools
         ):
-
-            def _tool_name(t: ToolFunctionSchema | dict):
-                if isinstance(t, dict):
-                    return t.get("function", {}).get("name", "")
-                return t.function.name
-
-            prioritized = [t for t in tools if _tool_name(t) in self._predicted_tools]
-            others = [t for t in tools if _tool_name(t) not in self._predicted_tools]
+            prioritized = [
+                t for t in tools if _resolve_tool_name(t) in self._predicted_tools
+            ]
+            others = [
+                t for t in tools if _resolve_tool_name(t) not in self._predicted_tools
+            ]
             tools = prioritized + others
             logger.debug(
-                f"Reasoning-aware tools: {[_tool_name(t) for t in prioritized]} "
-                f"ahead of {len(others)} others"
+                f"Reasoning-aware tools:"
+                f" {[_resolve_tool_name(t) for t in prioritized]}"
+                f" ahead of {len(others)} others"
             )
 
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
