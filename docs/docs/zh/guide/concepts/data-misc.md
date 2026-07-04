@@ -2,8 +2,6 @@
 
 本页涵盖支持核心数据容器和后端系统的其他数据类型。
 
----
-
 ## ModelConfig 模型配置
 
 [`ModelConfig`](../api-reference/classes/ModelConfig.md) 保存 LLM 请求的调优参数：
@@ -30,8 +28,6 @@ model_config = ModelConfig(
 | `multimodal`  | `False` | 启用多模态输入                |
 | `cot_model`   | `False` | 从响应中去除 `\<think\>` 标签 |
 
----
-
 ## ModelPreset 模型预设
 
 [`ModelPreset`](../api-reference/classes/ModelPreset.md) 将模型标识、端点凭据、协议和配置捆绑在一起：
@@ -55,8 +51,6 @@ preset = ModelPreset(
 
 `ModelPreset` 还提供 `load(path)` / `save(path)` 用于 JSON 序列化。
 
----
-
 ## ThinkingConfig 推理配置
 
 [`ThinkingConfig`](../api-reference/classes/ThinkingConfig.md) 控制支持推理/思考功能的模型的推理行为：
@@ -71,8 +65,6 @@ tc = ThinkingConfig(
     content_mode="optional",          # "never" | "by-tool" | "optional"
 )
 ```
-
----
 
 ## PresetManager 预设管理
 
@@ -100,8 +92,6 @@ default = manager.get_default_preset()  # 自动 fallback
 
 **自动 fallback**：如果未设置默认值，`get_default_preset()` 会随机选择一个已注册的预设。使用 `test_presets()` 进行异步连通性检查。
 
----
-
 ## UniResponse / UniResponseUsage 统一响应
 
 [`UniResponse`](../api-reference/classes/UniResponse.md) 是所有适配器返回的统一响应格式：
@@ -123,8 +113,6 @@ response = UniResponse(
 ```
 
 所有适配器的 `call_api` / `call_tools` 方法都产生 `UniResponse` 实例，提供厂商无关的接口。
-
----
 
 ## SendMessageWrap 消息包装器
 
@@ -151,8 +139,6 @@ wrap.append(Message(role="assistant", content="4"))
 
 `SendMessageWrap` 被 `ChatObject` 的 `context_wrap` 和 `StrategyContext.original_context` 内部使用。
 
----
-
 ## EmbeddingChunk 嵌入结果
 
 [`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) 表示单个嵌入向量：
@@ -167,8 +153,6 @@ chunk = EmbeddingChunk(
 ```
 
 由嵌入适配器通过 `call_embed()` 返回。与 OpenAI 的嵌入响应格式兼容。
-
----
 
 ## register_content 自定义内容类型
 
@@ -186,8 +170,6 @@ register_content(MyCustomContent)
 ```
 
 注册后，`Message` 验证会自动将 `{"type": "my_type", ...}` 字典反序列化为 `MyCustomContent` 实例。
-
----
 
 ## 脏标记追踪
 

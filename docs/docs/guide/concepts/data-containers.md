@@ -2,8 +2,6 @@
 
 AmritaCore provides a set of typed data containers that form the backbone of conversation state, message passing, and context management. These containers are defined in the `amrita_core.types` package and integrate with the [data backend](data-backend.md) for persistence.
 
----
-
 ## Message Type
 
 The [`Message`](../api-reference/classes/Message.md) class represents a single message in a conversation. It is a generic Pydantic model parameterized by content type:
@@ -33,8 +31,6 @@ multi_msg = Message(role="user", content=[
 - `reasoning_content` / `reasoning_signature`: reasoning/thinking metadata (assistant only)
 
 `Message` uses `model_config = ConfigDict(extra="allow")` so additional fields pass through transparently.
-
----
 
 ## Content Types
 
@@ -72,8 +68,6 @@ content = FileContent(file=File(
 
 New content types can be registered via `register_content()` — see [Data Misc](data-misc.md).
 
----
-
 ## MemoryModel — Conversation Memory
 
 [`MemoryModel`](../api-reference/classes/MemoryModel.md) stores conversation history and context. It inherits from `DirtyAwareBaseModel`, which tracks field modifications (the **dirty-mark** pattern):
@@ -102,8 +96,6 @@ memory.clean()                       # Reset dirty tracking
 
 The **dirty-mark** pattern is provided by `DirtyAwareBaseModel` / `DirtyAwareModel`. Child containers (`DirtyList`, `DirtyDict`, `DirtySet`) automatically propagate mutations up to the parent model, enabling ORM-like change tracking.
 
----
-
 ## ToolResult
 
 [`ToolResult`](../api-reference/classes/ToolResult.md) represents the output of a tool invocation:
@@ -125,8 +117,6 @@ result = ToolResult(
 CONTENT_LIST_TYPE_ITEM = Message | ToolResult
 CONTENT_LIST_TYPE = list[CONTENT_LIST_TYPE_ITEM]
 ```
-
----
 
 ## StateContext — Runtime State
 
@@ -150,8 +140,6 @@ state = StateContext(
 - `extra`: `dict[str, Any]` — extension point
 
 `StateContext` is **lazily initialized** by `ChatObject` via the [data backend](data-backend.md). You normally don't create it yourself — the backend does.
-
----
 
 ## AbilityContext
 

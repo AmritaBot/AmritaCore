@@ -2,8 +2,6 @@
 
 This page covers miscellaneous data types that support the core data containers and backend system.
 
----
-
 ## ModelConfig — Model Configuration
 
 [`ModelConfig`](../api-reference/classes/ModelConfig.md) holds tuning parameters for LLM requests:
@@ -30,8 +28,6 @@ model_config = ModelConfig(
 | `multimodal`  | `False` | Enable multimodal input              |
 | `cot_model`   | `False` | Strip `\<think\>` tags from response |
 
----
-
 ## ModelPreset — Model Preset
 
 [`ModelPreset`](../api-reference/classes/ModelPreset.md) bundles model identity, endpoint credentials, protocol, and configuration:
@@ -55,8 +51,6 @@ preset = ModelPreset(
 
 `ModelPreset` also provides `load(path)` / `save(path)` for JSON serialization.
 
----
-
 ## ThinkingConfig — Reasoning Configuration
 
 [`ThinkingConfig`](../api-reference/classes/ThinkingConfig.md) controls reasoning/thinking features for models that support them:
@@ -71,8 +65,6 @@ tc = ThinkingConfig(
     content_mode="optional",          # "never" | "by-tool" | "optional"
 )
 ```
-
----
 
 ## PresetManager — Preset Management
 
@@ -100,8 +92,6 @@ default = manager.get_default_preset()  # auto-fallback
 
 **Automatic fallback**: If no default is set, `get_default_preset()` picks a random registered preset. Use `test_presets()` for async connectivity checks.
 
----
-
 ## UniResponse / UniResponseUsage — Unified Response
 
 [`UniResponse`](../api-reference/classes/UniResponse.md) is the unified response format returned by all adapters:
@@ -123,8 +113,6 @@ response = UniResponse(
 ```
 
 All adapter `call_api` / `call_tools` methods yield `UniResponse` instances, providing a vendor-neutral interface.
-
----
 
 ## SendMessageWrap — Message Wrapper
 
@@ -151,8 +139,6 @@ wrap.append(Message(role="assistant", content="4"))
 
 `SendMessageWrap` is used internally by `ChatObject`'s `context_wrap` and `StrategyContext.original_context`.
 
----
-
 ## EmbeddingChunk — Embedding Result
 
 [`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) represents a single embedding vector:
@@ -167,8 +153,6 @@ chunk = EmbeddingChunk(
 ```
 
 Returned by embedding adapters via `call_embed()`. Compatible with OpenAI's embedding response format.
-
----
 
 ## register_content — Custom Content Types
 
@@ -186,8 +170,6 @@ register_content(MyCustomContent)
 ```
 
 After registration, `Message` validation automatically deserializes `{"type": "my_type", ...}` dicts into `MyCustomContent` instances.
-
----
 
 ## Dirty Tracking
 

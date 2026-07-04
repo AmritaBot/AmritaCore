@@ -57,8 +57,6 @@ Initializes the ClientManager (runs only once due to singleton pattern).
 
 **Note:** Initialization logic executes only on the first instantiation.
 
----
-
 _All other methods are inherited from [`MultiClientManager`](MultiClientManager.md):_
 
 - `get_client_by_script(server_script)` - Get client by server script

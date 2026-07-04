@@ -66,15 +66,11 @@ Override the default abstract instruction used for context summarization.
 - `TypeError`: If instruction is not a string
 - `ValueError`: If instruction is empty
 
----
-
 ### `get_abstract_instruction() -> str`
 
 Get the current abstract instruction text.
 
 **Returns:** `str`
-
----
 
 ### `reset_abstract_instruction()`
 

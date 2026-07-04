@@ -44,8 +44,6 @@ Called once by the framework when the execution context is ready. Subclasses may
 
 **Returns:** `Self`
 
----
-
 ### `async single_execute() -> bool`
 
 Execute a single agent step for `"agent"` and `"agent-mixed"` category strategies. Called by the framework to perform one iteration of tool calling.
@@ -53,8 +51,6 @@ Execute a single agent step for `"agent"` and `"agent-mixed"` category strategie
 **Returns:** `True` if should continue to next execution, `False` to stop.
 
 **Note:** This method is used by `"agent"` and `"agent-mixed"` category strategies. `"rag"` and `"workflow"` category strategies should implement `run()` instead.
-
----
 
 ### `async run() -> None`
 
@@ -66,8 +62,6 @@ Run the complete agent strategy for `"rag"` and `"workflow"` category strategies
 - `"workflow"`: Complete manual control over everything
 
 **Note:** This method is used by `"rag"` and `"workflow"` category strategies. `"agent"` and `"agent-mixed"` category strategies should implement `single_execute()` instead.
-
----
 
 ### `async call_tool(tool_call: ToolCall) -> str`
 
@@ -83,15 +77,11 @@ Execute a single tool call without modifying the agent's context.
 
 **Returns:** `str` — The string response from the tool execution, or a default message if the tool returns `None`
 
----
-
 ### `async on_limited() -> None`
 
 Handle the event when the agent reaches its tool calling limit. Called when the agent strategy has reached the maximum allowed number of tool calls.
 
 **Default behavior:** Sends a notification message to the user about the limit being reached.
-
----
 
 ### `async on_exception(exc: BaseException) -> None`
 
@@ -101,13 +91,9 @@ Handle exceptions that occur during strategy execution.
 
 - `exc` (`BaseException`): The exception that occurred
 
----
-
 ### `async on_post_process() -> None`
 
 Used to process after all steps are completed successfully.
-
----
 
 ### `classmethod get_category() -> Literal["agent", "workflow", "rag", "agent-mixed"]`
 

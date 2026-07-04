@@ -57,8 +57,6 @@ print(manager1 is manager2)  # True - 同一个实例
 
 **注意：** 初始化逻辑仅在第一次实例化时执行。
 
----
-
 _所有其他方法都继承自 [`MultiClientManager`](MultiClientManager.md)：_
 
 - `get_client_by_script(server_script)` - 按服务器脚本获取客户端
