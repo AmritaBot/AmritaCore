@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator, Iterable, Sequence
-from typing import cast
+from typing import Literal, cast
 
 import openai
 from amrita_sense.logging import debug_log
@@ -36,17 +36,38 @@ from amrita_core.types import (
     UniResponse,
     UniResponseUsage,
 )
+from amrita_core.types.response import STOP_REASON, RequestMetadata
 from amrita_core.utils import model_dump
+
+R2R_MAP: dict[
+    Literal["stop", "length", "tool_calls", "content_filter", "function_call"],
+    STOP_REASON,
+] = {
+    "stop": "stop_sequence",
+    "length": "max_tokens",
+    "tool_calls": "tool_use",
+    "content_filter": "refusal",
+    "function_call": "tool_use",  # WARNING: Backwards compatibility for legacy OpenAI API versions (pre-2023) that return 'function_call' instead of 'tool_calls'
+}
 
 
 class OpenAIAdapter(ModelAdapter):
-    """OpenAI Protocol Adapter"""
+    """OpenAI Protocol Adapter
+
+    NOTE: Through OpenAI SDK, we are actually hard to get cache info, each providers' cache informations are different.
+        So we will not provide `cache info` from OpenAIAdapter. By the way, `stop sequence` is not provided by OpenAI SDK,
+        so we will not provide this too.
+
+    """
 
     __override__ = True
 
     @override
     async def call_api(
-        self, messages: Iterable[ChatCompletionMessageParam], **kwargs
+        self,
+        messages: Iterable[ChatCompletionMessageParam],
+        stop: str | list[str] | None = None,
+        **kwargs,
     ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
         """Call OpenAI API to get chat responses"""
         preset: ModelPreset = self.preset
@@ -86,43 +107,64 @@ class OpenAIAdapter(ModelAdapter):
             top_p=preset_config.top_p,
             temperature=preset_config.temperature,
             stream=stream,
+            stop=stop,
             **kwargs,
         )
         response: str = ""
         reasoning: str | None = None
         uni_usage = None
+        model_name: str = preset.model
+        meta: RequestMetadata | None = None
+
         # Process streaming response
         if self.preset.config.stream and isinstance(completion, openai.AsyncStream):
-            async for chunk in completion:
-                try:
-                    if chunk.usage:
-                        uni_usage = UniResponseUsage.model_validate(
-                            chunk.usage, from_attributes=True
-                        )
-                    if (
-                        reas_chunk := getattr(
-                            chunk.choices[0].delta, "reasoning_content", None
-                        )
-                    ) is not None:
-                        reas_chunk = str(reas_chunk)
-                        if reasoning is None:
-                            reasoning = reas_chunk
-                        else:
-                            reasoning += reas_chunk
-                        yield MessageWithMetadata(
-                            content=reas_chunk,
-                            metadata=MessageMetadataPayload(
-                                type="reasoning_chunk", extra_type="cot_chunk"
-                            ),
-                        )
-                    if (chunk := chunk.choices[0].delta.content) is not None:
-                        response += chunk
-                        yield chunk
-                        debug_log(chunk)
-                except IndexError:
-                    break
+            async with completion as completion:
+                req_id: str | None = completion.response.headers.get(
+                    "x-request-id", None
+                )
+                async for chunk in completion:
+                    try:
+                        if chunk.choices[0].finish_reason is not None:
+                            model_name = chunk.model
+                            meta = RequestMetadata(
+                                model=model_name,
+                                original_request_id=req_id,
+                                stop_sequence=None,
+                                stop_reason=(
+                                    R2R_MAP[chunk.choices[0].finish_reason]
+                                    if chunk.choices[0].finish_reason
+                                    else None
+                                ),
+                            )
+                        if chunk.usage:
+                            uni_usage = UniResponseUsage.model_validate(
+                                chunk.usage, from_attributes=True
+                            )
+
+                        if (
+                            reas_chunk := getattr(
+                                chunk.choices[0].delta, "reasoning_content", None
+                            )
+                        ) is not None:
+                            reas_chunk = str(reas_chunk)
+                            if reasoning is None:
+                                reasoning = reas_chunk
+                            else:
+                                reasoning += reas_chunk
+                            yield MessageWithMetadata(
+                                content=reas_chunk,
+                                metadata=MessageMetadataPayload(
+                                    type="reasoning_chunk", extra_type="cot_chunk"
+                                ),
+                            )
+                        if (chunk := chunk.choices[0].delta.content) is not None:
+                            response += chunk
+                            yield chunk
+                            debug_log(chunk)
+                    except IndexError:
+                        break
+
         else:
-            debug_log(response)
             if isinstance(completion, ChatCompletion):
                 if (
                     reas_chunk := getattr(
@@ -136,11 +178,22 @@ class OpenAIAdapter(ModelAdapter):
                             type="reasoning_chunk", extra_type="cot_chunk"
                         ),
                     )
+                meta = RequestMetadata(
+                    model=completion.model,
+                    original_request_id=completion._request_id,
+                    stop_sequence=None,
+                    stop_reason=(
+                        R2R_MAP[completion.choices[0].finish_reason]
+                        if completion.choices[0].finish_reason
+                        else None
+                    ),
+                )
                 response = (
                     completion.choices[0].message.content
                     if completion.choices[0].message.content is not None
                     else ""
                 )
+                debug_log(response)
                 yield response
                 if completion.usage:
                     uni_usage = UniResponseUsage.model_validate(
@@ -154,6 +207,7 @@ class OpenAIAdapter(ModelAdapter):
             usage=uni_usage,
             tool_calls=None,
             reasoning_content=reasoning,
+            metadata=meta or RequestMetadata(model=preset.model),
         )
 
     @override
@@ -198,7 +252,6 @@ class OpenAIAdapter(ModelAdapter):
                 kwargs.update(
                     {"reasoning_effort": preset.thinking_config.thinking_effort}
                 )
-        print(messages)
         completion: ChatCompletion = await client.chat.completions.create(
             model=model,
             messages=messages,
@@ -210,6 +263,16 @@ class OpenAIAdapter(ModelAdapter):
             **kwargs,
         )
         msg = completion.choices[0].message
+        metadata = RequestMetadata(
+            model=completion.model,
+            original_request_id=completion._request_id,
+            stop_sequence=None,
+            stop_reason=(
+                R2R_MAP[completion.choices[0].finish_reason]
+                if completion.choices[0].finish_reason
+                else None
+            ),
+        )
         return UniResponse(
             role="assistant",
             tool_calls=(
@@ -222,6 +285,7 @@ class OpenAIAdapter(ModelAdapter):
             ),
             content=None,
             reasoning_content=getattr(msg, "reasoning_content", None),
+            metadata=metadata,
         )
 
     @override
