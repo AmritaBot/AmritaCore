@@ -131,7 +131,7 @@ class OpenAIAdapter(ModelAdapter):
                                 original_request_id=req_id,
                                 stop_sequence=None,
                                 stop_reason=(
-                                    R2R_MAP[chunk.choices[0].finish_reason]
+                                    R2R_MAP.get(chunk.choices[0].finish_reason)
                                     if chunk.choices[0].finish_reason
                                     else None
                                 ),
@@ -183,7 +183,7 @@ class OpenAIAdapter(ModelAdapter):
                     original_request_id=completion._request_id,
                     stop_sequence=None,
                     stop_reason=(
-                        R2R_MAP[completion.choices[0].finish_reason]
+                        R2R_MAP.get(completion.choices[0].finish_reason)
                         if completion.choices[0].finish_reason
                         else None
                     ),
@@ -268,7 +268,7 @@ class OpenAIAdapter(ModelAdapter):
             original_request_id=completion._request_id,
             stop_sequence=None,
             stop_reason=(
-                R2R_MAP[completion.choices[0].finish_reason]
+                R2R_MAP.get(completion.choices[0].finish_reason)
                 if completion.choices[0].finish_reason
                 else None
             ),
