@@ -40,7 +40,7 @@ pip install amrita_core
 | `amrita_core.hook.event.BaseEvent` | `amrita_sense.hook.event.BaseEvent` |
 | `amrita_core.hook.exception`       | `amrita_sense.hook.exception`       |
 
-Old import paths still work but are deprecated; they emit a `DeprecationWarning`.
+Old import paths were removed in v0.10.x+; import directly from `amrita_sense`.
 
 ## Version Requirements
 

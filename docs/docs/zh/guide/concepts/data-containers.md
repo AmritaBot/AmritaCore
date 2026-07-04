@@ -32,8 +32,6 @@ multi_msg = Message(role="user", content=[
 
 `Message` 使用 `model_config = ConfigDict(extra="allow")`，因此额外字段可以透明传递。
 
----
-
 ## 内容类型
 
 AmritaCore 支持三种内置内容类型，注册在 `CT_MAP` 注册表中：
@@ -70,8 +68,6 @@ content = FileContent(file=File(
 
 可以通过 `register_content()` 注册新的内容类型——参见[数据杂项](data-misc.md)。
 
----
-
 ## MemoryModel 记忆模型
 
 [`MemoryModel`](../api-reference/classes/MemoryModel.md) 存储对话历史和上下文。它继承自 `DirtyAwareBaseModel`，可追踪字段修改（**脏标记**模式）：
@@ -100,8 +96,6 @@ memory.clean()                       # 重置脏标记
 
 **脏标记**模式由 `DirtyAwareBaseModel` / `DirtyAwareModel` 提供。子容器（`DirtyList`、`DirtyDict`、`DirtySet`）会自动将变更传播到父模型，实现类似 ORM 的变更追踪。
 
----
-
 ## ToolResult 工具结果
 
 [`ToolResult`](../api-reference/classes/ToolResult.md) 表示工具调用的输出：
@@ -123,8 +117,6 @@ result = ToolResult(
 CONTENT_LIST_TYPE_ITEM = Message | ToolResult
 CONTENT_LIST_TYPE = list[CONTENT_LIST_TYPE_ITEM]
 ```
-
----
 
 ## StateContext 运行时状态
 
@@ -149,8 +141,6 @@ state = StateContext(
 
 `StateContext` 由 `ChatObject` 通过[数据后端](data-backend.md)**延迟初始化**。通常不需要自己创建——后端会处理。
 
----
-
 ## AbilityContext 能力上下文
 
 [`AbilityContext`](../api-reference/classes/AbilityContext.md) 将会话可用的"能力"组织在一起：
@@ -167,8 +157,6 @@ ability = AbilityContext(
 ```
 
 当不提供参数时，所有字段默认使用**全局单例**管理器——这是 `LegacyBackend` 的行为。
-
----
 
 ## 管理器模式 — Multi\* 与单例管理器
 

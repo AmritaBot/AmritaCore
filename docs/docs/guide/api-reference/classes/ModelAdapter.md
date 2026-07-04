@@ -8,7 +8,7 @@ The `ModelAdapter` class provides a unified interface for integrating different 
 
 Adapters are automatically registered with the [`AdapterManager`](#adaptermanager) when defined, unless marked as abstract or explicitly disabled from registration.
 
-> **Note**: The `ModelAdapter` base class has been moved from `amrita_core.protocol` to `amrita_core.base.adapter`. The `amrita_core.protocol` module is now a deprecated re-export wrapper.
+> **Note**: The `ModelAdapter` base class has been moved from `amrita_core.protocol` to `amrita_core.base.adapter`. The `amrita_core.protocol` compatibility endpoint was removed in v0.10.x+; import from `amrita_core.base.adapter`.
 
 ## Class Definition
 

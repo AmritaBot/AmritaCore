@@ -217,14 +217,14 @@ async def use_builtin_strategies():
     )
 
     # Use the agents
-    chat1 = standard_agent.get_chatobject("What can you do?")
-    chat2 = hybrid_agent.get_chatobject("Analyze this data")
-    chat3 = no_action_agent.get_chatobject("Just respond directly")
+    chat = standard_agent.get_chatobject("What can you do?")
 
-    async with chat1.begin(), chat2.begin(), chat3.begin():
-        response1 = await chat1.full_response()
-        response2 = await chat2.full_response()
-        response3 = await chat3.full_response()
+    chat.begin()
+    async with chat:
+        async for chunk in chat.io_stream.get_response_generator():
+            content = chunk if isinstance(chunk, str) else chunk.get_content()
+            print(content, end="", flush=True)
+    # Chat is cleaned up automatically after exiting context
 ```
 
 ## Stateful Strategies with StrategyLikedObject

@@ -32,15 +32,11 @@ Clean up running chat objects under the specified key, keeping only up to `maxit
 
 **Returns:** `bool` — `True` if cleanup was performed, `False` otherwise
 
----
-
 ### `get_all_objs() -> list[ChatObjectMeta]`
 
 Get metadata for all running chat objects across all sessions.
 
 **Returns:** `list[ChatObjectMeta]` — List of all running chat object metadata snapshots
-
----
 
 ### `get_objs(session_id: str) -> list[ChatObject]`
 
@@ -52,8 +48,6 @@ Get all active chat objects for a given session ID.
 
 **Returns:** `list[ChatObject]` — List of chat objects for the session
 
----
-
 ### `async clean_chat_objects(maxitems: int = 10) -> None`
 
 Asynchronously clean up all running chat objects across all sessions, limiting each session to `maxitems` objects.
@@ -61,8 +55,6 @@ Asynchronously clean up all running chat objects across all sessions, limiting e
 **Parameters:**
 
 - `maxitems` (`int`, optional): Maximum number of objects per session. Defaults to `10`.
-
----
 
 ### `async add_chat_object(chat_object: ChatObject) -> None`
 

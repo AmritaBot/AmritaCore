@@ -2,8 +2,6 @@
 
 The **data backend** mechanism decouples memory and ability management from `ChatObject`, enabling pluggable storage backends (in-memory global containers, databases, distributed caches, etc.) without changing the core execution logic.
 
----
-
 ## BackendSlots
 
 [`BackendSlots`](../api-reference/classes/BackendSlots.md) is a simple dataclass that holds two backend references:
@@ -18,8 +16,6 @@ class BackendSlots:
 ```
 
 `ChatObject` receives a `BackendSlots` instance and delegates all data I/O to it via the workflow nodes `_load_state` and `_commit_memory`.
-
----
 
 ## AbilityBackend (Abstract)
 
@@ -45,8 +41,6 @@ class AbilityBackend:
 - `load_ability_all()`: returns a fully populated `AbilityContext`
 - `load_mcp_clients()` / `load_tools()` / `load_presets()`: granular loading, used when `DatabackendOptions` skip flags are set
 
----
-
 ## MemoryBackend (Abstract)
 
 [`MemoryBackend`](../api-reference/classes/MemoryBackend.md) defines the interface for loading and persisting conversation memory:
@@ -64,8 +58,6 @@ class MemoryBackend:
 
 - `load_memory()`: called at the start of each `ChatObject` execution
 - `commit_memory()`: called after completion to persist changes
-
----
 
 ## LegacyBackend — Built-in Global Container
 
@@ -96,8 +88,6 @@ backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 
 > **Note**: `LegacyBackend` stores data **in memory only**. Restart the process and all data is lost. For persistence, implement a custom backend.
 
----
-
 ## DatabackendOptions — Fine-Grained Control
 
 [`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md) controls which backend operations are skipped during a `ChatObject` run:
@@ -116,8 +106,6 @@ options = DatabackendOptions(
 ```
 
 Pass options to `ChatObject` via the `backend_options` parameter, or to `AgentRuntime.get_chatobject()` via `**kwargs`.
-
----
 
 ## Custom Backend Example
 
@@ -168,8 +156,6 @@ runtime = AgentRuntime(
     ),
 )
 ```
-
----
 
 ## Data Flow Summary
 

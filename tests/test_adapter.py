@@ -25,6 +25,9 @@ class MockAsyncStream(AsyncStream):
 
     def __init__(self, chunks):
         self.chunks = chunks
+        self.response = MagicMock()
+        self.response.headers = {}
+        self.response.aclose = AsyncMock()
 
     def __aiter__(self):
         return self
@@ -81,6 +84,7 @@ class TestOpenAIAdapter:
             object="chat.completion",
             usage={"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         )
+        object.__setattr__(mock_completion, "_request_id", "req_mock_001")
 
         with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
@@ -116,6 +120,7 @@ class TestOpenAIAdapter:
             model="gpt-3.5-turbo",
             object="chat.completion",
         )
+        object.__setattr__(mock_completion, "_request_id", "req_mock_002")
 
         with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
@@ -157,6 +162,7 @@ class TestOpenAIAdapter:
             model="gpt-3.5-turbo",
             object="chat.completion",
         )
+        object.__setattr__(mock_completion, "_request_id", "req_mock_003")
 
         with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
@@ -207,6 +213,7 @@ class TestOpenAIAdapter:
             model="gpt-3.5-turbo",
             object="chat.completion",
         )
+        object.__setattr__(mock_completion, "_request_id", "req_mock_004")
 
         with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
@@ -240,6 +247,7 @@ class TestOpenAIAdapter:
             model="gpt-3.5-turbo",
             object="chat.completion",
         )
+        object.__setattr__(mock_completion, "_request_id", "req_mock_005")
 
         with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
@@ -313,6 +321,7 @@ class TestOpenAIAdapter:
             model="gpt-3.5-turbo",
             object="chat.completion",
         )
+        object.__setattr__(mock_completion, "_request_id", "req_mock_006")
 
         with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
             mock_client = AsyncMock()
@@ -736,6 +745,11 @@ class TestAnthropicAdapter:
         mock_message = MagicMock()
         mock_message.content = [TextBlock(text="Hello there!", type="text")]
         mock_message.usage = Usage(input_tokens=10, output_tokens=5, total_tokens=15)
+        mock_message.model = "claude-3-opus-20240229"
+        mock_message.stop_sequence = None
+        mock_message.stop_reason = "end_turn"
+        # Explicitly set _request_id to None so getattr() on MagicMock returns None
+        mock_message._request_id = None
 
         with patch(
             "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"
@@ -780,12 +794,16 @@ class TestAnthropicAdapter:
         mock_final_message.usage = Usage(
             input_tokens=10, output_tokens=5, total_tokens=15
         )
+        mock_final_message.model = "claude-3-opus-20240229"
+        mock_final_message.stop_sequence = None
+        mock_final_message.stop_reason = "end_turn"
 
         # Create a simple mock context manager with async iteration
         class SimpleMockContext:
             def __init__(self, events_gen, final_msg):
                 self._events = events_gen
                 self._final_msg = final_msg
+                self.request_id = "req_test_123"
 
             async def __aenter__(self):
                 return self
@@ -846,11 +864,15 @@ class TestAnthropicAdapter:
         mock_final_message.usage = Usage(
             input_tokens=10, output_tokens=0, total_tokens=10
         )
+        mock_final_message.model = "claude-3-opus-20240229"
+        mock_final_message.stop_sequence = None
+        mock_final_message.stop_reason = "end_turn"
 
         class SimpleMockContext:
             def __init__(self, events_gen, final_msg):
                 self._events = events_gen
                 self._final_msg = final_msg
+                self.request_id = "req_test_123"
 
             async def __aenter__(self):
                 return self
@@ -900,6 +922,11 @@ class TestAnthropicAdapter:
             TextBlock(text=" Second part", type="text"),
         ]
         mock_message.usage = Usage(input_tokens=15, output_tokens=10, total_tokens=25)
+        mock_message.model = "claude-3-opus-20240229"
+        mock_message.stop_sequence = None
+        mock_message.stop_reason = "end_turn"
+        # Explicitly set _request_id to None so getattr() on MagicMock returns None
+        mock_message._request_id = None
 
         with patch(
             "amrita_core.adapters.anthropic.anthropic.AsyncAnthropic"

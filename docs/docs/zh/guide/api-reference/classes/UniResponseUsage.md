@@ -7,6 +7,8 @@ UniResponseUsage class represents usage statistics for responses.
 - `prompt_tokens` (T_INT): Number of tokens used in the prompt
 - `completion_tokens` (T_INT): Number of tokens used in the completion (generation)
 - `total_tokens` (T_INT): Total number of tokens used
+- `cache_creation` (int | None): 用于创建缓存条目的 token 数（Anthropic prompt caching）
+- `cache_hit` (int | None): 从缓存中读取的 token 数（Anthropic prompt caching）
 
 ## Description
 

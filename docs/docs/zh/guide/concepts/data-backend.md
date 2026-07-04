@@ -2,8 +2,6 @@
 
 **数据后端**机制将记忆和能力管理与 `ChatObject` 解耦，使可插拔存储后端（内存全局容器、数据库、分布式缓存等）成为可能，而无需更改核心执行逻辑。
 
----
-
 ## BackendSlots 后端槽位
 
 [`BackendSlots`](../api-reference/classes/BackendSlots.md) 是一个简单的 dataclass，持有两个后端引用：
@@ -18,8 +16,6 @@ class BackendSlots:
 ```
 
 `ChatObject` 接收一个 `BackendSlots` 实例，并通过工作流节点 `_load_state` 和 `_commit_memory` 将所有数据 I/O 委托给它。
-
----
 
 ## AbilityBackend 能力后端（抽象类）
 
@@ -45,8 +41,6 @@ class AbilityBackend:
 - `load_ability_all()`：返回完整填充的 `AbilityContext`
 - `load_mcp_clients()` / `load_tools()` / `load_presets()`：粒度加载，当设置 `DatabackendOptions` skip 标志时使用
 
----
-
 ## MemoryBackend 记忆后端（抽象类）
 
 [`MemoryBackend`](../api-reference/classes/MemoryBackend.md) 定义了加载和持久化对话记忆的接口：
@@ -64,8 +58,6 @@ class MemoryBackend:
 
 - `load_memory()`：每次 `ChatObject` 执行开始时调用
 - `commit_memory()`：完成后调用以持久化更改
-
----
 
 ## LegacyBackend 内置全局容器
 
@@ -96,8 +88,6 @@ backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 
 > **注意**：`LegacyBackend` 仅在**内存中**存储数据。重启进程后所有数据将丢失。如需持久化，请实现自定义后端。
 
----
-
 ## DatabackendOptions 细粒度控制
 
 [`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md) 控制在 `ChatObject` 运行期间跳过哪些后端操作：
@@ -116,8 +106,6 @@ options = DatabackendOptions(
 ```
 
 通过 `backend_options` 参数传递给 `ChatObject`，或通过 `**kwargs` 传递给 `AgentRuntime.get_chatobject()`。
-
----
 
 ## 自定义后端示例
 
@@ -168,8 +156,6 @@ runtime = AgentRuntime(
     ),
 )
 ```
-
----
 
 ## 数据流总结
 

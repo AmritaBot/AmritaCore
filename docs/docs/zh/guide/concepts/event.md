@@ -1,6 +1,6 @@
 # 事件系统
 
-> **v0.9.0rc1 起**：事件系统核心（`BaseEvent`、`MatcherFactory`、`EventRegistry`、`MatcherException`、`CancelException`、`PassException`）已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [AmritaSense 事件系统](https://sense.amritabot.com/guide/advanced/event_system)。`amrita_core.hook.*` 模块现为弃用包装器。
+> **v0.9.0rc1 起**：事件系统核心（`BaseEvent`、`MatcherFactory`、`EventRegistry`、`MatcherException`、`CancelException`、`PassException`）已迁移至 [AmritaSense](https://sense.amritabot.com)。完整文档见 [AmritaSense 事件系统](https://sense.amritabot.com/guide/advanced/event_system)。`amrita_core.hook.*` 兼容端点在 v0.10.x+ 已移除，请直接从 `amrita_sense` 导入。
 
 ## 3.3.1 事件驱动设计
 

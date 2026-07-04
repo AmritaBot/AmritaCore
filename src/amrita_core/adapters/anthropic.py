@@ -3,6 +3,7 @@ from collections.abc import AsyncGenerator, Iterable
 from io import StringIO
 
 from amrita_sense.logging import logger
+from anthropic.types import Message
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
@@ -25,6 +26,7 @@ from amrita_core.types import (
     UniResponse,
     UniResponseUsage,
 )
+from amrita_core.types.response import RequestMetadata
 
 
 class AnthropicFunctionSchema(BaseModel):
@@ -278,14 +280,26 @@ try:
                             text_resp.write(event.text)
                             yield event.text
                     last_msg = await resp.get_final_message()
+                    metadata = RequestMetadata(
+                        original_request_id=getattr(resp, "request_id", None),
+                        stop_sequence=getattr(last_msg, "stop_sequence", None),
+                        stop_reason=getattr(last_msg, "stop_reason", None),
+                        model=getattr(last_msg, "model", "__NOT_GIVEN__"),
+                    )
                     usage: UniResponseUsage[int] = UniResponseUsage[int](
                         prompt_tokens=last_msg.usage.input_tokens,
                         completion_tokens=last_msg.usage.output_tokens,
                         total_tokens=last_msg.usage.input_tokens
                         + last_msg.usage.output_tokens,
+                        cache_creation=getattr(
+                            last_msg.usage, "cache_creation_input_tokens", None
+                        ),
+                        cache_hit=getattr(
+                            last_msg.usage, "cache_read_input_tokens", None
+                        ),
                     )
             else:
-                last_msg = await client.messages.create(
+                last_msg: Message = await client.messages.create(
                     model=preset.model,
                     messages=anthropic_msgs,
                     max_tokens=config.llm.max_tokens,
@@ -293,25 +307,35 @@ try:
                     temperature=preset_config.temperature,
                     **kwargs,
                 )
-                for ct in last_msg.content:
-                    if isinstance(ct, TextBlock):
-                        text_resp.write(ct.text)
-                    elif hasattr(ct, "thinking"):
-                        reasoning += ct.thinking
-                        if hasattr(ct, "signature"):
-                            reasoning_signature = ct.signature
-                        yield MessageWithMetadata(
-                            content=ct.thinking,
-                            metadata=MessageMetadataPayload(
-                                type="reasoning_chunk", extra_type="thinking"
-                            ),
-                        )
+                metadata = RequestMetadata(
+                    original_request_id=getattr(last_msg, "_request_id", None),
+                    stop_sequence=getattr(last_msg, "stop_sequence", None),
+                    stop_reason=getattr(last_msg, "stop_reason", None),
+                    model=getattr(last_msg, "model", "__NOT_GIVEN__"),
+                )
                 usage = UniResponseUsage[int](
                     prompt_tokens=last_msg.usage.input_tokens,
                     completion_tokens=last_msg.usage.output_tokens,
                     total_tokens=last_msg.usage.input_tokens
                     + last_msg.usage.output_tokens,
+                    cache_creation=getattr(
+                        last_msg.usage, "cache_creation_input_tokens", None
+                    ),
+                    cache_hit=getattr(last_msg.usage, "cache_read_input_tokens", None),
                 )
+                for ct in last_msg.content:
+                    if isinstance(ct, TextBlock):
+                        text_resp.write(ct.text)
+                    elif hasattr(ct, "thinking"):
+                        reasoning += ct.thinking  # pyright: ignore[reportAttributeAccessIssue]
+                        if hasattr(ct, "signature"):
+                            reasoning_signature = ct.signature  # pyright: ignore[reportAttributeAccessIssue]
+                        yield MessageWithMetadata(
+                            content=ct.thinking,  # pyright: ignore[reportAttributeAccessIssue]
+                            metadata=MessageMetadataPayload(
+                                type="reasoning_chunk", extra_type="thinking"
+                            ),
+                        )
                 text_content = text_resp.getvalue()
                 yield text_content
 
@@ -321,6 +345,7 @@ try:
                 tool_calls=None,
                 reasoning_content=reasoning or None,
                 reasoning_signature=reasoning_signature or None,
+                metadata=metadata,
             )
 
         @override
@@ -362,7 +387,7 @@ try:
                 | ToolChoiceNoneParam
             ) = self._convert_tool_choice(tool_choice)
 
-            response = await client.messages.create(
+            response: Message = await client.messages.create(
                 model=preset.model,
                 messages=anthropic_msgs,
                 max_tokens=config.llm.max_tokens,
@@ -372,6 +397,12 @@ try:
                 tool_choice=anthropic_tool_choice,
                 **kwargs,
             )
+            metadata = RequestMetadata(
+                original_request_id=getattr(response, "_request_id", None),
+                stop_sequence=getattr(response, "stop_sequence", None),
+                stop_reason=getattr(response, "stop_reason", None),
+                model=getattr(response, "model", "__NOT_GIVEN__"),
+            )
 
             usage = None
             if getattr(response, "usage", None) is not None:
@@ -380,8 +411,11 @@ try:
                     completion_tokens=response.usage.output_tokens,
                     total_tokens=response.usage.input_tokens
                     + response.usage.output_tokens,
+                    cache_creation=getattr(
+                        response.usage, "cache_creation_input_tokens", None
+                    ),
+                    cache_hit=getattr(response.usage, "cache_read_input_tokens", None),
                 )
-
             tool_calls = []
             reasoning = ""
             reasoning_signature = ""
@@ -398,9 +432,9 @@ try:
                         )
                     )
                 elif hasattr(block, "thinking"):
-                    reasoning += block.thinking
+                    reasoning += block.thinking  # pyright: ignore[reportAttributeAccessIssue]
                     if hasattr(block, "signature"):
-                        reasoning_signature = block.signature
+                        reasoning_signature = block.signature  # pyright: ignore[reportAttributeAccessIssue]
             return UniResponse(
                 role="assistant",
                 content=None,
@@ -408,6 +442,7 @@ try:
                 usage=usage,
                 reasoning_content=reasoning or None,
                 reasoning_signature=reasoning_signature or None,
+                metadata=metadata,
             )
 
         @staticmethod
