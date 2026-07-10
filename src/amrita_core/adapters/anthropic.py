@@ -264,20 +264,22 @@ try:
                     **kwargs,
                 ) as resp:
                     async for event in resp:
-                        if event.type == "thinking_delta":
-                            reasoning += event.thinking
-                            yield MessageWithMetadata(
-                                content=event.thinking,
-                                metadata=MessageMetadataPayload(
-                                    type="reasoning_chunk",
-                                    extra_type="thinking_delta",
-                                ),
-                            )
-                        elif event.type == "signature_delta":
-                            reasoning_signature += event.signature
-                        elif event.type == "text_delta":
-                            text_resp.write(event.text)
-                            yield event.text
+                        if event.type == "content_block_delta":
+                            delta = event.delta
+                            if delta.type == "thinking_delta":
+                                reasoning += delta.thinking
+                                yield MessageWithMetadata(
+                                    content=delta.thinking,
+                                    metadata=MessageMetadataPayload(
+                                        type="reasoning_chunk",
+                                        extra_type="thinking_delta",
+                                    ),
+                                )
+                            elif delta.type == "signature_delta":
+                                reasoning_signature += delta.signature
+                            elif delta.type == "text_delta":
+                                text_resp.write(delta.text)
+                                yield delta.text
                     last_msg = await resp.get_final_message()
                     metadata = RequestMetadata(
                         original_request_id=getattr(resp, "request_id", None),

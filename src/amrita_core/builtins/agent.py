@@ -19,7 +19,7 @@ from amrita_core.libchat import (
     get_last_response,
     tools_caller,
 )
-from amrita_core.tools.models import ToolFunctionSchema
+from amrita_core.tools.models import ToolChoice, ToolFunctionSchema
 from amrita_core.types import (
     CONTENT_LIST_TYPE_ITEM,
     Function,
@@ -113,6 +113,34 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     #  Reasoning Enhancement State
     _predicted_tools: list[str]  # Tools predicted during structured reasoning
+
+    def _is_native_thinking_enabled(self) -> bool:
+        """Return True when the model preset has native thinking enabled.
+
+        Native thinking (Claude Extended Thinking, OpenAI o-series, etc.)
+        may not support ``tool_choice``, so forced tool-choice values must
+        be downgraded to ``"auto"`` to avoid provider errors.
+        """
+        preset = self.chat_object.preset
+        return (
+            preset is not None
+            and not isinstance(preset, str)
+            and preset.thinking_config is not None
+            and preset.thinking_config.thinking_type == "enabled"
+        )
+
+    def _resolve_tool_choice(self, desired: ToolChoice) -> ToolChoice:
+        """Resolve the *actual* ``tool_choice`` to send to the provider.
+
+        When native thinking is enabled the provider may reject forced
+        values (``"required"`` or a specific tool schema).  In that case
+        we fall back to ``"auto"`` and rely on prompt instructions instead.
+        """
+        if not self._is_native_thinking_enabled():
+            return desired
+        if desired == "required" or isinstance(desired, ToolFunctionSchema):
+            return "auto"
+        return desired  # "auto" | "none" pass through unchanged
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -371,7 +399,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             tool_response = await tools_caller(
                 msg_list,
                 [REFLECTION_TOOL],
-                tool_choice=REFLECTION_TOOL,
+                tool_choice=self._resolve_tool_choice(REFLECTION_TOOL),
                 preset=self.ctx.chat_object.preset,
             )
             if not tool_response.tool_calls:
@@ -456,10 +484,15 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         tool_response: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             reasoning_trigger_msg,
             [REASONING_TOOL, *tools_ctx],
-            tool_choice=REASONING_TOOL,
+            tool_choice=self._resolve_tool_choice(REASONING_TOOL),
             preset=self.ctx.chat_object.preset,
         )
-        assert tool_response.tool_calls, "No tool calls returned."
+        if not tool_response.tool_calls:
+            logger.warning(
+                "No tool calls returned from reasoning trigger"
+                " (native thinking may have suppressed tool_choice=REASONING_TOOL)"
+            )
+            return
         tool_call: ToolCall = tool_response.tool_calls[0]
         response = await self._generate_reasoning_content(
             tool_call, reasoning_trigger_msg
@@ -1087,9 +1120,16 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         logger.info(
             f"Starting round {self.call_count} tool call, current message count: {len(msg_list)}"
         )
-        if config.builtin.tool_calling_mode == "agent" and (
-            (self.call_count == 1 and config.builtin.agent_thought_mode == "reasoning")
-            or config.builtin.agent_thought_mode == "reasoning-required"
+        if (
+            config.builtin.tool_calling_mode == "agent"
+            and not self._is_native_thinking_enabled()
+            and (
+                (
+                    self.call_count == 1
+                    and config.builtin.agent_thought_mode == "reasoning"
+                )
+                or config.builtin.agent_thought_mode == "reasoning-required"
+            )
         ):
             await self._generate_reasoning_msg(
                 self.tools, HybridReActAgentStrategy._append_reasoning
@@ -1122,7 +1162,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             msg_list.unwrap(),
             tools,
-            tool_choice=(
+            tool_choice=self._resolve_tool_choice(
                 "required"
                 if (config.llm.require_tools and not self._suggested_stop)
                 else "auto"
@@ -1321,9 +1361,16 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         logger.info(
             f"Starting round {self.call_count} tool call, current message count: {len(msg_list)}"
         )
-        if config.builtin.tool_calling_mode == "agent" and (
-            (self.call_count == 1 and config.builtin.agent_thought_mode == "reasoning")
-            or config.builtin.agent_thought_mode == "reasoning-required"
+        if (
+            config.builtin.tool_calling_mode == "agent"
+            and not self._is_native_thinking_enabled()
+            and (
+                (
+                    self.call_count == 1
+                    and config.builtin.agent_thought_mode == "reasoning"
+                )
+                or config.builtin.agent_thought_mode == "reasoning-required"
+            )
         ):
             await self._generate_reasoning_msg(
                 self.tools, ReActAgentStrategy._append_reasoning
@@ -1356,7 +1403,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
             msg_list.unwrap(),
             tools,
-            tool_choice=(
+            tool_choice=self._resolve_tool_choice(
                 "required"
                 if (config.llm.require_tools and not self._suggested_stop)
                 else "auto"

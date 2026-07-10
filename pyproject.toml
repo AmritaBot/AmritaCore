@@ -25,7 +25,7 @@ dependencies = [
 "Issue Tracker" = "https://github.com/AmritaBot/AmritaCore/issues"
 
 [tool.uv]
-package=true
+package = true
 
 [dependency-groups]
 dev = [
@@ -41,7 +41,7 @@ dev = [
 ]
 
 [project.optional-dependencies]
-anthropic = ["anthropic>=0.84.0"]
+anthropic = ["anthropic>=0.116.0,<0.117.0"]
 jieba = ["jieba>=0.42.1"]
 all = ["amrita_core[anthropic,jieba]"]
 
@@ -79,9 +79,7 @@ ignore = [
 typeCheckingMode = "standard"
 
 [tool.uv.workspace]
-members = [
-    ".",
-]
+members = ["."]
 
 [tool.uv.sources]
 amrita-core = { workspace = true }

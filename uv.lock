@@ -277,7 +277,7 @@ requires-dist = [
     { name = "aiologic", specifier = ">=0.16.0" },
     { name = "amrita-core", extras = ["anthropic", "jieba"], marker = "extra == 'all'", editable = "." },
     { name = "amrita-sense", specifier = ">=0.4.3" },
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.84.0" },
+    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.116.0,<0.117.0" },
     { name = "fastmcp", specifier = ">=3.2.0" },
     { name = "filetype", specifier = ">=1.2.0" },
     { name = "importlib", specifier = ">=1.0.4" },

@@ -52,8 +52,6 @@ async def JINJA2_RENDER(
 @Node(SuspendEnum.LLM_CALL)
 async def LLM_COMPLETION(
     ability: AbilityState,
-    mem: MemoryContext,
-    ip: GeneralInput,
     wok: WorkingState,
     intp: WorkflowInterpreter,
     resp: RespState,
