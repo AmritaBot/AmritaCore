@@ -3,7 +3,6 @@ import contextlib
 import copy
 from asyncio import Task
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from io import StringIO
@@ -21,11 +20,10 @@ from amrita_sense import (
     WorkflowInterpreter,
 )
 from amrita_sense._unsafe import __flags__
-from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
 from amrita_sense.instructions import GOTO
 from amrita_sense.instructions.subprogram import SubprogramStorage
-from amrita_sense.logging import debug_log, logger
+from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
 from pytz import utc
@@ -40,26 +38,37 @@ from amrita_core.agent.strategy import (
 from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.builtins.backends import LegacyBackend
+from amrita_core.components.llm import JINJA2_RENDER, LLM_COMPLETION
+from amrita_core.components.process import BUILD_MESSAGE, COMMIT_MEMORY, LOAD_STATE
+from amrita_core.components.react import (
+    AGENT_ENTRY,
+    AGENT_POST_PROCESS,
+    REACT_COUNTER,
+    SINGLE_STRATEGY_CALL,
+)
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
-from amrita_core.contents import (
-    MessageContent,
-    MessageMetadataPayloadError,
-    MessageWithMetadata,
+from amrita_core.contents import MessageContent
+from amrita_core.contexts import (
+    AbilityContext,
+    AbilityState,
+    AgentLoopState,
+    DatabackendOptions,
+    GeneralInput,
+    MemoryContext,
+    RespState,
+    SessionMetadata,
+    StateContext,
+    StrategyPayload,
+    WorkingState,
 )
-from amrita_core.contexts import StateContext
-from amrita_core.hook.event import CompletionEvent, FallbackContext, PreCompletionEvent
-from amrita_core.hook.exception import FallbackFailed
-from amrita_core.libchat import (
-    RESPONSE_TYPE,
-    call_completion,
-)
+from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
+from amrita_core.libchat import RESPONSE_TYPE
 from amrita_core.types import (
     USER_INPUT,
     Message,
     ModelPreset,
     SendMessageWrap,
-    UniResponse,
     UniResponseUsage,
 )
 from amrita_core.types.memory import MemoryModel
@@ -79,28 +88,6 @@ RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 FUNC_RET_T = TypeVar("FUNC_RET_T")
 
 
-@dataclass
-class AgentLoopState:
-    """Transient state for the framework-managed agent loop."""
-
-    stg_ctx: StrategyContext
-    strategy: AgentStrategy | StrategyLikedObject | None = None
-    ctx_backup: SendMessageWrap | None = None
-    called_count: int = 0
-
-
-@dataclass
-class DatabackendOptions:
-    """Transient state for the framework-managed fetch strategy."""
-
-    skip_memory_fetch: bool = False
-    skip_tools_fetch: bool = False
-    skip_mcp_fetch: bool = False
-    skip_presets_fetch: bool = False
-    skip_ability_extra_setting: bool = False
-    skip_memory_commit: bool = False
-
-
 class ChatObject:
     """Chat processing object - The minimal unit of chat processing.
 
@@ -109,38 +96,15 @@ class ChatObject:
     """
 
     # Identity
-    stream_id: str  # Chat object ID
-    _s_id: str  # Temprorary session ID if assigned `session_id`
+    _s_id: str  # Temporary session ID if assigned `session_id`
 
     # Timing
-    timestamp: str  # Timestamp (for LLM)
-    time: datetime  # Time
     end_at: datetime | None
     last_call: datetime  # Last internal function call time
     now_calling: str | None  # currently calling function name
 
-    # Config & Preset
-    config: AmritaConfig  # config used in this call
-    preset: ModelPreset  # (lateinit) preset used in this call, set on runtime
-    strategy: type[AgentStrategy] | StrategyLikedObject
-
-    # Core State
-    slot: BackendSlots
-    state: StateContext  # (lateinit) state of chat_obj will be set in runtime.
-
-    # Input / Data
-    user_input: USER_INPUT
-    user_message: Message[USER_INPUT]  # User message
-    train: Message[str]  # System message
-    template: Template
-    jinja2_vars: dict[str, Any]  # Vars will be passed to template system.
-    context_wrap: SendMessageWrap
-
     # IO-Stream
     io_stream: SuspendObjectStream[RESPONSE_TYPE]
-    # Response
-    response: UniResponse[str, None]  # (lateinit) Response
-    extra_usage: UniResponseUsage[int]
 
     # Runtime State
     _is_running: bool  # Whether it is running
@@ -148,8 +112,6 @@ class ChatObject:
     _task: Task[None]  # (lateinit) set on runtime
     _err: BaseException | None  # Exception in runtime
 
-    # Options
-    _bke_opt: DatabackendOptions
     # Args for DI system
     _hook_args: tuple[Any, ...]
     _hook_kwargs: dict[str, Any]
@@ -162,15 +124,31 @@ class ChatObject:
         Callable[[Self], Awaitable[Any]] | None
     )  # Middleware for the whole workflow, will be set in __init__.
 
-    # Agent loop state
-    _agent_loop: AgentLoopState | None
-
     # ChatObject temp storage
     _chatman: ChatManager
+    _state: StateContext | None  # Backref for external consumers
+
+    # DI context references — component nodes read/write these via extra_args type injection
+    _di_ability: AbilityState
+    _di_memory: MemoryContext
+    _di_working: WorkingState
+    _di_resp: RespState
+    _di_input: GeneralInput
+    _di_loop: AgentLoopState
+    _di_agent: StrategyPayload
+    _di_opt: DatabackendOptions
+    _di_session: SessionMetadata
     __slots__ = (
-        "_agent_loop",
-        "_bke_opt",
         "_chatman",
+        "_di_ability",
+        "_di_agent",
+        "_di_input",
+        "_di_loop",
+        "_di_memory",
+        "_di_opt",
+        "_di_resp",
+        "_di_session",
+        "_di_working",
         "_err",
         "_hook_args",
         "_hook_kwargs",
@@ -180,28 +158,13 @@ class ChatObject:
         "_middleware",
         "_raised_exc",
         "_s_id",
+        "_state",
         "_task",
         "_workflow",
-        "config",
-        "context_wrap",
         "end_at",
-        "extra_usage",
         "io_stream",
-        "jinja2_vars",
         "last_call",
         "now_calling",
-        "preset",
-        "response",
-        "slot",
-        "state",
-        "strategy",
-        "stream_id",
-        "template",
-        "time",
-        "timestamp",
-        "train",
-        "user_input",
-        "user_message",
     )
 
     def __init__(
@@ -258,66 +221,87 @@ class ChatObject:
             backend_options: Fine-grained control over which backend
                 fetch/commit operations are performed.
         """
-        # Init as None in slots
-        self._agent_loop = None
+        # Init runtime fields
         self._err = None
         self._is_done = False
         self._is_running = False
         self.now_calling = None
         self.end_at = None
-        # Special flags
         self._raised_exc = (
             exception_ignored if not __flags__.DISABLE_EXC_IGNORED else ()
         )
         self.last_call = datetime.now(utc)
-        # initialize id
-        self.stream_id = uuid4().hex
 
         # initialize iostream
         self.io_stream = io_stream or SuspendObjectStream()
-        # data
+
+        # Validate context / session_id
         if not context and not session_id:
             raise ValueError("Either context or session_id must be provided")
         if session_id:
             if context:
                 raise ValueError("Both context and session_id cannot be provided")
             self._s_id = session_id
-        self.train = (
+
+        # Resolve locals (no longer stored directly on ChatObject)
+        _stream_id = uuid4().hex
+        _timestamp = get_current_datetime_timestamp()
+        _time = datetime.now(utc)
+        _config = config or get_config()
+        _preset = preset
+        _slot = backend if backend else BackendSlots(LegacyBackend(), LegacyBackend())
+        _train = (
             train if isinstance(train, Message) else Message[str].model_validate(train)
         )
-        if context:
-            self.state = context
-        if preset:
-            self.preset = preset
-        if backend:
-            self.slot = backend
-        else:
-            bknd = LegacyBackend()
-            self.slot = BackendSlots(bknd, bknd)
-        self.user_input = user_input
-        self.user_message = Message(role="user", content=user_input)
-        self.timestamp = get_current_datetime_timestamp()
-        self.time = datetime.now(utc)
-        self.config = config or get_config()
-        self.strategy = agent_strategy
-        self.extra_usage = UniResponseUsage(
-            prompt_tokens=0, completion_tokens=0, total_tokens=0
-        )
-        # other
-        self._chatman = chat_man or chat_manager
-        self._agent_loop = None
-        self.template = train_template
-        jinja2_vars = jinja2_vars or {}
-        if any(name in jinja2_vars for name in ("train", "self", "memory", "chatobj")):
+        _template = train_template
+        _jv = jinja2_vars or {}
+        if any(name in _jv for name in ("train", "self", "memory", "chatobj")):
             raise RuntimeError("Received a reserved keyword, please use another name.")
-        self.jinja2_vars = jinja2_vars
-        # Options
-        self._bke_opt = backend_options or DatabackendOptions()
+        _strategy = agent_strategy
+        _bke_opt = backend_options or DatabackendOptions()
+
+        self._chatman = chat_man or chat_manager
         # Hook args
         hook_kwargs = hook_kwargs or {}
         self._hook_kwargs = hook_kwargs
         self._hook_args = hook_args
         self._middleware = middleware
+
+        # DI context objects — passed via extra_args for type-based injection
+        self._di_session = SessionMetadata(
+            stream_id=_stream_id,
+            session_id=self._s_id if hasattr(self, "_s_id") else "",
+            timestamp=_timestamp,
+            time=_time,
+        )
+        self._di_ability = AbilityState(
+            preset=_preset,
+            config=_config,
+            slot=_slot,
+        )
+        self._di_input = GeneralInput(
+            user_input=user_input,
+            train=_train,
+            template=_template,
+            jinja2_vars=_jv,
+        )
+        self._di_memory = MemoryContext()
+        self._di_working = WorkingState()
+        self._di_resp = RespState(
+            extra_usage=UniResponseUsage(
+                prompt_tokens=0, completion_tokens=0, total_tokens=0
+            )
+        )
+        self._di_loop = AgentLoopState()
+        self._di_agent = StrategyPayload(strategy=_strategy)
+        self._di_opt = _bke_opt
+        self._state = None
+        if context:
+            self._state = context
+            self._di_memory.memory = context.memory
+            self._di_ability.ability = context.ability
+            self._di_session.session_id = context.session_id
+
         # Workflow system
         wkfl = None
         if archived_nodes is not None:
@@ -327,39 +311,133 @@ class ChatObject:
             self._workflow,
             self.io_stream,
             exception_ignored=exception_ignored,
-            extra_args=(*hook_args, self),
+            extra_args=(
+                *hook_args,
+                self,
+                self._di_ability,
+                self._di_memory,
+                self._di_working,
+                self._di_resp,
+                self._di_input,
+                self._di_loop,
+                self._di_agent,
+                self._di_opt,
+                self._di_session,
+            ),
             extra_kwargs=hook_kwargs,
         )
 
-    # Properties
+    # ── Properties delegating to DI context ──
+
+    @property
+    def stream_id(self) -> str:
+        return self._di_session.stream_id
+
+    @stream_id.setter
+    def stream_id(self, val: str) -> None:
+        self._di_session.stream_id = val
+
+    @property
+    def timestamp(self) -> str:
+        return self._di_session.timestamp
+
+    @property
+    def time(self) -> datetime:
+        return self._di_session.time
+
+    @property
+    def config(self) -> AmritaConfig:
+        return self._di_ability.config
+
+    @config.setter
+    def config(self, val: AmritaConfig) -> None:
+        self._di_ability.config = val
+
+    @property
+    def preset(self) -> ModelPreset:
+        p = self._di_ability.preset
+        assert p is not None, "preset has not been loaded yet"
+        return p
+
+    @preset.setter
+    def preset(self, val: ModelPreset) -> None:
+        self._di_ability.preset = val
+
+    @property
+    def slot(self) -> BackendSlots:
+        return self._di_ability.slot
+
+    @property
+    def strategy(self) -> type[AgentStrategy] | StrategyLikedObject:
+        return self._di_agent.strategy
+
+    @strategy.setter
+    def strategy(self, val: type[AgentStrategy] | StrategyLikedObject) -> None:
+        self._di_agent.strategy = val
+
+    @property
+    def state(self) -> StateContext:
+        """Backward-compatible accessor. Returns the StateContext if one was
+        provided, otherwise synthesises one from the DI components."""
+        if self._state is not None:
+            return self._state
+        return StateContext(
+            session_id=self._di_session.session_id,
+            memory=self._di_memory.memory or MemoryModel(),
+            ability=self._di_ability.ability or AbilityContext(),
+        )
+
+    @state.setter
+    def state(self, val: StateContext) -> None:
+        self._state = val
+        self._di_memory.memory = val.memory
+        self._di_ability.ability = val.ability
+        self._di_session.session_id = val.session_id
+
+    @property
+    def user_input(self) -> USER_INPUT:
+        return self._di_input.user_input
+
+    @property
+    def train(self) -> Message[str]:
+        return self._di_input.train
+
+    @train.setter
+    def train(self, val: Message[str]) -> None:
+        self._di_input.train = val
+
+    @property
+    def template(self) -> Template:
+        return self._di_input.template
+
+    @property
+    def jinja2_vars(self) -> dict[str, Any]:
+        return self._di_input.jinja2_vars
+
     @property
     def session_id(self) -> str:
         """
         Get the session ID for the workflow.
-        Falls back to ``_s_id`` if state has not been initialized yet.
+        Falls back to ``_s_id`` if DI session has not been initialized yet.
         """
-        if not hasattr(self, "state"):
-            return self._s_id
-        return self.state.session_id
+        if hasattr(self, "_di_session"):
+            return self._di_session.session_id
+        return self._s_id
 
     @property
     def data(self) -> MemoryModel:
         """
         Get the memory model for the workflow
         """
-        if not hasattr(self, "state"):
-            raise RuntimeError("The state of ChatObject hasn't initialized")
-        return self.state.memory
+        if not hasattr(self, "_di_memory") or self._di_memory.memory is None:
+            raise RuntimeError("Memory not initialized")
+        return self._di_memory.memory
 
     @data.setter
     def data(self, val: MemoryModel):
-        if not hasattr(self, "state"):
-            object.__setattr__(
-                self,
-                "state",
-                StateContext(self._s_id if hasattr(self, "_s_id") else ""),
-            )
-        self.state.memory = val
+        if not hasattr(self, "_di_memory"):
+            object.__setattr__(self, "_di_memory", MemoryContext())
+        self._di_memory.memory = val
 
     # Dunder / Magic methods
 
@@ -486,7 +564,7 @@ class ChatObject:
         """Call chat object to process messages"""
         await self.io_stream._wait_for_continue(SuspendEnum.ENTRY_POINT)
         if not self._is_running and not self._is_done:
-            self.stream_id = uuid4().hex
+            self._di_session.stream_id = uuid4().hex
             logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
 
             try:
@@ -500,7 +578,7 @@ class ChatObject:
                 self._is_running = False
                 self._is_done = True
                 self.end_at = datetime.now(utc)
-                self._chatman.running_chat_object_id2map.pop(self.stream_id, None)
+                self._chatman.running_chat_object_id2map.pop(self.stream_id, None)  # type: ignore[arg-type]
                 if self._chatman.clean_obj(
                     self.session_id, 10000
                 ):  # A hard limit just to avoid memory leaks
@@ -512,7 +590,7 @@ class ChatObject:
 
         else:
             raise RuntimeError(
-                f"ChatObject of {self.stream_id} is already running or done"
+                f"ChatObject of {self.stream_id} is already running or done"  # type: ignore[arg-type]
             )
 
     # Private helpers
@@ -533,118 +611,65 @@ class ChatObject:
         return messages
 
 
-# Workflow nodes (in execution order)
-
-
-@Node(SuspendEnum.LOAD_STATE)
-async def _load_state(chat_obj: ChatObject):
-    logger.debug("Loading state..")
-    if not hasattr(chat_obj, "state"):
-        if not hasattr(chat_obj, "_s_id"):
-            raise RuntimeError("Session id is not assigned, cannot load state.")
-        chat_obj.state = StateContext(chat_obj._s_id)
-    opt = chat_obj._bke_opt
-    slot = chat_obj.slot
-    if not (
-        opt.skip_mcp_fetch
-        or opt.skip_ability_extra_setting
-        or opt.skip_tools_fetch
-        or opt.skip_presets_fetch
-    ):
-        chat_obj.state.ability = await slot.ability.load_ability_all(
-            chat_obj.state.session_id
-        )
-    else:
-        if not opt.skip_mcp_fetch:
-            chat_obj.state.ability.mcp = await slot.ability.load_mcp_clients(
-                chat_obj.state.session_id
-            )
-        if not opt.skip_tools_fetch:
-            chat_obj.state.ability.tools = await slot.ability.load_tools(
-                chat_obj.state.session_id
-            )
-        if not opt.skip_presets_fetch:
-            chat_obj.state.ability.presets = await slot.ability.load_presets(
-                chat_obj.state.session_id
-            )
-    if not (opt.skip_memory_fetch):
-        chat_obj.state.memory = await slot.memory.load_memory(chat_obj.state.session_id)
-    if not hasattr(chat_obj, "preset"):
-        chat_obj.preset = chat_obj.state.ability.presets.get_default_preset()
-
-
-@Node(SuspendEnum.TRAIN_RENDER)
-async def _render_train(chat_obj: ChatObject):
-    logger.debug("Starting chat processing flow..")
-    data = chat_obj.data
-    config = chat_obj.config
-
-    data.messages.append(chat_obj.user_message)
-
-    logger.debug(
-        f"Added user message to memory, current message count: {len(data.messages)}"
-    )
-    # train,memory,chatobj(ChatObject),config will be given to Jinja2
-    chat_obj.train.content = await asyncio.to_thread(
-        chat_obj.template.render,
-        train=chat_obj.train,
-        memory=chat_obj.data,
-        chatobj=chat_obj,
-        config=config,
-        **chat_obj.jinja2_vars,
-    )
-    debug_log(chat_obj.train.content)
+# ── Retained workflow nodes (use DI _di_xxx refs) ──
 
 
 @Node(SuspendEnum.MEMORY)
 async def _limiting_memory(chat_obj: ChatObject):
     logger.debug("Starting applying memory limitations..")
-    async with MemoryLimiter(
-        chat_obj.data, chat_obj.train, config=chat_obj.config
-    ) as lim:
+    mem_ctx = chat_obj._di_memory
+    input_ctx = chat_obj._di_input
+    ab = chat_obj._di_ability
+    resp = chat_obj._di_resp
+    if not ab.config.llm.enable_memory_abstract:
+        return
+    assert mem_ctx.memory is not None, "Memory must be loaded before limiting"
+    async with MemoryLimiter(mem_ctx.memory, input_ctx.train, config=ab.config) as lim:
         await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY)
         await lim.run_enforce()
 
         if abs_usage := lim.usage:
-            chat_obj.extra_usage = gather_usage(chat_obj.extra_usage, abs_usage)
-        chat_obj.data = lim.memory
+            resp.extra_usage = gather_usage(resp.extra_usage, abs_usage)
+        mem_ctx.memory = lim.memory
     logger.debug("Memory limitation application completed")
-
-
-@Node(SuspendEnum.MESSAGES_PREPARED, wrap_to_async=False)
-def _prepare_messages(chat_obj: ChatObject):
-    send_messages = chat_obj._prepare_send_messages()
-    chat_obj.context_wrap = SendMessageWrap.validate_messages(send_messages)
-    logger.debug(
-        f"Preparing sending messages completed, message count: {len(send_messages)}"
-    )
 
 
 @Node(SuspendEnum.PRECOMPLE)
 async def _pre_runner(chat_obj: ChatObject):
+    wok = chat_obj._di_working
+    ab = chat_obj._di_ability
+    input_ctx = chat_obj._di_input
+    mem_ctx = chat_obj._di_memory
+    assert wok.context_wrap is not None, "Context wrap must be built before pre-runner"
+    assert mem_ctx.memory is not None, "Memory must be loaded before pre-runner"
     logger.debug(
-        f"Starting chat processing, sending message count: {len(chat_obj.context_wrap)}"
+        f"Starting chat processing, sending message count: {len(wok.context_wrap)}"
     )
 
     logger.debug("Triggering matcher functions..")
-    messages = chat_obj.context_wrap
+    messages = wok.context_wrap
     chat_event = PreCompletionEvent(
         chat_object=chat_obj,
-        user_input=chat_obj.user_input,
+        user_input=input_ctx.user_input,
         original_context=messages,
     )
+    assert ab.ability is not None, "Ability must be loaded before pre-runner"
     await MatcherManager.trigger_event(
         chat_event,
-        chat_obj.config,
+        ab.config,
         chat_obj,
-        chat_obj.preset,
+        ab.preset,
         *chat_obj._hook_args,
-        state=chat_obj.state,
-        slot=chat_obj.slot,
+        state=StateContext(
+            session_id=chat_obj._di_session.session_id,
+            memory=mem_ctx.memory,
+            ability=ab.ability,
+        ),
+        slot=ab.slot,
         exception_ignored=chat_obj._raised_exc,
         **chat_obj._hook_kwargs,
     )
-    chat_obj.data.messages = chat_event.get_context_messages().unwrap(
+    mem_ctx.memory.messages = chat_event.get_context_messages().unwrap(
         exclude_system=True
     )
 
@@ -652,33 +677,41 @@ async def _pre_runner(chat_obj: ChatObject):
 @Node(SuspendEnum.STRATEGY_START)
 async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None:
     """Run workflow of strategy given."""
+    agent = chat_obj._di_agent
+    input_ctx = chat_obj._di_input
+    ab = chat_obj._di_ability
+    wok = chat_obj._di_working
+    assert wok.context_wrap is not None, "Context wrap must be built before strategy"
 
-    match chat_obj.strategy.get_category():
+    match agent.strategy.get_category():
         case "agent-mixed" | "agent":
             context = (
                 SendMessageWrap.validate_messages(
-                    [chat_obj.train, chat_obj.user_message]
+                    [
+                        input_ctx.train,
+                        Message(role="user", content=input_ctx.user_input),
+                    ]
                 )
-                if chat_obj.config.function_config.use_minimal_context
-                else chat_obj.context_wrap.copy()
+                if ab.config.function_config.use_minimal_context
+                else wok.context_wrap.copy()
             )
-            ctx = StrategyContext(chat_obj.user_input, context, chat_obj)
-            chat_obj._agent_loop = AgentLoopState(stg_ctx=ctx)
+            ctx = StrategyContext(input_ctx.user_input, context, chat_obj)
+            chat_obj._di_loop.stg_ctx = ctx
             return intp.jump_to(intp.find_addr_alias(BuiltinName.AGENT_STRATEGY))
 
         case "rag":
             context = SendMessageWrap.validate_messages(
                 [
-                    chat_obj.train,
-                    chat_obj.user_message,
+                    input_ctx.train,
+                    Message(role="user", content=input_ctx.user_input),
                 ]
             )
         case "workflow":
-            context = chat_obj.context_wrap.copy()
+            context = wok.context_wrap.copy()
         case _:
             raise RuntimeError("Invalid agent strategy")
-    ctx = StrategyContext(chat_obj.user_input, context, chat_obj)
-    st = chat_obj.strategy(ctx)
+    ctx = StrategyContext(input_ctx.user_input, context, chat_obj)
+    st = agent.strategy(ctx)
     try:
         await st.run()
     except Exception as e:
@@ -688,162 +721,76 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
             await st.on_exception(e)
     else:
         await st.on_post_process()
-    chat_obj.context_wrap.extend(ctx.original_context.end_messages)
-
-
-@Node()
-def _agent_entry(chat_obj: ChatObject) -> None:
-    loop = chat_obj._agent_loop
-    assert loop is not None
-    loop.strategy = chat_obj.strategy(loop.stg_ctx)
-    loop.ctx_backup = chat_obj.context_wrap.copy()
-
-
-@Node(SuspendEnum.ADVANCE_COUNTER, False)
-async def _advance_ctr(chat_obj: ChatObject):
-    loop = chat_obj._agent_loop
-    assert loop is not None
-    assert loop.strategy is not None
-    max_times: int = chat_obj.config.function_config.agent_tool_call_limit + 1
-    if loop.called_count > max_times:
-        await loop.strategy.on_limited()
-        raise BreakLoop(f"Counter has reached the maximum limit of {max_times}")
-    loop.called_count += 1
-
-
-@Node(SuspendEnum.SINGLE_TOOL)
-async def _single_strategy_exec(chat_obj: ChatObject) -> bool:
-    loop = chat_obj._agent_loop
-    assert loop is not None
-    assert loop.strategy is not None
-    try:
-        return await loop.strategy.single_execute()
-    except Exception as e:
-        if isinstance(e, chat_obj._raised_exc) or isinstance(
-            e, chat_obj._interpreter._exc_ignored
-        ):
-            raise
-        logger.warning(
-            f"ERROR\n{e!s}\n!Failed to call Strategy! Continuing with old data..."
-        )
-        await chat_obj.io_stream.yield_response(
-            MessageWithMetadata(
-                content=f"Agent run failed:{e!s}",
-                metadata=MessageMetadataPayloadError(
-                    error=str(e), type="error", extra_type=None
-                ),
-            )
-        )
-        await loop.strategy.on_exception(e)
-        assert loop.ctx_backup is not None
-        chat_obj.context_wrap = loop.ctx_backup
-        return False
-
-
-@Node()
-async def _strategy_post(chat_obj: ChatObject):
-    loop = chat_obj._agent_loop
-    assert loop is not None
-    assert loop.strategy is not None
-    await loop.strategy.on_post_process()
-    chat_obj.context_wrap.extend(loop.strategy.ctx.original_context.end_messages)
-    chat_obj._agent_loop = None
-
-
-@Node(SuspendEnum.LLM_CALL)
-async def _call_completion(chat_obj: ChatObject):
-    logger.debug("Calling chat model..")
-    response: UniResponse[str, None] | None = None
-    used_preset: set[str] = set()
-    for i in range(1, chat_obj.config.llm.max_fallbacks + 1):
-        try:
-            used_preset.add(chat_obj.preset.name)
-            async for chunk in call_completion(
-                chat_obj.context_wrap.unwrap(),
-                config=chat_obj.config,
-                preset=chat_obj.preset,
-            ):
-                if isinstance(chunk, UniResponse):
-                    response = chunk
-                elif isinstance(chunk, MessageContent | str):
-                    await chat_obj.io_stream.yield_response(chunk)
-            break
-        except Exception as e:
-            logger.warning(
-                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{chat_obj.config.llm.max_retries})..."
-            )
-            ctx = FallbackContext(
-                chat_obj.preset, e, chat_obj.config, chat_obj.context_wrap, i
-            )
-            await MatcherManager.trigger_event(
-                ctx, ctx.config, exception_ignored=(FallbackFailed,)
-            )
-            if ctx.preset is chat_obj.preset:
-                ctx.fail("No preset fallback available, exiting!")
-            chat_obj.preset = ctx.preset
-    else:
-        raise FallbackFailed("Max preset fallbacks retries exceeded.")
-    if response is None:
-        raise RuntimeError("No final response from chat adapter.")
-    chat_obj.response = response
+    wok.context_wrap.extend(ctx.original_context.end_messages)
 
 
 @Node(SuspendEnum.COMPLE)
 async def _post_runner(chat_obj: ChatObject):
+    wok = chat_obj._di_working
+    ab = chat_obj._di_ability
+    input_ctx = chat_obj._di_input
+    mem_ctx = chat_obj._di_memory
+    resp = chat_obj._di_resp
+    assert wok.context_wrap is not None, "Context wrap must be set before post-runner"
+    assert resp.response is not None, "Response must be set before post-runner"
+    assert mem_ctx.memory is not None, "Memory must be loaded before post-runner"
+    assert ab.ability is not None, "Ability must be loaded before post-runner"
     logger.debug("Triggering chat events..")
     chat_event = CompletionEvent(
-        chat_obj.user_input, chat_obj.context_wrap, chat_obj, chat_obj.response.content
+        input_ctx.user_input,
+        wok.context_wrap,
+        chat_obj,
+        resp.response.content,
     )
     await chat_obj.io_stream._wait_for_continue(SuspendEnum.COMPLE)
     await MatcherManager.trigger_event(
         chat_event,
-        chat_obj.config,
+        ab.config,
         chat_obj,
-        chat_obj.preset,
+        ab.preset,
         *chat_obj._hook_args,
-        state=chat_obj.state,
-        slot=chat_obj.slot,
+        state=StateContext(
+            session_id=chat_obj._di_session.session_id,
+            memory=mem_ctx.memory,
+            ability=ab.ability,
+        ),
+        slot=ab.slot,
         exception_ignored=chat_obj._raised_exc,
         **chat_obj._hook_kwargs,
     )
-    chat_obj.response.content = chat_event.model_response
-    chat_obj.context_wrap.append(
+    resp.response.content = chat_event.model_response
+    wok.context_wrap.append(
         Message[str](
-            content=chat_obj.response.content,
+            content=resp.response.content,
             role="assistant",
         )
     )
     logger.debug(
-        f"Added assistant response to memory, current message count: {len(chat_obj.context_wrap)}"
+        f"Added assistant response to memory, current message count: {len(wok.context_wrap)}"
     )
-
+    assert wok.context_wrap is not None
+    mem_ctx.memory.messages = wok.context_wrap.unwrap(True)
     logger.debug("Chat processing completed")
 
 
-@Node(SuspendEnum.COMMIT_MEMORY)
-async def _commit_memory(chat_obj: ChatObject) -> None:
-    opt = chat_obj._bke_opt
-    if not opt.skip_memory_commit:
-        await chat_obj.slot.memory.commit_memory(chat_obj.session_id, chat_obj.data)
-
-
-# pre-compile workflows
+# pre-compile workflows — component nodes + retained local nodes
+_single_call = SINGLE_STRATEGY_CALL(fallback_on_fail=False)
 _workflow: NodeCompose = (
-    _load_state
-    >> _render_train
+    LOAD_STATE
+    >> JINJA2_RENDER
     >> _limiting_memory
-    >> _prepare_messages
+    >> BUILD_MESSAGE
     >> _pre_runner
     >> _run_strategy
     >> (
         GOTO(BuiltinName.STRATEGY_EOF)
-        >> ALIAS(_agent_entry, BuiltinName.AGENT_STRATEGY)
-        >> WHILE(_single_strategy_exec).ACTION(_advance_ctr)
-        >> _strategy_post
+        >> ALIAS(AGENT_ENTRY, BuiltinName.AGENT_STRATEGY)
+        >> WHILE(_single_call).ACTION(REACT_COUNTER)
+        >> AGENT_POST_PROCESS
         >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
     )
-    >> _call_completion
+    >> LLM_COMPLETION
     >> _post_runner
-    >> _commit_memory
+    >> COMMIT_MEMORY
 )
 _workflow_rendered = _workflow.render()

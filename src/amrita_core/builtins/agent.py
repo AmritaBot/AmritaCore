@@ -240,8 +240,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         )
                     )
 
-        self.chat_object.extra_usage = gather_usage(
-            self.chat_object.extra_usage, ct.usage
+        self.chat_object._di_resp.extra_usage = gather_usage(
+            self.chat_object._di_resp.extra_usage, ct.usage
         )
         return ct
 
