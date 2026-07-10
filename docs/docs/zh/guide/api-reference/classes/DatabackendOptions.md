@@ -17,8 +17,10 @@
 
 ## 用法
 
+> **v0.12.0 迁移**: `DatabackendOptions` 已从 `amrita_core.chatmanager.chat_object` 移至 `amrita_core.contexts`。旧导入路径仍可通过兼容重导出工作，但建议更新为新路径。
+
 ```python
-from amrita_core.chatmanager.chat_object import DatabackendOptions
+from amrita_core.contexts import DatabackendOptions
 
 # 只加载记忆，跳过其他所有内容
 opts = DatabackendOptions(

@@ -6,50 +6,48 @@ ChatObject 类是与 AI 进行对话的主要接口。它通过 `io_stream` 属�
 
 ### 标识
 
-- `stream_id` (str): 聊天对象 ID
-- `session_id` (str): 会话 ID（运行时从 `state.session_id` 计算）
+- `stream_id` (str): 聊天对象 ID（委托给 `_di_session`）
+- `session_id` (str): 会话 ID（运行时从 `_di_session.session_id` 计算）
 
 ### 状态与后端
 
-- `slot` ([BackendSlots](BackendSlots.md)): 提供记忆和能力后端的后端插槽
-- `state` ([StateContext](StateContext.md)): 运行时状态上下文，包含记忆、能力和会话 ID
-- `_bke_opt` ([DatabackendOptions](DatabackendOptions.md)): 控制后端获取/提交行为的选项
+- `slot` ([BackendSlots](BackendSlots.md)): 提供记忆和能力后端的后端插槽（委托给 `_di_ability.slot`）
+- `state` ([StateContext](StateContext.md)): 运行时状态上下文，包含记忆、能力和会话 ID。
+  > **v0.12.0**: 现在是一个**兼容属性**——如果通过 setter 设置了 `StateContext`，则直接返回该实例；否则从 DI 组件（`_di_session`、`_di_memory`、`_di_ability`）合成一个新的对象。
 
 ### 时间
 
-- `timestamp` (str): 时间戳（供 LLM 使用）
-- `time` (datetime): 创建时间
+- `timestamp` (str): 时间戳（供 LLM 使用，委托给 `_di_session`）
+- `time` (datetime): 创建时间（委托给 `_di_session`）
 - `end_at` (datetime | None): 结束时间
 - `last_call` (datetime): 最后一次内部函数调用时间
 - `now_calling` (str | None): 当前调用的函数名
 
 ### 配置与预设
 
-- `config` (AmritaConfig): 本次调用使用的配置
-- `preset` (ModelPreset): 本次调用使用的模型预设
-- `strategy` (type[AgentStrategy] | StrategyLikedObject): Agent 策略
+- `config` (AmritaConfig): 本次调用使用的配置（委托给 `_di_ability.config`，可写）
+- `preset` (ModelPreset): 本次调用使用的模型预设（委托给 `_di_ability.preset`，可写）
+- `strategy` (type[AgentStrategy] | StrategyLikedObject): Agent 策略（委托给 `_di_agent.strategy`，可写）
 
 ### 输入/数据
 
-- `user_input` (USER_INPUT): 用户输入
-- `user_message` (Message[USER_INPUT]): 用户消息
-- `data` ([MemoryModel](MemoryModel.md)): 记忆模型（运行时从 `state.memory` 计算）
-- `train` (Message[str]): 系统消息
-- `template` (Template): Jinja2 模板
-- `jinja2_vars` (dict[str, Any]): 传递给模板系统的变量
+- `user_input` (USER_INPUT): 用户输入（委托给 `_di_input`）
+- `data` ([MemoryModel](MemoryModel.md)): 记忆模型（运行时从 `_di_memory.memory` 计算，可写）
+- `train` (Message[str]): 系统消息（委托给 `_di_input.train`，可写）
+- `template` (Template): Jinja2 模板（委托给 `_di_input`）
+- `jinja2_vars` (dict[str, Any]): 传递给模板系统的变量（委托给 `_di_input`）
 
 ### IO-Stream
 
 - `io_stream` (SuspendObjectStream[RESPONSE_TYPE]): 响应的流式接口
 
-### 上下文
-
-- `context_wrap` (SendMessageWrap): 上下文消息包装器
-
-### 响应
-
-- `response` (UniResponse[str, None]): 来自 LLM 的响应
-- `extra_usage` (UniResponseUsage[int]): 来自内存限制和其他操作的额外使用统计
+> **v0.12.0 变更**：以下字段已从 ChatObject 直接属性中移除，转而通过 DI 上下文对象管理：
+>
+> - `user_message` — 已移除，使用 `Message(role="user", content=chat_obj.user_input)` 构造
+> - `context_wrap` — 移至 `_di_working.context_wrap`（内部）
+> - `response` — 移至 `_di_resp.response`（内部）
+> - `extra_usage` — 移至 `_di_resp.extra_usage`（内部）
+> - `_bke_opt` — 移至 `_di_opt`（内部）
 
 ## 构造函数参数
 

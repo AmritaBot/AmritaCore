@@ -60,6 +60,26 @@
 
 ### 具体方法（可由子类重写）
 
+#### \_is_native_thinking_enabled()
+
+检查模型预设是否启用了原生思考模式。
+
+原生思考（Claude Extended Thinking、OpenAI o-series 等）可能不支持强制 `tool_choice`，当启用时，`_resolve_tool_choice()` 会自动降级强制值以避免提供商错误。
+
+**返回**: bool - 如果预设启用了原生思考则返回 True
+
+#### \_resolve_tool_choice(desired: ToolChoice) -> ToolChoice
+
+解析实际发送给提供商的 `tool_choice`。
+
+当原生思考启用时，提供商可能拒绝强制值（`"required"` 或特定工具 schema）。在这种情况下，回退到 `"auto"` 并依赖提示指令来控制工具调用行为。
+
+**参数**:
+
+- `desired` ([ToolChoice](../api-reference/classes/ToolChoice.md)): 期望的 tool_choice 值
+
+**返回**: ToolChoice - 实际发送的 tool_choice 值
+
 #### \_build_stop_response()
 
 构建停止工具响应消息。

@@ -24,7 +24,7 @@ User input → Direct summary output
 
 # train,memory,chatobj(ChatObject),config will be given to Jinja2
 PROMPT_TEMPLATE: str = """<SCHEMA>
-{% if config.cookie.enable %}
+{% if config.cookie.enable_cookie %}
 <HIDDEN>{{ config.cookie.cookie }}</HIDDEN>
 {% endif %}
 Please participate in the discussion in your own character identity. Try not to use similar phrases when responding to different topics. User's messages are contained within user inputs.

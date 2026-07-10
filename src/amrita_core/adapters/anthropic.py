@@ -27,6 +27,7 @@ from amrita_core.types import (
     UniResponseUsage,
 )
 from amrita_core.types.response import RequestMetadata
+from amrita_core.utils import model_dump
 
 
 class AnthropicFunctionSchema(BaseModel):
@@ -236,9 +237,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(
-                        preset.thinking_config.thinking_effort or 1024
-                    ),
+                    "budget_tokens": int(config.llm.max_tokens / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -265,20 +264,22 @@ try:
                     **kwargs,
                 ) as resp:
                     async for event in resp:
-                        if event.type == "thinking_delta":
-                            reasoning += event.thinking
-                            yield MessageWithMetadata(
-                                content=event.thinking,
-                                metadata=MessageMetadataPayload(
-                                    type="reasoning_chunk",
-                                    extra_type="thinking_delta",
-                                ),
-                            )
-                        elif event.type == "signature_delta":
-                            reasoning_signature += event.signature
-                        elif event.type == "text_delta":
-                            text_resp.write(event.text)
-                            yield event.text
+                        if event.type == "content_block_delta":
+                            delta = event.delta
+                            if delta.type == "thinking_delta":
+                                reasoning += delta.thinking
+                                yield MessageWithMetadata(
+                                    content=delta.thinking,
+                                    metadata=MessageMetadataPayload(
+                                        type="reasoning_chunk",
+                                        extra_type="thinking_delta",
+                                    ),
+                                )
+                            elif delta.type == "signature_delta":
+                                reasoning_signature += delta.signature
+                            elif delta.type == "text_delta":
+                                text_resp.write(delta.text)
+                                yield delta.text
                     last_msg = await resp.get_final_message()
                     metadata = RequestMetadata(
                         original_request_id=getattr(resp, "request_id", None),
@@ -366,9 +367,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(
-                        preset.thinking_config.thinking_effort or 1024
-                    ),
+                    "budget_tokens": int(config.llm.max_tokens / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -377,7 +376,7 @@ try:
                 max_retries=config.llm.max_retries,
             )
 
-            internal_msgs = list(messages)
+            internal_msgs = list(model_dump(messages))
             anthropic_msgs: list[MessageParam] = self._convert_messages(internal_msgs)
             anthropic_tools: list[ToolUnionParam] = self._convert_tools(tools)
             anthropic_tool_choice: (

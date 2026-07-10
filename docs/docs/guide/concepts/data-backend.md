@@ -15,7 +15,7 @@ class BackendSlots:
     memory: MemoryBackend
 ```
 
-`ChatObject` receives a `BackendSlots` instance and delegates all data I/O to it via the workflow nodes `_load_state` and `_commit_memory`.
+`ChatObject` receives a `BackendSlots` instance and delegates all data I/O to it via the workflow nodes `LOAD_STATE` and `COMMIT_MEMORY` (from the `amrita_core.components.process` package).
 
 ## AbilityBackend (Abstract)
 
@@ -92,8 +92,10 @@ backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 
 [`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md) controls which backend operations are skipped during a `ChatObject` run:
 
+> **v0.12.0 migration**: `DatabackendOptions` has been moved to `amrita_core.contexts`.
+
 ```python
-from amrita_core.chatmanager.chat_object import DatabackendOptions
+from amrita_core.contexts import DatabackendOptions
 
 options = DatabackendOptions(
     skip_memory_fetch=False,        # Skip loading memory?
@@ -168,7 +170,7 @@ sequenceDiagram
     participant MB as MemoryBackend
 
     AR->>CO: get_chatobject(user_input)
-    CO->>CO: _load_state node
+    CO->>CO: LOAD_STATE node (load state)
     CO->>BS: slot.ability.load_ability_all(session_id)
     BS->>AB: load_ability_all()
     AB-->>CO: AbilityContext

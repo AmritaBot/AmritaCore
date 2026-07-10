@@ -1,6 +1,7 @@
-import asyncio
+import asyncio  # noqa: I001
 from unittest.mock import patch
 
+from amrita_sense import StreamStateError
 import pytest
 
 from amrita_core.chatmanager import ChatObject, MemoryLimiter, chat_manager
@@ -280,9 +281,6 @@ class TestMemoryLimiterAdvanced:
 
         with (
             patch(
-                "amrita_core.chatmanager.chat_object.call_completion"
-            ) as mock_call_completion,
-            patch(
                 "amrita_core.chatmanager.memory_limiter.call_completion"
             ) as mock_call_completion_2,
         ):
@@ -290,7 +288,6 @@ class TestMemoryLimiterAdvanced:
             async def mock_generator():
                 yield mock_response
 
-            mock_call_completion.return_value = mock_generator()
             mock_call_completion_2.return_value = mock_generator()
             async with MemoryLimiter(memory, train, config) as lim:
                 # Manually add some dropped messages
@@ -530,7 +527,7 @@ class TestChatObjectAdvanced:
         chat_obj.io_stream.set_callback_func(callback1)
 
         with pytest.raises(
-            RuntimeError,
+            StreamStateError,
             match="The callback function of this chat object has already been set!",
         ):
             chat_obj.io_stream.set_callback_func(callback2)

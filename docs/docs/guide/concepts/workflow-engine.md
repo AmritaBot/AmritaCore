@@ -20,37 +20,45 @@ The workflow engine's core types (`Node`, `NodeComposeRendered`, `WorkflowInterp
 | Event System                     | [Event System](https://sense.amritabot.com/guide/advanced/event_system)                 |
 | Execution & Interrupt            | [Execution & Interrupt](https://sense.amritabot.com/guide/concepts/exec_and_interrupt)  |
 
-## ChatObject Node Chain
+## ChatObject Node Chain (v0.12.0+)
+
+Since v0.12.0, core workflow nodes have been extracted to the `amrita_core.components` package. Component nodes are injected with DI context objects via type-annotation-based dependency injection rather than directly accessing `ChatObject` attributes.
 
 ```mermaid
 graph LR
-    A[__entry__] --> B[_render_train]
+    A[__entry__] --> B[JINJA2_RENDER]
     B --> C[_limiting_memory]
-    C --> D[_prepare_messages]
+    C --> D[BUILD_MESSAGE]
     D --> E[_pre_runner]
     E --> F[_run_strategy]
-    F --> G[_call_completion]
+    F --> G[LLM_COMPLETION]
     G --> H[_post_runner]
-    F -.->|agent mode| I[_agent_entry]
-    I --> J[_single_strategy_exec]
-    J -->|WHILE| J
-    J --> K[_strategy_post]
+    H --> I[COMMIT_MEMORY]
+    F -.->|agent mode| J[AGENT_ENTRY]
+    J --> K[SINGLE_STRATEGY_CALL]
+    K -->|WHILE| K
+    K --> L[AGENT_POST_PROCESS]
 ```
 
-The `_run_strategy` node branches into an agent sub-workflow when using `"agent"` or `"agent-mixed"` strategy categories. The sub-workflow uses a `WHILE` loop with a counter factory to iterate over tool calls.
+The `_run_strategy` node branches into an agent sub-workflow when using `"agent"` or `"agent-mixed"` strategy categories. The sub-workflow uses a `WHILE` loop with a counter factory (`REACT_COUNTER`) to iterate over tool calls.
 
-| Node                    | SuspendEnum Tag     | Description                                       |
-| ----------------------- | ------------------- | ------------------------------------------------- |
-| `_render_train`         | `TRAIN_RENDER`      | Renders the Jinja2 system prompt template         |
-| `_limiting_memory`      | `MEMORY`            | Applies memory length and token limits            |
-| `_prepare_messages`     | `MESSAGES_PREPARED` | Prepares the final message list for the LLM       |
-| `_pre_runner`           | `PRECOMPLE`         | Triggers pre-completion matcher events            |
-| `_run_strategy`         | `STRATEGY_START`    | Executes strategy; branches to agent sub-workflow |
-| `_agent_entry`          | —                   | Initializes agent strategy instance               |
-| `_single_strategy_exec` | `SINGLE_TOOL`       | Executes one tool call iteration                  |
-| `_strategy_post`        | —                   | Post-processes strategy after all tool calls      |
-| `_call_completion`      | `LLM_CALL`          | Calls the LLM via the adapter                     |
-| `_post_runner`          | `COMPLE`            | Triggers post-completion matcher events           |
+| Node                   | SuspendEnum Tag     | Location                         | Description                                       |
+| ---------------------- | ------------------- | -------------------------------- | ------------------------------------------------- |
+| `LOAD_STATE`           | `LOAD_STATE`        | `amrita_core.components.process` | Loads runtime state from backends                 |
+| `JINJA2_RENDER`        | `TRAIN_RENDER`      | `amrita_core.components.llm`     | Renders the Jinja2 system prompt template         |
+| `_limiting_memory`     | `MEMORY`            | `chat_object.py` (retained)      | Applies memory length and token limits            |
+| `BUILD_MESSAGE`        | `MESSAGES_PREPARED` | `amrita_core.components.process` | Prepares the final message list for the LLM       |
+| `_pre_runner`          | `PRECOMPLE`         | `chat_object.py` (retained)      | Triggers pre-completion matcher events            |
+| `_run_strategy`        | `STRATEGY_START`    | `chat_object.py` (retained)      | Executes strategy; branches to agent sub-workflow |
+| `AGENT_ENTRY`          | —                   | `amrita_core.components.react`   | Initializes agent strategy instance               |
+| `SINGLE_STRATEGY_CALL` | `SINGLE_TOOL`       | `amrita_core.components.react`   | Executes one tool call iteration                  |
+| `REACT_COUNTER`        | `ADVANCE_COUNTER`   | `amrita_core.components.react`   | Advances the tool-call counter                    |
+| `AGENT_POST_PROCESS`   | —                   | `amrita_core.components.react`   | Post-processes strategy after all tool calls      |
+| `LLM_COMPLETION`       | `LLM_CALL`          | `amrita_core.components.llm`     | Calls the LLM via the adapter                     |
+| `_post_runner`         | `COMPLE`            | `chat_object.py` (retained)      | Triggers post-completion matcher events           |
+| `COMMIT_MEMORY`        | `COMMIT_MEMORY`     | `amrita_core.components.process` | Commits memory back to the backend                |
+| `APPEND_RESPONSE`      | `MEMORY_APPEND`     | `amrita_core.components.process` | Appends LLM response to context wrap              |
+| `APPLY_CONTEXT`        | `APPLY_CONTEXT`     | `amrita_core.components.process` | Writes context wrap back into memory model        |
 
 ### Control Flow Instructions
 

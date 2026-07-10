@@ -17,6 +17,8 @@ Applicable scenarios:
 
 AmritaCore provides **standardized breakpoint tags** through the `SuspendEnum` enumeration. These built-in tags correspond to key execution points in the ChatObject lifecycle. Since v0.9.0rc1, ChatObject is driven by a [workflow engine](workflow-engine.md) with additional node-level breakpoints:
 
+> **v0.12.0 migration**: `SuspendEnum` has been moved from `amrita_core.chatmanager.enums` to `amrita_core.enums`. The `amrita_core` top-level package re-exports all enum values, so `from amrita_core import SuspendEnum` still works.
+
 ```python
 from amrita_core import SuspendEnum
 
@@ -88,7 +90,7 @@ Implemented via the `callback` mechanism:
 
 ## How It Works
 
-Since v0.9.0rc1, the core lifecycle of `ChatObject` is driven by a [composable workflow engine](workflow-engine.md). Each workflow node (e.g., `_render_train`, `_limiting_memory`, `_pre_runner`, `_run_strategy`, `_call_completion`, `_post_runner`) is decorated with `@SuspendObjectStream.suspend` and automatically checks for suspend signals before execution.
+Since v0.9.0rc1, the core lifecycle of `ChatObject` is driven by a [composable workflow engine](workflow-engine.md). Since v0.12.0, core workflow nodes have been extracted to the `amrita_core.components` package (`LOAD_STATE`, `JINJA2_RENDER`, `BUILD_MESSAGE`, `LLM_COMPLETION`, `COMMIT_MEMORY` etc.). Each workflow node is decorated with `@SuspendObjectStream.suspend` and automatically checks for suspend signals before execution.
 
 Basic usage steps:
 

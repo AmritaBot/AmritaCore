@@ -142,13 +142,13 @@ AmritaCore 构建于 [**AmritaSense**](https://sense.amritabot.com) 之上，后
 
 ### 运行时组件
 
-| 组件                      | 在 ChatObject 中的角色                                                                                                                |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| **`WorkflowInterpreter`** | 驱动节点链（`_load_state → _render_train → _limiting_memory → … → _commit_memory`）。每个节点是一个可组合的 `@Node` 装饰协程。        |
-| **`MatcherFactory`**      | 管理事件系统。`PreCompletionEvent`、`CompletionEvent`、`FallbackContext` 通过 `@on_precompletion().handle()` 等注册的匹配器进行分发。 |
-| **`SuspendObjectStream`** | 流式 I/O 主干。所有 LLM 块、工具调用通知和推理内容都通过这个内置挂起/恢复的双向流传输。                                               |
-| **依赖注入**              | `WorkflowInterpreter` 解析节点签名中的 `Depends()` 标记，自动注入 `ChatObject`、配置和自定义依赖。                                    |
-| **节点组合 (`>>`)**       | 节点通过 `>>` 操作符链接成 `NodeCompose` 图。解释器根据 `GOTO`/`WHILE`/`ALIAS` 指令进行控制流跳转。                                   |
+| 组件                      | 在 ChatObject 中的角色                                                                                                                                                                                                             |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`WorkflowInterpreter`** | 驱动节点链（`LOAD_STATE → JINJA2_RENDER → _limiting_memory → BUILD_MESSAGE → … → LLM_COMPLETION → COMMIT_MEMORY`）。自 v0.12.0 起，核心工作流节点已抽取到 `amrita_core.components` 包中。每个节点是一个可组合的 `@Node` 装饰协程。 |
+| **`MatcherFactory`**      | 管理事件系统。`PreCompletionEvent`、`CompletionEvent`、`FallbackContext` 通过 `@on_precompletion().handle()` 等注册的匹配器进行分发。                                                                                              |
+| **`SuspendObjectStream`** | 流式 I/O 主干。所有 LLM 块、工具调用通知和推理内容都通过这个内置挂起/恢复的双向流传输。                                                                                                                                            |
+| **依赖注入**              | `WorkflowInterpreter` 解析节点签名中的类型注解和 `Depends()` 标记，自动注入 `ChatObject`、DI 上下文对象（`_di_ability`、`_di_memory`、`_di_input` 等）、配置和自定义依赖。                                                         |
+| **节点组合 (`>>`)**       | 节点通过 `>>` 操作符链接成 `NodeCompose` 图。解释器根据 `GOTO`/`WHILE`/`ALIAS` 指令进行控制流跳转。                                                                                                                                |
 
 ### AmritaSense 如何驱动 ChatObject
 

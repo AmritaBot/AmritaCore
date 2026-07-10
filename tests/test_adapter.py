@@ -778,15 +778,21 @@ class TestAnthropicAdapter:
         """Test call_api with streaming Anthropic response"""
         from anthropic.types import TextBlock, Usage
 
-        # Create event-like objects matching Anthropic stream event types
-        class MockEvent:
-            def __init__(self, type, text=None):
-                self.type = type
+        # Create event-like objects matching Anthropic SDK 0.84+ stream event types
+        # New SDK uses: event.type == "content_block_delta" + event.delta.type
+        class MockDelta:
+            def __init__(self, delta_type, text=None):
+                self.type = delta_type
                 self.text = text
 
+        class MockEvent:
+            def __init__(self, delta):
+                self.type = "content_block_delta"
+                self.delta = delta
+
         async def mock_events():
-            yield MockEvent("text_delta", "Hello")
-            yield MockEvent("text_delta", " there!")
+            yield MockEvent(MockDelta("text_delta", "Hello"))
+            yield MockEvent(MockDelta("text_delta", " there!"))
 
         # Create a mock final message
         mock_final_message = MagicMock()
@@ -851,13 +857,18 @@ class TestAnthropicAdapter:
         """Test call_api with streaming Anthropic response that has empty content"""
         from anthropic.types import TextBlock, Usage
 
-        class MockEvent:
-            def __init__(self, type, text=None):
-                self.type = type
+        class MockDelta:
+            def __init__(self, delta_type, text=None):
+                self.type = delta_type
                 self.text = text
 
+        class MockEvent:
+            def __init__(self, delta):
+                self.type = "content_block_delta"
+                self.delta = delta
+
         async def mock_events():
-            yield MockEvent("text_delta", "")
+            yield MockEvent(MockDelta("text_delta", ""))
 
         mock_final_message = MagicMock()
         mock_final_message.content = [TextBlock(text="", type="text")]
