@@ -60,6 +60,26 @@ Append reasoning content to context (strategy-specific).
 
 ### Concrete Methods (Can be overridden by subclasses)
 
+#### \_is_native_thinking_enabled()
+
+Check whether the model preset has native thinking enabled.
+
+Native thinking (Claude Extended Thinking, OpenAI o-series, etc.) may not support forced `tool_choice`. When enabled, `_resolve_tool_choice()` automatically downgrades forced values to avoid provider errors.
+
+**Returns**: bool - True if the preset has native thinking enabled
+
+#### \_resolve_tool_choice(desired: ToolChoice) -> ToolChoice
+
+Resolve the _actual_ `tool_choice` to send to the provider.
+
+When native thinking is enabled the provider may reject forced values (`"required"` or a specific tool schema). In that case falls back to `"auto"` and relies on prompt instructions to control tool calling behaviour.
+
+**Parameters**:
+
+- `desired` ([ToolChoice](../api-reference/classes/ToolChoice.md)): The desired tool_choice value
+
+**Returns**: ToolChoice - The actual tool_choice value to send
+
 #### \_build_stop_response()
 
 Build the stop tool response message.

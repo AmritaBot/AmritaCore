@@ -15,7 +15,7 @@ class BackendSlots:
     memory: MemoryBackend
 ```
 
-`ChatObject` 接收一个 `BackendSlots` 实例，并通过工作流节点 `_load_state` 和 `_commit_memory` 将所有数据 I/O 委托给它。
+`ChatObject` 接收一个 `BackendSlots` 实例，并通过工作流节点 `LOAD_STATE` 和 `COMMIT_MEMORY`（位于 `amrita_core.components.process` 包中）将所有数据 I/O 委托给它。
 
 ## AbilityBackend 能力后端（抽象类）
 
@@ -92,8 +92,10 @@ backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 
 [`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md) 控制在 `ChatObject` 运行期间跳过哪些后端操作：
 
+> **v0.12.0 迁移**: `DatabackendOptions` 现已移至 `amrita_core.contexts`。
+
 ```python
-from amrita_core.chatmanager.chat_object import DatabackendOptions
+from amrita_core.contexts import DatabackendOptions
 
 options = DatabackendOptions(
     skip_memory_fetch=False,         # 跳过加载记忆？
@@ -168,7 +170,7 @@ sequenceDiagram
     participant MB as MemoryBackend
 
     AR->>CO: get_chatobject(user_input)
-    CO->>CO: _load_state 节点
+    CO->>CO: LOAD_STATE 节点（加载状态）
     CO->>BS: slot.ability.load_ability_all(session_id)
     BS->>AB: load_ability_all()
     AB-->>CO: AbilityContext

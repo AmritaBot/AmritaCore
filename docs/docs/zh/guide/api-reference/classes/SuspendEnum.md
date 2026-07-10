@@ -1,5 +1,7 @@
 # SuspendEnum
 
+> **v0.12.0 迁移**: `SuspendEnum` 和 `BuiltinName` 已从 `amrita_core.chatmanager.enums` 移至 `amrita_core.enums`。旧模块已标记为 `DeprecationWarning`，将在 v0.13.x 移除。
+
 `SuspendEnum` 类为 AmritaCore 中的挂起/恢复机制提供标准化的断点标签。
 
 ## 描述
@@ -67,6 +69,18 @@
 - **值**: `"matcher_call::post_completion"`
 - **描述**: 在接收模型响应后但在处理之前触发
 - **用途**: 响应验证、内容过滤或实现自定义响应处理逻辑的绝佳选择
+
+### `MEMORY_APPEND`
+
+- **值**: `"Component::memory_append"`
+- **描述**: 将 LLM 响应附加到上下文消息包装器时触发
+- **用途**: 由 [`APPEND_RESPONSE`](../api-reference/classes/APPEND_RESPONSE.md) 组件节点暴露。在 LLM 完成后发生，用于将模型的响应添加为助手消息。
+
+### `APPLY_CONTEXT`
+
+- **值**: `"Component::apply_context"`
+- **描述**: 将最终上下文包装器写回记忆模型时触发
+- **用途**: 由 [`APPLY_CONTEXT`](../api-reference/classes/APPLY_CONTEXT.md) 组件节点暴露。在记忆提交前发生，用于将更新后的消息列表写入 `MemoryModel.messages`。
 
 ### `COMMIT_MEMORY`
 

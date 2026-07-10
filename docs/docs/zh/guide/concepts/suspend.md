@@ -17,6 +17,8 @@ AmritaCore 提供了一套简单显式的挂起机制，允许外部控制 `Chat
 
 AmritaCore 通过 `SuspendEnum` 枚举提供了**标准化的断点标签**。这些内置标签对应 ChatObject 生命周期中的关键执行点：
 
+> **v0.12.0 迁移**: `SuspendEnum` 现已从 `amrita_core.chatmanager.enums` 移至 `amrita_core.enums`。`amrita_core` 顶层包重导出了所有枚举值，因此 `from amrita_core import SuspendEnum` 仍然有效。
+
 ```python
 from amrita_core import SuspendEnum
 

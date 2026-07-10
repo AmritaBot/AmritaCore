@@ -142,13 +142,13 @@ AmritaCore is built on [**AmritaSense**](https://sense.amritabot.com), which ser
 
 ### Runtime Components
 
-| Component                 | Role in ChatObject                                                                                                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`WorkflowInterpreter`** | Drives the node chain (`_load_state → _render_train → _limiting_memory → … → _commit_memory`). Each node is a composable `@Node` decorated coroutine.                   |
-| **`MatcherFactory`**      | Manages the event system. `PreCompletionEvent`, `CompletionEvent`, `FallbackContext` are dispatched through matchers registered via `@on_precompletion().handle()` etc. |
-| **`SuspendObjectStream`** | The streaming I/O backbone. All LLM chunks, tool call notifications, and reasoning content flow through this bidirectional stream with built-in suspend/resume.         |
-| **Dependency Injection**  | `WorkflowInterpreter` resolves `Depends()` markers in node signatures, injecting `ChatObject`, config, and custom dependencies automatically.                           |
-| **Node Compose (`>>`)**   | Nodes are chained with the `>>` operator into a `NodeCompose` graph. The interpreter follows `GOTO`/`WHILE`/`ALIAS` instructions for control flow.                      |
+| Component                 | Role in ChatObject                                                                                                                                                                                                                                                                   |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **`WorkflowInterpreter`** | Drives the node chain (`LOAD_STATE → JINJA2_RENDER → _limiting_memory → BUILD_MESSAGE → … → LLM_COMPLETION → COMMIT_MEMORY`). Since v0.12.0, core workflow nodes have been extracted to the `amrita_core.components` package. Each node is a composable `@Node` decorated coroutine. |
+| **`MatcherFactory`**      | Manages the event system. `PreCompletionEvent`, `CompletionEvent`, `FallbackContext` are dispatched through matchers registered via `@on_precompletion().handle()` etc.                                                                                                              |
+| **`SuspendObjectStream`** | The streaming I/O backbone. All LLM chunks, tool call notifications, and reasoning content flow through this bidirectional stream with built-in suspend/resume.                                                                                                                      |
+| **Dependency Injection**  | `WorkflowInterpreter` resolves type annotations and `Depends()` markers in node signatures, injecting `ChatObject`, DI context objects (`_di_ability`, `_di_memory`, `_di_input`, etc.), config, and custom dependencies automatically.                                              |
+| **Node Compose (`>>`)**   | Nodes are chained with the `>>` operator into a `NodeCompose` graph. The interpreter follows `GOTO`/`WHILE`/`ALIAS` instructions for control flow.                                                                                                                                   |
 
 ### How AmritaSense Drives a ChatObject
 

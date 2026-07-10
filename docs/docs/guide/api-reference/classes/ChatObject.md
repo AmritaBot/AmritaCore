@@ -6,50 +6,48 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 
 ### Identity
 
-- `stream_id` (str): Chat object ID
-- `session_id` (str): Session ID (computed from `state.session_id` at runtime)
+- `stream_id` (str): Chat object ID (delegates to `_di_session`)
+- `session_id` (str): Session ID (computed from `_di_session.session_id` at runtime)
 
 ### State & Backend
 
-- `slot` ([BackendSlots](BackendSlots.md)): Backend slots providing memory and ability backends
-- `state` ([StateContext](StateContext.md)): Runtime state context containing memory, ability, and session ID
-- `_bke_opt` ([DatabackendOptions](DatabackendOptions.md)): Options controlling backend fetch/commit behavior
+- `slot` ([BackendSlots](BackendSlots.md)): Backend slots providing memory and ability backends (delegates to `_di_ability.slot`)
+- `state` ([StateContext](StateContext.md)): Runtime state context containing memory, ability, and session ID.
+  > **v0.12.0**: This is now a **compatibility property** — if a `StateContext` was set via the setter, it is returned directly; otherwise a new context is synthesised from DI components (`_di_session`, `_di_memory`, `_di_ability`).
 
 ### Timing
 
-- `timestamp` (str): Timestamp (for LLM)
-- `time` (datetime): Creation time
+- `timestamp` (str): Timestamp (for LLM, delegates to `_di_session`)
+- `time` (datetime): Creation time (delegates to `_di_session`)
 - `end_at` (datetime | None): End time
 - `last_call` (datetime): Time of last internal function call
 - `now_calling` (str | None): Currently calling function name
 
 ### Config & Preset
 
-- `config` (AmritaConfig): Configuration used in this call
-- `preset` (ModelPreset): Model preset used in this call
-- `strategy` (type[AgentStrategy] | StrategyLikedObject): Agent strategy
+- `config` (AmritaConfig): Configuration used in this call (delegates to `_di_ability.config`, settable)
+- `preset` (ModelPreset): Model preset used in this call (delegates to `_di_ability.preset`, settable)
+- `strategy` (type[AgentStrategy] | StrategyLikedObject): Agent strategy (delegates to `_di_agent.strategy`, settable)
 
 ### Input / Data
 
-- `user_input` (USER_INPUT): User input
-- `user_message` (Message[USER_INPUT]): User message
-- `data` ([MemoryModel](MemoryModel.md)): Memory model (computed from `state.memory` at runtime)
-- `train` (Message[str]): System message
-- `template` (Template): Jinja2 template
-- `jinja2_vars` (dict[str, Any]): Variables passed to template system
+- `user_input` (USER_INPUT): User input (delegates to `_di_input`)
+- `data` ([MemoryModel](MemoryModel.md)): Memory model (computed from `_di_memory.memory` at runtime, settable)
+- `train` (Message[str]): System message (delegates to `_di_input.train`, settable)
+- `template` (Template): Jinja2 template (delegates to `_di_input`)
+- `jinja2_vars` (dict[str, Any]): Variables passed to template system (delegates to `_di_input`)
 
 ### IO-Stream
 
 - `io_stream` (SuspendObjectStream[RESPONSE_TYPE]): Streaming interface for responses
 
-### Context
-
-- `context_wrap` (SendMessageWrap): Context message wrapper
-
-### Response
-
-- `response` (UniResponse[str, None]): Response from LLM
-- `extra_usage` (UniResponseUsage[int]): Additional usage statistics from memory limiting and other operations
+> **v0.12.0 changes**: The following fields have been removed from ChatObject direct attributes and are now managed via DI context objects:
+>
+> - `user_message` — removed; use `Message(role="user", content=chat_obj.user_input)` instead
+> - `context_wrap` — moved to `_di_working.context_wrap` (internal)
+> - `response` — moved to `_di_resp.response` (internal)
+> - `extra_usage` — moved to `_di_resp.extra_usage` (internal)
+> - `_bke_opt` — moved to `_di_opt` (internal)
 
 ## Constructor Parameters
 

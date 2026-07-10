@@ -1,6 +1,8 @@
 # SuspendEnum
 
-The `SuspendEnum` class provides standardized breakpoint tags for the suspend/resume mechanism in AmritaCore.
+The > **v0.12.0 migration**: `SuspendEnum` and `BuiltinName` have been moved from `amrita_core.chatmanager.enums` to `amrita_core.enums`. The old module now emits a `DeprecationWarning` and will be removed in v0.13.x.
+
+`SuspendEnum` class provides standardized breakpoint tags for the suspend/resume mechanism in AmritaCore.
 
 ## Description
 
@@ -67,6 +69,18 @@ The `SuspendEnum` class provides standardized breakpoint tags for the suspend/re
 - **Value**: `"matcher_call::post_completion"`
 - **Description**: Triggered after receiving the model response but before processing it
 - **Usage**: Great for response validation, content filtering, or implementing custom response handling logic
+
+### `MEMORY_APPEND`
+
+- **Value**: `"Component::memory_append"`
+- **Description**: Triggered when appending the LLM response to the context message wrap
+- **Usage**: Exposed by the [`APPEND_RESPONSE`](../api-reference/classes/APPEND_RESPONSE.md) component node. Occurs after LLM completion to add the model's response as an assistant message.
+
+### `APPLY_CONTEXT`
+
+- **Value**: `"Component::apply_context"`
+- **Description**: Triggered when applying the final context wrap back to the memory model
+- **Usage**: Exposed by the [`APPLY_CONTEXT`](../api-reference/classes/APPLY_CONTEXT.md) component node. Occurs before memory commit to write the updated message list into `MemoryModel.messages`.
 
 ### `COMMIT_MEMORY`
 

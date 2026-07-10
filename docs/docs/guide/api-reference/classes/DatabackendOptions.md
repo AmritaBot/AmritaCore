@@ -17,8 +17,10 @@ Options that control which backend fetch and commit operations are performed dur
 
 ## Usage
 
+> **v0.12.0 migration**: `DatabackendOptions` has been moved from `amrita_core.chatmanager.chat_object` to `amrita_core.contexts`. The old import path still works via backward-compatible re-exports, but updating to the new path is recommended.
+
 ```python
-from amrita_core.chatmanager.chat_object import DatabackendOptions
+from amrita_core.contexts import DatabackendOptions
 
 # Only load memory, skip everything else
 opts = DatabackendOptions(

@@ -118,7 +118,9 @@ CONTENT_LIST_TYPE_ITEM = Message | ToolResult
 CONTENT_LIST_TYPE = list[CONTENT_LIST_TYPE_ITEM]
 ```
 
-## StateContext 运行时状态
+## StateContext 运行时状态（v0.12.0 起已废弃）
+
+> **v0.12.0 起标记为 `@deprecated`**，将在 v0.13.x 移除。此数据类承载了过多角色的状态，已被拆分为多个独立的 DI 上下文对象。
 
 [`StateContext`](../api-reference/classes/StateContext.md) 是传递给每个 `ChatObject` 的运行时状态容器。它是一个 **dataclass**（不是 Pydantic 模型）：
 
@@ -140,6 +142,24 @@ state = StateContext(
 - `extra`：`dict[str, Any]` — 扩展点
 
 `StateContext` 由 `ChatObject` 通过[数据后端](data-backend.md)**延迟初始化**。通常不需要自己创建——后端会处理。
+
+### 替代方案：DI 上下文对象
+
+从 v0.12.0 开始，ChatObject 内部使用以下 DI 上下文对象替代 `StateContext` 的职责：
+
+| DI 上下文                                                                          | 用途                        |
+| ---------------------------------------------------------------------------------- | --------------------------- |
+| `_di_session` ([`SessionMetadata`](../api-reference/classes/SessionMetadata.md))   | 会话标识和时间信息          |
+| `_di_memory` ([`MemoryContext`](../api-reference/classes/MemoryContext.md))        | 运行时对话记忆              |
+| `_di_ability` ([`AbilityState`](../api-reference/classes/AbilityState.md))         | 配置、预设、后端槽位        |
+| `_di_input` ([`GeneralInput`](../api-reference/classes/GeneralInput.md))           | 用户输入、模板、Jinja2 变量 |
+| `_di_working` ([`WorkingState`](../api-reference/classes/WorkingState.md))         | 上下文消息包装器            |
+| `_di_resp` ([`RespState`](../api-reference/classes/RespState.md))                  | LLM 响应和使用统计          |
+| `_di_loop` ([`AgentLoopState`](../api-reference/classes/AgentLoopState.md))        | Agent 循环状态              |
+| `_di_opt` ([`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md)) | 后端获取/提交控制           |
+| `_di_agent` ([`StrategyPayload`](../api-reference/classes/StrategyPayload.md))     | Agent 策略引用              |
+
+这些 DI 对象通过 `WorkflowInterpreter` 的依赖注入自动注入到工作流节点中，无需手动传递。
 
 ## AbilityContext 能力上下文
 

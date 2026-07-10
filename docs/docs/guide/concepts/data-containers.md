@@ -118,7 +118,9 @@ CONTENT_LIST_TYPE_ITEM = Message | ToolResult
 CONTENT_LIST_TYPE = list[CONTENT_LIST_TYPE_ITEM]
 ```
 
-## StateContext — Runtime State
+## StateContext — Runtime State (deprecated since v0.12.0)
+
+> **Marked `@deprecated` in v0.12.0**, will be removed in v0.13.x. This dataclass carried too many roles and has been split into separate DI context objects.
 
 [`StateContext`](../api-reference/classes/StateContext.md) is the runtime state container passed to every `ChatObject`. It is a **dataclass** (not a Pydantic model):
 
@@ -140,6 +142,24 @@ state = StateContext(
 - `extra`: `dict[str, Any]` — extension point
 
 `StateContext` is **lazily initialized** by `ChatObject` via the [data backend](data-backend.md). You normally don't create it yourself — the backend does.
+
+### Alternative: DI Context Objects
+
+Since v0.12.0, ChatObject internally uses the following DI context objects to replace `StateContext`'s responsibilities:
+
+| DI Context                                                                         | Purpose                           |
+| ---------------------------------------------------------------------------------- | --------------------------------- |
+| `_di_session` ([`SessionMetadata`](../api-reference/classes/SessionMetadata.md))   | Session identity and timing       |
+| `_di_memory` ([`MemoryContext`](../api-reference/classes/MemoryContext.md))        | Runtime conversation memory       |
+| `_di_ability` ([`AbilityState`](../api-reference/classes/AbilityState.md))         | Config, preset, backend slots     |
+| `_di_input` ([`GeneralInput`](../api-reference/classes/GeneralInput.md))           | User input, template, Jinja2 vars |
+| `_di_working` ([`WorkingState`](../api-reference/classes/WorkingState.md))         | Context message wrapper           |
+| `_di_resp` ([`RespState`](../api-reference/classes/RespState.md))                  | LLM response and usage stats      |
+| `_di_loop` ([`AgentLoopState`](../api-reference/classes/AgentLoopState.md))        | Agent loop state                  |
+| `_di_opt` ([`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md)) | Backend fetch/commit control      |
+| `_di_agent` ([`StrategyPayload`](../api-reference/classes/StrategyPayload.md))     | Agent strategy reference          |
+
+These DI objects are automatically injected into workflow nodes by `WorkflowInterpreter`'s dependency injection, no manual passing required.
 
 ## AbilityContext
 
