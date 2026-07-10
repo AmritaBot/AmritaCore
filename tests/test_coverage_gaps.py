@@ -337,7 +337,7 @@ class TestProcessComponents:
             mem=MemoryContext(),
             rt_payload=WorkingState(),
             ip=_simple_ip(),
-        )
+        )  # pyright: ignore[reportGeneralTypeIssues]
         assert ab.ability is not None
 
     @pytest.mark.asyncio
@@ -361,7 +361,7 @@ class TestProcessComponents:
             mem=mem,
             rt_payload=WorkingState(),
             ip=_simple_ip(),
-        )
+        )  # pyright: ignore[reportGeneralTypeIssues]
         assert mem.memory is None
 
     @pytest.mark.asyncio
@@ -379,7 +379,7 @@ class TestProcessComponents:
             mem=MemoryContext(),
             rt_payload=WorkingState(),
             ip=_simple_ip(),
-        )
+        )  # pyright: ignore[reportGeneralTypeIssues]
         assert isinstance(ab.ability, AbilityContext)
 
     def test_append_response_value_error(self):
@@ -440,7 +440,7 @@ class TestProcessComponents:
             Message(role="assistant", content="hi"),
             Message(role="user", content="q"),
         ]
-        wrap = SendMessageWrap.validate_messages(msgs)
+        wrap = SendMessageWrap.validate_messages(msgs)  # pyright: ignore[reportArgumentType]
         mem = MemoryContext(memory=MemoryModel(messages=[]))
         wok = WorkingState(context_wrap=wrap)
         APPLY_CONTEXT.func(mem=mem, rt_payload=wok)
@@ -458,4 +458,4 @@ class TestProcessComponents:
             ability=ab,
             meta=SessionMetadata(session_id="no-commit"),
             mem=MemoryContext(memory=MemoryModel()),
-        )
+        )  # pyright: ignore[reportGeneralTypeIssues]
