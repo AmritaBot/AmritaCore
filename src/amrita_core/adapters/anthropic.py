@@ -27,6 +27,7 @@ from amrita_core.types import (
     UniResponseUsage,
 )
 from amrita_core.types.response import RequestMetadata
+from amrita_core.utils import model_dump
 
 
 class AnthropicFunctionSchema(BaseModel):
@@ -236,9 +237,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(
-                        preset.thinking_config.thinking_effort or 1024
-                    ),
+                    "budget_tokens": int(config.llm.max_tokens / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -366,9 +365,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(
-                        preset.thinking_config.thinking_effort or 1024
-                    ),
+                    "budget_tokens": int(config.llm.max_tokens / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -377,7 +374,7 @@ try:
                 max_retries=config.llm.max_retries,
             )
 
-            internal_msgs = list(messages)
+            internal_msgs = list(model_dump(messages))
             anthropic_msgs: list[MessageParam] = self._convert_messages(internal_msgs)
             anthropic_tools: list[ToolUnionParam] = self._convert_tools(tools)
             anthropic_tool_choice: (
