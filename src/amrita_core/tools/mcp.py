@@ -92,6 +92,9 @@ class MCPClient:
         """
 
         try:
+            # Always cancel pending close-waiter first to prevent the TTL task
+            # from closing the connection while call_tool is in progress.
+            await self._clean_waitter()
             if self.mcp_client is None:
                 await self._connect()
             assert self.mcp_client is not None
@@ -175,8 +178,12 @@ class MCPClient:
         """Close connection"""
         async with self._connect_lock:
             if self.mcp_client:
-                await self.mcp_client.__aexit__(None, None, None)
+                # Swap out the client reference BEFORE calling __aexit__ to fix a race condition:
+                client = self.mcp_client
                 self.mcp_client = None
+                await client.__aexit__(None, None, None)
+        # Clean up the waiter task that triggered this close (if any) so it won't leave a stale reference behind.
+        await self._clean_waitter()
 
     def _format_tools_for_openai(self):
         """Convert MCP tool format to OpenAI tool format"""
