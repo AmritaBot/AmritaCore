@@ -881,7 +881,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         Returns:
             Error message string
         """
-        logger.opt(exception=err, colors=True).error(
+        logger.opt(raw=True, exception=err, colors=True).error(
             f"Function {function_name} execution failed: {err}"
         )
         config = self.chat_object.config
