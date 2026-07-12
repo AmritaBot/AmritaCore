@@ -8,6 +8,52 @@ export default withMermaid({
   sitemap: {
     hostname: "https://core.amritabot.com",
   },
+  themeConfig: {
+    search: {
+      provider: "local",
+    },
+  },
+  head: [
+    ["link", { rel: "icon", href: "/Amrita.png" }],
+    [
+      "meta",
+      {
+        name: "keywords",
+        content:
+          "AI agent, Python framework, LLM, language model, streaming, MCP, tool calling, async, DeepSeek, OpenAI, Claude, artificial intelligence",
+      },
+    ],
+    ["meta", { name: "author", content: "Project.Amrita" }],
+    [
+      "meta",
+      {
+        property: "og:title",
+        content: "AmritaCore - Next-Generation AI Agent Framework",
+      },
+    ],
+    [
+      "meta",
+      {
+        property: "og:description",
+        content:
+          "Build powerful AI agents with streaming output, tool integration, and event-driven architecture using Python",
+      },
+    ],
+    ["meta", { property: "og:type", content: "website" }],
+    ["meta", { name: "twitter:card", content: "summary" }],
+    [
+      "meta",
+      { name: "twitter:title", content: "AmritaCore - AI Agent Framework" },
+    ],
+    [
+      "meta",
+      {
+        name: "twitter:description",
+        content:
+          "Lightweight Python framework for building AI agents with streaming, tools, and MCP support",
+      },
+    ],
+  ],
   locales: {
     root: {
       label: "English",
@@ -15,61 +61,8 @@ export default withMermaid({
       title: "AmritaCore - Next-Gen AI Agent Framework",
       description:
         "AmritaCore is a lightweight, high-performance Python framework for building AI agents with streaming output, tool integration, MCP support, and event-driven architecture. Perfect for LLM-based applications.",
-      head: [
-        // Icon
-        [
-          "link",
-          {
-            rel: "icon",
-            href: "/Amrita.png",
-          },
-        ],
-        // SEO Meta Tags
-        [
-          "meta",
-          {
-            name: "keywords",
-            content:
-              "AI agent, Python framework, LLM, language model, streaming, MCP, tool calling, async, DeepSeek, OpenAI, Claude, artificial intelligence",
-          },
-        ],
-        ["meta", { name: "author", content: "Project.Amrita" }],
-        [
-          "meta",
-          {
-            property: "og:title",
-            content: "AmritaCore - Next-Generation AI Agent Framework",
-          },
-        ],
-        [
-          "meta",
-          {
-            property: "og:description",
-            content:
-              "Build powerful AI agents with streaming output, tool integration, and event-driven architecture using Python",
-          },
-        ],
-        ["meta", { property: "og:type", content: "website" }],
-        ["meta", { name: "twitter:card", content: "summary" }],
-        [
-          "meta",
-          { name: "twitter:title", content: "AmritaCore - AI Agent Framework" },
-        ],
-        [
-          "meta",
-          {
-            name: "twitter:description",
-            content:
-              "Lightweight Python framework for building AI agents with streaming, tools, and MCP support",
-          },
-        ],
-      ],
       themeConfig: {
-        // https://vitepress.dev/reference/default-theme-config
         siteTitle: "Amrita Core Docs",
-        search: {
-          provider: "local",
-        },
         nav: [
           { text: "Home", link: "/" },
           { text: "Start", link: "/guide/introduction" },
@@ -158,6 +151,10 @@ export default withMermaid({
               {
                 text: "MCP Server Integration",
                 link: "/guide/extensions-integration/mcp-server-integration",
+              },
+              {
+                text: "AmritaSense Integration",
+                link: "/guide/extensions-integration/amrita-sense",
               },
             ],
           },
@@ -359,7 +356,7 @@ export default withMermaid({
         ],
         footer: {
           message: `Apache 2.0 License`,
-          copyright: `© Amrita 2025-${new Date().getFullYear()}`,
+          copyright: `© AmritaConstant 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [
           { icon: "github", link: "https://github.com/AmritaBot/AmritaCore" },
@@ -372,60 +369,9 @@ export default withMermaid({
       title: "AmritaCore - 下一代 AI 智能体框架",
       description:
         "AmritaCore 是一个轻量级、高性能的 Python 框架，用于构建具有流式输出、工具集成、MCP 支持和事件驱动架构的 AI 智能体。适用于基于 LLM 的应用开发。",
-      head: [
-        [
-          "link",
-          {
-            rel: "icon",
-            href: "/Amrita.png",
-          },
-        ],
-        // SEO Meta Tags
-        [
-          "meta",
-          {
-            name: "keywords",
-            content:
-              "AI 智能体，Python 框架，大语言模型，LLM,流式输出，MCP，工具调用，异步，DeepSeek，OpenAI，Claude，人工智能",
-          },
-        ],
-        ["meta", { name: "author", content: "Project.Amrita" }],
-        [
-          "meta",
-          {
-            property: "og:title",
-            content: "AmritaCore - 下一代 AI 智能体框架",
-          },
-        ],
-        [
-          "meta",
-          {
-            property: "og:description",
-            content:
-              "使用 Python 构建强大的 AI 智能体，支持流式输出、工具集成和事件驱动架构",
-          },
-        ],
-        ["meta", { property: "og:type", content: "website" }],
-        ["meta", { name: "twitter:card", content: "summary" }],
-        [
-          "meta",
-          { name: "twitter:title", content: "AmritaCore - AI 智能体框架" },
-        ],
-        [
-          "meta",
-          {
-            name: "twitter:description",
-            content:
-              "轻量级 Python 框架，支持流式输出、工具调用和 MCP 协议的 AI 智能体开发",
-          },
-        ],
-      ],
+      head: [["link", { rel: "icon", href: "/Amrita.png" }]],
       themeConfig: {
-        // https://vitepress.dev/reference/default-theme-config
         siteTitle: "Amrita Core 文档",
-        search: {
-          provider: "local",
-        },
         nav: [
           { text: "首页", link: "/zh/" },
           { text: "开始", link: "/zh/guide/introduction" },
@@ -511,6 +457,10 @@ export default withMermaid({
               {
                 text: "MCP 服务器集成",
                 link: "/zh/guide/extensions-integration/mcp-server-integration",
+              },
+              {
+                text: "与 AmritaSense 集成",
+                link: "/zh/guide/extensions-integration/amrita-sense",
               },
             ],
           },
@@ -713,12 +663,22 @@ export default withMermaid({
         ],
         footer: {
           message: `Apache 2.0 许可证(一些内容可能没有完全翻译成中文，请以英文文档为准。)`,
-          copyright: `© Amrita 2025-${new Date().getFullYear()}`,
+          copyright: `© 弋恒常量 2025-${new Date().getFullYear()}`,
         },
         socialLinks: [
           { icon: "github", link: "https://github.com/AmritaBot/AmritaCore" },
           { icon: "discord", link: "https://discord.gg/byAD3sbjjj" },
         ],
+      },
+    },
+  },
+  vite: {
+    build: {
+      rollupOptions: {
+        onLog(level, log, handler) {
+          if (log.message?.includes("points to missing source files")) return;
+          handler(level, log);
+        },
       },
     },
   },

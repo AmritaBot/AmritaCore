@@ -102,9 +102,7 @@ def _make_ability_context() -> AbilityContext:
     return AbilityContext(presets=pm)
 
 
-# ============================================================================
 # 1. ChatObject property delegation
-# ============================================================================
 
 
 class TestChatObjectDIProperties:
@@ -208,9 +206,7 @@ class TestChatObjectDIProperties:
             _ = co.data
 
 
-# ============================================================================
 # 2. StrategyLikedObject.__call__ and AgentStrategy.call_tool
-# ============================================================================
 
 
 class TestStrategyLikedCall:
@@ -314,9 +310,7 @@ class TestCallTool:
         assert r == "result"
 
 
-# ============================================================================
 # 3. Components direct func call coverage
-# ============================================================================
 
 
 class TestProcessComponents:
