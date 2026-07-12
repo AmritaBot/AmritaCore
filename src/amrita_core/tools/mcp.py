@@ -39,7 +39,7 @@ class MCPClient:
 
     mcp_client: Client | None = None
     server_script: MCP_SERVER_SCRIPT_TYPE
-    _close_waitter: asyncio.Future | None = None
+    _close_waiter: asyncio.Future | None = None
     _close_ttl: int
     _connect_lock: aiologic.Lock
 
@@ -65,7 +65,7 @@ class MCPClient:
         self._connect_lock = aiologic.Lock()
 
     async def __aenter__(self) -> Self:
-        self._close_waitter = None
+        self._close_waiter = None
         if not self.mcp_client:
             await self._connect()
         return self
@@ -94,7 +94,7 @@ class MCPClient:
         try:
             # Always cancel pending close-waiter first to prevent the TTL task
             # from closing the connection while call_tool is in progress.
-            await self._clean_waitter()
+            await self._clean_waiter()
             if self.mcp_client is None:
                 await self._connect()
             assert self.mcp_client is not None
@@ -118,8 +118,8 @@ class MCPClient:
                 When True, tools are always refreshed from the server, even if already connected.
         """
         # Cancel any pending close-waiter outside the lock to avoid deadlock:
-        # _clean_waitter cancels the waiter task whose _close() also needs _connect_lock.
-        await self._clean_waitter()
+        # _clean_waiter cancels the waiter task whose _close() also needs _connect_lock.
+        await self._clean_waiter()
         async with self._connect_lock:
             if self.mcp_client is not None:
                 if update_tools:
@@ -143,12 +143,12 @@ class MCPClient:
         logger.info(f"Available tools: {[tool.name for tool in self.tools]}")
         self._cast_tool_to_amrita()
 
-    async def _clean_waitter(self):
-        if self._close_waitter is not None:
+    async def _clean_waiter(self):
+        if self._close_waiter is not None:
             with contextlib.suppress(asyncio.CancelledError):
-                self._close_waitter.cancel()
+                self._close_waiter.cancel()
                 await asyncio.sleep(0)
-            self._close_waitter = None
+            self._close_waiter = None
 
     def close(self) -> asyncio.Future[None]:
         """Create a TTL-Task to wait for connection's close.
@@ -156,22 +156,22 @@ class MCPClient:
         Returns:
             asyncio.Task[None]: Waiting task.
         """
-        if self._close_waitter is not None and not self._close_waitter.done():
-            return self._close_waitter
+        if self._close_waiter is not None and not self._close_waiter.done():
+            return self._close_waiter
         if self._close_ttl == -1:
             raise RuntimeError("TTL is not set. Please use `close_no_wait` instead.")
 
-        async def waitter() -> None:
+        async def waiter() -> None:
 
             with contextlib.suppress(asyncio.CancelledError):
                 await asyncio.sleep(self._close_ttl)
                 await self._close()
 
-        self._close_waitter = asyncio.create_task(waitter())
-        return self._close_waitter
+        self._close_waiter = asyncio.create_task(waiter())
+        return self._close_waiter
 
     async def close_no_wait(self):
-        await self._clean_waitter()
+        await self._clean_waiter()
         await self._close()
 
     async def _close(self) -> None:
@@ -183,7 +183,7 @@ class MCPClient:
                 self.mcp_client = None
                 await client.__aexit__(None, None, None)
         # Clean up the waiter task that triggered this close (if any) so it won't leave a stale reference behind.
-        await self._clean_waitter()
+        await self._clean_waiter()
 
     def _format_tools_for_openai(self):
         """Convert MCP tool format to OpenAI tool format"""
