@@ -11,8 +11,8 @@ from fastmcp.client.transports import (
 )
 
 from amrita_core.tools._parser import (
-    TRANSPORT_REGISTRY,
     SHORTHAND_SCHEMES,
+    TRANSPORT_REGISTRY,
     resolve_transport,
 )
 
