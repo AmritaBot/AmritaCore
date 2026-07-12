@@ -19,6 +19,7 @@ from typing_extensions import Self
 
 from amrita_core.utils import _did_you_mean_hint
 
+from ._parser import resolve_transport
 from .manager import MultiToolsManager, ToolsManager
 from .models import (
     FunctionDefinitionSchema,
@@ -30,7 +31,7 @@ from .models import (
 )
 
 MCP_SERVER_SCRIPT_TYPE = (
-    str | Path  # TODO: Support all types of scripts
+    str | Path  # Supports: file paths, http(s)://, sse://, stream+http(s)://, stdio://
 )
 
 
@@ -104,7 +105,7 @@ class MCPClient:
             ]
             return "".join([f"{i.text}\n\n" for i in ct])
         except Exception as e:
-            logger.opt(exception=e, colors=True).error(
+            logger.opt(raw=True, exception=e, colors=True).error(
                 f"Failed to call tool:{tool_name}, because {e}."
             )
             return json.dumps({"success": False, "error": str(e)})
@@ -127,9 +128,12 @@ class MCPClient:
                 return
 
             server_script: MCP_SERVER_SCRIPT_TYPE = self.server_script
-            self.mcp_client = Client(server_script)
+            transport = resolve_transport(str(server_script))
+            self.mcp_client = Client(transport)
             await self.mcp_client.__aenter__()
-            logger.info(f"Successfully connected to MCP Server@{server_script}")
+            logger.info(
+                f"Successfully connected to MCP Server@{str(server_script)[:10]}..."
+            )
             if update_tools or not self.tools:
                 await self._refresh_tools()
 
@@ -198,9 +202,9 @@ class MCPClient:
                     description=tool.description or f"Running tool named: {tool.name}",
                     parameters=FunctionParametersSchema(
                         type="object",
-                        required=tool.inputSchema.required,
+                        required=tool.inputSchema.required or [],
                         properties=cast_mcp_properties_to_amrita(
-                            property=tool.inputSchema.properties
+                            property=tool.inputSchema.properties or {}
                         ),
                     ),
                 ),
@@ -376,7 +380,7 @@ class MultiClientManager:
         except Exception as e:
             if fail_then_raise:
                 raise
-            logger.opt(exception=e, colors=True).error(
+            logger.opt(raw=True, exception=e, colors=True).error(
                 f"Failed to connect to MCP Server@{client.server_script}: {e}"
             )
         else:

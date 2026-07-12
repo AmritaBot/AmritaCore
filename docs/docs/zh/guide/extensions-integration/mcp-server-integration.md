@@ -152,17 +152,17 @@ async def manual_mcp_setup():
 
 ```python
 # 1. Agent 决定调用工具
-# LLM 生成：{ "tool_calls": [{"name": "get_weather", "arguments": {"city": "NYC"}}] }
+# LLM 生成：{ "tool_calls": [{"name": "get_weather", "arguments": {"city": "BJ"}}] }
 
 # 2. 框架路由到 MCP 客户端
 # ClientManager.get_client_by_tool_name("get_weather") 找到正确的客户端
 
 # 3. MCP 客户端调用远程服务器
-result = await mcp_client.simple_call("get_weather", {"city": "NYC"})
+result = await mcp_client.simple_call("get_weather", {"city": "BJ"})
 
 # 4. 服务器处理并返回
-# MCP 服务器执行：get_weather(city="NYC")
-# 返回："Weather in NYC: Sunny, 25°C"
+# MCP 服务器执行：get_weather(city="BJ")
+# 返回："Weather in BJ: Sunny, 25°C"
 
 # 5. 结果发送回 LLM
 # 工具响应附加到消息列表
@@ -195,6 +195,93 @@ except Exception as e:
 - 工具执行失败 → 向 LLM 返回结构化错误 JSON
 - 连接超时 → 下次调用时自动重试
 - 重复工具名称 → 自动重映射并记录警告日志
+
+## 传输 URL 格式
+
+AmritaCore 支持灵活的 URL 格式来指定 MCP 服务器传输方式。除了本地 `.py`/`.js` 脚本文件外，还可以使用 URL scheme 连接远程服务器或基于命令行的 stdio 服务器：
+
+### `extra+protocol` 模式（通用）
+
+```
+EXTRA+PROTOCOL://[user:pwd@]host[:port]/path
+```
+
+`EXTRA` 部分映射到 AmritaCore 中注册的传输类型：
+
+| Extra        | 传输方式                 | 示例                              |
+| ------------ | ------------------------ | --------------------------------- |
+| `sse`        | Server-Sent Events (SSE) | `sse+http://127.0.0.1:9178/sse`   |
+| `streamable` | Streamable HTTP          | `streamable+http://localhost/mcp` |
+
+### 简写 Scheme
+
+为了方便，常用传输方式有简写形式：
+
+| 简写     | 展开为        | 示例                       |
+| -------- | ------------- | -------------------------- |
+| `sse://` | `sse+http://` | `sse://127.0.0.1:9178/sse` |
+
+### 认证
+
+对于 `sse` 传输，可以直接在 URL 中包含凭据：
+
+```
+sse+http://admin:secret@host:8080/sse   # BasicAuth
+sse+http://token@host/sse               # BearerAuth（仅用户名）
+sse://user:pwd@host/sse                 # 简写 + BasicAuth
+```
+
+### `stdio://` — 命令行模式
+
+使用 JSON 数组语法指定命令和参数：
+
+```
+stdio://["uvx","mcp-server-git"]
+stdio://["npx","-y","@modelcontextprotocol/server-everything"]
+stdio://["python","my_mcp_server.py","--port","8080"]
+```
+
+### 普通 `http(s)://`
+
+标准的 HTTP/HTTPS URL 会直接透传给 MCP 传输层：
+
+```
+http://example.com/mcp
+https://mcp-server.internal/sse
+```
+
+### 本地脚本文件
+
+本地 `.py` 和 `.js` 文件仍然可以正常使用：
+
+```
+./mcp-scripts/weather.py
+/tmp/my_server.js
+```
+
+### 配置示例
+
+```python
+from amrita_core.config import AmritaConfig, FunctionConfig
+
+# 混合使用多种传输类型
+config = AmritaConfig(
+    function_config=FunctionConfig(
+        agent_mcp_client_enable=True,
+        agent_mcp_server_scripts=[
+            "sse+http://localhost:9178/sse",               # 远程 SSE 服务器
+            "sse+https://admin:pass@mcp.example.com/sse",  # SSE + 认证
+            "streamable+http://mcp.internal/",             # Streamable HTTP
+            'stdio://["uvx","mcp-server-git"]',            # Stdio 进程
+            "./mcp-scripts/local-tool.py",                 # 本地脚本
+        ]
+    )
+)
+```
+
+### 工作原理
+
+`amrita_core.tools._parser` 中的 [`resolve_transport`](../api-reference/classes/MCPClient.md) 函数自动检测 URL scheme 并创建相应的 `fastmcp` 传输。所有格式可以在 `agent_mcp_server_scripts` 列表中自由混合使用。
 
 ## 创建您自己的 MCP 服务器
 

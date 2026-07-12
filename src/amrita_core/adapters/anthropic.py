@@ -449,7 +449,7 @@ try:
             return ("anthropic", "claude")
 
     __all__ = ["AnthropicAdapter", "AnthropicFunctionSchema"]
-except ImportError:
+except ImportError | NameError:
     logger.info(
         "Anthropic SDK not found. Install it by `amrita_core[anthropic]` AnthropicAdapter will not be available."
     )

@@ -327,7 +327,7 @@ class ChatObject:
             extra_kwargs=hook_kwargs,
         )
 
-    # ── Properties delegating to DI context ──
+    #  Properties delegating to DI context
 
     @property
     def stream_id(self) -> str:
@@ -611,7 +611,7 @@ class ChatObject:
         return messages
 
 
-# ── Retained workflow nodes (use DI _di_xxx refs) ──
+#  Retained workflow nodes (use DI _di_xxx refs)
 
 
 @Node(SuspendEnum.MEMORY)

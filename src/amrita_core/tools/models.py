@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, Union, cast
 
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
@@ -15,16 +15,6 @@ if TYPE_CHECKING:
 
 
 T = TypeVar("T", str, int, float, bool, list, dict)  # JSON type
-JOT_T = TypeVar(
-    "JOT_T",
-    Literal["string"],
-    Literal["number"],
-    Literal["integer"],
-    Literal["boolean"],
-    Literal["array"],
-    Literal["object"],
-)
-NUM_T = TypeVar("NUM_T", int, float)
 JSON_OBJECT_TYPE = Literal[
     "string",
     "number",
@@ -32,173 +22,234 @@ JSON_OBJECT_TYPE = Literal[
     "boolean",
     "array",
     "object",
+    "null",
 ]
 
 
 def cast_mcp_properties_to_amrita(
-    property: dict[str, MCP_OBJECT_TYPE],
+    property: dict[str, MCPProperty],
 ) -> dict[str, FunctionPropertySchema]:
     """
-    Convert MCPPropertySchemaObject dictionary to FunctionPropertySchema objects
+    Convert MCPProperty dictionary to FunctionPropertySchema objects
     """
     properties_dict: dict[str, FunctionPropertySchema] = {}
 
     for key, prop in deepcopy(property).items():
-        # Convert MCP property type to corresponding FunctionPropertySchema
+        # Convert MCP property to corresponding FunctionPropertySchema
         converted_prop = _convert_single_property(prop)
         properties_dict[key] = converted_prop
 
     return properties_dict
 
 
-def _convert_single_property(mcp_prop: MCP_OBJECT_TYPE) -> FunctionPropertySchema:
+def _extract_types_from_anyof(prop: MCPProperty) -> list[JSON_OBJECT_TYPE]:
+    """Extract type values from an anyOf list."""
+    types: list[JSON_OBJECT_TYPE] = []
+    if prop.anyOf:
+        for sub in prop.anyOf:
+            if sub.type:
+                if isinstance(sub.type, list):
+                    types.extend(cast(list[JSON_OBJECT_TYPE], sub.type))
+                else:
+                    types.append(cast(JSON_OBJECT_TYPE, sub.type))
+    return types
+
+
+def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
     """
-    Convert a single MCP_PROPERTY to FunctionPropertySchema
+    Convert a single MCPProperty to FunctionPropertySchema.
+    Handles anyOf by extracting union types and merging constraints.
     """
     # Get basic attributes
-    description = getattr(
-        mcp_prop,
-        "description",
-        "No description",
-    )
-    prop_type: JSON_OBJECT_TYPE = mcp_prop.type
+    description = mcp_prop.description or "No description"
+
+    # Determine the type(s)
+    if mcp_prop.type:
+        prop_type: JSON_OBJECT_TYPE | list[JSON_OBJECT_TYPE] = cast(
+            JSON_OBJECT_TYPE | list[JSON_OBJECT_TYPE], mcp_prop.type
+        )
+    elif mcp_prop.anyOf:
+        # Extract types from anyOf
+        extracted = _extract_types_from_anyof(mcp_prop)
+        prop_type = (
+            extracted
+            if len(extracted) > 1
+            else (extracted[0] if extracted else "string")
+        )
+    else:
+        prop_type = "string"  # default fallback
 
     # Prepare base parameters
-    base_params = {
+    base_params: dict[str, Any] = {
         "type": prop_type,
         "description": description,
     }
 
     # If there are enum values, add to parameters
-    if hasattr(mcp_prop, "enum") and mcp_prop.enum is not None:
+    if mcp_prop.enum is not None:
         base_params["enum"] = mcp_prop.enum
 
-    if isinstance(mcp_prop, MCPPropertySchemaObject):
+    # For anyOf, merge constraints from all subschemas (take first non-null entry)
+    effective_prop = mcp_prop
+    if mcp_prop.anyOf and not mcp_prop.type:
+        # Pick the first non-null sub-schema for constraint extraction
+        for sub in mcp_prop.anyOf:
+            if sub.type and sub.type != "null" and sub.type != ["null"]:
+                effective_prop = sub
+                break
+
+    types_to_check = prop_type if isinstance(prop_type, list) else [prop_type]
+    # Filter out "null" when determining structural shape
+    non_null_types = [t for t in types_to_check if t != "null"]
+    has_object = "object" in non_null_types
+    has_array = "array" in non_null_types
+
+    if has_object:
         # Object type requires recursive conversion of its properties
-        if hasattr(mcp_prop, "properties") and mcp_prop.properties:
+        if effective_prop.properties:
             obj_properties = {}
-            for key, sub_prop in mcp_prop.properties.items():
+            for key, sub_prop in effective_prop.properties.items():
                 obj_properties[key] = _convert_single_property(sub_prop)
             base_params["properties"] = obj_properties
-        if hasattr(mcp_prop, "required") and mcp_prop.required:
-            base_params["required"] = mcp_prop.required
+        if effective_prop.required:
+            base_params["required"] = effective_prop.required
 
-    elif isinstance(mcp_prop, MCPPropertySchemaArray):
-        if hasattr(mcp_prop, "items"):
-            base_params["items"] = _convert_single_property(mcp_prop.items)
-        if hasattr(mcp_prop, "minItems") and mcp_prop.minItems > 0:
-            base_params["minItems"] = mcp_prop.minItems
-        if hasattr(mcp_prop, "maxItems") and mcp_prop.maxItems < 100:
-            base_params["maxItems"] = mcp_prop.maxItems
-        if hasattr(mcp_prop, "uniqueItems"):
-            base_params["uniqueItems"] = mcp_prop.uniqueItems
+    elif has_array:
+        if effective_prop.items:
+            if isinstance(effective_prop.items, list):
+                # Tuple validation: use first item schema
+                base_params["items"] = _convert_single_property(effective_prop.items[0])
+            else:
+                base_params["items"] = _convert_single_property(effective_prop.items)
+        if effective_prop.minItems is not None and effective_prop.minItems > 0:
+            base_params["minItems"] = effective_prop.minItems
+        if effective_prop.maxItems is not None and effective_prop.maxItems < 100:
+            base_params["maxItems"] = effective_prop.maxItems
+        if effective_prop.uniqueItems is not None:
+            base_params["uniqueItems"] = effective_prop.uniqueItems
 
-    # For numeric and boolean types, no additional fields are needed since FunctionPropertySchema doesn't include minimum/maximum fields
+    # For numeric and boolean types, no additional fields are needed since FunctionPropertySchema
+    # doesn't include minimum/maximum fields in the same way
     return FunctionPropertySchema(**base_params)
 
 
-class MCPPropertySchema(BaseModel, Generic[JOT_T]):
-    """Base structure definition for MCP properties"""
+class MCPProperty(BaseModel):
+    """Flexible MCP/JSON Schema property model supporting the full JSON Schema specification.
 
-    type: JOT_T = Field(..., description="Parameter type")
-    title: str = Field("NO_TITLE", description="Parameter title")
-    description: str = Field(
-        default="No description", description="Parameter description"
+    This replaces the old rigid type-discriminated union (MCPPropertySchemaString,
+    MCPPropertySchemaNumber, etc.) with a single model that handles all JSON Schema
+    features including combinators (anyOf, oneOf, allOf) and flexible defaults.
+    """
+
+    #  Core type information
+    type: str | list[str] | None = Field(
+        default=None, description="Parameter type(s)", exclude_if=on_none
     )
-    default: None = Field(
+    title: str | None = Field(
+        default=None, description="Parameter title", exclude_if=on_none
+    )
+    description: str | None = Field(
+        default=None, description="Parameter description", exclude_if=on_none
+    )
+    default: Any = Field(
         default=None, description="Parameter default value", exclude_if=on_none
     )
-    enum: list[str | int | float] | None = Field(
-        default=None, description="Enumerated parameters", exclude_if=on_none
+    enum: list[Any] | None = Field(
+        default=None, description="Enumerated values", exclude_if=on_none
+    )
+    const: Any = Field(
+        default=None,
+        description="Constant value the parameter must equal",
+        exclude_if=on_none,
     )
 
-
-class MCPPropertySchemaString(MCPPropertySchema[Literal["string"]]):
-    """MCP property structure for validating string types"""
-
+    #  String constraints
     pattern: str | None = Field(
-        default=None, description="Regular expression", exclude_if=on_none
+        default=None, description="Regular expression pattern", exclude_if=on_none
     )
-    minLength: int = Field(default=0, description="Minimum length")
-    maxLength: int = Field(default=100, description="Maximum length")
-
-
-class MCPPropertySchemaNumeric(MCPPropertySchema[JOT_T], Generic[JOT_T, NUM_T]):
-    """MCP property structure for validating numeric types"""
-
-    minimum: NUM_T | None = Field(
-        default=None, description="Minimum value", exclude_if=on_none
+    minLength: int | None = Field(
+        default=None, description="Minimum string length", exclude_if=on_none
     )
-    maximum: NUM_T | None = Field(
-        default=None, description="Maximum value", exclude_if=on_none
+    maxLength: int | None = Field(
+        default=None, description="Maximum string length", exclude_if=on_none
     )
-    exclusiveMinimum: bool | None = Field(
+
+    #  Numeric constraints
+    minimum: float | int | None = Field(
+        default=None, description="Minimum value (inclusive)", exclude_if=on_none
+    )
+    maximum: float | int | None = Field(
+        default=None, description="Maximum value (inclusive)", exclude_if=on_none
+    )
+    exclusiveMinimum: bool | float | int | None = Field(
         default=None,
-        description="Whether minimum value is exclusive (i.e. 'left open interval')",
+        description="Exclusive minimum (bool or numeric in draft 2020-12)",
         exclude_if=on_none,
     )
-    exclusiveMaximum: bool | None = Field(
+    exclusiveMaximum: bool | float | int | None = Field(
         default=None,
-        description="Whether maximum value is exclusive (i.e. 'right open interval')",
+        description="Exclusive maximum (bool or numeric in draft 2020-12)",
+        exclude_if=on_none,
+    )
+    multipleOf: float | int | None = Field(
+        default=None, description="Value must be a multiple of this", exclude_if=on_none
+    )
+
+    #  Object constraints
+    properties: dict[str, "MCPProperty"] | None = Field(
+        default=None, description="Object property definitions", exclude_if=on_none
+    )
+    required: list[str] | None = Field(
+        default=None, description="Required property names", exclude_if=on_none
+    )
+    additionalProperties: bool | dict[str, Any] | None = Field(
+        default=None,
+        description="Allow additional properties or define their schema",
+        exclude_if=on_none,
+    )
+
+    #  Array constraints
+    items: Union["MCPProperty", list["MCPProperty"], None] = Field(  # noqa: UP007 # Because X|Y is invaliad here, we use Union.
+        default=None, description="Array item schema(s)", exclude_if=on_none
+    )
+    minItems: int | None = Field(
+        default=None, description="Minimum array length", exclude_if=on_none
+    )
+    maxItems: int | None = Field(
+        default=None, description="Maximum array length", exclude_if=on_none
+    )
+    uniqueItems: bool | None = Field(
+        default=None,
+        description="Whether array items must be unique",
+        exclude_if=on_none,
+    )
+
+    #  JSON Schema combinators
+    anyOf: list["MCPProperty"] | None = Field(
+        default=None,
+        description="Any of the given schemas must validate",
+        exclude_if=on_none,
+    )
+    oneOf: list["MCPProperty"] | None = Field(
+        default=None,
+        description="Exactly one of the given schemas must validate",
+        exclude_if=on_none,
+    )
+    allOf: list["MCPProperty"] | None = Field(
+        default=None,
+        description="All of the given schemas must validate",
+        exclude_if=on_none,
+    )
+
+    #  Format
+    format: str | None = Field(
+        default=None,
+        description="Semantic format hint (date, email, uri, etc.)",
         exclude_if=on_none,
     )
 
 
-class MCPPropertySchemaInteger(MCPPropertySchemaNumeric[Literal["integer"], int]):
-    """MCP property structure for validating integer types"""
-
-
-class MCPPropertySchemaNumber(MCPPropertySchemaNumeric[Literal["number"], float]):
-    """MCP property structure for validating floating point types"""
-
-
-class MCPPropertySchemaObject(MCPPropertySchema[Literal["object"]]):
-    """MCP property structure for validating object types"""
-
-    properties: dict[str, MCP_OBJECT_TYPE] = Field(
-        ..., description="Parameter property definitions", exclude_if=on_none
-    )
-    required: list[str] = Field(
-        default_factory=list, description="List of required parameters"
-    )
-
-    @model_validator(mode="after")
-    def validator(self) -> Self:
-        if self.required:
-            for req in self.required:
-                if req not in self.properties:
-                    raise ValueError(
-                        f"Required property '{req}' not found in properties."
-                    )
-        return self
-
-
-class MCPPropertySchemaArray(MCPPropertySchema[Literal["array"]]):
-    """MCP property structure for validating array types"""
-
-    items: MCP_OBJECT_TYPE = Field(
-        ..., description="Parameter property definition", exclude_if=on_none
-    )
-    maxItems: int = Field(default=100, description="Maximum number of elements")
-    minItems: int = Field(default=0, description="Minimum number of elements")
-    uniqueItems: bool = Field(
-        default=False,
-        description="Whether array elements must be unique, when type is array, this parameter defaults to False",
-    )
-
-
-class MCPPropertySchemaBoolean(MCPPropertySchema[Literal["boolean"]]):
-    """MCP property structure for validating boolean types"""
-
-
-MCP_OBJECT_TYPE = (
-    MCPPropertySchemaObject
-    | MCPPropertySchemaString
-    | MCPPropertySchemaNumber
-    | MCPPropertySchemaInteger
-    | MCPPropertySchemaArray
-    | MCPPropertySchemaBoolean
-)
+MCP_OBJECT_TYPE = MCPProperty  # For backward compatibility
 
 
 class MCPToolSchema(BaseModel):
@@ -206,8 +257,8 @@ class MCPToolSchema(BaseModel):
 
     name: str = Field(..., description="Tool name")
     description: str = Field("No description", description="Tool description")
-    inputSchema: MCPPropertySchemaObject = Field(
-        ..., description="Tool parameter definition"
+    inputSchema: MCPProperty = Field(
+        ..., description="Tool parameter definition (JSON Schema)"
     )
 
 

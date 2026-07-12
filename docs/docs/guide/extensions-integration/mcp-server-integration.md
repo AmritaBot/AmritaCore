@@ -196,6 +196,93 @@ except Exception as e:
 - Connection timeout → Automatic retry on next call
 - Duplicate tool names → Auto-remapping with warning logs
 
+## Transport URL Format
+
+AmritaCore supports a flexible URL-based format for specifying MCP server transports. Instead of only local script `.py`/`.js` files, you can use URL schemes to connect to remote or stdio-based servers:
+
+### `extra+protocol` Pattern (General)
+
+```
+EXTRA+PROTOCOL://[user:pwd@]host[:port]/path
+```
+
+The `EXTRA` portion maps to a transport type registered in AmritaCore:
+
+| Extra        | Transport                | Example                           |
+| ------------ | ------------------------ | --------------------------------- |
+| `sse`        | Server-Sent Events (SSE) | `sse+http://127.0.0.1:9178/sse`   |
+| `streamable` | Streamable HTTP          | `streamable+http://localhost/mcp` |
+
+### Shorthand Schemes
+
+For convenience, common transports have shorthand forms:
+
+| Shorthand | Expands To    | Example                    |
+| --------- | ------------- | -------------------------- |
+| `sse://`  | `sse+http://` | `sse://127.0.0.1:9178/sse` |
+
+### Authentication
+
+Include credentials directly in the URL for `sse` transport:
+
+```
+sse+http://admin:secret@host:8080/sse   # BasicAuth
+sse+http://token@host/sse               # BearerAuth (username-only)
+sse://user:pwd@host/sse                 # Shorthand with BasicAuth
+```
+
+### `stdio://` — Command-Line Based
+
+Use JSON array syntax to specify the command and arguments:
+
+```
+stdio://["uvx","mcp-server-git"]
+stdio://["npx","-y","@modelcontextprotocol/server-everything"]
+stdio://["python","my_mcp_server.py","--port","8080"]
+```
+
+### Plain `http(s)://`
+
+Standard HTTP/HTTPS URLs are passed directly to the MCP transport layer:
+
+```
+http://example.com/mcp
+https://mcp-server.internal/sse
+```
+
+### Local Script Files
+
+Local `.py` and `.js` files continue to work as before:
+
+```
+./mcp-scripts/weather.py
+/tmp/my_server.js
+```
+
+### Configuration Examples
+
+```python
+from amrita_core.config import AmritaConfig, FunctionConfig
+
+# Mix and match transport types
+config = AmritaConfig(
+    function_config=FunctionConfig(
+        agent_mcp_client_enable=True,
+        agent_mcp_server_scripts=[
+            "sse+http://localhost:9178/sse",               # Remote SSE server
+            "sse+https://admin:pass@mcp.example.com/sse",  # SSE with auth
+            "streamable+http://mcp.internal/",             # Streamable HTTP
+            'stdio://["uvx","mcp-server-git"]',            # Stdio process
+            "./mcp-scripts/local-tool.py",                 # Local script
+        ]
+    )
+)
+```
+
+### How It Works
+
+The [`resolve_transport`](../api-reference/classes/MCPClient.md) function in `amrita_core.tools._parser` automatically detects the URL scheme and creates the appropriate `fastmcp` transport. All formats can be freely mixed in your `agent_mcp_server_scripts` list.
+
 ## Creating Your Own MCP Server
 
 Since AmritaCore doesn't provide built-in MCP server capabilities, you'll need to create your own MCP server to expose AmritaCore functionality. Here's a minimal example using the MCP Python SDK:

@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        python-version: [ "3.10", "3.11", "3.12", "3.13" ]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
       fail-fast: false
     steps:
       - name: Checkout code
@@ -50,7 +50,8 @@ jobs:
           python-path: ${{ env.PYTHON_BIN }}
           pylance-version: latest-release
       - name: Run Unit Tests with JUnit XML output
-        run: uv run pytest tests/ --cov=src/amrita_core --cov-report=term-missing
+        run:
+          uv run pytest tests/ --cov=src/amrita_core --cov-report=term-missing
           --cov-report=xml --junitxml=test-results.xml -v
 
       - name: Publish Test Report
@@ -61,12 +62,6 @@ jobs:
           path: test-results.xml
           reporter: java-junit
           fail-on-error: false
-
-      - name: Check code format
-        uses: astral-sh/ruff-action@v3
-        with:
-          args: check . --exit-non-zero-on-fix
-
       - name: Build package
         run: uv build
   all-matrix-jobs-passed:
@@ -74,6 +69,14 @@ jobs:
     needs: build
     if: always()
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for formatting errors
+        uses: astral-sh/ruff-action@v3
+        with:
+          args: check . --exit-non-zero-on-fix
+
       - name: Verify all matrix jobs succeeded
         run: |
           if [ "${{ needs.build.result }}" != "success" ]; then

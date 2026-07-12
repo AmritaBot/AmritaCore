@@ -106,7 +106,7 @@ try:
         def get_type() -> str:
             return "jieba"
 
-except ImportError:
+except ImportError | NameError:
     logger.info(
-        "jieba is not installed, falling back to simple tokenizer. Install jieba for better Chinese tokenization."
+        "jieba is not installed, falling back to simple tokenizer. Install jieba by amrita_core[jieba] for better Chinese tokenization."
     )
