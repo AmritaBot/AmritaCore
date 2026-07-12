@@ -452,9 +452,7 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
         manager.remove_tool("failing_tool")
 
 
-# ============================================================================
 # Tests for HybridReActAgentStrategy and Template Method Pattern
-# ============================================================================
 
 
 @pytest.mark.asyncio
@@ -664,9 +662,7 @@ async def test_hybrid_vs_react_append_difference(mock_strategy_context, mock_con
         react_strategy.tools_manager.get_tool = original_get_tool
 
 
-# ============================================================================
 # Tests for ReactConfig and Reasoning Enhancements (Direction A, B, E)
-# ============================================================================
 
 
 def test_react_config_defaults():

@@ -1,3 +1,13 @@
+"""LLM-related workflow nodes — template rendering and completion calling.
+
+```mermaid
+graph LR
+    LOAD_STATE --> JINJA2_RENDER
+    LOAD_STATE --> BUILD_MESSAGE --> LLM_COMPLETION
+    JINJA2_RENDER --> BUILD_MESSAGE
+```
+"""
+
 import asyncio
 
 from amrita_sense import Node, WorkflowInterpreter
@@ -26,6 +36,26 @@ async def JINJA2_RENDER(
     mem: MemoryContext,
     ip: GeneralInput,
 ):
+    """Render the train template via Jinja2 and append the user message to memory.
+
+    Appends `ip.user_input` to `memory.messages`, then uses the Jinja2 template
+    to render `ip.train` with `memory`, `config`, and custom `jinja2_vars`
+    injected as template context variables.
+
+    Context Dependencies:
+        * AbilityState — provides runtime config.
+        * MemoryContext — provides session memory.
+        * GeneralInput  — provides user input, template, and render vars.
+
+    Upstream:
+        * LOAD_STATE — must have set `mem.memory`.
+
+    Downstream:
+        * BUILD_MESSAGE — consumes the rendered `ip.train`.
+
+    Suspend Point:
+        `SuspendEnum.TRAIN_RENDER` — intercepted during template rendering.
+    """
     logger.debug("Starting chat processing flow..")
     data = mem.memory
     if data is None:
@@ -56,6 +86,39 @@ async def LLM_COMPLETION(
     intp: WorkflowInterpreter,
     resp: RespState,
 ):
+    """Call the LLM completion API with preset fallback and retry logic.
+
+    ```mermaid
+    flowchart TD
+        A[Current Preset] --> B[call_completion stream]
+        B -->|success| C[resp.response = UniResponse]
+        B -->|exception| D[Fire FallbackContext hook]
+        D --> E{New preset available?}
+        E -->|yes| F[Switch preset & retry]
+        F --> A
+        E -->|no| G[FallbackFailed]
+    ```
+
+    Streams chunks via `WorkflowInterpreter.object_io`. On failure, fires the
+    `FallbackContext` event hook to try alternate presets, up to
+    `max_fallbacks` times.
+
+    Context Dependencies:
+        * AbilityState — provides config and current preset.
+        * WorkingState — provides built `context_wrap`.
+        * WorkflowInterpreter — streams chunks to the client.
+        * RespState — receives the final `UniResponse`.
+
+    Upstream:
+        * LOAD_STATE — must have set `ability.preset`.
+        * BUILD_MESSAGE — must have built `wok.context_wrap`.
+
+    Downstream:
+        * APPEND_RESPONSE — consumes `resp.response`.
+
+    Suspend Point:
+        `SuspendEnum.LLM_CALL` — intercepted during the LLM call.
+    """
     logger.debug("Calling chat model..")
     response: UniResponse[str, None] | None = None
     used_preset: set[str] = set()
