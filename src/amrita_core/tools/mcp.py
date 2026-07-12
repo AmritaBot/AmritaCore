@@ -181,9 +181,11 @@ class MCPClient:
                 # Swap out the client reference BEFORE calling __aexit__ to fix a race condition:
                 client = self.mcp_client
                 self.mcp_client = None
-                await client.__aexit__(None, None, None)
-        # Clean up the waiter task that triggered this close (if any) so it won't leave a stale reference behind.
-        await self._clean_waiter()
+                try:
+                    await client.__aexit__(None, None, None)
+                finally:
+                    # Always run waiter-task cleanup, even if __aexit__ fails.
+                    await self._clean_waiter()
 
     def _format_tools_for_openai(self):
         """Convert MCP tool format to OpenAI tool format"""
