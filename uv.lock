@@ -276,7 +276,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiologic", specifier = ">=0.16.0" },
     { name = "amrita-core", extras = ["anthropic", "jieba"], marker = "extra == 'all'", editable = "." },
-    { name = "amrita-sense", specifier = ">=0.4.5" },
+    { name = "amrita-sense", specifier = ">=0.4.5.1" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.116.0,<0.117.0" },
     { name = "fastmcp-slim", extras = ["client"], specifier = ">=3.4.4" },
     { name = "filetype", specifier = ">=1.2.0" },
@@ -305,7 +305,7 @@ dev = [
 
 [[package]]
 name = "amrita-sense"
-version = "0.4.5"
+version = "0.4.5.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiologic" },
@@ -314,9 +314,9 @@ dependencies = [
     { name = "exceptiongroup" },
     { name = "loguru" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/48/48/89a39b94e858182534636f47ddf1f97dc474ffb2e4aa90747a286d3bf024/amrita_sense-0.4.5.tar.gz", hash = "sha256:9cec45b039854e00eabb42cad728c53d66e1d9c0b074d67c3c0b4b7ba2fe5f99", size = 75453, upload-time = "2026-07-13T13:49:12.555Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ae/5d/670a9a22e76e962b0aec8667f403c8ea5af3529e3c25bff2ac796047701f/amrita_sense-0.4.5.1.tar.gz", hash = "sha256:6168f92e025fd86bead3e8e080275c200af1754360cb1105421ec417be7093c3", size = 75438, upload-time = "2026-07-13T14:07:03.163Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/49/c5/82c2732e877a4fe0aac6179dad2e40715e757b5458c61c24b0f10d02c587/amrita_sense-0.4.5-py3-none-any.whl", hash = "sha256:8e55a7f133e2d3003b3b23de3d475921b48db29dba47d1f980496a8d3ee7fab8", size = 67261, upload-time = "2026-07-13T13:49:11.594Z" },
+    { url = "https://files.pythonhosted.org/packages/39/e0/027a1b634f8d5179fe05e35af0ec4c9a08e76d7678a154199f0074b3a870/amrita_sense-0.4.5.1-py3-none-any.whl", hash = "sha256:f41839e45039756133729c08a5e97ee4d5645a34536945275ce45b93781d8e5e", size = 67291, upload-time = "2026-07-13T14:07:02.213Z" },
 ]
 
 [[package]]
