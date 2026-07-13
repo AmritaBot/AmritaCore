@@ -129,7 +129,7 @@ REFLECTION_TOOL = ToolFunctionSchema(
 async def _(ctx: ToolContext) -> str | None:
     msg: str = ctx.data["content"]
     logger.debug(f"[LLM-ProcessMessage] {msg}")
-    await ctx.ctx.chat_object.io_stream.yield_response(
+    await ctx.ctx.chat_object._interpreter.object_io.yield_response(
         MessageWithMetadata(
             content=msg,
             metadata=AgentMiddleMessageMetadata(
