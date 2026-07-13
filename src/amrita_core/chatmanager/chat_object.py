@@ -577,6 +577,7 @@ class ChatObject:
             finally:
                 self._is_running = False
                 self._is_done = True
+                await self.io_stream.set_queue_done()  # Write a EOF to the queue
                 self.end_at = datetime.now(utc)
                 self._chatman.running_chat_object_id2map.pop(self.stream_id, None)  # type: ignore[arg-type]
                 if self._chatman.clean_obj(
