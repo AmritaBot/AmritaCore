@@ -15,6 +15,7 @@ from amrita_core.base.adapter import (
     ModelAdapter,
 )
 from amrita_core.preset import PresetManager
+from amrita_core.utils import _did_you_mean_hint
 
 from .config import AmritaConfig, get_config
 from .tokenizer import hybrid_token_count
@@ -286,21 +287,17 @@ async def _call_with_reflection(
     """
     adapter_class = AdapterManager().safe_get_adapter(preset.protocol)
 
-    if adapter_class:
-        if "text-gen" not in (ada_tp := adapter_class.get_type()):
-            raise RuntimeError(
-                f"Invalid adapter type for text-gen when using adapter: {adapter_class.__name__}, this adapter only supports {ada_tp}."
-            )
-        debug_log(
-            f"Using adapter {adapter_class.__name__} to handle protocol {preset.protocol}"
+    if not adapter_class:
+        raise ValueError(
+            f"Undefined protocol adapter: {preset.protocol}. {_did_you_mean_hint(preset.protocol, list(AdapterManager().get_adapters().keys()))}"
         )
-
-    else:
-        raise ValueError(f"Undefined protocol adapter: {preset.protocol}")
+    debug_log(
+        f"Using adapter {adapter_class.__name__} to handle protocol {preset.protocol}"
+    )
 
     debug_log(f"Getting chat for {preset.model}")
     debug_log(f"Preset: {preset.name}")
-    debug_log(f"Key: {preset.api_key[:7]}...")
+    debug_log(f"Key: {preset.api_key[: min(int(len(preset.api_key) / 5), 4)]}...")
     debug_log(f"Protocol: {preset.protocol}")
     debug_log(f"API URL: {preset.base_url}")
     debug_log(f"Model: {preset.model}")
@@ -368,6 +365,10 @@ async def call_completion(
     ) -> Callable[
         [], AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any]
     ]:
+        if "text-gen" != adapter.get_type() and "text-gen" not in adapter.get_type():
+            raise ValueError(
+                f"Model adapter {adapter.get_type()} does not support text-gen"
+            )
         return lambda: adapter.call_api([(i.model_dump()) for i in messages], **kwargs)
 
     # Call adapter to get chat response
@@ -429,6 +430,10 @@ async def call_embedding(
     async def _call_embed(
         adapter: ModelAdapter,
     ) -> Sequence[EmbeddingChunk]:
+        if "embed" != adapter.get_type() and "embed" not in adapter.get_type():
+            raise ValueError(
+                f"Model adapter {adapter.get_type()} does not support embedding"
+            )
         return await adapter.call_embed(text, **kwargs)
 
     return await _call_with_reflection(
