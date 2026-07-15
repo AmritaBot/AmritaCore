@@ -173,8 +173,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             for tool in self.tools
         ]
         resp_msg: dict[str, Any] = json.loads(tool_call.function.arguments)
-        last_step: str = resp_msg["last_step"]
-        summary: str = resp_msg["summary"]
+        last_step: str = resp_msg.get("last_step", "(Err: Not given)")
+        summary: str = resp_msg.get("summary", "(Err: Not given)")
         self.agent_last_step = last_step
 
         await self.chat_object.io_stream.yield_response(

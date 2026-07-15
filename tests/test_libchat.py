@@ -3,16 +3,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from amrita_core.base.adapter import AdapterManager
+from amrita_core.config import AmritaConfig
 from amrita_core.libchat import (
     _call_with_reflection,
     _validate_msg_list,
     call_completion,
     get_last_response,
+    get_tokens,
     text_generator,
     tools_caller,
 )
 from amrita_core.tools.models import ToolFunctionSchema
-from amrita_core.types import CONTENT_LIST_TYPE, Message, ToolResult, UniResponse
+from amrita_core.types import (
+    CONTENT_LIST_TYPE,
+    Message,
+    ToolResult,
+    UniResponse,
+    UniResponseUsage,
+)
 
 
 class TestTextGenerator:
@@ -295,3 +303,97 @@ class TestGetLastResponse:
 
         with pytest.raises(RuntimeError, match=r"No response found in generator."):
             await get_last_response(mock_generator())
+
+
+# get_tokens
+
+
+class TestGetTokens:
+    """Unit tests for the get_tokens function — the token-counting fallback
+    used when the API does not return usage data."""
+
+    @staticmethod
+    def _make_response(
+        content: str = "response",
+        prompt: int | None = 10,
+        completion: int | None = 5,
+        total: int | None = 15,
+    ) -> UniResponse[str, None]:
+        return UniResponse(
+            content=content,
+            tool_calls=[],
+            usage=UniResponseUsage(
+                prompt_tokens=prompt,  # type: ignore[arg-type]
+                completion_tokens=completion,  # type: ignore[arg-type]
+                total_tokens=total,  # type: ignore[arg-type]
+            ),
+        )
+
+    def test_api_has_full_usage_returns_directly(self):
+        """When the API provides complete usage data it is returned as-is."""
+        memory: CONTENT_LIST_TYPE = [Message(role="user", content="Hello")]
+        response = self._make_response(prompt=12, completion=3, total=15)
+        result = get_tokens(memory, response)
+        assert result is response.usage
+        assert result is not None
+        assert result.prompt_tokens == 12
+        assert result.completion_tokens == 3
+        assert result.total_tokens == 15
+
+    def test_api_usage_missing_total_does_not_return_directly(self):
+        """When total_tokens is None, the guard rejects it even if prompt and
+        completion are present, falling back to local estimation."""
+        memory: CONTENT_LIST_TYPE = [Message(role="user", content="Hello")]
+        response = UniResponse(
+            content="ok",
+            tool_calls=[],
+            usage=UniResponseUsage(
+                prompt_tokens=10,
+                completion_tokens=5,
+                total_tokens=None,  # type: ignore[arg-type]
+            ),
+        )
+        result = get_tokens(memory, response, config=AmritaConfig())  # pyright: ignore[reportArgumentType]
+        # Falls back to hybrid_token_count, so result is a new object
+        assert result is not response.usage
+        assert isinstance(result, UniResponseUsage)
+        assert result.prompt_tokens >= 0
+        assert result.completion_tokens >= 0
+        assert result.total_tokens == result.prompt_tokens + result.completion_tokens
+
+    def test_no_tokenizer_config_returns_none(self):
+        """When no_tokenizer is True and the API returns no usage, result is None."""
+        config = AmritaConfig()
+        config.function_config.no_tokenizer = True
+        memory: CONTENT_LIST_TYPE = [Message(role="user", content="Hello")]
+        response = UniResponse(content="ok", tool_calls=[], usage=None)
+        result = get_tokens(memory, response, config=config)  # pyright: ignore[reportArgumentType]
+        assert result is None
+
+    def test_fallback_local_estimation(self):
+        """When the API returns no usage, hybrid_token_count is used as a
+        rough estimate."""
+        config = AmritaConfig()
+        config.function_config.no_tokenizer = False
+        memory: CONTENT_LIST_TYPE = [
+            Message(role="user", content="Hello world"),
+            Message(role="assistant", content="Hi there!"),
+        ]
+        response = UniResponse(content="Sure, I can help.", tool_calls=[], usage=None)
+        result = get_tokens(memory, response, config=config)  # pyright: ignore[reportArgumentType]
+        assert result is not None
+        assert isinstance(result, UniResponseUsage)
+        assert result.prompt_tokens > 0
+        assert result.completion_tokens > 0
+        assert result.total_tokens == result.prompt_tokens + result.completion_tokens
+
+    def test_response_usage_is_none_triggers_fallback(self):
+        """response.usage = None always triggers the fallback path."""
+        config = AmritaConfig()
+        memory: CONTENT_LIST_TYPE = []
+        response: UniResponse[str, None] = UniResponse(
+            content="x", tool_calls=[], usage=None
+        )  # pyright: ignore[reportAssignmentType]
+        result = get_tokens(memory, response, config=config)
+        assert result is not None
+        assert isinstance(result, UniResponseUsage)
