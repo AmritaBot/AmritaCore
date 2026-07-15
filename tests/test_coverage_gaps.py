@@ -453,3 +453,134 @@ class TestProcessComponents:
             meta=SessionMetadata(session_id="no-commit"),
             mem=MemoryContext(memory=MemoryModel()),
         )  # pyright: ignore[reportGeneralTypeIssues]
+
+
+# RespState extra_usage — token accumulation baseline
+
+
+class TestRespStateExtraUsage:
+    """Verify that RespState.extra_usage is initialised correctly and can
+    accumulate token usage via gather_usage."""
+
+    def test_default_initialisation(self):
+        rs = RespState()
+        assert rs.extra_usage.prompt_tokens == 0
+        assert rs.extra_usage.completion_tokens == 0
+        assert rs.extra_usage.total_tokens == 0
+
+    def test_accumulation(self):
+        from amrita_core.utils import gather_usage
+
+        rs = RespState()
+        assert rs.extra_usage.prompt_tokens == 0
+
+        # accumulate first call
+        u1 = UniResponseUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+        gather_usage(rs.extra_usage, u1)
+        assert rs.extra_usage.prompt_tokens == 100
+        assert rs.extra_usage.completion_tokens == 50
+        assert rs.extra_usage.total_tokens == 150
+
+        # accumulate second call
+        u2 = UniResponseUsage(prompt_tokens=20, completion_tokens=10, total_tokens=30)
+        gather_usage(rs.extra_usage, u2)
+        assert rs.extra_usage.prompt_tokens == 120
+        assert rs.extra_usage.completion_tokens == 60
+        assert rs.extra_usage.total_tokens == 180
+
+        # accumulate None (should be a no-op)
+        gather_usage(rs.extra_usage, None)
+        assert rs.extra_usage.prompt_tokens == 120
+        assert rs.extra_usage.completion_tokens == 60
+        assert rs.extra_usage.total_tokens == 180
+
+    def test_multiple_accumulation_does_not_lose_data(self):
+        from amrita_core.utils import gather_usage
+
+        rs = RespState()
+        for i in range(1, 6):
+            u = UniResponseUsage(
+                prompt_tokens=i * 10, completion_tokens=i * 5, total_tokens=i * 15
+            )
+            gather_usage(rs.extra_usage, u)
+        # sum(10..50) = 150, sum(5..25) = 75, sum(15..75) = 225
+        assert rs.extra_usage.prompt_tokens == 150
+        assert rs.extra_usage.completion_tokens == 75
+        assert rs.extra_usage.total_tokens == 225
+
+
+# _limiting_memory node — usage collected from MemoryLimiter
+
+
+class TestLimitingMemoryNode:
+    """Test that the _limiting_memory workflow node correctly collects
+    MemoryLimiter.usage into RespState.extra_usage."""
+
+    @pytest.mark.asyncio
+    async def test_collects_limiter_usage_when_abstract_enabled(self):
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from amrita_core.chatmanager.chat_object import _limiting_memory
+
+        # Build a minimal ChatObject mock
+        chat_obj = MagicMock()
+        chat_obj._di_memory = MemoryContext(
+            memory=MemoryModel(messages=[Message(role="user", content="hello")])
+        )
+        chat_obj._di_input = _simple_ip()
+        chat_obj._di_resp = RespState()
+        chat_obj._di_ability = AbilityState(
+            config=AmritaConfig(),
+            slot=BackendSlots(LegacyBackend(), LegacyBackend()),
+        )
+        chat_obj._di_ability.config.llm.enable_memory_abstract = True
+        chat_obj._di_ability.config.llm.enable_tokens_limit = False
+        chat_obj.io_stream._wait_for_continue = AsyncMock(return_value=None)
+
+        limiter_usage = UniResponseUsage(
+            prompt_tokens=30, completion_tokens=15, total_tokens=45
+        )
+
+        # Mock MemoryLimiter so it doesn't call real LLM
+        class _FakeLimiter:
+            usage = limiter_usage
+            memory = chat_obj._di_memory.memory  # preserve original memory
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *args):
+                pass
+
+            async def run_enforce(self):
+                pass
+
+        with patch(
+            "amrita_core.chatmanager.chat_object.MemoryLimiter",
+            return_value=_FakeLimiter(),
+        ):
+            await _limiting_memory.func(chat_obj=chat_obj)  # type: ignore[arg-type]
+
+        # Verify usage was collected from MemoryLimiter.usage into extra_usage
+        assert chat_obj._di_resp.extra_usage.prompt_tokens == 30
+        assert chat_obj._di_resp.extra_usage.completion_tokens == 15
+        assert chat_obj._di_resp.extra_usage.total_tokens == 45
+
+    @pytest.mark.asyncio
+    async def test_skips_when_abstract_disabled(self):
+        from amrita_core.chatmanager.chat_object import _limiting_memory
+
+        chat_obj = MagicMock()
+        chat_obj._di_ability = AbilityState(
+            config=AmritaConfig(),
+            slot=BackendSlots(LegacyBackend(), LegacyBackend()),
+        )
+        chat_obj._di_ability.config.llm.enable_memory_abstract = False
+        chat_obj._di_resp = RespState()
+
+        await _limiting_memory.func(chat_obj=chat_obj)  # type: ignore[arg-type]
+
+        # extra_usage should remain at zeroes
+        assert chat_obj._di_resp.extra_usage.prompt_tokens == 0
+        assert chat_obj._di_resp.extra_usage.completion_tokens == 0
+        assert chat_obj._di_resp.extra_usage.total_tokens == 0

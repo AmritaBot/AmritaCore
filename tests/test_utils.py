@@ -3,8 +3,11 @@ from datetime import datetime
 
 import pytz
 
+from amrita_core.types import UniResponseUsage
 from amrita_core.utils import (
+    gather_usage,
     get_current_datetime_timestamp,
+    n2zero,
     remove_think_tag,
     split_list,
 )
@@ -58,3 +61,98 @@ def test_get_current_datetime_timestamp():
     )
     assert (year_utc, month_utc, day_utc) == (2023, 1, 1)
     assert (hour_utc, minute_utc, second_utc) == (20, 0, 0)
+
+
+# n2zero
+
+
+class TestN2zero:
+    def test_with_positive_int(self):
+        assert n2zero(42) == 42
+
+    def test_with_zero(self):
+        assert n2zero(0) == 0
+
+    def test_with_none(self):
+        assert n2zero(None) == 0
+
+
+# gather_usage
+
+
+class TestGatherUsage:
+    """Unit tests for the gather_usage utility — the core token-accumulation
+    function used by MemoryLimiter, agent strategies, and workflow nodes."""
+
+    @staticmethod
+    def _make_usage(
+        prompt: int = 0, completion: int = 0, total: int | None = None
+    ) -> UniResponseUsage[int]:
+        return UniResponseUsage(
+            prompt_tokens=prompt,
+            completion_tokens=completion,
+            total_tokens=total if total is not None else prompt + completion,
+        )
+
+    def test_basic_accumulation(self):
+        base = self._make_usage(10, 5, 15)
+        extra = self._make_usage(20, 10, 30)
+        result = gather_usage(base, extra)
+        assert result is base
+        assert base.prompt_tokens == 30
+        assert base.completion_tokens == 15
+        assert base.total_tokens == 45
+
+    def test_none_usage_is_skipped(self):
+        base = self._make_usage(10, 5, 15)
+        result = gather_usage(base, None)
+        assert result is base
+        assert base.prompt_tokens == 10
+        assert base.completion_tokens == 5
+        assert base.total_tokens == 15
+
+    def test_usage_with_none_prompt(self):
+        base = self._make_usage(10, 5, 15)
+        extra: UniResponseUsage[int | None] = UniResponseUsage(
+            prompt_tokens=None,
+            completion_tokens=3,
+            total_tokens=3,  # type: ignore[arg-type]
+        )
+        gather_usage(base, extra)
+        assert base.prompt_tokens == 10  # n2zero(None) == 0
+        assert base.completion_tokens == 8
+        assert base.total_tokens == 18
+
+    def test_total_tokens_none_falls_back_to_sum(self):
+        base = self._make_usage(0, 0, 0)
+        extra: UniResponseUsage[int | None] = UniResponseUsage(
+            prompt_tokens=7,
+            completion_tokens=3,
+            total_tokens=None,  # type: ignore[arg-type]
+        )
+        gather_usage(base, extra)
+        assert base.total_tokens == 10  # 7 + 3
+
+    def test_multiple_args(self):
+        base = self._make_usage(0, 0, 0)
+        u1 = self._make_usage(1, 2, 3)
+        u2 = self._make_usage(4, 5, 9)
+        u3 = self._make_usage(10, 20, 30)
+        gather_usage(base, u1, u2, u3)
+        assert base.prompt_tokens == 15
+        assert base.completion_tokens == 27
+        assert base.total_tokens == 42
+
+    def test_all_none_args(self):
+        base = self._make_usage(5, 5, 10)
+        result = gather_usage(base, None, None, None)
+        assert result is base
+        assert base.prompt_tokens == 5
+        assert base.completion_tokens == 5
+        assert base.total_tokens == 10
+
+    def test_returns_same_object(self):
+        base = self._make_usage(1, 1, 2)
+        extra = self._make_usage(3, 4, 7)
+        result = gather_usage(base, extra)
+        assert result is base

@@ -6,7 +6,7 @@ import pkgutil
 from collections.abc import Generator, Iterable, Sequence
 from datetime import datetime
 from types import ModuleType
-from typing import Any, Generic, Literal, TypeVar, overload
+from typing import Any, Literal, TypeVar, overload
 
 import pytz
 from amrita_sense.logging import logger
@@ -39,7 +39,7 @@ def _did_you_mean_hint(
     matches = difflib.get_close_matches(candidate, choices, n=max_hints, cutoff=cutoff)
     if not matches:
         return ""
-    quoted = ", ".join(f"'{m}'" for m in matches)
+    quoted = ", ".join(f"'{m}'" for m in matches)  # pragma: no cover
     return f" Did you mean: {quoted}?"
 
 
@@ -95,20 +95,13 @@ def get_current_datetime_timestamp(utc_time: None | datetime = None):
     return f"[{formatted_date} {formatted_weekday} {formatted_time}]"
 
 
-def kw2dict(**kwargs: Any) -> dict[str, Any]:
+def kw2dict(**kwargs: Any) -> dict[str, Any]:  # pragma: no cover
     """Return the keyword arguments as a dictionary."""
     return kwargs
 
 
 def n2zero(n: int | None) -> int:
     return n or 0
-
-
-class Ref(Generic[T]):
-    value: T
-
-    def __init__(self, value: T) -> None:
-        self.value = value
 
 
 def gather_usage(
