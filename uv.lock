@@ -228,7 +228,7 @@ wheels = [
 
 [[package]]
 name = "amrita-core"
-version = "0.12.4"
+version = "0.12.5"
 source = { editable = "." }
 dependencies = [
     { name = "aiofiles" },
@@ -305,7 +305,7 @@ dev = [
 
 [[package]]
 name = "amrita-sense"
-version = "0.4.5.1"
+version = "0.5.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiologic" },
@@ -314,9 +314,9 @@ dependencies = [
     { name = "exceptiongroup" },
     { name = "loguru" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ae/5d/670a9a22e76e962b0aec8667f403c8ea5af3529e3c25bff2ac796047701f/amrita_sense-0.4.5.1.tar.gz", hash = "sha256:6168f92e025fd86bead3e8e080275c200af1754360cb1105421ec417be7093c3", size = 75438, upload-time = "2026-07-13T14:07:03.163Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/67/9d3cac7d0464d12a9a906a9eb449b98e42775dc033efeeba6e2bdb23b862/amrita_sense-0.5.0.tar.gz", hash = "sha256:a48f00eca3eb8ccd69e79b76f5b1609e9c9c935c8bf095e2438daaa8db7ac5ad", size = 84919, upload-time = "2026-07-22T07:05:24.59Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/e0/027a1b634f8d5179fe05e35af0ec4c9a08e76d7678a154199f0074b3a870/amrita_sense-0.4.5.1-py3-none-any.whl", hash = "sha256:f41839e45039756133729c08a5e97ee4d5645a34536945275ce45b93781d8e5e", size = 67291, upload-time = "2026-07-13T14:07:02.213Z" },
+    { url = "https://files.pythonhosted.org/packages/a2/09/3d28a8ac63b49de2b2cf8e20d66ba4536ff657cd596ff3728b3c09887374/amrita_sense-0.5.0-py3-none-any.whl", hash = "sha256:fd9c2f40ecc818319e30e97c6b0aa8d66a7b9b2fae797ee7ea3f533236e19933", size = 76552, upload-time = "2026-07-22T07:05:23.569Z" },
 ]
 
 [[package]]
