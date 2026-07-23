@@ -5,6 +5,29 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 export default withMermaid({
   lastUpdated: true,
   ignoreDeadLinks: true,
+  vite: {
+    build: {
+      rollupOptions: {
+        onLog(level, log, handler) {
+          if (log.message?.includes("points to missing source files")) return;
+          handler(level, log);
+        },
+      },
+    },
+    optimizeDeps: {
+      exclude: [
+        "@nolebase/vitepress-plugin-enhanced-readabilities/client",
+        "vitepress",
+        "@nolebase/ui",
+      ],
+    },
+    ssr: {
+      noExternal: [
+        "@nolebase/vitepress-plugin-enhanced-readabilities",
+        "@nolebase/ui",
+      ],
+    },
+  },
   sitemap: {
     hostname: "https://core.amritabot.com",
   },
@@ -112,6 +135,10 @@ export default withMermaid({
                 text: "Suspend Mechanism",
                 link: "/guide/concepts/suspend",
               },
+              {
+                text: "Workflow Engine",
+                link: "/guide/concepts/workflow-engine",
+              },
             ],
           },
           {
@@ -133,6 +160,10 @@ export default withMermaid({
               {
                 text: "Function Implementation",
                 link: "/guide/function-implementation",
+              },
+              {
+                text: "Prompt Engineering",
+                link: "/guide/prompt-engineering",
               },
             ],
           },
@@ -421,6 +452,10 @@ export default withMermaid({
                 text: "挂起机制",
                 link: "/zh/guide/concepts/suspend",
               },
+              {
+                text: "工作流引擎",
+                link: "/zh/guide/concepts/workflow-engine",
+              },
             ],
           },
           {
@@ -439,6 +474,10 @@ export default withMermaid({
               {
                 text: "函数实现",
                 link: "/zh/guide/function-implementation",
+              },
+              {
+                text: "提示工程",
+                link: "/zh/guide/prompt-engineering",
               },
             ],
           },
@@ -672,16 +711,7 @@ export default withMermaid({
       },
     },
   },
-  vite: {
-    build: {
-      rollupOptions: {
-        onLog(level, log, handler) {
-          if (log.message?.includes("points to missing source files")) return;
-          handler(level, log);
-        },
-      },
-    },
-  },
+
   mermaidPlugin: {
     class: "mermaid my-class", // set additional css classes for parent container
   },

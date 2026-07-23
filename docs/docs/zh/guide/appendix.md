@@ -34,6 +34,12 @@ AI 系统保留和访问先前交互信息的机制。AmritaCore 的记忆系统
 - **事件系统**：在各个阶段拦截和修改处理管道的机制
 - **会话**：具有自己记忆和状态的隔离对话线程
 - **配置**：控制 AmritaCore 在不同场景下如何运行的设置
+- **工作流引擎**：自 v0.9.0rc1 起驱动 ChatObject 执行的可组合节点图系统。节点通过 `>>` 连接并由 `WorkflowInterpreter` 执行。由 `amrita-sense` 包提供。
+- **StrategyLikedObject**：有状态 agent 策略实例的抽象基类。与 `AgentStrategy`（作为类型传递）不同，`StrategyLikedObject` 作为预初始化的实例传递，支持内部状态机和资源管理。
+- **预组合工作流**：可直接使用的 `NodeComposeRendered` 流水线图，可传递给 `ChatObject(workflow=...)`。在 `amrita_core.builtins.workflows` 中提供（如 `SIMPLE_REACT`、`SIMPLE_CHAT`）。
+- **DI 资源字段**：`StrategyContext` 上的依赖注入资源字段（如 `preset`、`config`、`io_stream`），直接向 agent 策略提供框架服务，无需通过 `ChatObject` 中转。
+- **STRATEGY_INIT**：`amrita_core.components.react` 中的工作流节点，在 agent 入口点之前使用 DI 资源字段初始化 `StrategyContext`。由预组合的外部工作流使用。
+- **提示工程**：设计和优化提示词（系统消息、模板、指令）以引导 LLM 产生期望输出的实践方法。包括结构化指令、思维链（Chain-of-Thought）、少样本提示（few-shot）和角色分配等技术。
 
 ### 9.1.8 缩写词
 

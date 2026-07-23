@@ -120,6 +120,47 @@ A minimal workflow strategy that performs no action, useful for skipping tool ex
 
 ## Implementation Guide
 
+### Accessing DI Resources in Strategies (v0.12.6+)
+
+Agent strategies extend `_StrategyBase` (via `AgentStrategy` or `StrategyLikedObject`), which provides **convenience properties** for accessing DI resources. Starting from v0.12.6, strategies should use these properties instead of reaching through `self.chat_object`.
+
+**Available convenience properties:**
+
+| Property                | Resolves from          | Fallback (if ctx field is None)         |
+| ----------------------- | ---------------------- | --------------------------------------- |
+| `self.preset`           | `ctx.preset`           | `self.chat_object.preset`               |
+| `self.config`           | `ctx.config`           | `self.chat_object.config`               |
+| `self.io_stream`        | `ctx.io_stream`        | `self.chat_object.io_stream`            |
+| `self.train_content`    | `ctx.train_content`    | `self.chat_object.train.content`        |
+| `self.stream_id`        | `ctx.stream_id`        | `self.chat_object.stream_id`            |
+| `self.resp_extra_usage` | `ctx.resp_extra_usage` | `self.chat_object._di_resp.extra_usage` |
+
+The `resp_extra_usage` property also supports a **setter**, allowing strategies to update usage tracking directly.
+
+**Example — before (legacy):**
+
+```python
+class MyStrategy(AgentStrategy):
+    async def single_execute(self) -> bool:
+        preset = self.chat_object.preset          # reaches through ChatObject
+        config = self.chat_object.config
+        await self.chat_object.io_stream.yield_response(...)
+        return True
+```
+
+**Example — after (v0.12.6+):**
+
+```python
+class MyStrategy(AgentStrategy):
+    async def single_execute(self) -> bool:
+        preset = self.preset                      # uses convenience property
+        config = self.config
+        await self.io_stream.yield_response(...)
+        return True
+```
+
+> **How it works**: When `StrategyContext` DI fields are populated (either by `STRATEGY_INIT` node or by `_run_strategy`), the properties return them directly. Otherwise they fall back to `chat_object` for backward compatibility.
+
 ### Creating Custom Agent Strategies
 
 To create a custom agent strategy, you have two options:

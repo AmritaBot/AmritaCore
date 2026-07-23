@@ -16,14 +16,58 @@ from amrita_sense.hook.matcher import Depends
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 
+from amrita_core.agent.context import build_strategy_context
 from amrita_core.contents import MessageMetadataPayloadError, MessageWithMetadata
 from amrita_core.contexts import (
     AbilityState,
     AgentLoopState,
+    GeneralInput,
+    RespState,
+    SessionMetadata,
     StrategyPayload,
     WorkingState,
 )
 from amrita_core.enums import SuspendEnum
+from amrita_core.types.message import Message, SendMessageWrap
+
+
+@Node(tag="subconscious_strategy_init")
+async def STRATEGY_INIT(
+    input_ctx: GeneralInput,
+    loop: AgentLoopState,
+    wok: WorkingState,
+    ab: AbilityState,
+    resp: RespState,
+    session: SessionMetadata,
+    intp: WorkflowInterpreter[SuspendObjectStream] = Depends(POINTER_DEPENDS),
+) -> None:
+    """Initialize the strategy context.
+
+    Equivalent to the `_run_strategy('agent' branch)` in chat_object.py.
+    AGENT_ENTRY is executed right after, and agent.strategy(loop.stg_ctx)
+    instantiates ReActAgentStrategy.
+
+    Populates ``StrategyContext`` with DI resource fields so that strategies
+    can access preset, config, io_stream, tools_manager, etc. via the
+    ``_StrategyBase`` convenience properties without reaching through
+    ``chat_object``.
+    """
+    assert wok.context_wrap is not None, "Context wrap must be built before strategy"
+
+    context = SendMessageWrap.validate_messages(
+        [input_ctx.train, Message(role="user", content=input_ctx.user_input)]
+    )
+    loop.stg_ctx = build_strategy_context(
+        user_input=input_ctx.user_input,
+        original_context=context,
+        preset=ab.preset,
+        config=ab.config,
+        tools_manager=ab.ability.tools if ab.ability else None,
+        io_stream=intp.object_io,
+        train_content=input_ctx.train.content,
+        stream_id=session.stream_id,
+        resp_extra_usage=resp.extra_usage,
+    )
 
 
 @Node()

@@ -34,31 +34,33 @@ graph LR
     F --> G[LLM_COMPLETION]
     G --> H[_post_runner]
     H --> I[COMMIT_MEMORY]
-    F -.->|agent mode| J[AGENT_ENTRY]
-    J --> K[SINGLE_STRATEGY_CALL]
-    K -->|WHILE| K
-    K --> L[AGENT_POST_PROCESS]
+    F -.->|agent mode| J[STRATEGY_INIT]
+    J --> K[AGENT_ENTRY]
+    K --> L[SINGLE_STRATEGY_CALL]
+    L -->|WHILE| L
+    L --> M[AGENT_POST_PROCESS]
 ```
 
 The `_run_strategy` node branches into an agent sub-workflow when using `"agent"` or `"agent-mixed"` strategy categories. The sub-workflow uses a `WHILE` loop with a counter factory (`REACT_COUNTER`) to iterate over tool calls.
 
-| Node                   | SuspendEnum Tag     | Location                         | Description                                       |
-| ---------------------- | ------------------- | -------------------------------- | ------------------------------------------------- |
-| `LOAD_STATE`           | `LOAD_STATE`        | `amrita_core.components.process` | Loads runtime state from backends                 |
-| `JINJA2_RENDER`        | `TRAIN_RENDER`      | `amrita_core.components.llm`     | Renders the Jinja2 system prompt template         |
-| `_limiting_memory`     | `MEMORY`            | `chat_object.py` (retained)      | Applies memory length and token limits            |
-| `BUILD_MESSAGE`        | `MESSAGES_PREPARED` | `amrita_core.components.process` | Prepares the final message list for the LLM       |
-| `_pre_runner`          | `PRECOMPLE`         | `chat_object.py` (retained)      | Triggers pre-completion matcher events            |
-| `_run_strategy`        | `STRATEGY_START`    | `chat_object.py` (retained)      | Executes strategy; branches to agent sub-workflow |
-| `AGENT_ENTRY`          | —                   | `amrita_core.components.react`   | Initializes agent strategy instance               |
-| `SINGLE_STRATEGY_CALL` | `SINGLE_TOOL`       | `amrita_core.components.react`   | Executes one tool call iteration                  |
-| `REACT_COUNTER`        | `ADVANCE_COUNTER`   | `amrita_core.components.react`   | Advances the tool-call counter                    |
-| `AGENT_POST_PROCESS`   | —                   | `amrita_core.components.react`   | Post-processes strategy after all tool calls      |
-| `LLM_COMPLETION`       | `LLM_CALL`          | `amrita_core.components.llm`     | Calls the LLM via the adapter                     |
-| `_post_runner`         | `COMPLE`            | `chat_object.py` (retained)      | Triggers post-completion matcher events           |
-| `COMMIT_MEMORY`        | `COMMIT_MEMORY`     | `amrita_core.components.process` | Commits memory back to the backend                |
-| `APPEND_RESPONSE`      | `MEMORY_APPEND`     | `amrita_core.components.process` | Appends LLM response to context wrap              |
-| `APPLY_CONTEXT`        | `APPLY_CONTEXT`     | `amrita_core.components.process` | Writes context wrap back into memory model        |
+| Node                   | SuspendEnum Tag     | Location                         | Description                                           |
+| ---------------------- | ------------------- | -------------------------------- | ----------------------------------------------------- |
+| `LOAD_STATE`           | `LOAD_STATE`        | `amrita_core.components.process` | Loads runtime state from backends                     |
+| `JINJA2_RENDER`        | `TRAIN_RENDER`      | `amrita_core.components.llm`     | Renders the Jinja2 system prompt template             |
+| `_limiting_memory`     | `MEMORY`            | `chat_object.py` (retained)      | Applies memory length and token limits                |
+| `BUILD_MESSAGE`        | `MESSAGES_PREPARED` | `amrita_core.components.process` | Prepares the final message list for the LLM           |
+| `_pre_runner`          | `PRECOMPLE`         | `chat_object.py` (retained)      | Triggers pre-completion matcher events                |
+| `_run_strategy`        | `STRATEGY_START`    | `chat_object.py` (retained)      | Executes strategy; branches to agent sub-workflow     |
+| `STRATEGY_INIT`        | —                   | `amrita_core.components.react`   | Initializes `StrategyContext` with DI resource fields |
+| `AGENT_ENTRY`          | —                   | `amrita_core.components.react`   | Initializes agent strategy instance                   |
+| `SINGLE_STRATEGY_CALL` | `SINGLE_TOOL`       | `amrita_core.components.react`   | Executes one tool call iteration                      |
+| `REACT_COUNTER`        | `ADVANCE_COUNTER`   | `amrita_core.components.react`   | Advances the tool-call counter                        |
+| `AGENT_POST_PROCESS`   | —                   | `amrita_core.components.react`   | Post-processes strategy after all tool calls          |
+| `LLM_COMPLETION`       | `LLM_CALL`          | `amrita_core.components.llm`     | Calls the LLM via the adapter                         |
+| `_post_runner`         | `COMPLE`            | `chat_object.py` (retained)      | Triggers post-completion matcher events               |
+| `COMMIT_MEMORY`        | `COMMIT_MEMORY`     | `amrita_core.components.process` | Commits memory back to the backend                    |
+| `APPEND_RESPONSE`      | `MEMORY_APPEND`     | `amrita_core.components.process` | Appends LLM response to context wrap                  |
+| `APPLY_CONTEXT`        | `APPLY_CONTEXT`     | `amrita_core.components.process` | Writes context wrap back into memory model            |
 
 ### Control Flow Instructions
 
@@ -126,6 +128,44 @@ custom_nodes._nodes += (log_completion,)
 
 chat = ChatObject(..., archived_nodes=custom_nodes)
 ```
+
+## Pre-composed Workflows (v0.12.6+)
+
+Since v0.12.6, AmritaCore ships pre-composed workflow pipelines in `amrita_core.builtins.workflows`. These are ready-to-use `NodeComposeRendered` graphs that can be passed directly to `ChatObject(workflow=...)`.
+
+| Workflow       | Composition                                                                                      | Use Case                              |
+| -------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| `REACT_BLOCK`  | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(...) >> AGENT_POST_PROCESS`                               | ReAct loop block (no LLM completion)  |
+| `SIMPLE_REACT` | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY` | Full ReAct pipeline with tool calling |
+| `REACT_ONLY`   | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                    | ReAct pipeline without final LLM call |
+| `SIMPLE_CHAT`  | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                | Plain chat without agent/tool calling |
+
+### Using Custom Workflows
+
+Pass a pre-composed workflow via the `workflow` parameter:
+
+```python
+from amrita_core import ChatObject
+from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
+
+# Use the full ReAct pipeline
+chat = ChatObject(
+    train={"role": "system", "content": "You are a helpful assistant."},
+    user_input="Search for the latest AI news.",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
+)
+
+# Or use plain chat (no agent)
+chat = ChatObject(
+    train={"role": "system", "content": "You are a helpful assistant."},
+    user_input="Hello!",
+    session_id="session_456",
+    workflow=SIMPLE_CHAT,
+)
+```
+
+> **Note**: `workflow` and `archived_nodes` are **mutually exclusive** — providing both raises a `ValueError`. When neither is supplied, the built-in default pipeline is used.
 
 ## Migration from v0.8.x
 

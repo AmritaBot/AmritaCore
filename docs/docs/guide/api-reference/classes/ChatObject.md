@@ -68,8 +68,7 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 - `middleware` (Callable[[Self], Awaitable[Any]] | None, optional): Async middleware function that wraps the entire workflow execution. When set, the workflow engine delegates execution to the middleware instead of running the default pipeline. Useful for custom orchestration, monitoring, or cross-cutting concerns (default: None)
 - `archived_nodes` (SubprogramStorage | None, optional): Additional node subprograms to append at the end of the workflow pipeline. Allows extending the ChatObject execution with custom steps after the standard pipeline completes. When `None`, defaults to `ARCHIVED_NODES` from `amrita_sense.instructions` (default: None)
 - `backend_options` ([DatabackendOptions](DatabackendOptions.md) | None, optional): Options controlling backend fetch and commit behavior. Allows selectively skipping memory fetch, tools fetch, MCP fetch, presets fetch, ability extra settings, and memory commit (default: None)
-
-## Methods
+- `workflow` (NodeComposeRendered | None, optional): Pre-rendered workflow to execute instead of the default pipeline. When provided, the ChatObject uses this external workflow graph rather than building the built-in one. **Cannot be used together with `archived_nodes`** — if both are provided, a `ValueError` is raised. Supported pre-composed workflows are available in `amrita_core.builtins.workflows` (e.g. `SIMPLE_REACT`, `REACT_ONLY`, `SIMPLE_CHAT`). (default: None)
 
 ### Core Methods
 
@@ -212,6 +211,16 @@ chat_with_custom_stream = ChatObject(
     user_input="Hello!",
     session_id="session_123",
     io_stream=custom_stream,
+)
+
+# Example with pre-composed workflow (v0.12.6+)
+from amrita_core.builtins.workflows import SIMPLE_REACT
+
+chat_with_workflow = ChatObject(
+    train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
 )
 
 # ❌ INVALID - This will cause a TypeError:

@@ -285,7 +285,7 @@ monitor_chain = IF(should_monitor, record_start, NOP)
 ### Further Reading
 
 - [AmritaSense source](https://github.com/AmritaBot/AmritaSense)
-- [AmritaCore components](https://github.com/AmritaBot/AmritaCore/tree/main/feat-components/src/amrita_core/components)
-- [Component node reference (docstrings)](https://github.com/AmritaBot/AmritaCore/tree/main/feat-components/src/amrita_core/components)
+- [AmritaCore components](https://github.com/AmritaBot/AmritaCore/tree/main/src/amrita_core/components)
+- [Component node reference (docstrings)](https://github.com/AmritaBot/AmritaCore/tree/main/src/amrita_core/components)
 
 </div>

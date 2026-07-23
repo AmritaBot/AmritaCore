@@ -229,3 +229,41 @@ The `on_post_process()` hook is called after successful strategy execution and c
 - **Timing**: Called after all tool executions complete successfully
 - **Applicability**: Available for **all strategy categories** (`"agent"`, `"rag"`, `"workflow"`, `"agent-mixed"`)
 - **Use Cases**: Adding final instructions, context summarization, or cleanup operations
+
+## 9.6 Built-in Workflows (v0.12.6+)
+
+AmritaCore ships pre-composed workflow pipelines in `amrita_core.builtins.workflows`. These are ready-to-use `NodeComposeRendered` graphs that can be passed to `ChatObject(workflow=...)` to replace the default execution pipeline.
+
+### Available Workflows
+
+| Workflow       | Description                                                                                                                 |
+| -------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `REACT_BLOCK`  | ReAct loop block: `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS` |
+| `SIMPLE_REACT` | Full ReAct pipeline: `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`       |
+| `REACT_ONLY`   | ReAct pipeline without final LLM call: `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                        |
+| `SIMPLE_CHAT`  | Plain chat (no agent): `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                    |
+
+### Usage
+
+```python
+from amrita_core import ChatObject
+from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
+
+# Full ReAct agent pipeline
+chat = ChatObject(
+    train={"role": "system", "content": "You are a helpful assistant."},
+    user_input="What is the weather today?",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
+)
+
+# Plain chat — no agent, no tool calling
+chat = ChatObject(
+    train={"role": "system", "content": "You are a helpful assistant."},
+    user_input="Hello!",
+    session_id="session_456",
+    workflow=SIMPLE_CHAT,
+)
+```
+
+> **Important**: `workflow` and `archived_nodes` are mutually exclusive — providing both raises `ValueError`. When neither is supplied, the built-in default pipeline is used.

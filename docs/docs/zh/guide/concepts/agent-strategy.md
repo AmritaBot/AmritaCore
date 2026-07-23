@@ -120,6 +120,47 @@ AmritaCore的Agent策略系统通过**模板方法模式**得到了增强，该�
 
 ## 实现指南
 
+### 在策略中访问 DI 资源（v0.12.6+）
+
+Agent 策略继承 `_StrategyBase`（通过 `AgentStrategy` 或 `StrategyLikedObject`），其中提供了**便利属性**用于访问 DI 资源。自 v0.12.6 起，策略应使用这些属性，而非通过 `self.chat_object` 间接访问。
+
+**可用的便利属性：**
+
+| 属性                    | 解析来源               | 回退（当 ctx 字段为 None 时）           |
+| ----------------------- | ---------------------- | --------------------------------------- |
+| `self.preset`           | `ctx.preset`           | `self.chat_object.preset`               |
+| `self.config`           | `ctx.config`           | `self.chat_object.config`               |
+| `self.io_stream`        | `ctx.io_stream`        | `self.chat_object.io_stream`            |
+| `self.train_content`    | `ctx.train_content`    | `self.chat_object.train.content`        |
+| `self.stream_id`        | `ctx.stream_id`        | `self.chat_object.stream_id`            |
+| `self.resp_extra_usage` | `ctx.resp_extra_usage` | `self.chat_object._di_resp.extra_usage` |
+
+`resp_extra_usage` 属性还支持 **setter**，允许策略直接更新用量追踪。
+
+**示例 — 之前（遗留）：**
+
+```python
+class MyStrategy(AgentStrategy):
+    async def single_execute(self) -> bool:
+        preset = self.chat_object.preset          # 通过 ChatObject 间接访问
+        config = self.chat_object.config
+        await self.chat_object.io_stream.yield_response(...)
+        return True
+```
+
+**示例 — 之后（v0.12.6+）：**
+
+```python
+class MyStrategy(AgentStrategy):
+    async def single_execute(self) -> bool:
+        preset = self.preset                      # 使用便利属性
+        config = self.config
+        await self.io_stream.yield_response(...)
+        return True
+```
+
+> **工作原理**：当 `StrategyContext` 的 DI 字段已填充时（无论是通过 `STRATEGY_INIT` 节点还是 `_run_strategy`），属性直接返回这些值。否则回退到 `chat_object` 以保持向后兼容。
+
 ### 创建自定义Agent策略
 
 要创建自定义Agent策略，您有两种选择：

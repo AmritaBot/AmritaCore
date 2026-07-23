@@ -158,6 +158,33 @@ chat = ChatObject(
 )
 ```
 
+#### Using Pre-composed Workflows (v0.12.6+)
+
+You can pass a pre-composed workflow to replace the default pipeline:
+
+```python
+from amrita_core import ChatObject
+from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
+
+# Full ReAct agent pipeline
+chat = ChatObject(
+    train={"role": "system", "content": "You are a helpful assistant."},
+    user_input="Search for the latest AI news.",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
+)
+
+# Plain chat — no agent, no tool calling
+chat = ChatObject(
+    train={"role": "system", "content": "You are a helpful assistant."},
+    user_input="Hello!",
+    session_id="session_456",
+    workflow=SIMPLE_CHAT,
+)
+```
+
+> See [`builtins.workflows`](../guide/builtins#_9-6-built-in-workflows-v0-12-6) for all available workflows.
+
 ### 4.2.2 begin() Executing Conversations
 
 #### Basic Usage
