@@ -1,0 +1,33 @@
+from amrita_sense import WHILE
+
+from amrita_core.components.llm import JINJA2_RENDER, LLM_COMPLETION
+from amrita_core.components.process import BUILD_MESSAGE, COMMIT_MEMORY, LOAD_STATE
+from amrita_core.components.react import (
+    AGENT_ENTRY,
+    AGENT_POST_PROCESS,
+    REACT_COUNTER,
+    SINGLE_STRATEGY_CALL,
+    STRATEGY_INIT,
+)
+
+REACT_BLOCK = (
+    STRATEGY_INIT
+    >> AGENT_ENTRY
+    >> WHILE(SINGLE_STRATEGY_CALL(fallback_on_fail=False)).ACTION(REACT_COUNTER)
+    >> AGENT_POST_PROCESS
+)
+
+SIMPLE_REACT = (
+    LOAD_STATE
+    >> JINJA2_RENDER
+    >> BUILD_MESSAGE
+    >> REACT_BLOCK
+    >> LLM_COMPLETION
+    >> COMMIT_MEMORY
+)
+
+REACT_ONLY = LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK
+
+SIMPLE_CHAT = (
+    LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY
+)

@@ -121,7 +121,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         may not support ``tool_choice``, so forced tool-choice values must
         be downgraded to ``"auto"`` to avoid provider errors.
         """
-        preset = self.chat_object.preset
+        preset = self.preset
         return (
             preset is not None
             and not isinstance(preset, str)
@@ -145,8 +145,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
         self.tools = []
-        self.origin_instruction = self.chat_object.train.content
-        config = self.chat_object.config
+        self.origin_instruction = self.train_content
+        config = self.config
         if config.builtin.tool_calling_mode == "agent":
             self.tools.append(STOP_TOOL)
         self.tools.extend(self.tools_manager.tools_meta().values())
@@ -177,7 +177,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         summary: str = resp_msg.get("summary", "(Err: Not given)")
         self.agent_last_step = last_step
 
-        await self.chat_object.io_stream.yield_response(
+        await self.io_stream.yield_response(
             MessageWithMetadata(
                 summary,
                 AgentReasoningMetadata(
@@ -193,7 +193,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         predict_tools = self._should_predict_tools()
 
         if use_structured:
-            depth = self.chat_object.config.builtin.react_config.reasoning_depth
+            depth = self.config.builtin.react_config.reasoning_depth
             template_content = await asyncio.to_thread(
                 self._structured_reasoning_template.render,
                 tools=tools,
@@ -235,10 +235,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         ct: UniResponse[str, None] = await get_last_response(
             call_completion(
                 reasoning_trigger_msg,
-                preset=self.ctx.chat_object.preset,
-                config=self.chat_object.config,
+                preset=self.preset,
+                config=self.config,
             ),
-            yield_to=self.ctx.chat_object.io_stream,
+            yield_to=self.io_stream,
             yield_to_wrapper=_yield_wrapper,
         )
 
@@ -256,7 +256,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 predicted = self._parse_tool_prediction(reasoning_text)
                 if predicted:
                     self._predicted_tools = predicted
-                    await self.chat_object.io_stream.yield_response(
+                    await self.io_stream.yield_response(
                         MessageWithMetadata(
                             content=f"[ToolPrediction] Expecting: {', '.join(predicted)}",
                             metadata=AgentToolPredictionMetadata(
@@ -268,14 +268,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         )
                     )
 
-        self.chat_object._di_resp.extra_usage = gather_usage(
-            self.chat_object._di_resp.extra_usage, ct.usage
-        )
+        self.resp_extra_usage = gather_usage(self.resp_extra_usage, ct.usage)
         return ct
 
     def _should_use_structured_reasoning(self) -> bool:
         """Check whether structured reasoning should be used."""
-        config = self.chat_object.config
+        config = self.config
         return (
             hasattr(config, "builtin")
             and hasattr(config.builtin, "react_config")
@@ -285,7 +283,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     def _should_predict_tools(self) -> bool:
         """Check whether tool prediction during reasoning should be used."""
-        config = self.chat_object.config
+        config = self.config
         return self._should_use_structured_reasoning() and (
             hasattr(config.builtin.react_config, "tool_prediction")
             and config.builtin.react_config.tool_prediction
@@ -293,7 +291,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     def _should_enable_reflection(self) -> bool:
         """Check whether post-reasoning reflection should be used."""
-        config = self.chat_object.config
+        config = self.config
         return (
             hasattr(config, "builtin")
             and hasattr(config.builtin, "react_config")
@@ -353,7 +351,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         step_idx = int(step_idx_raw) if step_idx_raw is not None else 0
         total_raw = step.get("total")
         total = int(total_raw) if total_raw is not None else None
-        await self.chat_object.io_stream.yield_response(
+        await self.io_stream.yield_response(
             MessageWithMetadata(
                 content=cast(str, step.get("content", "")),
                 metadata=AgentStructuredReasoningChunkMetadata(
@@ -380,7 +378,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             List of reflection result dicts with keys:
             check_type, result, detail
         """
-        config = self.chat_object.config
+        config = self.config
         max_rounds = config.builtin.react_config.reflection_depth
         reflection_results: list[dict[str, str]] = []
 
@@ -400,7 +398,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 msg_list,
                 [REFLECTION_TOOL],
                 tool_choice=self._resolve_tool_choice(REFLECTION_TOOL),
-                preset=self.ctx.chat_object.preset,
+                preset=self.preset,
             )
             if not tool_response.tool_calls:
                 break
@@ -427,7 +425,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
 
             # Stream reflection result to user
-            await self.chat_object.io_stream.yield_response(
+            await self.io_stream.yield_response(
                 MessageWithMetadata(
                     content=f"[Reflection] {check_type}: {result}",
                     metadata=AgentReflectionMetadata(
@@ -485,7 +483,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             reasoning_trigger_msg,
             [REASONING_TOOL, *tools_ctx],
             tool_choice=self._resolve_tool_choice(REASONING_TOOL),
-            preset=self.ctx.chat_object.preset,
+            preset=self.preset,
         )
         if not tool_response.tool_calls:
             logger.warning(
@@ -528,9 +526,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         Returns:
             Prompt message if loop is detected, None otherwise
         """
-        config = self.chat_object.config
+        config = self.config
         if self.reasoning_pc > config.builtin.loop_reasoning_trigger:
-            prompt = f"Loop reasoning triggered. Trying to give up the tool call at ChatObject `{self.chat_object.stream_id}`."
+            prompt = f"Loop reasoning triggered. Trying to give up the tool call at ChatObject `{self.stream_id}`."
             logger.error(prompt)
             self.ctx.message.append(
                 Message(
@@ -557,10 +555,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             function_name: Name of the called function
             tool_call_id: ID of the tool call
         """
-        config = self.chat_object.config
+        config = self.config
         if config.builtin.agent_tool_call_notice == "notify":
             for rslt in result_msg_list:
-                await self.chat_object.io_stream.yield_response(
+                await self.io_stream.yield_response(
                     MessageWithMetadata(
                         content=f"Called tool {rslt.name}\n",
                         metadata=AgentToolCallMetadata(
@@ -733,7 +731,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         #  Notify "calling" for every tool
         for tc in tool_calls:
-            await self.chat_object.io_stream.yield_response(
+            await self.io_stream.yield_response(
                 MessageWithMetadata(
                     content=f"Calling function {tc.function.name}\n",
                     metadata=AgentToolCallMetadata(
@@ -803,13 +801,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             prompt = self._check_and_handle_loop_reasoning()
             if prompt is not None:
                 await self._handle_loop_reasoning_cleanup(prompt)
-                await self.chat_object.io_stream.yield_response(
+                await self.io_stream.yield_response(
                     MessageWithMetadata(
                         content=prompt,
                         metadata=AgentLoopErrorMetadata(
                             type="error",
                             extra_type="loop_reasoning",
-                            chat_object_id=self.chat_object.stream_id,
+                            chat_object_id=self.stream_id,
                             error=prompt,
                         ),
                     )
@@ -884,13 +882,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         logger.opt(raw=True, exception=err, colors=True).error(
             f"Function {function_name} execution failed: {err}"
         )
-        config = self.chat_object.config
+        config = self.config
         if (
             config.builtin.tool_calling_mode == "agent"
             and function_name not in BUILTIN_TOOLS_NAME
             and config.builtin.agent_tool_call_notice
         ):
-            await self.chat_object.io_stream.yield_response(
+            await self.io_stream.yield_response(
                 MessageWithMetadata(
                     content=f"Error: {function_name} failed.",
                     metadata=AgentToolCallMetadata(
@@ -1110,7 +1108,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
     async def single_execute(
         self,
     ) -> bool:
-        config = self.chat_object.config
+        config = self.config
         msg_list: SendMessageWrap = self.ctx.message
         if not self.tools:
             return False
@@ -1167,7 +1165,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
                 if (config.llm.require_tools and not self._suggested_stop)
                 else "auto"
             ),
-            preset=self.chat_object.preset,
+            preset=self.preset,
         )
 
         # Use template method for common execution flow
@@ -1351,7 +1349,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
     async def single_execute(
         self,
     ) -> bool:
-        config = self.chat_object.config
+        config = self.config
         msg_list: SendMessageWrap = self.ctx.message
         if not self.tools:
             return False
@@ -1408,7 +1406,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 if (config.llm.require_tools and not self._suggested_stop)
                 else "auto"
             ),
-            preset=self.chat_object.preset,
+            preset=self.preset,
         )
 
         # Use template method for common execution flow

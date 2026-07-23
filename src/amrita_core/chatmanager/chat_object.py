@@ -89,10 +89,29 @@ FUNC_RET_T = TypeVar("FUNC_RET_T")
 
 
 class ChatObject:
-    """Chat processing object - The minimal unit of chat processing.
+    """Chat processing object — control-flow orchestrator for a single session.
 
-    This class is responsible for processing a single chat session, including message receiving,
-    context management, model calling, and response sending.
+    **Responsibilities (keep these narrow to avoid a SuperClass):**
+
+    * **DI composition** — creates and wires typed DI dataclasses
+      (``AbilityState``, ``GeneralInput``, ``WorkingState``, ...) on ``__init__``.
+    * **Workflow orchestration** — selects the pre-compiled workflow graph and
+      runs it via ``WorkflowInterpreter``.
+    * **Lifecycle management** — ``begin()`` / ``terminate()``, error capture,
+      stream EOF signalling.
+
+    **Anti-responsibilities (do NOT add methods for these):**
+
+    * Strategy execution logic → lives in ``agent/strategy.py`` and
+      ``builtins/agent.py``; ChatObject only provides DI resources via
+      ``StrategyContext`` fields.
+    * Tool dispatch / LLM call protocol → lives in ``libchat.py`` and adapters.
+    * Message formatting / templates → lives in Jinja2 templates and content
+      types.
+
+    **Extension rule:** when you need a new capability, add a typed DI
+    dataclass in ``contexts.py`` and inject it via ``__init__`` extra_args —
+    **don't** add a method or property on ChatObject.
     """
 
     # Identity
@@ -188,6 +207,7 @@ class ChatObject:
         middleware: Callable[[Self], Awaitable[Any]] | None = None,
         archived_nodes: SubprogramStorage | None = None,
         backend_options: DatabackendOptions | None = None,
+        workflow: NodeComposeRendered | None = None,
     ) -> None:
         """Initialize a chat object
 
@@ -220,6 +240,7 @@ class ChatObject:
                 standard pipeline.
             backend_options: Fine-grained control over which backend
                 fetch/commit operations are performed.
+            workflow: Pre-rendered workflow to be executed.
         """
         # Init runtime fields
         self._err = None
@@ -242,7 +263,8 @@ class ChatObject:
             if context:
                 raise ValueError("Both context and session_id cannot be provided")
             self._s_id = session_id
-
+        if workflow and archived_nodes:
+            raise ValueError("Cannot provide both workflow and archived_nodes")
         # Resolve locals (no longer stored directly on ChatObject)
         _stream_id = uuid4().hex
         _timestamp = get_current_datetime_timestamp()
@@ -306,7 +328,11 @@ class ChatObject:
         wkfl = None
         if archived_nodes is not None:
             wkfl = NodeCompose(*_workflow._graph) >> archived_nodes
-        self._workflow = wkfl.render() if wkfl else _workflow_rendered
+        elif workflow is not None:
+            wkfl = workflow
+        self._workflow = (
+            wkfl.render() if isinstance(wkfl, NodeCompose) else _workflow_rendered
+        )
         self._interpreter = WorkflowInterpreter(
             self._workflow,
             self.io_stream,
@@ -702,9 +728,22 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
                 if ab.config.function_config.use_minimal_context
                 else wok.context_wrap.copy()
             )
-            ctx = StrategyContext(input_ctx.user_input, context, chat_obj)
+            ctx = StrategyContext(
+                user_input=input_ctx.user_input,
+                original_context=context,
+                chat_object=chat_obj,
+                preset=ab.preset,
+                config=ab.config,
+                tools_manager=ab.ability.tools if ab.ability else None,
+                io_stream=intp.object_io,
+                train_content=input_ctx.train.content,
+                stream_id=chat_obj._di_session.stream_id,
+                resp_extra_usage=chat_obj._di_resp.extra_usage,
+            )
             chat_obj._di_loop.stg_ctx = ctx
-            return intp.jump_to(intp.find_addr_alias(BuiltinName.AGENT_STRATEGY))
+            return intp.jump_to(
+                intp.get_graph().calc.resolve_alias(BuiltinName.AGENT_STRATEGY)
+            )
 
         case "rag":
             context = SendMessageWrap.validate_messages(
@@ -717,7 +756,18 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
             context = wok.context_wrap.copy()
         case _:
             raise RuntimeError("Invalid agent strategy")
-    ctx = StrategyContext(input_ctx.user_input, context, chat_obj)
+    ctx = StrategyContext(
+        user_input=input_ctx.user_input,
+        original_context=context,
+        chat_object=chat_obj,
+        preset=ab.preset,
+        config=ab.config,
+        tools_manager=ab.ability.tools if ab.ability else None,
+        io_stream=intp.object_io,
+        train_content=input_ctx.train.content,
+        stream_id=chat_obj._di_session.stream_id,
+        resp_extra_usage=chat_obj._di_resp.extra_usage,
+    )
     st = agent.strategy(ctx)
     try:
         await st.run()

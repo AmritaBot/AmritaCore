@@ -14,8 +14,13 @@ from amrita_core.tools.models import ToolContext
 from amrita_core.types import Message, ToolCall
 
 if TYPE_CHECKING:
+    from amrita_sense.streaming import SuspendObjectStream
+
     from amrita_core.chatmanager import ChatObject
+    from amrita_core.config import AmritaConfig
     from amrita_core.tools.manager import MultiToolsManager
+    from amrita_core.types.preset import ModelPreset
+    from amrita_core.types.response import UniResponseUsage
 
 
 class NoExceptionHandler(Exception):
@@ -28,14 +33,73 @@ class _StrategyBase(ABC):
     """Shared execution logic for AgentStrategy and StrategyLikedObject, which
     differ only in how the context is injected (``__init__`` vs ``__call__``)."""
 
-    tools_manager: "MultiToolsManager"
-    chat_object: "ChatObject"
+    tools_manager: MultiToolsManager
+    chat_object: ChatObject  # deprecated — use the convenience properties below
     ctx: StrategyContext
+
+    # Convenience properties — prefer StrategyContext DI fields,
+    # fall back to chat_object for backward compatibility.
+
+    @property
+    def preset(self) -> ModelPreset:
+        """Model preset, resolved from StrategyContext or chat_object."""
+        if self.ctx.preset is not None:
+            return self.ctx.preset
+        return self.chat_object.preset
+
+    @property
+    def config(self) -> AmritaConfig:
+        """Config, resolved from StrategyContext or chat_object."""
+        if self.ctx.config is not None:
+            return self.ctx.config
+        return self.chat_object.config
+
+    @property
+    def io_stream(self) -> SuspendObjectStream:
+        """I/O stream, resolved from StrategyContext or chat_object."""
+        if self.ctx.io_stream is not None:
+            return self.ctx.io_stream
+        return self.chat_object.io_stream
+
+    @property
+    def train_content(self) -> str:
+        """Training/system prompt content, resolved from StrategyContext or chat_object."""
+        if self.ctx.train_content is not None:
+            return self.ctx.train_content
+        return self.chat_object.train.content
+
+    @property
+    def stream_id(self) -> str:
+        """Stream ID, resolved from StrategyContext or chat_object."""
+        if self.ctx.stream_id is not None:
+            return self.ctx.stream_id
+        return self.chat_object.stream_id
+
+    @property
+    def resp_extra_usage(self) -> UniResponseUsage:
+        """Extra usage accumulator, resolved from StrategyContext or chat_object."""
+        if self.ctx.resp_extra_usage is not None:
+            return self.ctx.resp_extra_usage
+        return self.chat_object._di_resp.extra_usage
+
+    @resp_extra_usage.setter
+    def resp_extra_usage(self, value: UniResponseUsage) -> None:
+        if self.ctx.resp_extra_usage is not None:
+            self.ctx.resp_extra_usage = value
+        else:
+            self.chat_object._di_resp.extra_usage = value
+
+    # _bind — populate runtime references from StrategyContext
 
     def _bind(self, ctx: StrategyContext) -> None:
         self.ctx = ctx
-        self.chat_object = ctx.chat_object
-        self.tools_manager = ctx.chat_object.state.ability.tools
+        # Legacy path — ctx.chat_object may be None in new-style DI workflows
+        self.chat_object = ctx.chat_object  # pyright: ignore[reportAttributeAccessIssue]
+        # tools_manager: prefer ctx field, fallback to chat_object
+        if ctx.tools_manager is not None:
+            self.tools_manager = ctx.tools_manager
+        elif ctx.chat_object is not None:
+            self.tools_manager = ctx.chat_object.state.ability.tools
 
     async def single_execute(
         self,
@@ -147,7 +211,7 @@ class _StrategyBase(ABC):
             This method is used by 'agent' and 'agent-mixed' category strategies.
             'rag' and 'workflow' category strategies should implement run() instead.
         """
-        await self.chat_object.io_stream.yield_response(
+        await self.io_stream.yield_response(
             MessageWithMetadata(
                 content="[AmritaAgent] Too many tool calls! Workflow terminated!",
                 metadata=MessageMetadataPayloadSystem(

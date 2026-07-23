@@ -56,10 +56,12 @@ async def JINJA2_RENDER(
     Suspend Point:
         `SuspendEnum.TRAIN_RENDER` — intercepted during template rendering.
     """
-    logger.debug("Starting chat processing flow..")
+    logger.debug("Starting JINJA2 template rendering..")
     data = mem.memory
     if data is None:
-        raise RuntimeError("Memory is not set, please run `LOAD_STATE` before commit")
+        raise RuntimeError(
+            "Memory is not set, please run `LOAD_STATE` before rendering"
+        )
     config = ability.config
 
     data.messages.append(Message(role="user", content=ip.user_input))

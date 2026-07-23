@@ -1,4 +1,7 @@
-"""AmritaCore components - Workflow nodes for chat processing."""
+"""AmritaCore components - Workflow nodes for chat processing.
+
+See amrita_core.builtins.workflows for more examples.
+"""
 
 from .llm import JINJA2_RENDER, LLM_COMPLETION
 from .process import (
@@ -13,6 +16,7 @@ from .react import (
     AGENT_POST_PROCESS,
     REACT_COUNTER,
     SINGLE_STRATEGY_CALL,
+    STRATEGY_INIT,
 )
 
 __all__ = [
@@ -27,4 +31,5 @@ __all__ = [
     "LOAD_STATE",
     "REACT_COUNTER",
     "SINGLE_STRATEGY_CALL",
+    "STRATEGY_INIT",
 ]

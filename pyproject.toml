@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "0.12.5"
+version = "0.12.6"
 description = "High performance, flexible, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
@@ -77,6 +77,8 @@ ignore = [
 
 [tool.pyright]
 typeCheckingMode = "standard"
+venvPath = "."
+venv = ".venv"
 
 [tool.uv.workspace]
 members = ["."]

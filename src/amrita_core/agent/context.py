@@ -1,17 +1,50 @@
+from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from amrita_core.types import USER_INPUT, SendMessageWrap
 
 if TYPE_CHECKING:
+    from amrita_sense.streaming import SuspendObjectStream
+
     from amrita_core.chatmanager import ChatObject
+    from amrita_core.config import AmritaConfig
+    from amrita_core.tools.manager import MultiToolsManager
+    from amrita_core.types.preset import ModelPreset
+    from amrita_core.types.response import UniResponseUsage
 
 
 @dataclass
 class StrategyContext:
+    """Execution context passed to agent strategies.
+
+    Holds both the original message context and the DI resources that strategies
+    need at runtime.  Historically strategies obtained resources by reaching through
+    ``chat_object``, but the ChatObject DI architecture now allows them to be
+    supplied directly via the fields below.  When both a new-style field and
+    ``chat_object`` are available, the new-style field takes precedence.
+
+    .. deprecated:: 0.14
+        ``chat_object`` — use the individual resource fields instead.
+    """
+
     user_input: USER_INPUT
     original_context: SendMessageWrap
-    chat_object: "ChatObject"
+
+    # Legacy reference (deprecated, kept for backward compat)
+    chat_object: ChatObject | None = None
+
+    # DI resource fields (preferred path)
+    preset: ModelPreset | None = None
+    config: AmritaConfig | None = None
+    tools_manager: MultiToolsManager | None = None
+    io_stream: SuspendObjectStream | None = None
+    train_content: str | None = None
+    stream_id: str | None = None
+    resp_extra_usage: UniResponseUsage | None = None
+
+    # Properties / accessors
 
     @property
     def message(self) -> SendMessageWrap:
