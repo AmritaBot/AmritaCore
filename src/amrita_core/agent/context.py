@@ -15,6 +15,39 @@ if TYPE_CHECKING:
     from amrita_core.types.response import UniResponseUsage
 
 
+def build_strategy_context(
+    *,
+    user_input: USER_INPUT,
+    original_context: SendMessageWrap,
+    chat_object: ChatObject | None = None,
+    preset: ModelPreset | None = None,
+    config: AmritaConfig | None = None,
+    tools_manager: MultiToolsManager | None = None,
+    io_stream: SuspendObjectStream | None = None,
+    train_content: str | None = None,
+    stream_id: str | None = None,
+    resp_extra_usage: UniResponseUsage | None = None,
+) -> StrategyContext:
+    """Build a ``StrategyContext`` with both legacy and DI resource fields.
+
+    This is the **single factory** for all ``StrategyContext`` construction.
+    When a new DI field is added to ``StrategyContext``, update this function
+    and both ``_run_strategy`` and ``STRATEGY_INIT`` will pick it up.
+    """
+    return StrategyContext(
+        user_input=user_input,
+        original_context=original_context,
+        chat_object=chat_object,
+        preset=preset,
+        config=config,
+        tools_manager=tools_manager,
+        io_stream=io_stream,
+        train_content=train_content,
+        stream_id=stream_id,
+        resp_extra_usage=resp_extra_usage,
+    )
+
+
 @dataclass
 class StrategyContext:
     """Execution context passed to agent strategies.
@@ -25,7 +58,7 @@ class StrategyContext:
     supplied directly via the fields below.  When both a new-style field and
     ``chat_object`` are available, the new-style field takes precedence.
 
-    .. deprecated:: 0.14
+    .. deprecated:: 0.13
         ``chat_object`` — use the individual resource fields instead.
     """
 

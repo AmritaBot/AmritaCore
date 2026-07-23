@@ -77,17 +77,30 @@ class _StrategyBase(ABC):
 
     @property
     def resp_extra_usage(self) -> UniResponseUsage:
-        """Extra usage accumulator, resolved from StrategyContext or chat_object."""
+        """Extra usage accumulator, resolved from StrategyContext or chat_object.
+
+        Raises:
+            RuntimeError: If neither source provides ``resp_extra_usage``.
+        """
         if self.ctx.resp_extra_usage is not None:
             return self.ctx.resp_extra_usage
-        return self.chat_object._di_resp.extra_usage
+        if self.chat_object is not None:
+            return self.chat_object._di_resp.extra_usage
+        raise RuntimeError(
+            "resp_extra_usage is not available in StrategyContext or chat_object"
+        )
 
     @resp_extra_usage.setter
     def resp_extra_usage(self, value: UniResponseUsage) -> None:
         if self.ctx.resp_extra_usage is not None:
             self.ctx.resp_extra_usage = value
-        else:
+        elif self.chat_object is not None:
             self.chat_object._di_resp.extra_usage = value
+        else:
+            raise RuntimeError(
+                "Cannot set resp_extra_usage: neither StrategyContext nor "
+                "chat_object provide a backing storage"
+            )
 
     # _bind — populate runtime references from StrategyContext
 

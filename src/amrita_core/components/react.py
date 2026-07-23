@@ -16,7 +16,7 @@ from amrita_sense.hook.matcher import Depends
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 
-from amrita_core.agent.context import StrategyContext
+from amrita_core.agent.context import StrategyContext, build_strategy_context
 from amrita_core.contents import MessageMetadataPayloadError, MessageWithMetadata
 from amrita_core.contexts import (
     AbilityState,
@@ -57,12 +57,9 @@ async def STRATEGY_INIT(
     context = SendMessageWrap.validate_messages(
         [input_ctx.train, Message(role="user", content=input_ctx.user_input)]
     )
-    loop.stg_ctx = StrategyContext(
+    loop.stg_ctx = build_strategy_context(
         user_input=input_ctx.user_input,
         original_context=context,
-        # Legacy — kept as None; DI fields below are the preferred path
-        chat_object=None,
-        # DI resource fields — strategy accesses these via _StrategyBase properties
         preset=ab.preset,
         config=ab.config,
         tools_manager=ab.ability.tools if ab.ability else None,

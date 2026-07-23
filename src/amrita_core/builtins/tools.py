@@ -129,8 +129,15 @@ REFLECTION_TOOL = ToolFunctionSchema(
 async def _(ctx: ToolContext) -> str | None:
     msg: str = ctx.data["content"]
     logger.debug(f"[LLM-ProcessMessage] {msg}")
-    assert ctx.ctx.io_stream is not None, "io_stream not available in StrategyContext"
-    await ctx.ctx.io_stream.yield_response(
+    # Prefer DI field, fall back to chat_object for legacy callers
+    stream = ctx.ctx.io_stream
+    if stream is None:
+        if ctx.ctx.chat_object is None:
+            raise RuntimeError(
+                "LLM-ProcessMessage: no io_stream and no chat_object in StrategyContext"
+            )
+        stream = ctx.ctx.chat_object.io_stream
+    await stream.yield_response(
         MessageWithMetadata(
             content=msg,
             metadata=AgentMiddleMessageMetadata(

@@ -29,7 +29,7 @@ from jinja2 import Template
 from pytz import utc
 from typing_extensions import Self
 
-from amrita_core.agent.context import StrategyContext
+from amrita_core.agent.context import StrategyContext, build_strategy_context
 from amrita_core.agent.strategy import (
     AgentStrategy,
     NoExceptionHandler,
@@ -331,7 +331,11 @@ class ChatObject:
         elif workflow is not None:
             wkfl = workflow
         self._workflow = (
-            wkfl.render() if isinstance(wkfl, NodeCompose) else _workflow_rendered
+            wkfl.render()
+            if isinstance(wkfl, NodeCompose)
+            else wkfl
+            if wkfl is not None
+            else _workflow_rendered
         )
         self._interpreter = WorkflowInterpreter(
             self._workflow,
@@ -728,7 +732,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
                 if ab.config.function_config.use_minimal_context
                 else wok.context_wrap.copy()
             )
-            ctx = StrategyContext(
+            ctx = build_strategy_context(
                 user_input=input_ctx.user_input,
                 original_context=context,
                 chat_object=chat_obj,
@@ -756,7 +760,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
             context = wok.context_wrap.copy()
         case _:
             raise RuntimeError("Invalid agent strategy")
-    ctx = StrategyContext(
+    ctx = build_strategy_context(
         user_input=input_ctx.user_input,
         original_context=context,
         chat_object=chat_obj,
