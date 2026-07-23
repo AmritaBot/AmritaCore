@@ -68,6 +68,7 @@ ChatObject 类是与 AI 进行对话的主要接口。它通过 `io_stream` 属�
 - `middleware` (Callable[[Self], Awaitable[Any]] | None, 可选): 异步中间件函数，包装整个工作流执行。设置后，工作流引擎将执行委托给中间件而不是运行默认流水线。用于自定义编排、监控或横切关注点（默认：None）
 - `archived_nodes` (SubprogramStorage | None, 可选): 附加到工作流流水线末尾的额外节点子程序。允许在标准流水线完成后使用自定义步骤扩展 ChatObject 执行。当为 `None` 时，默认为 `amrita_sense.instructions` 中的 `ARCHIVED_NODES`（默认：None）
 - `backend_options` ([DatabackendOptions](DatabackendOptions.md) | None, 可选): 控制后端获取和提交行为的选项。允许选择性地跳过记忆获取、工具获取、MCP 获取、预设获取、能力额外设置和记忆提交（默认：None）
+- `workflow` (NodeComposeRendered | None, 可选): 预渲染的工作流，用于替代默认流水线。提供后，ChatObject 使用此外部工作流图而非内置流水线。**不可与 `archived_nodes` 同时使用**——如果两者同时提供，将抛出 `ValueError`。支持的预组合工作流可在 `amrita_core.builtins.workflows` 中找到（如 `SIMPLE_REACT`、`REACT_ONLY`、`SIMPLE_CHAT`）。（默认：None）
 
 ## 方法
 
@@ -212,6 +213,16 @@ chat_with_custom_stream = ChatObject(
     user_input="Hello!",
     session_id="session_123",
     io_stream=custom_stream,
+)
+
+# 带预组合工作流的示例（v0.12.6+）
+from amrita_core.builtins.workflows import SIMPLE_REACT
+
+chat_with_workflow = ChatObject(
+    train=train.model_dump(),
+    user_input="你好！",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
 )
 
 # ❌ 无效 - 这将导致 TypeError：

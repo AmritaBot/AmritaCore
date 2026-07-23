@@ -147,7 +147,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 
 **工具函数模式**：
 
-````xml
+```xml
 
 <!-- 工具调用 -->
 
@@ -164,7 +164,7 @@ AmritaCore包含一个全面的智能Agent系统，能够自主使用工具完�
 工具执行结果内容
 </TOOL_RESULT>
 
-```python
+```
 
 **已知限制和安全考虑**：
 
@@ -224,4 +224,45 @@ Cookie安全钩子自动检测模型响应中是否出现敏感Cookie值，并�
 - **时机**: 在所有工具执行成功完成后调用
 - **适用性**: 对**所有策略类别**（`"agent"`、`"rag"`、`"workflow"`、`"agent-mixed"`）都可用
 - **用例**: 添加最终指令、上下文摘要或清理操作
-````
+
+## 9.6 内置工作流（v0.12.6+）
+
+AmritaCore 在 `amrita_core.builtins.workflows` 中提供了预组合的工作流流水线。这些是可直接使用的 `NodeComposeRendered` 图，可传递给 `ChatObject(workflow=...)` 以替代默认执行流水线。
+
+### 可用工作流
+
+| 工作流         | 描述                                                                                                                    |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `REACT_BLOCK`  | ReAct 循环块：`STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS` |
+| `SIMPLE_REACT` | 完整 ReAct 流水线：`LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`     |
+| `REACT_ONLY`   | 不含最终 LLM 调用的 ReAct 流水线：`LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                         |
+| `SIMPLE_CHAT`  | 纯聊天（无 agent）：`LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                   |
+
+### 用法
+
+```python
+from amrita_core import ChatObject
+from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
+
+# 完整的 ReAct agent 流水线
+chat = ChatObject(
+    train={"role": "system", "content": "你是一个有用的助手。"},
+    user_input="今天天气怎么样？",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
+)
+
+# 纯聊天 — 无 agent，无工具调用
+chat = ChatObject(
+    train={"role": "system", "content": "你是一个有用的助手。"},
+    user_input="你好！",
+    session_id="session_456",
+    workflow=SIMPLE_CHAT,
+)
+```
+
+> **注意**：`workflow` 和 `archived_nodes` 互斥 —— 同时提供两者会抛出 `ValueError`。当两者都不提供时，使用内置默认流水线。
+
+```
+
+```

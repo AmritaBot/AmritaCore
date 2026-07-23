@@ -112,6 +112,10 @@ export default withMermaid({
                 text: "Suspend Mechanism",
                 link: "/guide/concepts/suspend",
               },
+              {
+                text: "Workflow Engine",
+                link: "/guide/concepts/workflow-engine",
+              },
             ],
           },
           {
@@ -133,6 +137,10 @@ export default withMermaid({
               {
                 text: "Function Implementation",
                 link: "/guide/function-implementation",
+              },
+              {
+                text: "Prompt Engineering",
+                link: "/guide/prompt-engineering",
               },
             ],
           },
@@ -421,6 +429,10 @@ export default withMermaid({
                 text: "挂起机制",
                 link: "/zh/guide/concepts/suspend",
               },
+              {
+                text: "工作流引擎",
+                link: "/zh/guide/concepts/workflow-engine",
+              },
             ],
           },
           {
@@ -439,6 +451,10 @@ export default withMermaid({
               {
                 text: "函数实现",
                 link: "/zh/guide/function-implementation",
+              },
+              {
+                text: "提示工程",
+                link: "/zh/guide/prompt-engineering",
               },
             ],
           },

@@ -36,6 +36,10 @@ Model Context Protocol - a standard for connecting tools and data sources to AI 
 - **Configuration**: Settings that control how AmritaCore behaves in different scenarios
 - **Workflow Engine**: A composable node graph system that drives ChatObject execution since v0.9.0rc1. Nodes are connected with `>>` and executed by `WorkflowInterpreter`. Provided by the `amrita-sense` package.
 - **StrategyLikedObject**: An abstract base class for stateful agent strategy instances. Unlike `AgentStrategy` (passed as a type), `StrategyLikedObject` is passed as a pre-initialised instance, enabling internal state machines and resource management.
+- **Pre-composed Workflow**: A ready-to-use `NodeComposeRendered` pipeline graph that can be passed to `ChatObject(workflow=...)`. Shipped in `amrita_core.builtins.workflows` (e.g. `SIMPLE_REACT`, `SIMPLE_CHAT`).
+- **DI Resource Field**: A Dependency Injection resource field on `StrategyContext` (e.g. `preset`, `config`, `io_stream`) that carries framework services directly to agent strategies without routing through `ChatObject`.
+- **STRATEGY_INIT**: A workflow node in `amrita_core.components.react` that initializes `StrategyContext` with DI resource fields before the agent entry point. Used by pre-composed external workflows.
+- **Prompt Engineering**: The practice of designing and refining prompts (system messages, templates, instructions) to guide LLMs toward desired outputs. Includes techniques such as structured instructions, Chain-of-Thought, few-shot prompting, and role assignment.
 
 ### 9.1.8 Abbreviations
 

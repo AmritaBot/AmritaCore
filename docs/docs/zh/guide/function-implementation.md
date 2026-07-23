@@ -137,6 +137,33 @@ chat = ChatObject(
 )
 ```
 
+#### 使用预组合工作流（v0.12.6+）
+
+您可以传入预组合的工作流来替代默认流水线：
+
+```python
+from amrita_core import ChatObject
+from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
+
+# 完整的 ReAct agent 流水线
+chat = ChatObject(
+    train={"role": "system", "content": "你是一个有用的助手。"},
+    user_input="搜索最新的 AI 新闻。",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
+)
+
+# 纯聊天 — 无 agent，无工具调用
+chat = ChatObject(
+    train={"role": "system", "content": "你是一个有用的助手。"},
+    user_input="你好！",
+    session_id="session_456",
+    workflow=SIMPLE_CHAT,
+)
+```
+
+> 详见 [`builtins.workflows`](../guide/builtins#_9-6-built-in-workflows-v0-12-6) 了解所有可用工作流。
+
 ### 4.2.2 begin() 执行对话
 
 #### 基本用法
