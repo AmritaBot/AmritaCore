@@ -29,7 +29,7 @@ from jinja2 import Template
 from pytz import utc
 from typing_extensions import Self
 
-from amrita_core.agent.context import StrategyContext, build_strategy_context
+from amrita_core.agent.context import build_strategy_context
 from amrita_core.agent.strategy import (
     AgentStrategy,
     NoExceptionHandler,

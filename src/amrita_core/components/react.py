@@ -16,7 +16,7 @@ from amrita_sense.hook.matcher import Depends
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 
-from amrita_core.agent.context import StrategyContext, build_strategy_context
+from amrita_core.agent.context import build_strategy_context
 from amrita_core.contents import MessageMetadataPayloadError, MessageWithMetadata
 from amrita_core.contexts import (
     AbilityState,
