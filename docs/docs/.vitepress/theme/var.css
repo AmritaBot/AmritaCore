@@ -1,43 +1,199 @@
+/* 
+   AmritaSense Design Tokens
+   Brand: #0d2b4e / #F6F7FA / #e6C17A
+*/
+
+/* ----- Light Mode (default) ----- */
+:root {
+  /* Background — #F6F7FA */
+  --vp-c-bg: #f6f7fa;
+  --vp-c-bg-alt: #eaecf0;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: #eef0f3;
+
+  /* Text */
+  --vp-c-text-1: #0d1b2a;
+  --vp-c-text-2: #34495e;
+  --vp-c-text-3: #7f8c9b;
+
+  /* Brand — #0d2b4e*/
+  --vp-c-brand-1: #1b4972;
+  --vp-c-brand-2: #143760;
+  --vp-c-brand-3: #0d2b4e;
+  --vp-c-brand-soft: rgba(13, 43, 78, 0.06);
+
+  /* Borders */
+  --vp-c-border: #dde0e5;
+  --vp-c-divider: #eaecf0;
+  --vp-c-gutter: #dde0e5;
+
+  /* Shadow */
+  --vp-shadow-1: 0 1px 2px rgba(13, 43, 78, 0.04);
+  --vp-shadow-2: 0 2px 8px rgba(13, 43, 78, 0.06);
+  --vp-shadow-3: 0 4px 16px rgba(13, 43, 78, 0.08);
+
+  /* Code */
+  --vp-code-block-bg: #eef0f4;
+  --vp-code-tab-bg: #e2e5ea;
+  --vp-code-line-highlight: rgba(13, 43, 78, 0.06);
+
+  /* Custom blocks */
+  --vp-custom-block-tip-bg: #faf7f0;
+  --vp-custom-block-info-bg: #f0f3f7;
+  --vp-custom-block-warning-bg: #fdf6ed;
+  --vp-custom-block-danger-bg: #fdf3f3;
+  --vp-custom-block-details-bg: #eef0f3;
+
+  --vp-custom-block-tip-text: #6b5a34;
+  --vp-custom-block-info-text: #0d2b4e;
+  --vp-custom-block-warning-text: #7a5d28;
+  --vp-custom-block-danger-text: #991b1b;
+
+  --vp-custom-block-tip-border: #e6c17a;
+  --vp-custom-block-info-border: #8a9bb5;
+  --vp-custom-block-warning-border: #f0d18a;
+  --vp-custom-block-danger-border: #f4b2b2;
+
+  /* Nav */
+  --vp-nav-bg: rgba(246, 247, 250, 0.84);
+  --vp-nav-height: 56px;
+
+  /* Sidebar */
+  --vp-sidebar-width: 260px;
+
+  /* Home hero — bright blue glow on light bg */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #0d2b4e, #1b4972);
+  --vp-home-hero-image-background-image: linear-gradient(
+    135deg,
+    #4a90d9 0%,
+    #7bb8f0 100%
+  );
+  --vp-home-hero-image-filter: blur(64px);
+  --vp-home-hero-image-background: radial-gradient(
+    circle at 50% 50%,
+    rgba(74, 144, 217, 0.3) 0%,
+    rgba(123, 184, 240, 0.16) 40%,
+    rgba(180, 210, 245, 0.08) 70%,
+    transparent 100%
+  );
+
+  /* Status colors */
+  --vp-c-tip-1: #c8a454;
+  --vp-c-tip-2: #b3943a;
+  --vp-c-tip-3: #9a7d2e;
+  --vp-c-tip-soft: rgba(230, 193, 122, 0.14);
+
+  --vp-c-warning-1: #e6c17a;
+  --vp-c-warning-2: #d4a84d;
+  --vp-c-warning-3: #b89030;
+  --vp-c-warning-soft: rgba(230, 193, 122, 0.14);
+
+  --vp-c-danger-1: #e05555;
+  --vp-c-danger-2: #c44040;
+  --vp-c-danger-3: #a03030;
+  --vp-c-danger-soft: rgba(224, 85, 85, 0.12);
+
+  --vp-c-default-1: var(--vp-c-gray-1);
+  --vp-c-default-2: var(--vp-c-gray-2);
+  --vp-c-default-3: var(--vp-c-gray-3);
+  --vp-c-default-soft: var(--vp-c-gray-soft);
+}
+
+/* ----- Dark Mode ----- */
+.dark {
+  /* Background — deep navy derivative */
+  --vp-c-bg: #060e18;
+  --vp-c-bg-alt: #0b1522;
+  --vp-c-bg-elv: #101c2c;
+  --vp-c-bg-soft: #0d1826;
+
+  /* Text */
+  --vp-c-text-1: #f6f7fa;
+  --vp-c-text-2: #b0bec5;
+  --vp-c-text-3: #6b7d8e;
+
+  /* Brand — lighter shades for dark bg readability */
+  --vp-c-brand-1: #8db4d8;
+  --vp-c-brand-2: #5a8ebf;
+  --vp-c-brand-3: #2a5f94;
+  --vp-c-brand-soft: rgba(90, 142, 191, 0.12);
+
+  /* Borders */
+  --vp-c-border: #1a2a3c;
+  --vp-c-divider: #142030;
+  --vp-c-gutter: #1a2a3c;
+
+  /* Shadow */
+  --vp-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --vp-shadow-2: 0 2px 8px rgba(0, 0, 0, 0.5);
+  --vp-shadow-3: 0 4px 16px rgba(0, 0, 0, 0.6);
+
+  /* Code */
+  --vp-code-block-bg: #0b1522;
+  --vp-code-tab-bg: #101c2c;
+  --vp-code-line-highlight: rgba(141, 180, 216, 0.08);
+
+  /* Custom blocks */
+  --vp-custom-block-tip-bg: rgba(230, 193, 122, 0.06);
+  --vp-custom-block-info-bg: rgba(13, 43, 78, 0.15);
+  --vp-custom-block-warning-bg: rgba(230, 193, 122, 0.08);
+  --vp-custom-block-danger-bg: rgba(224, 85, 85, 0.08);
+  --vp-custom-block-details-bg: rgba(141, 180, 216, 0.04);
+
+  --vp-custom-block-tip-text: #e6c17a;
+  --vp-custom-block-info-text: #8db4d8;
+  --vp-custom-block-warning-text: #f0d18a;
+  --vp-custom-block-danger-text: #f4b2b2;
+
+  --vp-custom-block-tip-border: rgba(230, 193, 122, 0.3);
+  --vp-custom-block-info-border: rgba(141, 180, 216, 0.25);
+  --vp-custom-block-warning-border: rgba(230, 193, 122, 0.35);
+  --vp-custom-block-danger-border: rgba(224, 85, 85, 0.3);
+
+  /* Status colors — dark */
+  --vp-c-tip-1: #e6C17A;
+  --vp-c-tip-2: #d4a84d;
+  --vp-c-tip-3: #c8a454;
+  --vp-c-tip-soft: rgba(230, 193, 122, 0.12);
+
+  --vp-c-warning-1: #f0d18a;
+  --vp-c-warning-2: #e6C17A;
+  --vp-c-warning-3: #d4a84d;
+  --vp-c-warning-soft: rgba(230, 193, 122, 0.12);
+
+  --vp-c-danger-1: #f4b2b2;
+  --vp-c-danger-2: #e05555;
+  --vp-c-danger-3: #c44040;
+  --vp-c-danger-soft: rgba(224, 85, 85, 0.12);
+
+  /* Nav */
+  --vp-nav-bg: rgba(6, 14, 24, 0.86);
+
+  /* Home hero — pure blue even in dark */
+  --vp-home-hero-name-background: linear-gradient(135deg, #8db4d8, #a0c4e8);
+  --vp-home-hero-image-background-image: linear-gradient(
+    135deg,
+    #2a5f94 0%,
+    #4a8fc8 100%
+  );
+  --vp-home-hero-image-filter: blur(72px);
+  --vp-home-hero-image-background: radial-gradient(
+    circle at 50% 50%,
+    rgba(141, 180, 216, 0.25) 0%,
+    rgba(90, 142, 191, 0.15) 40%,
+    rgba(42, 95, 148, 0.06) 70%,
+    transparent 100%
+  );
+}
+
+/* ----- Utility fixes ----- */
 .medium-zoom-overlay {
   z-index: 30;
 }
-
 .medium-zoom-image {
   z-index: 114 !important;
 }
-
-.vp-doc a {
-  text-decoration: none;
-}
-
-/* .vitepress\theme\style\var.css */
-/* 提示框背景颜色 */
-:root {
-  --vp-custom-block-tip-bg: var(--vp-c-green-soft);
-}
-
-/* Info */
-.custom-block.info {
-  border-color: var(--vp-c-gray-2);
-}
-
-/* 提示框 */
-.custom-block.tip {
-  border-color: var(--vp-c-indigo-2);
-}
-
-/* 警告框 */
-.custom-block.warning {
-  /* border-color: #d97706; */
-  border-color: var(--vp-c-yellow-2);
-}
-
-/* 危险框 */
-.custom-block.danger {
-  /* border-color: #f43f5e; */
-  border-color: var(--vp-c-red-2);
-}
-
 .VPSocialLinks.VPNavBarSocialLinks.social-links {
   margin-right: 0;
 }

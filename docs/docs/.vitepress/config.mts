@@ -5,6 +5,29 @@ import { withMermaid } from "vitepress-plugin-mermaid";
 export default withMermaid({
   lastUpdated: true,
   ignoreDeadLinks: true,
+  vite: {
+    build: {
+      rollupOptions: {
+        onLog(level, log, handler) {
+          if (log.message?.includes("points to missing source files")) return;
+          handler(level, log);
+        },
+      },
+    },
+    optimizeDeps: {
+      exclude: [
+        "@nolebase/vitepress-plugin-enhanced-readabilities/client",
+        "vitepress",
+        "@nolebase/ui",
+      ],
+    },
+    ssr: {
+      noExternal: [
+        "@nolebase/vitepress-plugin-enhanced-readabilities",
+        "@nolebase/ui",
+      ],
+    },
+  },
   sitemap: {
     hostname: "https://core.amritabot.com",
   },
@@ -688,16 +711,7 @@ export default withMermaid({
       },
     },
   },
-  vite: {
-    build: {
-      rollupOptions: {
-        onLog(level, log, handler) {
-          if (log.message?.includes("points to missing source files")) return;
-          handler(level, log);
-        },
-      },
-    },
-  },
+
   mermaidPlugin: {
     class: "mermaid my-class", // set additional css classes for parent container
   },
