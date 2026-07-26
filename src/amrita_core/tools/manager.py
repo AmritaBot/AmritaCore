@@ -56,7 +56,7 @@ class MultiToolsManager:
     def get_tool_meta(self, name: str, default: T) -> ToolFunctionSchema | T: ...
     def get_tool_meta(
         self, name: str, default: T | None = None
-    ) -> ToolFunctionSchema | None | T:
+    ) -> ToolFunctionSchema | T | None:
         func_data = self.get_tool(name)
         if func_data is None:
             return default
@@ -86,8 +86,8 @@ class MultiToolsManager:
     ) -> (
         Callable[[dict[str, Any]], Awaitable[str]]
         | Callable[[ToolContext], Awaitable[str | None]]
-        | None
         | T
+        | None
     ):
         func_data = self.get_tool(name)
         if func_data is None:
@@ -330,6 +330,37 @@ def _python_type_to_property_schema(
             # Users should use Pydantic models instead for object structures
             raise ValueError(
                 "Dict types are not supported in tool parameters. Use Pydantic models to define object structures."
+            )
+
+        elif origin is typing.Literal:
+            # Literal["a", "b", "c"] -> string type with enum constraint
+            allowed = get_args(python_type)
+            if not allowed:
+                raise ValueError("Literal must have at least one value")
+            # Infer JSON type from the first literal value
+            first = allowed[0]
+            if isinstance(first, str):
+                schema_type = "string"
+            elif isinstance(first, bool):
+                schema_type = "boolean"
+            elif isinstance(first, int):
+                schema_type = "integer"
+            elif isinstance(first, float):
+                schema_type = "number"
+            else:
+                raise TypeError(
+                    f"Unsupported Literal value type: {type(first).__name__}"
+                )
+            # Enforce homogeneity
+            type_check = type(first)
+            if not all(isinstance(v, type_check) for v in allowed):
+                raise TypeError(
+                    f"Literal must have homogeneous values, got mixed types: {python_type}"
+                )
+            return FunctionPropertySchema(
+                type=schema_type,
+                description=description,
+                enum=list(allowed),
             )
 
         elif origin is typing.Union or origin is types.UnionType:

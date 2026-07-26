@@ -41,6 +41,7 @@ def my_tool(arg1: str, arg2: int) -> str:
 `@simple_tool` 装饰器现在支持丰富的参数类型：
 
 - **基本类型**：`str`、`int`、`float`、`bool`
+- **Literal 类型**：`Literal["a", "b", "c"]` → 自动生成为 `string` 类型的 `enum` 约束；`Literal[1, 2, 3]` 同理支持 `integer` 枚举。异构 Literal（如 `Literal["a", 1]`）会直接报错
 - **Pydantic BaseModel 类**：用于复杂的嵌套对象结构
 - **容器类型**：`List[T]`，其中 T 是支持的类型（仅支持单层容器）
 - **可选类型**：`Optional[T]` 或 `T | None`（等同于 Union[T, None]）

@@ -1,8 +1,8 @@
-import asyncio  # noqa: I001
+import asyncio
 from unittest.mock import patch
 
-from amrita_sense import StreamStateError
 import pytest
+from amrita_sense import StreamStateError
 
 from amrita_core.chatmanager import ChatObject, MemoryLimiter, chat_manager
 from amrita_core.config import AmritaConfig

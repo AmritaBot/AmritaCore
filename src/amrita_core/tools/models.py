@@ -209,8 +209,10 @@ class MCPProperty(BaseModel):
     )
 
     #  Array constraints
-    items: Union["MCPProperty", list["MCPProperty"], None] = Field(  # noqa: UP007 # Because X|Y is invaliad here, we use Union.
-        default=None, description="Array item schema(s)", exclude_if=on_none
+    items: Union["MCPProperty", list["MCPProperty"]] | None = (  # noqa: UP007
+        Field(  # Because X|Y is invalid here, we use Union.
+            default=None, description="Array item schema(s)", exclude_if=on_none
+        )
     )
     minItems: int | None = Field(
         default=None, description="Minimum array length", exclude_if=on_none

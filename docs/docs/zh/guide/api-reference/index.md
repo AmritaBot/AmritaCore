@@ -257,6 +257,7 @@ def add(a: int, b: int) -> int:
 **支持的参数类型**:
 
 - 基本类型: `str`, `int`, `float`, `bool`
+- Literal 类型: `Literal["a", "b"]` → 自动生成 `string` + `enum` 约束；`Literal[1, 2, 3]` 同理支持 `integer` 枚举
 - Pydantic BaseModel 类，用于复杂的嵌套结构
 - 容器类型: `List[T]`（仅支持单层）
 - 可选类型: `Optional[T]` 或 `T | None`

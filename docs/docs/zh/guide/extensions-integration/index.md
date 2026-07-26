@@ -29,7 +29,7 @@ def add(a: int, b: int) -> int:
 
 **注册范围**: 使用 `@simple_tool` 注册的工具在模块加载期间被添加到全局容器中，并对所有会话都可用。
 
-**支持的类型**: `@simple_tool` 装饰器现在支持丰富的类型注解，包括 Pydantic 模型、List[T] 和 Optional[T]。完整的类型支持详情请参阅[工具系统](../concepts/tool.md)文档。
+**支持的类型**: `@simple_tool` 装饰器现在支持丰富的类型注解，包括 Pydantic 模型、List[T]、Optional[T] 和 Literal 类型（自动转为 enum 约束）。完整的类型支持详情请参阅[工具系统](../concepts/tool.md)文档。
 
 ### 5.1.2 工具系统扩展
 

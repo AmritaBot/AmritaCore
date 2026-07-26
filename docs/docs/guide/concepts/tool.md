@@ -43,6 +43,7 @@ The `@simple_tool` decorator provides a simple way to register tools by automati
 The `@simple_tool` decorator now supports a rich set of parameter types:
 
 - **Basic types**: `str`, `int`, `float`, `bool`
+- **Literal types**: `Literal["a", "b", "c"]` → auto-generated as `string` type with `enum` constraint; `Literal[1, 2, 3]` likewise supports `integer` enum. Heterogeneous Literal (e.g. `Literal["a", 1]`) raises an error
 - **Pydantic BaseModel classes**: For complex nested object structures
 - **Container types**: `List[T]` where T is a supported type (single-level containers only)
 - **Optional types**: `Optional[T]` or `T | None` (equivalent to Union[T, None])
