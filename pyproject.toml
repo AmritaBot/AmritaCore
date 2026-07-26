@@ -63,8 +63,10 @@ select = [
     "RUF",   # Ruff-specific rules
     "I",     # isort
     "PERF",  # pylint-performance
+
 ]
 ignore = [
+    "RUF036", # None at the end, preview.
     "E501",   # line-too-long
     "UP037",  # quoted-annotation
     "RUF001", # ambiguous-unicode-character-string

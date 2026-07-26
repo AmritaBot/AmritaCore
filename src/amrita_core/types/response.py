@@ -9,7 +9,7 @@ from pydantic import ConfigDict, Field
 from amrita_core.types.base import BaseModel
 from amrita_core.types.tool import ToolCall
 
-T = typing.TypeVar("T", None, str, None | typing.Literal[""])
+T = typing.TypeVar("T", str, None, typing.Literal[""] | None)
 T_INT = typing.TypeVar("T_INT", int, None, int | None)
 T_TOOL = typing.TypeVar("T_TOOL", list[ToolCall], None, list[ToolCall] | None)
 STOP_REASON = Literal[

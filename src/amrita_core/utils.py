@@ -84,7 +84,7 @@ def split_list(lst: list[T], threshold: int) -> list[list[T]]:
     return [lst[i : i + threshold] for i in range(0, len(lst), threshold)]
 
 
-def get_current_datetime_timestamp(utc_time: None | datetime = None):
+def get_current_datetime_timestamp(utc_time: datetime | None = None):
     """Get current time and format as date, weekday and time string"""
     utc_time = utc_time or datetime.now(pytz.utc)
     asia_shanghai = pytz.timezone("Asia/Shanghai")

@@ -56,7 +56,7 @@ class MultiToolsManager:
     def get_tool_meta(self, name: str, default: T) -> ToolFunctionSchema | T: ...
     def get_tool_meta(
         self, name: str, default: T | None = None
-    ) -> ToolFunctionSchema | None | T:
+    ) -> ToolFunctionSchema | T | None:
         func_data = self.get_tool(name)
         if func_data is None:
             return default
@@ -86,8 +86,8 @@ class MultiToolsManager:
     ) -> (
         Callable[[dict[str, Any]], Awaitable[str]]
         | Callable[[ToolContext], Awaitable[str | None]]
-        | None
         | T
+        | None
     ):
         func_data = self.get_tool(name)
         if func_data is None:

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, cast
 
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
@@ -209,7 +209,7 @@ class MCPProperty(BaseModel):
     )
 
     #  Array constraints
-    items: Union["MCPProperty", list["MCPProperty"], None] = Field(  # noqa: UP007 # Because X|Y is invaliad here, we use Union.
+    items: "MCPProperty" | list["MCPProperty"] | None = Field(  # ruff:ignore[non-pep604-annotation-union] # Because X|Y is invaliad here, we use Union.
         default=None, description="Array item schema(s)", exclude_if=on_none
     )
     minItems: int | None = Field(
