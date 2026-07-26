@@ -271,6 +271,7 @@ def add(a: int, b: int) -> int:
 **Supported Parameter Types**:
 
 - Basic types: `str`, `int`, `float`, `bool`
+- Literal types: `Literal["a", "b"]` → auto-generates `string` + `enum` constraint; `Literal[1, 2, 3]` likewise supports `integer` enum
 - Pydantic BaseModel classes for complex nested structures
 - Container types: `List[T]` (single-level only)
 - Optional types: `Optional[T]` or `T | None`

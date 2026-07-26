@@ -332,6 +332,37 @@ def _python_type_to_property_schema(
                 "Dict types are not supported in tool parameters. Use Pydantic models to define object structures."
             )
 
+        elif origin is typing.Literal:
+            # Literal["a", "b", "c"] -> string type with enum constraint
+            allowed = get_args(python_type)
+            if not allowed:
+                raise ValueError("Literal must have at least one value")
+            # Infer JSON type from the first literal value
+            first = allowed[0]
+            if isinstance(first, str):
+                schema_type = "string"
+            elif isinstance(first, bool):
+                schema_type = "boolean"
+            elif isinstance(first, int):
+                schema_type = "integer"
+            elif isinstance(first, float):
+                schema_type = "number"
+            else:
+                raise TypeError(
+                    f"Unsupported Literal value type: {type(first).__name__}"
+                )
+            # Enforce homogeneity
+            type_check = type(first)
+            if not all(isinstance(v, type_check) for v in allowed):
+                raise TypeError(
+                    f"Literal must have homogeneous values, got mixed types: {python_type}"
+                )
+            return FunctionPropertySchema(
+                type=schema_type,
+                description=description,
+                enum=list(allowed),
+            )
+
         elif origin is typing.Union or origin is types.UnionType:
             # Handle both typing.Union and Python 3.10+ UnionType (str | int)
             # For both cases, get_args returns the type arguments
