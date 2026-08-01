@@ -61,7 +61,7 @@ We welcome contributions! Please see our [contribution guidelines](./CONTRIBUTIN
 
 ## AIGC Content Licensing Policy
 
-We use [AACLP v1.0](https://github.com/AmritaBot/AACLP/blob/v1.0/contents/AACLPV1) for AIGC content licensing. See [here](./POLICY_OF_AIGC) for more details.
+We use [AACLP v1.0](https://github.com/AmritaBot/AACLP/blob/v1.0/contents/AACLPV1) for AIGC content licensing. See [File](./POLICY_OF_AIGC) for more details.
 
 ## 📄 License
 
@@ -73,7 +73,3 @@ This project is licensed under the **Apache 2.0 License** — see the [LICENSE](
 - [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) — Code of conduct
 - [ZH-CN.md](./readmes/ZH_CN.md) — 简体中文
 - [EN-US.md](./readmes/EN_US.md) — English (US)
-
-## Unstable Features
-
-- `Python 3.14+ Supporting`: we are not sure if it will work well on Python 3.14+(No GIL Version).
