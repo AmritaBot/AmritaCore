@@ -1,4 +1,4 @@
-<div v-pre >
+<div v-pre>
 
 # Jinja2 Templates
 
