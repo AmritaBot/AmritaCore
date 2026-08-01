@@ -1,6 +1,6 @@
 # Tool System
 
-## 3.4.1 Tool Integration Framework
+## Tool Integration Framework
 
 AmritaCore provides a comprehensive framework for integrating external tools and services. Tools can be registered and made available to the agent for use during conversations.
 
@@ -14,7 +14,7 @@ There are three main approaches to tool registration:
 
 > **Important Note**: Decorators like `@simple_tool` and `@on_tools` register tools to the **global container** during module loading time, before any session is created. This is because sessions are only instantiated at runtime when conversations begin. For session-specific tool management, use direct `ToolsManager` operations.
 
-## 3.4.2 @simple_tool Decorator Registration
+## @simple_tool Decorator Registration
 
 The `@simple_tool` decorator registers functions as simple tools:
 
@@ -94,7 +94,7 @@ In this example:
 
 Args in the function signature are considered arguments to the function. Their types are inferred from the type annotations, and their descriptions are inferred from the docstring which should be written as **Google's Python Docstring format**.
 
-## 3.4.3 @on_tools Decorator Registration
+## @on_tools Decorator Registration
 
 The `@on_tools` decorator registers functions as callable tools and provides a more advanced usage:
 
@@ -263,7 +263,7 @@ flexible_input = FunctionPropertySchema(
 
 These validation rules ensure that your tool schemas are well-formed and compatible with standard JSON Schema specifications.
 
-## 3.4.4 FunctionDefinitionSchema Function Schema
+## FunctionDefinitionSchema Function Schema
 
 The [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md) class defines the schema for function parameters:
 
@@ -277,7 +277,7 @@ schema = FunctionDefinitionSchema(
 )
 ```
 
-## 3.4.5 ToolsManager Tool Manager
+## ToolsManager Tool Manager
 
 The [ToolsManager](../api-reference/classes/ToolsManager.md) class manages registered tools:
 
@@ -289,7 +289,7 @@ manager = ToolsManager()
 registered_tools = manager.get_tools()
 ```
 
-## 3.4.6 Dynamic Tool Discovery
+## Dynamic Tool Discovery
 
 Tools are automatically discovered and registered when modules are imported:
 

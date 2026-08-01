@@ -1,15 +1,15 @@
 # ToolCall
 
-The ToolCall class represents an invocation of a tool.
+ToolCall 类表示工具的一次调用。
 
-## Properties
+## 属性
 
-- `id` (str): ID of the tool call
-- `function` ([Function](Function.md)): Function called by the model
-- `type` (typing.Literal["function"]): Tool type, currently only supports "function"
+- `id` (str)：工具调用的 ID
+- `function` (Function)：模型调用的函数
+- `type` (Literal["function"])：工具类型，目前仅支持 "function"
 
-## Description
+## 描述
 
-The ToolCall class inherits from BaseModel and is used to represent tool invocations initiated by the AI model. When the AI model determines that a particular tool needs to be invoked, it generates a ToolCall object containing information about the function to call and its arguments.
+ToolCall 类继承自 BaseModel，用于表示 AI 模型发起的工具调用。当 AI 模型确定需要调用某个工具时，会生成一个 ToolCall 对象，包含要调用的函数和参数信息。
 
-ToolCall is a key component of AmritaCore's tool calling system, allowing the AI model to interact with external tools and services.
+ToolCall 是 AmritaCore 工具调用系统的关键组件，使 AI 模型能够与外部工具和服务交互。

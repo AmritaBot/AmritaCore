@@ -51,6 +51,7 @@ async def use_no_action_strategy():
     chat = agent.get_chatobject("Just respond to this query directly")
     async with chat.begin():
         response = await chat.full_response()
+        await chat  # Wait for the task to finish before exiting
 ```
 
 ## When to Use

@@ -1,10 +1,12 @@
 # API Reference
 
-## 7.1 Core API Functions
+This reference is organized by functional module. Each entry links to the class page for full documentation.
 
-### 7.1.1 load_amrita() - Loading Framework
+## Core API Functions
 
-The `load_amrita()` function asynchronously loads AmritaCore components, particularly when MCP client functionality is enabled.
+### `load_amrita()`
+
+The `load_amrita()` function asynchronously loads MCP clients when MCP is enabled in the configuration. Tokenizers and adapters are already registered at import time — `load_amrita()` does not load them.
 
 ```python
 import asyncio
@@ -16,16 +18,23 @@ async def main():
 asyncio.run(main())
 ```
 
-**Purpose**: Loads additional AmritaCore components, especially MCP clients if configured.
-
 **Usage Notes**:
 
 - No longer requires `init()` to be called first (since v0.9.0rc1)
 - Should be called after `set_config()` if custom configuration is used
-- Should be awaited as it's an async function
-- When MCP is enabled, it's required to call `load_amrita()`.
+- When MCP is enabled, it's required to call `load_amrita()`
 
-### 7.1.3 set_config() - Setting Configuration
+### `minimal_init()`
+
+The `minimal_init()` function performs minimal initialization: it applies the config and loads MCP clients if enabled. Tokenizers and adapters are already registered at import time.
+
+```python
+from amrita_core import minimal_init
+
+await minimal_init()
+```
+
+### `set_config(config)`
 
 The `set_config()` function applies a configuration to AmritaCore.
 
@@ -36,8 +45,6 @@ config = AmritaConfig()
 set_config(config)
 ```
 
-**Purpose**: Sets the active configuration for AmritaCore.
-
 **Parameters**:
 
 - `config` ([AmritaConfig](classes/AmritaConfig.md)): The configuration object to set
@@ -45,9 +52,8 @@ set_config(config)
 **Usage Notes**:
 
 - Should be called before `load_amrita()`
-- Configuration affects all subsequent operations
 
-### 7.1.4 get_config() - Getting Configuration
+### `get_config()`
 
 The `get_config()` function retrieves the current AmritaCore configuration.
 
@@ -62,192 +68,134 @@ print(config.function_config.use_minimal_context)
 
 **Usage Notes**:
 
-- Throws RuntimeError if AmritaCore is not initialized
-- Safe to call after initialization
+- Throws `RuntimeError` if AmritaCore is not initialized
 
-### 7.1.5 create_agent() - Agent Creation
+### `create_agent()`
 
-The `create_agent()` function creates an agent with minimal parameters by automatically creating a temporary preset.
+The `create_agent()` factory function creates an agent with minimal parameters by automatically creating a temporary preset. **This is the recommended entry point for building agents.**
 
 ```python
 from amrita_core import create_agent
 
 agent = create_agent(
-    "https://api.example.com", # Replace with your API URL
-    "your-api-key", # Replace with your API key
-    model="gpt-4", # Replace with your desired model
-    model_config={"temperature": 0.7}
-    )
+    "https://api.example.com",  # Replace with your API URL
+    "your-api-key",  # Replace with your API key
+    model="gpt-4",  # Replace with your desired model
+    model_config={"temperature": 0.7},
+)
 ```
-
-**Purpose**: Simplifies agent creation by only requiring essential parameters like URL and API key, automatically creating a temporary preset for immediate use.
 
 **Parameters**:
 
-- `url` (str): The API endpoint URL
-- `key` (str): The API key for authentication
-- `model` (str, optional): The model to use. Defaults to `"auto"`.
-- `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, optional): Optional model configuration. Defaults to None.
-- `config` ([AmritaConfig](classes/AmritaConfig.md) | None, optional): Configuration for the agent. Defaults to global config.
+- `base_url` (str): The API endpoint URL
+- `api_key` (str): The API key for authentication
+- `model` (str, optional): The model to use. Defaults to `"auto"`
+- `train` (str | None, optional): System prompt; defaults to built-in instructions
+- `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, optional): Optional model configuration. Defaults to None
+- `config` ([AmritaConfig](classes/AmritaConfig.md) | None, optional): Configuration for the agent. Defaults to global config
 - `**kwargs`: Additional keyword arguments forwarded to [AgentRuntime](classes/AgentRuntime.md) (e.g. `strategy`, `template`, `session_id`, `backend`)
 
-**Returns**: `AgentRuntime` - Configured agent runtime instance
+**Returns**: [AgentRuntime](classes/AgentRuntime.md) - Configured agent runtime instance
 
 **Usage Notes**:
 
-- This is the recommended way to quickly create an agent for basic use cases
-- The function automatically handles initialization, configuration, and preset creation
-- For advanced use cases requiring fine-grained control, consider using [ChatObject](classes/ChatObject.md) directly
-- The created agent can be reused for multiple interactions using the `get_chatobject()` method
+- The function automatically creates a temporary preset; use [PresetManager](classes/PresetManager.md) for persistent presets
+- The returned agent can be reused for multiple interactions via `get_chatobject()`
 
-## 7.2 Classes and Interfaces Documentation
+## Configuration
 
-### 7.2.1 ChatObject - Conversation Object
+| Class                                       | Description                                                             |
+| ------------------------------------------- | ----------------------------------------------------------------------- |
+| [AmritaConfig](classes/AmritaConfig.md)     | Central configuration object (function_config / llm / cookie / builtin) |
+| [FunctionConfig](classes/FunctionConfig.md) | Functional behavior: context, tokenizer, tool call limit, MCP client    |
+| [LLMConfig](classes/LLMConfig.md)           | LLM behavior: token limits, retries, fallbacks, memory summarization    |
+| [CookieConfig](classes/CookieConfig.md)     | Cookie leak detection mechanism                                         |
 
-The [ChatObject](classes/ChatObject.md) class is the primary interface for conversations with the AI.
+## Chat Management
 
-```python
-from amrita_core import ChatObject
-from amrita_core.types import Message
+| Class                                       | Description                                     |
+| ------------------------------------------- | ----------------------------------------------- |
+| [ChatObject](classes/ChatObject.md)         | Core class for individual conversations         |
+| [ChatManager](classes/ChatManager.md)       | Manages running ChatObject instances            |
+| [ChatObjectMeta](classes/ChatObjectMeta.md) | Metadata model for ChatObject snapshots         |
+| [SuspendEnum](classes/SuspendEnum.md)       | Standardized breakpoint tags for suspend/resume |
 
-train = Message(content="You are a helpful assistant.", role="system")
+## Types
 
-chat = ChatObject(
-    train=train.model_dump(),
-    user_input="Hello!",
-    session_id="session_123",
-)
-```
+| Class                                           | Description                                             |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| [Message](classes/Message.md)                   | A single message in the conversation                    |
+| [SendMessageWrap](classes/SendMessageWrap.md)   | Iterable wrapper for the message list sent to the model |
+| [MemoryModel](classes/MemoryModel.md)           | Stores conversation history                             |
+| [ModelConfig](classes/ModelConfig.md)           | Model-specific behavior parameters                      |
+| [ModelPreset](classes/ModelPreset.md)           | Complete configuration for a specific model             |
+| [ThinkingConfig](classes/ThinkingConfig.md)     | Thinking/reasoning configuration                        |
+| [TextContent](classes/TextContent.md)           | Text content within messages                            |
+| [ToolCall](classes/ToolCall.md)                 | An invocation of a tool                                 |
+| [ToolResult](classes/ToolResult.md)             | The result of a tool invocation                         |
+| [UniResponse](classes/UniResponse.md)           | Unified response format                                 |
+| [UniResponseUsage](classes/UniResponseUsage.md) | Usage statistics for responses                          |
+| [EmbeddingChunk](classes/EmbeddingChunk.md)     | Embedding vector returned by the embedding adapter      |
+| [BaseModel](classes/BaseModel.md)               | Base class for all data models                          |
 
-**Constructor Parameters**:
+## Tools
 
-- `train` (dict | [Message](classes/Message.md)): Training/prompt data for the AI
-- `user_input` (str | Sequence[Content] | None): The user's input message
-- `context` ([StateContext](classes/StateContext.md) | None, optional): Pre-built state context (mutually exclusive with `session_id`)
-- `session_id` (str | None, optional): Unique identifier for the session (mutually exclusive with `context`)
-- `backend` ([BackendSlots](classes/BackendSlots.md) | None, optional): Backend slots for memory and ability I/O (default: LegacyBackend)
-- `preset` ([ModelPreset](classes/ModelPreset.md) | None, optional): Model preset (resolved at runtime)
+| Class                                                           | Description                                                  |
+| --------------------------------------------------------------- | ------------------------------------------------------------ |
+| [FunctionDefinitionSchema](classes/FunctionDefinitionSchema.md) | Function definition schema (name, description, parameters)   |
+| [ToolFunctionSchema](classes/ToolFunctionSchema.md)             | Complete function-calling schema (function + type + strict)  |
+| [ToolData](classes/ToolData.md)                                 | Data model for registering tools (metadata + implementation) |
+| [ToolContext](classes/ToolContext.md)                           | Context passed to tool functions during execution            |
+| [ToolsManager](classes/ToolsManager.md)                         | Singleton tool registry                                      |
+| [MultiToolsManager](classes/MultiToolsManager.md)               | Multi-instance tool registry with enable/disable support     |
+| [MCPClient](classes/MCPClient.md)                               | MCP client for connecting to MCP servers                     |
+| [ClientManager](classes/ClientManager.md)                       | Manages a single MCP client                                  |
+| [MultiClientManager](classes/MultiClientManager.md)             | Manages multiple MCP clients                                 |
 
-**Methods**:
+## Backends & Contexts
 
-- `begin()`: Executes the conversation
-- `full_response()`: Returns the complete response
+| Class                                               | Description                                               |
+| --------------------------------------------------- | --------------------------------------------------------- |
+| [BackendSlots](classes/BackendSlots.md)             | Bundles ability and memory backends for I/O               |
+| [AbilityBackend](classes/AbilityBackend.md)         | Abstract base for loading tools, MCP clients, and presets |
+| [MemoryBackend](classes/MemoryBackend.md)           | Abstract base for loading and committing memory           |
+| [LegacyBackend](classes/LegacyBackend.md)           | Default in-process backend implementation                 |
+| [AbilityContext](classes/AbilityContext.md)         | Runtime ability state (tools, presets, MCP clients)       |
+| [StateContext](classes/StateContext.md)             | Runtime session state (session_id, memory, ability)       |
+| [DatabackendOptions](classes/DatabackendOptions.md) | Fine-grained control over backend fetch/commit operations |
 
-**Specials**:
+## Agent Strategies
 
-- `__await__`: Allows the object to be used as an async context manager, we recommend using it.
+| Class                                                           | Description                                        |
+| --------------------------------------------------------------- | -------------------------------------------------- |
+| [AgentRuntime](classes/AgentRuntime.md)                         | Agent runtime wrapper returned by `create_agent()` |
+| [AgentStrategy](classes/AgentStrategy.md)                       | Abstract base class for agent strategies           |
+| [StrategyContext](classes/StrategyContext.md)                   | Context passed to strategy execution               |
+| [BaseReActAgentStrategy](classes/BaseReActAgentStrategy.md)     | Base ReAct strategy implementation                 |
+| [ReActAgentStrategy](classes/ReActAgentStrategy.md)             | Standard ReAct strategy                            |
+| [HybridReActAgentStrategy](classes/HybridReActAgentStrategy.md) | Hybrid ReAct strategy                              |
+| [NoActionAgentStrategy](classes/NoActionAgentStrategy.md)       | Strategy that performs no actions                  |
 
-### 7.2.1a StrategyLikedObject - Stateful Strategy Base
+## Events & Hooks
 
-The [StrategyLikedObject](classes/StrategyLikedObject.md) class is an abstract base class for agent strategy **instances**. Unlike `AgentStrategy` which receives a type, `StrategyLikedObject` is passed as an already-initialised instance, enabling stateful strategies with internal state machines.
+| Class                                               | Description                                                    |
+| --------------------------------------------------- | -------------------------------------------------------------- |
+| [CompletionEvent](classes/CompletionEvent.md)       | Fired after model completion (event type `COMPLETION`)         |
+| [PreCompletionEvent](classes/PreCompletionEvent.md) | Fired before strategy run and completion (`BEFORE_COMPLETION`) |
+| [FallbackContext](classes/FallbackContext.md)       | Context for preset fallback events (`PRESET_FALLBACK`)         |
 
-```python
-from amrita_core.agent.strategy import StrategyLikedObject
+## Presets & Tokenizers
 
-class MyStatefulStrategy(StrategyLikedObject):
-    @classmethod
-    def get_category(cls) -> str:
-        return "agent"
+| Class                                               | Description                                           |
+| --------------------------------------------------- | ----------------------------------------------------- |
+| [PresetManager](classes/PresetManager.md)           | Manages model presets                                 |
+| [MultiPresetManager](classes/MultiPresetManager.md) | Multi-instance preset management with testing support |
+| [BaseTokenizer](classes/BaseTokenizer.md)           | Abstract base class for custom tokenizers             |
+| [ModelAdapter](classes/ModelAdapter.md)             | Abstract base class for model adapters                |
 
-    async def single_execute(self) -> bool:
-        # Custom agent step logic
-        return False  # Stop after one step
+## Decorators
 
-# Pass instance to ChatObject
-chat = ChatObject(
-    ...,
-    agent_strategy=MyStatefulStrategy()
-)
-```
-
-### 7.2.1b BackendSlots - Backend Mechanism
-
-The [BackendSlots](classes/BackendSlots.md) dataclass bundles [AbilityBackend](classes/AbilityBackend.md) and [MemoryBackend](classes/MemoryBackend.md) for data I/O.
-
-```python
-from amrita_core.base.backend import BackendSlots
-from amrita_core.builtins.backends import LegacyBackend
-
-slot = BackendSlots(
-    ability=LegacyBackend(),
-    memory=LegacyBackend(),
-)
-```
-
-- [AbilityBackend](classes/AbilityBackend.md): Abstract base for loading tools, MCP clients, and presets
-- [MemoryBackend](classes/MemoryBackend.md): Abstract base for loading and committing memory
-- [LegacyBackend](classes/LegacyBackend.md): Default in-process implementation
-- [AbilityContext](classes/AbilityContext.md): Runtime ability state (tools, presets, MCP clients)
-- [StateContext](classes/StateContext.md): Runtime session state (session_id, memory, ability)
-- [DatabackendOptions](classes/DatabackendOptions.md): Fine-grained control over backend fetch/commit operations
-- [DirtyAwareBaseModel](classes/DirtyAwareBaseModel.md): Base model with automatic mutation tracking
-
-### 7.2.2 Message - Message Class
-
-The [Message](classes/Message.md) class represents a single message in the conversation.
-
-```python
-from amrita_core.types import Message
-
-# Create different types of messages
-system_msg = Message(content="You are a helpful assistant.", role="system")
-user_msg = Message(content="Hello, how are you?", role="user")
-assistant_msg = Message(content="I'm doing well, thank you!", role="assistant")
-```
-
-**Constructor Parameters**:
-
-- `content` (str): The message content
-- `role` (str): The role of the message ('system', 'user', or 'assistant')
-
-### 7.2.3 MemoryModel - Memory Model
-
-The [MemoryModel](classes/MemoryModel.md) class stores conversation history and context.
-
-```python
-from amrita_core.types import MemoryModel, Message
-
-memory = MemoryModel()
-memory.messages.append(Message(content="Hello", role="user"))
-memory.messages.append(Message(content="Hi there", role="assistant"))
-```
-
-**Properties**:
-
-- `messages` (list): List of messages in the conversation
-
-### 7.2.4 AmritaConfig - Configuration Class
-
-The [AmritaConfig](classes/AmritaConfig.md) class is the central configuration object for AmritaCore.
-
-```python
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgentConfig
-
-config = AmritaConfig(
-    function_config=FunctionConfig(
-        use_minimal_context=False,
-    ),
-    llm=LLMConfig(
-        enable_memory_abstract=True
-    ),
-    cookie=CookieConfig(
-        enable_cookie=True
-    ),
-    builtin=BuiltinAgentConfig(
-        tool_calling_mode="agent"
-    )
-)
-```
-
-**Properties**:
-
-- `function_config` ([FunctionConfig](classes/FunctionConfig.md)): Functional behavior configuration
-- `llm` ([LLMConfig](classes/LLMConfig.md)): Language model configuration
-- `cookie` ([CookieConfig](classes/CookieConfig.md)): Security configuration
-
-## 7.3 Decorator References
-
-### 7.3.1 @simple_tool - Simple Tool Decorator
+### `@simple_tool`
 
 The `@simple_tool` decorator is used to register a simple tool.
 
@@ -291,12 +239,11 @@ def add(a: int, b: int) -> int:
 
 **Usage Notes**:
 
-- The decorator registers a simple tool.
-- The tool is registered with the name of the function.
-- The description of each parameter is from the docstring of the function, it follows the same format as the docstring.
-- All function parameters must have type annotations (no untyped parameters allowed).
+- The tool is registered with the name of the function
+- The description of each parameter comes from the function's docstring (Google-style)
+- All function parameters must have type annotations (no untyped parameters allowed)
 
-### 7.3.2 @on_tools - Tool Registration
+### `@on_tools`
 
 The `@on_tools` decorator registers functions as callable tools for the agent.
 
@@ -342,9 +289,8 @@ async def add(data: dict[str, Any]) -> str:
 
 - Function must have proper type hints for parameters
 - Function docstring becomes the tool description
-- Registered tools are automatically available to the agent
 
-### 7.3.3 @on_event - Event Listener
+### `@on_event`
 
 The `@on_event` decorator registers functions as event handlers.
 
@@ -359,7 +305,7 @@ def my_event_handler(event):
 
 **Purpose**: Registers a function to handle specific events during the processing pipeline.
 
-### 7.3.4 @on_precompletion - Pre-Completion Hook
+### `@on_precompletion`
 
 The `@on_precompletion` decorator registers functions to run before the completion request is sent to the LLM.
 
@@ -375,7 +321,7 @@ async def preprocess_request(event: PreCompletionEvent):
 
 **Purpose**: Runs before sending the request to the LLM, allowing modification of messages or other preprocessing.
 
-### 7.3.5 @on_completion - Post-Completion Hook
+### `@on_completion`
 
 The `@on_completion` decorator registers functions to run after receiving the completion from the LLM.
 
@@ -391,27 +337,21 @@ async def postprocess_response(event: CompletionEvent):
 
 **Purpose**: Runs after receiving the response from the LLM, allowing post-processing of the response.
 
-## 7.4 Type Definitions and Exceptions
+## Type Definitions
 
-### 7.4.1 Predefined Types
+### Predefined Types
 
 AmritaCore provides several predefined types for consistency:
 
 - [BaseModel](classes/BaseModel.md): Base class for all data models
-- [Depends](classes/Depends.md): Dependency injection decorator for declaring event handler dependencies
-- [DependsFactory](classes/DependsFactory.md): Dependency factory class for wrapping and resolving dependency functions
 - [EmbeddingChunk](classes/EmbeddingChunk.md): Represents an embedding vector returned by embedding adapter
-- [Function](classes/Function.md): Represents a callable function in the tool system
 - [FunctionDefinitionSchema](classes/FunctionDefinitionSchema.md): Schema for function parameters
 - [MemoryModel](classes/MemoryModel.md): Stores conversation history
 - [ModelConfig](classes/ModelConfig.md): Model-specific configuration
 - [ModelPreset](classes/ModelPreset.md): Complete configuration for a specific model
 - [ChatManager](classes/ChatManager.md): Manages running ChatObject instances
 - [ChatObjectMeta](classes/ChatObjectMeta.md): Metadata model for ChatObject snapshots
-- [MemoryLimiter](classes/MemoryLimiter.md): Context processor for memory and token limits
-- [StrategyLikedObject](classes/StrategyLikedObject.md): Abstract base class for stateful agent strategy instances
 - [SuspendEnum](classes/SuspendEnum.md): Standardized breakpoint tags for suspend/resume mechanism
-- [SuspendObjectStream](classes/SuspendObjectStream.md): Generic base class for objects with suspend/resume capabilities and streaming response handling
 - [TextContent](classes/TextContent.md): Represents text content within messages
 - [ToolCall](classes/ToolCall.md): Represents an invocation of a tool
 - [ToolContext](classes/ToolContext.md): Provides context for tool execution
@@ -420,7 +360,7 @@ AmritaCore provides several predefined types for consistency:
 - [UniResponse](classes/UniResponse.md): Unified format for responses
 - [UniResponseUsage](classes/UniResponseUsage.md): Usage statistics for responses
 
-### 7.4.2 Exception Types
+### Exception Types
 
 AmritaCore may raise the following exceptions:
 
@@ -428,7 +368,7 @@ AmritaCore may raise the following exceptions:
 - `ValueError`: Raised when invalid values are provided to functions
 - `TypeError`: Raised when incorrect types are passed to functions
 
-### 7.4.3 Type Checking
+### Type Checking
 
 AmritaCore uses Pydantic models extensively for type validation. When creating custom components, ensure proper type annotations:
 

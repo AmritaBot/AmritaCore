@@ -1,240 +1,28 @@
 # 核心概念
 
-## 配置系统
+本节解释 AmritaCore 背后的基本概念：每个组件是什么、为什么存在，以及各部分如何组合。如果你在寻找分步指导，请从[教程](../tutorials/index.md)开始。
 
-### 3.1.1 AmritaConfig 总体配置
+## 核心概念
 
-[AmritaConfig](../api-reference/classes/AmritaConfig.md) 类作为 AmritaCore 的中央配置对象。它结合了三个不同的配置类：
+| 概念                                   | 涵盖内容                                                                                                   |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [配置系统](configuration.md)           | `AmritaConfig`、`FunctionConfig`、`LLMConfig`、`CookieConfig`、`BuiltinAgentConfig`——AmritaCore 的配置方式 |
+| [ChatObject——对话对象](chat-object.md) | 核心对话类、预设、流式传输、回调和记忆摘要                                                                 |
+| [事件系统](event.md)                   | 处理管道中的钩子：前置完成、完成和回退事件                                                                 |
+| [工具系统](tool.md)                    | 工具的定义、注册以及 agent 调用方式                                                                        |
+| [Agent 策略](agent-strategy.md)        | Agent 行为的策略模式：ReAct、Hybrid ReAct、NoAction                                                        |
 
-- `FunctionConfig`: 定义Agent的行为方面
-- `LLMConfig`: 控制语言模型交互
-- `CookieConfig`: 处理安全方面
-- `BuiltinAgentConfig`: 内置Agent的策略控制
+## 数据管理
 
-```python
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgentConfig
+数据层将**数据长什么样**与**数据如何存储**分离：
 
-# 完整配置
-config = AmritaConfig(
-    function_config=FunctionConfig(...),
-    llm=LLMConfig(...),
-    cookie=CookieConfig(...),
-    builtin=BuiltinAgentConfig(...),
-)
+- [数据管理](data-management.md)——数据架构概览
+- [数据容器](data-containers.md)——`Message`、`MemoryModel`、`StateContext`、工具注册表和 MCP 客户端管理器
+- [数据后端](data-backend.md)——`AbilityBackend` / `MemoryBackend` 接口和 `LegacyBackend`
+- [数据杂项](data-misc.md)——`ModelConfig`、`ModelPreset`、`UniResponse`、`SendMessageWrap` 和嵌入分块
 
-# 应用配置
-from amrita_core.config import set_config
-set_config(config)
-```
+## 下一步
 
-### 3.1.2 FunctionConfig 功能配置
-
-[FunctionConfig](../api-reference/classes/FunctionConfig.md) 类控制AmritaCore主要的功能行为：
-
-#### 3.1.2.1 use_minimal_context 上下文模式
-
-`use_minimal_context` 标志决定是使用最小上下文（系统提示 + 用户最后的消息）还是完整对话历史：
-
-```python
-from amrita_core.config import FunctionConfig
-
-# 使用完整上下文（默认）
-func_config_full = FunctionConfig(use_minimal_context=False)
-
-# 使用最小上下文（更节省Token）
-func_config_minimal = FunctionConfig(use_minimal_context=True)
-```
-
-#### 3.1.2.2 agent_mcp_client_enable MCP 客户端配置
-
-`agent_mcp_client_enable` 标志启用或禁用模型上下文协议 (MCP) 客户端功能：
-
-```python
-# 启用 MCP 客户端
-func_config_mcp = FunctionConfig(
-    agent_mcp_client_enable=True,
-    agent_mcp_server_scripts=["script1.mcp", "script2.mcp"]
-)
-```
-
-### 3.1.3 LLMConfig 大模型配置
-
-[LLMConfig](../api-reference/classes/LLMConfig.md) 类控制与语言模型的交互：
-
-#### 3.1.3.1 enable_memory_abstract 记忆抽象
-
-`enable_memory_abstract` 属性启用对话历史的自动摘要以管理Token使用：
-
-```python
-llm_config = LLMConfig(
-    enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # 在达到上下文长度的 15% 时进行摘要
-)
-```
-
-#### 3.1.3.2 其他模型参数
-
-其他参数控制Token使用、超时和重试行为：
-
-```python
-llm_config = LLMConfig(
-    max_tokens=100,                   # 响应中的最大Token数
-    llm_timeout=60,                   # 请求超时（秒）
-    auto_retry=True,                  # 自动重试失败的请求
-    max_retries=3,                    # 最大重试次数
-    memory_length_limit=50            # 记忆上下文中的最大消息数
-)
-```
-
-### 3.1.4 BuiltinAgentConfig 内置Agent策略行为调整
-
-#### 3.1.4.2 tool_calling_mode 工具调用模式
-
-`tool_calling_mode` 属性指定工具如何被调用：
-
-- `"agent"`: Agent自主决定何时使用工具
-- `"rag"`: 工具主要用于检索增强生成，只在一次对话中调用一次。
-- `"none"`: 工具被禁用
-
-```python
-# Agent决定何时使用工具
-func_config_agent = BuiltinAgentConfig(tool_calling_mode="agent")
-
-# 主要用于RAG目的
-func_config_rag = BuiltinAgentConfig(tool_calling_mode="rag")
-```
-
-#### 3.1.4.3 agent_thought_mode Agent思维模式
-
-`agent_thought_mode` 属性控制Agent如何处理信息：
-
-- `"reasoning"`: 在每次用户消息开始时进行推理
-- `"chat"`: 直接执行任务而不进行明确推理
-- `"reasoning-required"`: 每次工具调用都需要推理
-- `"reasoning-optional"`: 允许推理但不要求
-
-```python
-# 推理模式
-func_config_reasoning = BuiltinAgentConfig(agent_thought_mode="reasoning")
-
-# 直接聊天模式
-func_config_chat = BuiltinAgentConfig(agent_thought_mode="chat")
-```
-
-### 3.1.5 CookieConfig 安全配置
-
-[CookieConfig](../api-reference/classes/CookieConfig.md) 类处理与安全相关的设置：
-
-```python
-from amrita_core.config import CookieConfig
-
-security_config = CookieConfig(
-    enable_cookie=True,               # 启用 cookie 泄露检测
-    cookie="random_cookie_string"     # 用于安全检测的 cookie 字符串
-)
-```
-
-### 3.1.6 配置最佳实践
-
-- 对简单查询使用最小上下文以节省Token
-- 对长对话启用记忆抽象
-- 根据您的 LLM 提供商调整超时和重试设置
-- 在生产环境中保持安全功能启用
-
-## 3.5 高级概念
-
-### 3.5.1 ChatObject 对话对象
-
-[ChatObject](../api-reference/classes/ChatObject.md) 是管理单个对话的核心类：
-
-```python
-import asyncio
-from amrita_core import ChatObject
-from amrita_core.base.backend import BackendSlots
-from amrita_core.builtins.backends import LegacyBackend
-
-backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
-
-chat = ChatObject(
-    train={"role": "system", "content": "您是一个有用的助手。"},
-    user_input="你好！",
-    context=None,
-    session_id="session_123",
-    backend=backend,
-)
-
-async def msg_getter(chatobj: ChatObject) -> None:
-    async for message in chatobj.io_stream.get_response_generator():
-        print(message if isinstance(message, str) else message.get_content(), end="")
-    print("\n")
-
-async with chat.begin():
-    await msg_getter(chat)
-
-```
-
-### 3.5.2 PresetManager 预设管理器
-
-[PresetManager](../api-reference/classes/PresetManager.md) 管理模型预设：
-
-```python
-from amrita_core.preset import PresetManager, ModelPreset
-
-preset_manager = PresetManager()
-
-# 添加预设
-preset = ModelPreset(...)
-preset_manager.add_preset(preset)
-preset_manager.set_default_preset(preset.name)
-
-# 获取可用预设
-presets = preset_manager.get_presets()
-```
-
-### 3.5.3 流式处理设计
-
-AmritaCore 对所有响应使用流式传输以提供实时反馈：
-
-```python
-# 响应以异步生成器形式返回
-async for chunk in chat.io_stream.get_response_generator():
-    # 实时处理每个块
-    print(chunk, end="")
-```
-
-### 3.5.4 回调式响应
-
-AmritaCore 支持回调式响应：
-
-```python
-async def callback(chunk):
-    print(chunk, end="")
-
-chat.io_stream.set_callback_func(callback)
-await chat.begin()
-```
-
-### 3.5.5 记忆摘要机制
-
-记忆摘要机制自动压缩对话历史以管理Token使用：
-
-```python
-# 通过 LLMConfig 配置
-llm_config = LLMConfig(
-    enable_memory_abstract=True,
-    memory_abstract_proportion=0.15  # 在上下文长度达到限制时进行摘要的消息占比
-)
-```
-
-### 3.5.6 挂起与恢复机制
-
-AmritaCore 提供了内置的**挂起/恢复机制**，允许您在处理过程中的任意时刻暂停和恢复 `ChatObject` 的执行流程。此功能支持交互式应用程序，在这些应用程序中，用户干预或外部事件可能需要临时暂停代理的工作流。
-
-主要特性包括：
-
-- 非阻塞挂起，不会阻塞主事件循环
-- 对执行流程的细粒度控制
-- 超时支持，防止无限等待
-- 与所有代理策略无缝集成
-
-有关详细用法示例和高级场景，请参阅[挂起与恢复机制](./suspend.md)文档。
+- 想构建第一个 agent？→ [教程](../tutorials/index.md)
+- 需要实现特定功能？→ [操作指南](../how-to/function-implementation.md)
+- 深入了解内部机制？→ [高级](../advanced/index.md)

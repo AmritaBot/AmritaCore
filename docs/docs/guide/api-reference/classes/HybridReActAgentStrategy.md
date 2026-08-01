@@ -73,6 +73,7 @@ async def use_hybrid_strategy():
     chat = agent.get_chatobject("Analyze this data using available tools")
     async with chat.begin():
         response = await chat.full_response()
+        await chat  # Wait for the task to finish before exiting
 ```
 
 ## When to Use

@@ -1,16 +1,14 @@
 # ToolResult
 
-The ToolResult class represents the result of a tool invocation.
+ToolResult 类表示工具调用的结果。
 
-## Properties
+## 属性
 
-- `role` (Literal["tool"]): Role, fixed as "tool"
-- `name` (str): Tool name
-- `content` (str): Tool return content
-- `tool_call_id` (str): Tool call ID
+- `role` (Literal["tool"])：角色，固定为 "tool"
+- `name` (str)：工具名
+- `content` (str)：工具返回的内容
+- `tool_call_id` (str)：工具调用 ID
 
-## Description
+## 描述
 
-The ToolResult class inherits from BaseModel and is used to represent the result of a tool invocation. When a tool completes execution, its result is encapsulated as a ToolResult object for use in the conversation flow.
-
-ToolResult is an important component of AmritaCore's tool system, connecting tool invocation and subsequent conversation processing, allowing the AI model to understand and utilize the results of tool execution.
+ToolResult 类继承自 BaseModel，用于表示工具调用的结果。当工具完成执行后，其结果被封装为 ToolResult 对象，供对话流使用。

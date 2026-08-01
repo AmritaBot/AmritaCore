@@ -1,14 +1,14 @@
 # AmritaConfig
 
-The AmritaConfig class is the central configuration object for AmritaCore.
+AmritaConfig 类是 AmritaCore 的中央配置对象。
 
-## Properties
+## 属性
 
-- `function_config` ([FunctionConfig](FunctionConfig.md)): Functional behavior configuration
-- `llm` ([LLMConfig](LLMConfig.md)): Language model configuration
-- `cookie` ([CookieConfig.md](CookieConfig.md)): Security configuration
+- `function_config` ([FunctionConfig](FunctionConfig.md))：功能行为配置
+- `llm` ([LLMConfig](LLMConfig.md))：语言模型配置
+- `cookie` ([CookieConfig](CookieConfig.md))：安全配置
 
-## Example
+## 示例
 
 ```python
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgentConfig
@@ -16,7 +16,7 @@ from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieCo
 config = AmritaConfig(
     function_config=FunctionConfig(
         use_minimal_context=False,
-
+        tool_calling_mode="agent"
     ),
     llm=LLMConfig(
         enable_memory_abstract=True
@@ -30,10 +30,10 @@ config = AmritaConfig(
 )
 ```
 
-## Description
+## 描述
 
-The AmritaConfig class inherits from BaseModel and contains the main configuration options for the AmritaCore framework, divided into three parts:
+AmritaConfig 类继承自 BaseModel，包含 AmritaCore 框架的主要配置选项，分为三个部分：
 
-1. Function configuration: Controls the behavior of the framework
-2. LLM configuration: Controls parameters and behaviors of the language model
-3. Cookie configuration: Controls security-related settings
+1. 功能配置：控制框架的行为
+2. LLM 配置：控制语言模型的参数和行为
+3. Cookie 配置：控制安全相关设置

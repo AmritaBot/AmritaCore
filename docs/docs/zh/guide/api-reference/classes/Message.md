@@ -1,26 +1,21 @@
 # Message
 
-The Message class represents a single message in the conversation.
+Message 类表示对话中的单条消息。
 
-## Properties
+## 属性
 
-- `role` (Literal["user", "assistant", "system"]): Role of the message
-- `content` (T): Content of the message, where T is a generic parameter
-- `tool_calls` (list[[ToolCall](ToolCall.md)] | None): List of tool calls, optional
-- `reasoning_content` (str | None): Reasoning/thinking content from the model (only valid for `role="assistant"`)
-- `reasoning_signature` (str | None): Anthropic thinking signature for round-tripping
+- `role` (Literal["user", "assistant", "system"])：消息的角色
+- `content` (T)：消息的内容，T 是泛型参数
+- `tool_calls` (list[[ToolCall](ToolCall.md)] | None)：工具调用列表，可选
+- `reasoning_content` (str | None)：来自模型的推理/思考内容
+- `reasoning_signature` (str | None)：Anthropic 思考签名
 
-## Example
+## 示例
 
 ```python
 from amrita_core.types import Message
 
-# Create different types of messages
-system_msg = Message(content="You are a helpful assistant.", role="system")
-user_msg = Message(content="Hello, how are you?", role="user")
-assistant_msg = Message(content="I'm doing well, thank you!", role="assistant")
+system_msg = Message(content="你是一个乐于助人的助手。", role="system")
+user_msg = Message(content="你好，最近怎么样？", role="user")
+assistant_msg = Message(content="我很好，谢谢！", role="assistant")
 ```
-
-## Description
-
-The Message class inherits from BaseModel and implements generics to represent messages in a conversation. It includes role, content, and optional tool call information.

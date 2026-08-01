@@ -1,20 +1,20 @@
-# 2.4 项目架构理解
+# 项目架构理解
 
-## 2.4.1 架构图
+## 架构图
 
-### Core Architecture
+### 核心架构
 
 ```mermaid
 graph TB
     subgraph "入口层"
-        H[Agent运行时]
+        H[AgentRuntime]
         Factory["create_agent()"]
     end
 
     subgraph "核心执行层"
         A[ChatObject]
-        F[Agent核心]
-        G[Agent策略]
+        F[Agent 核心]
+        G[Agent 策略]
     end
 
     subgraph "AmritaSense 运行时"
@@ -33,11 +33,11 @@ graph TB
 
     subgraph "外部集成"
         Adapter[适配器层]
-        LLM[LLM提供商]
-        MCP[MCP客户端]
+        LLM[LLM 提供商]
+        MCP[MCP 客户端]
     end
 
-    用户输入 --> Factory
+    UserInput --> Factory
     Factory --> H
     H --> A
     A --> F
@@ -47,9 +47,9 @@ graph TB
     Adapter --> LLM
     F --> MCP
 
-    A -.->|由 WI 驱动| WI
-    A -.->|通过 MF 挂钩| MF
-    A -.->|通过 SOS 流式| SOS
+    A -.->|由……驱动| WI
+    A -.->|通过……挂载钩子| MF
+    A -.->|通过……流式传输| SOS
     MF -.->|解析| DI
     WI -.->|执行| NC
 
@@ -57,8 +57,8 @@ graph TB
     D --> F
     E --> F
 
-    F --> 响应流[响应流]
-    响应流 --> 用户输出
+    F --> ResponseStream[响应流]
+    ResponseStream --> UserOutput
     F --> E
 ```
 
@@ -90,9 +90,9 @@ graph TB
         G_MCP[全局 MCP ClientManager]
     end
 
-    AR -->|slot| BS
-    BS -->|ability| AB
-    BS -->|memory| MB
+    AR -->|槽位| BS
+    BS -->|能力| AB
+    BS -->|记忆| MB
     AB -->|load_ability_all| AC
     MB -->|load_memory| MM
     SC -->|包含| AC
@@ -109,13 +109,13 @@ graph TB
     MB -.- LB
 ```
 
-`LegacyBackend` 同时实现了 `AbilityBackend` 和 `MemoryBackend`，使用进程内全局容器。自定义后端（如数据库支持的后端）可以独立替换任一槽位。
+`LegacyBackend` 使用进程内全局容器同时实现 `AbilityBackend` 和 `MemoryBackend`。自定义后端（如数据库支持）可独立替换任一槽位。
 
-### 基于策略的执行流程
+### 基于策略的执行流
 
 ```mermaid
 graph LR
-    subgraph "策略类型"
+    subgraph "策略类别"
         AgentMode[agent]
         RAGMode[rag]
         WorkflowMode[workflow]
@@ -132,23 +132,23 @@ graph LR
     RAGMode --> RunMethod
     WorkflowMode --> RunMethod
 
-    SingleExecute --> AgentLoop[Agent Loop]
+    SingleExecute --> AgentLoop[Agent 循环]
     RunMethod --> AgentLoop
 ```
 
-## 2.4.2 AmritaSense — 运行时基座
+## AmritaSense — 运行时基座
 
-AmritaCore 构建于 [**AmritaSense**](https://sense.amritabot.com) 之上，后者作为**运行时**为每一次 `ChatObject` 执行提供动力。可以将 AmritaSense 理解为 Agent 工作流的"操作系统"——它提供调度、组合和事件管道，而 AmritaCore 在其上定义领域特定的 Agent 逻辑。
+AmritaCore 构建于 [**AmritaSense**](https://sense.amritabot.com) 之上，后者作为**运行时**驱动每一次 `ChatObject` 执行。可以将 AmritaSense 视为智能体工作流的"操作系统"——它提供调度、组合和事件管道，而 AmritaCore 在其上定义领域特定的智能体逻辑。
 
 ### 运行时组件
 
 | 组件                      | 在 ChatObject 中的角色                                                                                                                                                                                                             |
 | ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`WorkflowInterpreter`** | 驱动节点链（`LOAD_STATE → JINJA2_RENDER → _limiting_memory → BUILD_MESSAGE → … → LLM_COMPLETION → COMMIT_MEMORY`）。自 v0.12.0 起，核心工作流节点已抽取到 `amrita_core.components` 包中。每个节点是一个可组合的 `@Node` 装饰协程。 |
+| **`WorkflowInterpreter`** | 驱动节点链（`LOAD_STATE → JINJA2_RENDER → _limiting_memory → BUILD_MESSAGE → … → LLM_COMPLETION → COMMIT_MEMORY`）。自 v0.12.0 起，核心工作流节点已提取到 `amrita_core.components` 包中。每个节点是一个可组合的 `@Node` 装饰协程。 |
 | **`MatcherFactory`**      | 管理事件系统。`PreCompletionEvent`、`CompletionEvent`、`FallbackContext` 通过 `@on_precompletion().handle()` 等注册的匹配器进行分发。                                                                                              |
-| **`SuspendObjectStream`** | 流式 I/O 主干。所有 LLM 块、工具调用通知和推理内容都通过这个内置挂起/恢复的双向流传输。                                                                                                                                            |
+| **`SuspendObjectStream`** | 流式 I/O 主干。所有 LLM 分块、工具调用通知和推理内容通过这个带内置挂起/恢复功能的双向流传输。                                                                                                                                      |
 | **依赖注入**              | `WorkflowInterpreter` 解析节点签名中的类型注解和 `Depends()` 标记，自动注入 `ChatObject`、DI 上下文对象（`_di_ability`、`_di_memory`、`_di_input` 等）、配置和自定义依赖。                                                         |
-| **节点组合 (`>>`)**       | 节点通过 `>>` 操作符链接成 `NodeCompose` 图。解释器根据 `GOTO`/`WHILE`/`ALIAS` 指令进行控制流跳转。                                                                                                                                |
+| **节点组合（`>>`）**      | 节点通过 `>>` 运算符链接成 `NodeCompose` 图。解释器根据 `GOTO`/`WHILE`/`ALIAS` 指令进行控制流。                                                                                                                                    |
 
 ### AmritaSense 如何驱动 ChatObject
 
@@ -158,15 +158,15 @@ sequenceDiagram
     participant WI as WorkflowInterpreter
     participant MF as MatcherFactory
     participant SOS as SuspendObjectStream
-    participant Node as 工作流节点
+    participant Node as WorkflowNode
 
     CO->>WI: run()
     loop 对链中的每个节点
         WI->>SOS: 检查挂起信号
         SOS-->>WI: 继续 / 阻塞
-        WI->>Node: 使用 DI 解析的参数执行
+        WI->>Node: 以 DI 解析的参数执行
         Node->>MF: trigger_event(PreCompletionEvent, ...)
-        MF-->>Node: 事件处理完毕
+        MF-->>Node: 事件已处理
         Node-->>WI: 结果
         WI->>WI: 评估 GOTO/WHILE/ALIAS
     end
@@ -174,35 +174,35 @@ sequenceDiagram
     WI-->>CO: 执行完成
 ```
 
-这种分离使得 AmritaCore 的 Agent 层保持轻量，专注于策略、会话、工具、MCP 和适配器——所有编排由 AmritaSense 处理。
+这种分离使 AmritaCore 的 Agent 层保持轻量，专注于策略、会话、工具、MCP 和适配器——所有编排由 AmritaSense 处理。
 
-## 2.4.3 核心组件关系
+## 核心组件关系
 
-- **入口层**: 为用户提供简化的交互接口
-  - `create_agent()`: 工厂函数，使用最少参数创建 `AgentRuntime`
-  - `AgentRuntime`: 高级包装器，封装复杂性并提供可重用的agent操作
+- **入口层**：为用户提供简化的交互接口
+  - `create_agent()`：工厂函数，以最少参数创建 `AgentRuntime`
+  - `AgentRuntime`：高级包装器，封装复杂性并提供可复用的 agent 操作
 
-- **核心执行层**: 处理主要的处理逻辑
-  - `ChatObject`: 管理单个对话的主要交互点，协调所有组件
-  - `Agent核心`: `ChatObject` 内部的中央处理逻辑，执行完整的agent循环
-  - `Agent策略`: 定义执行模式的抽象基类，支持四种策略类别
+- **核心执行层**：处理主要处理逻辑
+  - `ChatObject`：管理单次对话的主要交互点，协调所有组件
+  - `Agent 核心`：ChatObject 内部执行完整 agent 循环的中央处理逻辑
+  - `Agent 策略`：定义执行模式的抽象基类，支持四种策略类别
 
-- **支撑系统**: 提供基本服务和数据管理
-  - `配置`: 通过 `AmritaConfig` 控制系统行为
-  - `事件系统`: 通过装饰器和依赖注入在处理流水线中启用钩子
-  - `工具管理器`: 通过动态注册使用外部函数扩展功能
-  - `记忆模型`: 在会话数据中维护对话上下文和历史
+- **支撑系统**：提供关键服务和数据管理
+  - `配置`：通过 `AmritaConfig` 控制系统行为
+  - `事件系统`：通过装饰器和依赖注入在处理管道中启用钩子
+  - `工具管理器`：通过外部函数的动态注册扩展功能
+  - `记忆模型`：在会话数据中维护对话上下文和历史
 
-- **外部集成**: 处理与外部系统的通信
-  - `适配器层`: 抽象LLM提供商通信，实现厂商无关集成
-  - `MCP客户端`: 提供模型上下文协议支持，用于外部服务集成
+- **外部集成**：处理与外部系统的通信
+  - `适配器层`：抽象 LLM 提供商通信，实现供应商中立集成
+  - `MCP 客户端`：为外部服务集成提供 Model Context Protocol 支持
 
-- **数据后端**: 管理数据隔离与持久化
+- **数据后端**：管理数据隔离和持久化
   - `BackendSlots`：持有 `AbilityBackend` + `MemoryBackend` 引用
-  - `LegacyBackend`：内置内存后端，使用全局容器
+  - `LegacyBackend`：使用全局容器的内置内存后端
   - 自定义后端可替换记忆或能力槽位，实现数据库/云端持久化
 
-## 2.4.4 Agent 循环与后端数据流
+## Agent 循环与后端数据流
 
 ```mermaid
 sequenceDiagram
@@ -216,10 +216,10 @@ sequenceDiagram
     Entry->>Entry: 创建 AgentRuntime
     Entry-->>User: 返回 AgentRuntime
 
-    User->>Entry: get_chatobject("输入")
+    User->>Entry: get_chatobject("input")
     Entry->>Core: 创建 ChatObject
     Core->>Core: 初始化 Agent 策略
-    Core->>Support: Load ability and memory via BackendSlots
+    Core->>Support: 通过 BackendSlots 加载能力和记忆
     Core->>External: 通过适配器发送请求
     External->>External: 使用 LLM/MCP 处理
     External-->>Core: 返回响应
@@ -229,24 +229,24 @@ sequenceDiagram
 
 ### 基于策略的执行模式
 
-1. **分层架构**: 系统遵循清晰的分层结构，具有明确的层次：
-   - 入口层: 简化的用户界面
-   - 核心执行层: 主要处理逻辑
-   - **AmritaSense 运行时**: 工作流引擎、事件系统、流式处理、依赖注入——驱动执行的基座
-   - 支撑系统: 基本服务（配置、工具、记忆）
-   - 外部集成: 第三方通信（适配器、MCP）
-   - 数据后端: 状态隔离与持久化
+1. **分层架构**：系统遵循清晰的层次结构，各层职责明确：
+   - 入口层：简化的用户界面
+   - 核心执行层：主要处理逻辑
+   - **AmritaSense 运行时**：工作流引擎、事件系统、流式传输、DI——驱动执行的基座
+   - 支撑系统：关键服务（配置、工具、记忆）
+   - 外部集成：第三方通信（适配器、MCP）
+   - 数据后端：状态隔离和持久化
 
-2. **策略模式实现**: 四种执行策略提供灵活的行为：
-   - **'agent'**: 使用 `single_execute()` 进行迭代式工具调用，逐步执行
-   - **'rag'**: 使用 `run()` 进行检索增强生成，使用最小上下文
-   - **'workflow'**: 使用 `run()` 对工具调用和上下文管理进行完全手动控制
-   - **'agent-mixed'**: 使用 `single_execute()` 进行动态模式处理，可在RAG和Agent模式之间切换
+2. **策略模式实现**：四种执行策略提供灵活行为：
+   - **'agent'**：使用 `single_execute()` 进行迭代工具调用和逐步执行
+   - **'rag'**：使用 `run()` 进行检索增强生成，上下文最小
+   - **'workflow'**：使用 `run()` 实现对工具调用和上下文管理的完全手动控制
+   - **'agent-mixed'**：使用 `single_execute()` 在 RAG 和 agent 模式之间动态切换
 
-3. **会话隔离**: 每个对话通过独立的会话上下文保持完全隔离，同时在需要时共享全局资源。
+3. **后端驱动数据**：记忆和能力解析委托给 `BackendSlots`。默认的 `LegacyBackend` 在进程内全局容器中存储数据，而自定义后端可启用持久化和分布式状态。
 
-4. **事件驱动设计**: 系统使用装饰器和事件处理器允许在不修改核心逻辑的情况下扩展行为。
+4. **事件驱动设计**：系统使用装饰器和事件处理器，允许在不修改核心逻辑的情况下扩展行为。
 
-5. **厂商无关性**: 适配器层确保相同的agent逻辑可以与不同的LLM提供商配合工作而无需代码更改。
+5. **供应商中立**：适配器层确保相同的 agent 逻辑可以在不同 LLM 提供商间工作，无需更改代码。
 
-6. **模板支持**: [Jinja2模板](/zh/guide/extensions-integration/jinja2-templates)基于上下文、记忆和配置启用动态提示构建。
+6. **模板支持**：[Jinja2 模板](/zh/guide/extensions-integration/jinja2-templates) 支持基于上下文、记忆和配置的动态提示构建。

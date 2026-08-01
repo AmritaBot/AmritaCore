@@ -151,20 +151,20 @@ async def manual_mcp_setup():
 When the agent calls an MCP tool:
 
 ```python
-# 1. Agent decides to call tool
+# Agent decides to call tool
 # LLM generates: { "tool_calls": [{"name": "get_weather", "arguments": {"city": "NYC"}}] }
 
-# 2. Framework routes to MCP client
+# Framework routes to MCP client
 # ClientManager.get_client_by_tool_name("get_weather") finds correct client
 
-# 3. MCP client calls remote server
+# MCP client calls remote server
 result = await mcp_client.simple_call("get_weather", {"city": "NYC"})
 
-# 4. Server processes and returns
+# Server processes and returns
 # MCP server executes: get_weather(city="NYC")
 # Returns: "Weather in NYC: Sunny, 25°C"
 
-# 5. Result sent back to LLM
+# Result sent back to LLM
 # Tool response appended to messages
 # LLM generates final response using tool output
 ```

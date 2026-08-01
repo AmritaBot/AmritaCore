@@ -5,7 +5,7 @@ The ToolCall class represents an invocation of a tool.
 ## Properties
 
 - `id` (str): ID of the tool call
-- `function` ([Function](Function.md)): Function called by the model
+- `function` (Function): Function called by the model
 - `type` (typing.Literal["function"]): Tool type, currently only supports "function"
 
 ## Description
