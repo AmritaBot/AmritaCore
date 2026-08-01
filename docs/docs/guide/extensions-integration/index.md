@@ -1,8 +1,8 @@
 # Extensions and Integration
 
-## 5.1 Extension Mechanisms
+## Extension Mechanisms
 
-### 5.1.1 Simple Tools
+### Simple Tools
 
 AmritaCore provides a simple way to extend its functionality through simple tools:
 
@@ -31,7 +31,7 @@ In the `__doc__` block(Always is `"""` block) of the tool, you can add a descrip
 
 **Supported Types**: The `@simple_tool` decorator now supports rich type annotations including Pydantic models, List[T], and Optional[T]. See the [Tool System](../concepts/tool.md) documentation for complete type support details.
 
-### 5.1.2 Tool System Extensions
+### Tool System Extensions
 
 AmritaCore provides a flexible way to extend its functionality through custom tools. You can create new tools that the agent can use to perform specific tasks:
 
@@ -103,7 +103,7 @@ These constraints are automatically validated when the LLM generates tool calls,
 > - **Decorators** (`@simple_tool`, `@on_tools`): Register to global container at module load time, available to all sessions
 > - **Direct Manager Operations**: Allow session-specific tool management at runtime using `ToolsManager` or `MultiToolsManager` instances
 
-### 5.1.3 Advanced Tool Patterns
+### Advanced Tool Patterns
 
 For tools that require access to the event context or more advanced processing, you can use the `custom_run` mode:
 
@@ -152,7 +152,7 @@ In custom run mode:
 - Functions can be synchronous or asynchronous
 - Return type can be `str` or `None`
 
-### 5.1.4 Event Hook Extensions
+### Event Hook Extensions
 
 Event hooks allow you to intercept and modify the processing pipeline:
 
@@ -177,7 +177,7 @@ async def log_response(event: CompletionEvent):
 
 ```
 
-### 5.1.5 Protocol Adapters & Custom Tokenizers
+### Protocol Adapters & Custom Tokenizers
 
 Protocol adapters allow AmritaCore to work with different LLM providers or communication protocols. Tokenizers handle text tokenization for memory management and context windows.
 
@@ -263,13 +263,13 @@ class CustomAdapter(ModelAdapter):
         return "custom_protocol"  # Return the protocol name
 ```
 
-## 5.2 MCP Client Integration
+## MCP Client Integration
 
-### 5.2.1 What is MCP?
+### What is MCP?
 
 Model Context Protocol (MCP) is a standard for connecting tools and data sources to AI models. It allows models to interact with external systems in a structured way, extending their capabilities beyond their training data.
 
-### 5.2.2 mcp.ClientManager MCP Client Management
+### mcp.ClientManager MCP Client Management
 
 The [ClientManager](../api-reference/classes/ClientManager.md) class manages MCP client connections:
 
@@ -286,7 +286,7 @@ async def setup_mcp_clients():
     await client_manager.initialize_scripts_all(scripts)
 ```
 
-### 5.2.3 MCP Script Configuration
+### MCP Script Configuration
 
 Configure MCP scripts in your settings:
 
@@ -305,7 +305,7 @@ config = AmritaConfig(
 )
 ```
 
-### 5.2.4 MCP Practical Examples
+### MCP Practical Examples
 
 Real-world MCP use cases:
 
@@ -316,9 +316,9 @@ Real-world MCP use cases:
 
 For detailed information about MCP server integration, architecture, and how to create your own MCP servers, see [MCP Server Integration](./mcp-server-integration.md).
 
-## 5.3 Custom Extension Development
+## Custom Extension Development
 
-### 5.3.1 Creating Custom Tools
+### Creating Custom Tools
 
 Develop custom tools for specific functionality:
 
@@ -392,7 +392,7 @@ async def get_company_info(data: dict) -> str:
     return json.dumps(result)
 ```
 
-### 5.3.2 Creating Custom Event Handlers
+### Creating Custom Event Handlers
 
 Build custom event handlers for specialized processing:
 
@@ -420,7 +420,7 @@ async def security_check(event: PreCompletionEvent):
 
 ```
 
-### 5.3.3 Creating Custom Protocol Adapters
+### Creating Custom Protocol Adapters
 
 Build adapters for different LLM providers. See [5.1.5 Protocol Adapters & Custom Tokenizers](#515-protocol-adapters--custom-tokenizers) for the two registration mechanisms (implicit subclassing and namespace package auto-discovery).
 
@@ -475,7 +475,7 @@ class CustomLLMAdapter(ModelAdapter):
         return "custom_llm_protocol"  # Return the protocol identifier
 ```
 
-### 5.3.4 Package Naming Convention & Publishing
+### Package Naming Convention & Publishing
 
 To maintain ecosystem consistency, use the following naming prefix when publishing AmritaCore extensions to PyPI:
 
@@ -494,9 +494,9 @@ To publish and share your extensions:
 3. Document functionality, usage examples, and dependencies
 4. Publish to PyPI or host in a Git repository
 
-## 5.4 Third-Party Integration
+## Third-Party Integration
 
-### 5.4.1 Common LLM Provider Integration
+### Common LLM Provider Integration
 
 Integrate with various LLM providers:
 
@@ -520,7 +520,7 @@ azure_preset = ModelPreset(
 )
 ```
 
-### 5.4.2 Database Connections
+### Database Connections
 
 Connect to databases using tools:
 
@@ -562,7 +562,7 @@ async def query_database(data: dict) -> str:
         return f"Error executing query: {str(e)}"
 ```
 
-### 5.4.3 API Integration
+### API Integration
 
 Integrate with external APIs:
 
@@ -605,7 +605,7 @@ async def get_weather_data(data: dict) -> str:
                 return f"Could not retrieve weather for {city}"
 ```
 
-### 5.4.3 Other Framework Integration
+### Other Framework Integration
 
 Combine AmritaCore with other frameworks:
 
@@ -638,6 +638,7 @@ async def chat_endpoint(user_input: str, session_id: str):
 
     async with chat.begin():
         response = await chat.full_response()
+        await chat  # Wait for the task to finish before exiting
 
     return {"response": response}
 ```

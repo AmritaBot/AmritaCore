@@ -1,16 +1,16 @@
 # ModelConfig
 
-The ModelConfig class defines configuration parameters for the AI model.
+ModelConfig 类定义 AI 模型的配置参数。
 
-## Properties
+## 属性
 
-- `top_k` (int): Default value is 50, TopK parameter controls the model considering the top k most probable words
-- `top_p` (float): Default value is 0.95, TopP parameter controls the model considering cumulative probability reaching p of words
-- `temperature` (float): Default value is 0.7, temperature parameter controls the randomness of generation
-- `stream` (bool): Default value is False, whether to enable streaming response (character-by-character output)
-- `thought_chain_model` (bool): Default value is False, whether to enable thought chain model optimization (enhancing complex problem solving)
-- `multimodal` (bool): Default value is False, whether to support multimodal input (e.g. image recognition)
+- `top_k` (int)：默认值 50，控制模型考虑概率最高的 k 个词
+- `top_p` (float)：默认值 0.95，控制模型考虑累积概率达到 p 的词
+- `temperature` (float)：默认值 0.7，控制生成的随机性
+- `stream` (bool)：默认值 False，是否启用流式响应
+- `thought_chain_model` (bool)：默认值 False，是否启用思维链模型优化
+- `multimodal` (bool)：默认值 False，是否支持多模态输入
 
-## Description
+## 描述
 
-The ModelConfig class inherits from BaseModel and is used to configure behavioral parameters of the AI model. These parameters directly impact the quality and style of AI model outputs and can be adjusted according to specific application scenarios.
+ModelConfig 类继承自 BaseModel，用于配置 AI 模型的行为参数。这些参数直接影响 AI 模型输出的质量和风格。

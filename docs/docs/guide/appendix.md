@@ -1,32 +1,32 @@
 # Appendix and Resources
 
-## 9.1 Glossary and Terminology
+## Glossary and Terminology
 
-### 9.1.1 Agent
+### Agent
 
 An autonomous program that perceives its environment, makes decisions, and takes actions to achieve specific goals. In AmritaCore, agents can interact with users, call tools, and manage complex tasks.
 
-### 9.1.2 Token
+### Token
 
 A unit of text that language models process and generate. Tokens can be as short as one character or as long as one word (e.g., "a", "hello", "123"). Managing token usage is crucial for performance and cost efficiency.
 
-### 9.1.3 Prompt
+### Prompt
 
 Input text provided to a language model to guide its response. Well-crafted prompts lead to better, more relevant outputs. In AmritaCore, prompts include system messages, user inputs, and contextual information.
 
-### 9.1.4 Memory
+### Memory
 
 The mechanism by which an AI system retains and accesses information from previous interactions. AmritaCore's memory system manages conversation history and context to enable coherent multi-turn conversations.
 
-### 9.1.5 LLM
+### LLM
 
 Large Language Model - sophisticated AI systems trained on vast amounts of text to understand and generate human-like language. Examples include GPT, Claude, and other transformer-based models.
 
-### 9.1.6 MCP
+### MCP
 
 Model Context Protocol - a standard for connecting tools and data sources to AI models. MCP allows models to interact with external systems in a structured way, extending their capabilities beyond their training data.
 
-### 9.1.7 Other Core Terms
+### Other Core Terms
 
 - **Context Window**: The maximum amount of text (in tokens) that a model can process at once
 - **Streaming**: Delivering responses in chunks as they're generated, rather than waiting for the complete response
@@ -41,7 +41,7 @@ Model Context Protocol - a standard for connecting tools and data sources to AI 
 - **STRATEGY_INIT**: A workflow node in `amrita_core.components.react` that initializes `StrategyContext` with DI resource fields before the agent entry point. Used by pre-composed external workflows.
 - **Prompt Engineering**: The practice of designing and refining prompts (system messages, templates, instructions) to guide LLMs toward desired outputs. Includes techniques such as structured instructions, Chain-of-Thought, few-shot prompting, and role assignment.
 
-### 9.1.8 Abbreviations
+### Abbreviations
 
 - API: Application Programming Interface
 - JSON: JavaScript Object Notation
@@ -50,22 +50,22 @@ Model Context Protocol - a standard for connecting tools and data sources to AI 
 - REST: Representational State Transfer
 - SDK: Software Development Kit
 
-## 9.2 Project Resources
+## Project Resources
 
-### 9.2.1 GitHub Repository Link
+### GitHub Repository Link
 
 - **Repository**: [https://github.com/AmritaBot/AmritaCore](https://github.com/AmritaBot/AmritaCore)
 - **Issue Reporting**: Report bugs and request features in the GitHub repository
 - **Pull Requests**: Contributions are welcome through pull requests
 
-### 9.2.2 Official Websites
+### Official Websites
 
 - **AmritaCore Website**: [https://core.amritabot.com](https://core.amritabot.com) (This site)
 - **amrita-sense Website**: [https://sense.amritabot.com](https://sense.amritabot.com) — Documentation for the shared infrastructure package
 - **Documentation**: Comprehensive guides and tutorials
 - **Community Forum**: Connect with other users and developers
 
-### 9.2.3 Contribution Guidelines
+### Contribution Guidelines
 
 Contributions to AmritaCore are welcome. Here's how you can contribute:
 
@@ -85,15 +85,15 @@ Contributions to AmritaCore are welcome. Here's how you can contribute:
 
 For more information, please refer to the `CONTRIBUTING.md` file in the project repository.
 
-## 9.3 Community and Support
+## Community and Support
 
-### 9.3.1 Discussion Forums
+### Discussion Forums
 
 - **GitHub Discussions**: Use the Discussions tab in the GitHub repository
 - **Discord Server**: Join our community chat (link in repository)
 - **Stack Overflow**: Tag questions with "amrita-core"
 
-### 9.3.2 Issue Submission
+### Issue Submission
 
 When reporting issues:
 
@@ -104,7 +104,7 @@ When reporting issues:
 5. Specify your environment (OS, Python version, AmritaCore version)
 6. Include any relevant error messages
 
-### 9.3.3 License Information (Apache 2.0)
+### License Information (Apache 2.0)
 
 AmritaCore is released under the Apache 2.0 license.
 
@@ -114,7 +114,7 @@ Permission is hereby granted to any person obtaining a copy of this software and
 
 For the full license text, please refer to the `LICENSE` file in the repository.
 
-### 9.3.4 Code of Conduct
+### Code of Conduct
 
 Our community follows the Contributor Covenant Code of Conduct:
 
@@ -123,9 +123,9 @@ Our community follows the Contributor Covenant Code of Conduct:
 - **Be Inclusive**: Welcome people from all backgrounds
 - **Focus on Quality**: Strive to improve the quality of the project
 
-## 9.4 Related Resources
+## Related Resources
 
-### 9.4.1 LLM Documentation Links
+### LLM Documentation Links
 
 - **DeepSeek AI API Documentation**: [https://api-docs.deepseek.com/](https://api-docs.deepseek.com/)
 - **OpenAI API Documentation**: [https://platform.openai.com/docs/](https://platform.openai.com/docs/)
@@ -133,20 +133,20 @@ Our community follows the Contributor Covenant Code of Conduct:
 - **Google AI Documentation**: [https://ai.google.dev/](https://ai.google.dev/)
 - **Hugging Face Models**: [https://huggingface.co/models](https://huggingface.co/models)
 
-### 9.4.2 Python Tutorials
+### Python Tutorials
 
 - **Official Python Tutorial**: [https://docs.python.org/3/tutorial/](https://docs.python.org/3/tutorial/)
 - **Real Python**: [https://realpython.com/](https://realpython.com/)
 - **Python Type Hints Guide**: [https://mypy.readthedocs.io/en/stable/kinds_of_types.html](https://mypy.readthedocs.io/en/stable/kinds_of_types.html)
 - **Async/Await in Python**: [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
 
-### 9.4.3 Asynchronous Programming Guides
+### Asynchronous Programming Guides
 
 - **Python AsyncIO Documentation**: [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
 - **AsyncIO for Working Python Developers**: [https://github.com/gaogaotiantian/asynciolib](https://github.com/gaogaotiantian/asynciolib)
 - **Understanding Asyncio**: [https://www.roguelynn.com/words/understanding-asyncio/](https://www.roguelynn.com/words/understanding-asyncio/)
 
-### 9.4.4 Other Reference Resources
+### Other Reference Resources
 
 - **Pydantic Documentation**: [https://docs.pydantic.dev/](https://docs.pydantic.dev/)
 - **FastAPI Documentation**: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/) (for API integration examples)

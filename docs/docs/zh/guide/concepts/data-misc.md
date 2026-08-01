@@ -2,9 +2,9 @@
 
 本页涵盖支持核心数据容器和后端系统的其他数据类型。
 
-## ModelConfig 模型配置
+## ModelConfig——模型配置
 
-[`ModelConfig`](../api-reference/classes/ModelConfig.md) 保存 LLM 请求的调优参数：
+[`ModelConfig`](../api-reference/classes/ModelConfig.md) 持有 LLM 请求的调优参数：
 
 ```python
 from amrita_core.types import ModelConfig
@@ -28,9 +28,9 @@ model_config = ModelConfig(
 | `multimodal`  | `False` | 启用多模态输入                |
 | `cot_model`   | `False` | 从响应中去除 `\<think\>` 标签 |
 
-## ModelPreset 模型预设
+## ModelPreset——模型预设
 
-[`ModelPreset`](../api-reference/classes/ModelPreset.md) 将模型标识、端点凭据、协议和配置捆绑在一起：
+[`ModelPreset`](../api-reference/classes/ModelPreset.md) 将模型身份、端点凭据、协议和配置捆绑在一起：
 
 ```python
 from amrita_core.types import ModelPreset, ModelConfig
@@ -51,9 +51,9 @@ preset = ModelPreset(
 
 `ModelPreset` 还提供 `load(path)` / `save(path)` 用于 JSON 序列化。
 
-## ThinkingConfig 推理配置
+## ThinkingConfig——推理配置
 
-[`ThinkingConfig`](../api-reference/classes/ThinkingConfig.md) 控制支持推理/思考功能的模型的推理行为：
+[`ThinkingConfig`](../api-reference/classes/ThinkingConfig.md) 控制支持推理/思考功能的模型的配置：
 
 ```python
 from amrita_core.types import ThinkingConfig
@@ -66,9 +66,9 @@ tc = ThinkingConfig(
 )
 ```
 
-## PresetManager 预设管理
+## PresetManager——预设管理
 
-[`PresetManager`](../api-reference/classes/PresetManager.md) 提供 `ModelPreset` 实例的集中管理。它是一个**单例**——所有会话共享同一个实例：
+[`PresetManager`](../api-reference/classes/PresetManager.md) 提供 `ModelPreset` 实例的集中管理。它是一个**单例**——所有会话共享同一实例：
 
 ```python
 from amrita_core.preset import PresetManager
@@ -87,12 +87,12 @@ manager.add_preset(ModelPreset(
 
 manager.set_default_preset("fast")
 preset = manager.get_preset("smart")
-default = manager.get_default_preset()  # 自动 fallback
+default = manager.get_default_preset()  # 自动回退
 ```
 
-**自动 fallback**：如果未设置默认值，`get_default_preset()` 会随机选择一个已注册的预设。使用 `test_presets()` 进行异步连通性检查。
+**自动回退**：如果未设置默认值，`get_default_preset()` 随机选择一个已注册的预设。使用 `test_presets()` 进行异步连通性检查。
 
-## UniResponse / UniResponseUsage 统一响应
+## UniResponse / UniResponseUsage——统一响应
 
 [`UniResponse`](../api-reference/classes/UniResponse.md) 是所有适配器返回的统一响应格式：
 
@@ -100,7 +100,7 @@ default = manager.get_default_preset()  # 自动 fallback
 from amrita_core.types import UniResponse, UniResponseUsage
 
 response = UniResponse(
-    content="您好！我能帮您什么？",
+    content="你好！有什么可以帮助你的？",
     role="assistant",
     tool_calls=None,
     reasoning_content=None,
@@ -112,34 +112,34 @@ response = UniResponse(
 )
 ```
 
-所有适配器的 `call_api` / `call_tools` 方法都产生 `UniResponse` 实例，提供厂商无关的接口。
+所有适配器的 `call_api` / `call_tools` 方法都 yield `UniResponse` 实例，提供厂商无关的接口。
 
-## SendMessageWrap 消息包装器
+## SendMessageWrap——消息包装器
 
-[`SendMessageWrap`](../api-reference/classes/SendMessageWrap.md) 包装发送给 LLM 的消息列表。它将系统消息（`train`）、记忆、用户查询和任何附加的结束消息分开：
+[`SendMessageWrap`](../api-reference/classes/SendMessageWrap.md) 包装发送给 LLM 的消息列表。它将系统消息（`train`）、记忆、用户查询和任何追加的结束消息分开：
 
 ```python
 from amrita_core.types import SendMessageWrap
 
 wrap = SendMessageWrap.validate_messages([
-    Message(role="system", content="您是一个有用的助手。"),
-    Message(role="user", content="2+2是多少？"),
+    Message(role="system", content="你很有帮助。"),
+    Message(role="user", content="2+2 等于多少？"),
 ])
 
 # 按顺序遍历所有消息：
 for msg in wrap:
     print(msg.role, msg.content)
 
-# 解包为扁平列表（可选排除系统消息）
+# 展开为扁平列表（可选择排除系统消息）
 flat = wrap.unwrap(exclude_system=False)
 
 # 在用户查询后追加额外消息
 wrap.append(Message(role="assistant", content="4"))
 ```
 
-`SendMessageWrap` 被 `ChatObject` 的 `context_wrap` 和 `StrategyContext.original_context` 内部使用。
+`SendMessageWrap` 由 `ChatObject` 的 `context_wrap` 和 `StrategyContext.original_context` 内部使用。
 
-## EmbeddingChunk 嵌入结果
+## EmbeddingChunk——嵌入结果
 
 [`EmbeddingChunk`](../api-reference/classes/EmbeddingChunk.md) 表示单个嵌入向量：
 
@@ -152,11 +152,11 @@ chunk = EmbeddingChunk(
 )
 ```
 
-由嵌入适配器通过 `call_embed()` 返回。与 OpenAI 的嵌入响应格式兼容。
+由嵌入适配器通过 `call_embed()` 返回。兼容 OpenAI 的嵌入响应格式。
 
-## register_content 自定义内容类型
+## register_content——自定义内容类型
 
-可以动态注册新的内容类型：
+新的内容类型可以动态注册：
 
 ```python
 from amrita_core.types import Content, register_content
@@ -171,9 +171,9 @@ register_content(MyCustomContent)
 
 注册后，`Message` 验证会自动将 `{"type": "my_type", ...}` 字典反序列化为 `MyCustomContent` 实例。
 
-## 脏标记追踪
+## 脏跟踪
 
-`DirtyAwareModel` / `DirtyAwareBaseModel`（在 `amrita_core.dirty` 中）为 Pydantic 模型提供自动变更追踪。`MemoryModel` 继承自 `DirtyAwareBaseModel`，因此：
+`DirtyAwareModel` / `DirtyAwareBaseModel`（位于 `amrita_core.dirty`）为 Pydantic 模型提供自动变更跟踪。`MemoryModel` 继承自 `DirtyAwareBaseModel`，因此：
 
 ```python
 memory = MemoryModel()
@@ -183,4 +183,4 @@ print(memory.get_dirty_vars())  # {"messages"}
 memory.clean()                  # 重置
 ```
 
-这是为 ORM 风格的工作流设计的，只需持久化已更改的字段。
+这是为 ORM 风格的工作流设计的，其中你只想持久化已更改的字段。

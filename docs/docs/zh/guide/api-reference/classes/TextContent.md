@@ -1,14 +1,12 @@
 # TextContent
 
-The TextContent class represents text content within messages.
+TextContent 类表示消息中的文本内容。
 
-## Properties
+## 属性
 
-- `type` (Literal["text"]): Content type, fixed as "text"
-- `text` (str): Text content
+- `type` (Literal["text"])：内容类型，固定为 "text"
+- `text` (str)：文本内容
 
-## Description
+## 描述
 
-The TextContent class inherits from the Content base class and is the concrete implementation for representing text content. In AmritaCore's messaging system, text content is one of the fundamental components of messages.
-
-TextContent is one type of Content, along with ImageContent, forming the multimodal content support in the messaging system. This design enables the system to handle various types of content including text and images.
+TextContent 类继承自 Content 基类，是表示文本内容的具体实现。在 AmritaCore 的消息系统中，文本内容是消息的基本组成部分之一。

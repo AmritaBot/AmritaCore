@@ -152,12 +152,12 @@ from amrita_core import SuspendObjectStream
 
 class MyProcessor:
     @SuspendObjectStream.suspend_with_tag("before_process")
-    async def process_data(self, chat_obj: ChatObject, data: dict):
+    async def process_data(self, io_stream: SuspendObjectStream, data: dict):
         result = await self.do_processing(data)
         return result
 ```
 
-**For detailed documentation, see**: [Suspend & Resume Mechanism](../concepts/suspend.md)
+**For detailed documentation, see**: [Suspend & Resume Mechanism](../advanced/suspend.md)
 
 ## Example
 

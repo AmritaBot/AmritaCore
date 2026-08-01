@@ -138,6 +138,7 @@ async def main():
         async with chat.begin():
             async for response in chat.io_stream.get_response_generator():
                 print(response, end="", flush=True)
+            await chat  # Wait for the task to finish before exiting
     finally:
         controller_task.cancel()
 ```
@@ -151,5 +152,5 @@ async def main():
 
 ## Related Documentation
 
-- [Suspend & Resume Mechanism](../../concepts/suspend.md)
+- [Suspend & Resume Mechanism](../../advanced/suspend.md)
 - [ChatObject Class](ChatObject.md)

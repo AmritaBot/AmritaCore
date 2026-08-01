@@ -1,23 +1,23 @@
-# 开始使用
+# 快速开始
 
 ## 环境准备
 
-### 2.1.1 系统要求
+### 系统要求
 
-要使用 AmritaCore，您需要：
+使用 AmritaCore 需要：
 
-- Python 3.10 或更高版本（最高到 3.14）
-- 足够的 RAM 来处理上下文记忆（建议项目至少 1GB）
-- 互联网连接以连接到 LLM API
+- Python 3.10 及以上（最高 3.14）
+- 足够的内存处理上下文记忆（建议至少 1GB）
+- 网络连接以访问 LLM API
 - 访问 LLM 提供商（OpenAI、Azure OpenAI 或兼容服务）
 
-### 2.1.2 Python 版本支持
+### Python 版本支持
 
-AmritaCore 官方支持从 3.10 到 3.13 的 Python 版本。虽然它可能在其他版本上也能工作，但这些是经过测试和推荐的版本。
+AmritaCore 官方支持 Python 3.10 至 3.13。其他版本可能也能运行，但以上为经过测试和推荐的版本。
 
-### 2.1.3 依赖安装
+### 安装依赖
 
-我们建议使用虚拟环境进行开发，可使用 `uv`、`pdm` 等。
+建议使用虚拟环境进行开发，推荐使用 `uv`、`pdm` 等工具。
 
 ```bash
 uv init
@@ -25,12 +25,12 @@ uv venv
 uv add amrita-core
 ```
 
-使用 `Amctl` 创建 AmritaCore 项目 (我们的项目模板工具, 基于 `uv`):
+使用 `Amctl`（我们的模板工具，基于 `uv`）创建 AmritaCore 项目：
 
 ```bash
-# 如果您还没有安装 amctl，请使用：
+# 如果尚未安装 Amctl，先运行以下命令
 # pip install amctl
-# 或者
+# 或使用 uv：
 # uv tool install amctl
 amctl create -t amrita_core
 ```
@@ -41,7 +41,7 @@ amctl create -t amrita_core
 pip install amrita-core
 ```
 
-或者如果您直接使用源代码：
+或者直接使用源码：
 
 ```bash
 git clone https://github.com/AmritaBot/AmritaCore.git
@@ -49,6 +49,6 @@ cd AmritaCore
 pip install -e .
 ```
 
-### 2.1.4 代码示例
+### 代码演示
 
-您可以在仓库路径 `/demo` 中查看更多示例。
+你可以在仓库的 `/demo` 路径下查看更多演示。

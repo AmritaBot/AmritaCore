@@ -2,11 +2,11 @@
 
 > **Since v0.9.0rc1**: The event system core (`BaseEvent`, `MatcherFactory`, `EventRegistry`, `MatcherException`, `CancelException`, `PassException`) has been migrated to [AmritaSense](https://sense.amritabot.com). Full documentation at [AmritaSense Event System](https://sense.amritabot.com/guide/advanced/event_system). The `amrita_core.hook.*` compatibility endpoints were removed in v0.10.x+; import directly from `amrita_sense`.
 
-## 3.3.1 Event-Driven Design
+## Event-Driven Design
 
 AmritaCore implements an event-driven architecture that allows you to intercept and modify the processing pipeline at various stages. Events can be registered to respond to specific conditions or actions.
 
-## 3.3.2 PreCompletionEvent Pre-Completion Event
+## PreCompletionEvent Pre-Completion Event
 
 The [PreCompletionEvent](../api-reference/classes/PreCompletionEvent.md) is triggered before the completion request is sent to the LLM:
 
@@ -17,13 +17,13 @@ from amrita_core.hook.on import on_precompletion
 @on_precompletion().handle()
 async def handle_pre_completion(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
-    event.messages.append(Message(role="system", content="Always be helpful"))
+    event.message.memory.append(Message(role="system", content="Always be helpful"))
     # Dynamically modify preset
     event.chat_object.preset = get_new_preset()
 
 ```
 
-## 3.3.3 CompletionEvent Completion Event
+## CompletionEvent Completion Event
 
 The [CompletionEvent](../api-reference/classes/CompletionEvent.md) is triggered after receiving the completion from the LLM:
 
@@ -34,11 +34,11 @@ from amrita_core.hook.on import on_completion
 @on_completion().handle()
 async def handle_completion(event: CompletionEvent):
     # Process the response before returning to user
-    print(f"Received response: {event.response}")
+    print(f"Received response: {event.get_model_response()}")
 
 ```
 
-## 3.3.4 FallbackContext Preset Fallback Event
+## FallbackContext Preset Fallback Event
 
 The [FallbackContext](../api-reference/classes/FallbackContext.md) is triggered when an LLM request fails and a fallback mechanism is needed. This event allows you to handle failures gracefully by switching to alternative model presets or implementing custom retry logic.
 
@@ -74,18 +74,18 @@ The `FallbackContext` provides the following properties:
 
 You can modify the `event.preset` to switch to a different model preset for the next retry attempt. If no suitable fallback is available, call `event.fail(reason)` to terminate the retry process.
 
-## 3.3.5 MatcherManager Event Matcher
+## MatcherManager Event Matcher
 
 > **Note**: Since v0.9.0rc1, `MatcherManager` (`MatcherFactory`) has been moved to the `amrita-sense` package. The `amrita_core.hook.matcher` compatibility endpoint was removed in v0.10.x+; import directly from `amrita_sense`.
 
-The [MatcherManager](../api-reference/classes/MatcherManager.md) handles matching events to appropriate handlers:
+The `MatcherManager` handles matching events to appropriate handlers:
 
 ```python
 # From amrita-sense
 from amrita_sense.hook.matcher import MatcherFactory
 ```
 
-## 3.3.6 Event Registration and Triggering
+## Event Registration and Triggering
 
 Events are registered using decorators and automatically triggered during the processing pipeline:
 
@@ -98,7 +98,7 @@ def my_custom_handler(event):
     pass
 ```
 
-## 3.3.7 Event Hooks (Event Hooks)
+## Event Hooks (Event Hooks)
 
 Multiple types of event hooks are available:
 
@@ -107,7 +107,7 @@ Multiple types of event hooks are available:
 - `@on_preset_fallback`: When an LLM request fails
 - `@on_event`: For custom events
 
-## 3.3.8 Custom Parameter Injection
+## Custom Parameter Injection
 
 The `ChatObject` class supports injecting custom parameters through constructor arguments, which are passed to event handlers when events are triggered:
 
@@ -159,7 +159,7 @@ These parameters enable event handlers to access additional context information,
 Function signatures cannot use `*args` or `**kwargs`, as they may prevent AmritaCore from properly parsing the function signature, causing the `Matcher` to be skipped.
 :::
 
-## 3.3.9 Dependency Injection System (Depends)
+## Dependency Injection System (Depends)
 
 AmritaCore provides a powerful dependency injection system that allows event handlers to declare their required dependencies, and the system automatically resolves and injects these dependencies.
 

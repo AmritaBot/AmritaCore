@@ -1,6 +1,6 @@
 # Key Features Overview
 
-## 1.2.1 9 Core Features
+## 9 Core Features
 
 1. **Stream-based Design**: All message outputs are asynchronous stream-based designs supporting real-time responses
 2. **Cookie Security Detection**: Built-in cookie security detection functionality to protect session security
@@ -12,7 +12,7 @@
 8. **Native Suspend/Resume Support**: Built-in mechanism (AmritaSense `SuspendObjectStream`) to pause and resume agent execution flow at any point
 9. **Composable Workflow Engine**: Powered by [AmritaSense](https://sense.amritabot.com) — node-based execution with native control flow (IF/WHILE/JUMP/TRY), dependency injection, and middleware support
 
-## 1.2.2 Architectural Advantages
+## Architectural Advantages
 
 AmritaCore's architecture is designed with modularity in mind. The core components can be used independently or together, allowing for:
 
@@ -21,7 +21,7 @@ AmritaCore's architecture is designed with modularity in mind. The core componen
 - Reduced coupling between components
 - Simplified testing and maintenance
 
-## 1.2.3 Application Scenario Examples
+## Application Scenario Examples
 
 **Scenario 1: Customer Support Bot**
 A bot that can access knowledge bases, process orders, and escalate complex issues to human agents.

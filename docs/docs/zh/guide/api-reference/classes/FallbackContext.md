@@ -1,8 +1,8 @@
 # FallbackContext
 
-The `FallbackContext` class represents the context for preset fallback events when an LLM request fails.
+`FallbackContext` 类表示 LLM 请求失败时预设回退事件的上下文。
 
-## Constructor
+## 构造函数
 
 ```python
 FallbackContext(
@@ -14,68 +14,29 @@ FallbackContext(
 )
 ```
 
-## Properties
+## 属性
 
 ### preset
 
-- **Type**: [`ModelPreset`](./ModelPreset.md)
-- **Description**: The current model preset being used for the failed request.
+- **类型**：[`ModelPreset`](./ModelPreset.md)
+- **描述**：失败请求使用的当前模型预设
 
 ### exc_info
 
-- **Type**: `BaseException`
-- **Description**: The exception that caused the LLM request to fail.
+- **类型**：`BaseException`
+- **描述**：导致 LLM 请求失败的异常
 
 ### config
 
-- **Type**: [`AmritaConfig`](./AmritaConfig.md)
-- **Description**: The current Amrita configuration.
+- **类型**：[`AmritaConfig`](./AmritaConfig.md)
+- **描述**：当前的 Amrita 配置
 
 ### context
 
-- **Type**: [`SendMessageWrap`](./SendMessageWrap.md)
-- **Description**: The message context that was being sent when the failure occurred.
+- **类型**：[`SendMessageWrap`](./SendMessageWrap.md)
+- **描述**：失败发生时的消息上下文
 
 ### term
 
-- **Type**: `int`
-- **Description**: The current retry attempt number (starting from 1).
-
-## Methods
-
-### fail(reason: Any | None = None) -> Never
-
-Mark the event as failed and terminate the retry process.
-
-**Parameters**:
-
-- `reason` (Any | None): Optional reason for the failure.
-
-**Raises**:
-
-- [`FallbackFailed`](../exceptions/FallbackFailed.md): Always raises this exception to terminate the fallback process.
-
-### get_event_type() -> EventTypeEnum
-
-Get the event type enum value.
-
-**Returns**:
-
-- `EventTypeEnum.PRESET_FALLBACK`
-
-## Example Usage
-
-```python
-from amrita_core.hook.event import FallbackContext
-from amrita_core.hook.on import on_preset_fallback
-
-@on_preset_fallback().handle()
-async def handle_fallback(event: FallbackContext):
-    print(f"Request failed: {event.exc_info}")
-    if event.term == 1:
-        # Switch to alternative preset on first retry
-        event.preset = get_alternative_preset()
-    else:
-        # Fail on subsequent retries
-        event.fail("No more fallback options")
-```
+- **类型**：`int`
+- **描述**：当前重试次数

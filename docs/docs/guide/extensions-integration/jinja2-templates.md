@@ -1,4 +1,4 @@
-<div v-pre >
+<div v-pre>
 
 # Jinja2 Templates
 
@@ -159,7 +159,7 @@ self.train.content = await asyncio.to_thread(
 
 ## Best Practices
 
-### 1. Security Considerations
+### Security Considerations
 
 - Always validate template inputs to prevent injection attacks
 - Use Jinja2's built-in escaping mechanisms when appropriate
@@ -167,13 +167,13 @@ self.train.content = await asyncio.to_thread(
 - Avoid using the reserved keyword `'self'` in `jinja2_vars`
 - **Never use built-in variable names** (`train`, `memory`, `chatobj`, `config`) as keys in `jinja2_vars`
 
-### 2. Performance Optimization
+### Performance Optimization
 
 - Keep templates simple and avoid complex logic
 - Use conditional statements (`{% if %}`) judiciously
 - Cache frequently used templates when possible
 
-### 3. Context Management
+### Context Management
 
 - Leverage `memory.abstract` for long conversations
 - Use `config` variables to control template behavior dynamically
@@ -181,7 +181,7 @@ self.train.content = await asyncio.to_thread(
 - Pass business-specific data through `jinja2_vars` for dynamic customization
 - **Use unique key names**: Always choose custom variable names that don't conflict with built-in variables
 
-### 4. Error Handling
+### Error Handling
 
 - Handle template rendering errors gracefully
 - Provide fallback content for missing variables

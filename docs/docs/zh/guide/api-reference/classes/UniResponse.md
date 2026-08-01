@@ -1,19 +1,17 @@
 # UniResponse
 
-The UniResponse class provides a unified response format.
+UniResponse 类提供统一的响应格式。
 
-## Properties
+## 属性
 
-- `role` (Literal["assistant"]): Role, fixed as "assistant"
-- `usage` ([UniResponseUsage](UniResponseUsage.md) | None): Usage information, optional
-- `content` (T): Response content, T is a generic parameter
-- `tool_calls` (T_TOOL): Tool call results, T_TOOL is a generic parameter
-- `reasoning_content` (str | None): Reasoning/thinking content from the model, if the model supports it (e.g., o1, Claude with extended thinking)
-- `reasoning_signature` (str | None): Anthropic thinking signature, required for round-tripping thinking content with Anthropic API
-- `metadata` ([RequestMetadata](RequestMetadata.md)): 请求元数据，包含请求 ID、模型名称、停止原因和原始提供商请求 ID
+- `role` (Literal["assistant"])：角色，固定为 "assistant"
+- `usage` ([UniResponseUsage](UniResponseUsage.md) | None)：使用信息，可选
+- `content` (T)：响应内容，T 是泛型参数
+- `tool_calls` (T_TOOL)：工具调用结果，T_TOOL 是泛型参数
+- `reasoning_content` (str | None)：模型的推理/思考内容
+- `reasoning_signature` (str | None)：Anthropic 思考签名
+- `metadata` ([RequestMetadata](RequestMetadata.md))：请求元数据
 
-## Description
+## 描述
 
-The UniResponse class inherits from BaseModel and implements generics, providing a unified response format. It encapsulates the AI model's response content, usage statistics, and possible tool call results.
-
-UniResponse is a core component of AmritaCore's response processing system, ensuring all responses from the AI model follow the same structure and format, facilitating subsequent processing and parsing.
+UniResponse 类继承自 BaseModel 并实现泛型，提供统一的响应格式。它封装了 AI 模型的响应内容、使用统计和可能的工具调用结果。

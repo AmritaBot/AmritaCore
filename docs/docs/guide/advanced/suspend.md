@@ -4,6 +4,14 @@
 
 **Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
 
+::: tip Where does suspend fit in?
+
+- **For observation** (logging, auditing, notifications), use the [event system](../tutorials/event-hooks.md) — it broadcasts and never blocks the workflow.
+- **For interactive development debugging** (stepping, breakpoints, state inspection), use [Workflow-Level Debugging](workflow-debugging.md) — it operates directly on the interpreter and injects middleware, with no cooperation needed from your code.
+- **Suspend is the production-ready debugging breakpoint** — cooperative, tag-based, and safe to ship: it only pauses when an external controller is explicitly waiting for it.
+
+:::
+
 AmritaCore provides a simple and explicit suspend mechanism that allows external control over the execution flow of `ChatObject`, pausing and resuming processing at specified nodes. This mechanism is provided by the `SuspendObjectStream` class, which `ChatObject` uses via its `io_stream` attribute (composition since v0.9.1).
 
 Applicable scenarios:
@@ -62,7 +70,7 @@ graph TD
 
 ### Two-Level Interruption Mechanism
 
-#### 1. Outer Suspend - Control Flow Interruption
+#### Outer Suspend - Control Flow Interruption
 
 Implemented via the `@SuspendObjectStream.suspend` decorator and `wait_to_suspend()/resume()` methods:
 
@@ -73,7 +81,7 @@ Implemented via the `@SuspendObjectStream.suspend` decorator and `wait_to_suspen
 
 **Analogy**: 🚦 Traffic light - complete stop, waiting for green light (resume) to proceed
 
-#### 2. Inner Suspend / Callback - Data Flow Interception
+#### Inner Suspend / Callback - Data Flow Interception
 
 Implemented via the `callback` mechanism:
 
@@ -133,37 +141,57 @@ async def external_controller(chat_obj):
 chat.begin()
 # Start the controller task
 controller_task = asyncio.create_task(external_controller(chat))
+# Wait for the chat task to finish
+await chat
+controller_task.cancel()
 ```
 
 ### Using Tags in Custom Functions
 
-Use the `@SuspendObjectStream.suspend_with_tag` decorator to add tagged suspension points to custom functions:
+Suspension is a mechanism of the **IO stream** (`SuspendObjectStream`), not of `ChatObject`. To insert a tagged suspension point inside your own function, call `_wait_for_continue(tag)` on the stream — it blocks only while an external controller is waiting for a matching tag, and returns immediately otherwise:
 
 ```python
-from amrita_core.streaming import SuspendObjectStream
+from amrita_core import SuspendObjectStream
 
 class MyAgent:
-    @SuspendObjectStream.suspend_with_tag("before_api_call")
     async def call_external_api(self, chat_obj: ChatObject, url: str):
         """Suspend before calling external API (if an external listener is waiting for this tag)"""
-        # If external called wait_to_suspend("before_api_call")
-        # Execution will pause here until resume() is called
+        # Blocks only if an external controller called wait_to_suspend("before_api_call")
+        await chat_obj.io_stream._wait_for_continue("before_api_call")
+
         async with aiohttp.ClientSession() as session:
             async with session.get(url) as response:
                 return await response.json()
 
-    @SuspendObjectStream.suspend_with_tag("after_response")
     async def post_process_response(self, chat_obj: ChatObject, response: str):
         """Suspend after processing response"""
+        await chat_obj.io_stream._wait_for_continue("after_response")
+
         # Post-processing logic
         print(f"Processing response: {response}")
 ```
 
+Alternatively, the `@SuspendObjectStream.suspend_with_tag` decorator automates the same call: it invokes `_wait_for_continue(tag)` on the stream before running the function body. The decorator locates the stream by scanning the function's parameters, so the decorated function **must declare a `SuspendObjectStream` parameter** — otherwise a `TypeError` is raised:
+
+```python
+from amrita_core import SuspendObjectStream
+
+class MyAgent:
+    @SuspendObjectStream.suspend_with_tag("before_api_call")
+    async def call_external_api(self, io_stream: SuspendObjectStream, url: str):
+        # Equivalent to: await io_stream._wait_for_continue("before_api_call")
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as response:
+                return await response.json()
+```
+
+Both forms are equivalent — pick whichever fits your function signature.
+
 ### Tag Matching Rules
 
-1. **Exact match**: `wait_to_suspend("xxx")` only matches functions decorated with `@SuspendObjectStream.suspend_with_tag("xxx")`
-2. **Untagged suspend**: `wait_to_suspend()` matches all functions decorated with `@SuspendObjectStream.suspend`
-3. **Priority**: Tagged suspension takes precedence over untagged suspension
+1. **Exact match**: `wait_to_suspend("xxx")` only matches suspension points tagged `"xxx"` — whether inserted via the decorator or a manual `_wait_for_continue("xxx")` call
+2. **Untagged suspend**: `wait_to_suspend()` (no tags) matches **all** suspension points: every `_wait_for_continue()` call blocks while such a wait is pending
+3. **Tagged wait skips untagged points**: while a tagged `wait_to_suspend("xxx")` is pending, untagged suspension points (calls without a tag) return immediately instead of blocking
 
 ```python
 # Example: Multi-breakpoint control flow
@@ -185,7 +213,7 @@ async def multi_breakpoint_controller(chat_obj):
 
 ## Manual Use of `_wait_for_continue()`
 
-For finer-grained control, you can manually call `await chat._wait_for_continue()` within custom asynchronous logic to freely insert custom suspension points:
+For finer-grained control, you can manually call `await chat_obj.io_stream._wait_for_continue()` within custom asynchronous logic to freely insert custom suspension points:
 
 ```python
 import asyncio
@@ -229,6 +257,7 @@ async def main():
             async for response in chat.io_stream.get_response_generator():
                 content = response if isinstance(response, str) else response.get_content()
                 print(content, end="", flush=True)
+            await chat  # Wait for the task to finish before exiting
     finally:
         controller_task.cancel()
 
@@ -317,7 +346,8 @@ async with chat:
     async for chunk in chat.io_stream.get_response_generator():
         content = chunk if isinstance(chunk, str) else chunk.get_content()
         print(content, end="", flush=True)
-    # Iterator exhausts naturally, then context exits
+    # Iterator exhausts naturally, then wait for the task to finish before exiting
+    await chat
 ```
 
 ::: tip How to Choose?
@@ -362,6 +392,7 @@ async def main():
                 print(content, end="", flush=True)
         finally:
             controller_task.cancel()
+        await chat  # Wait for the task to finish before exiting
 
 asyncio.run(main())
 ```

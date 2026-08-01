@@ -1,8 +1,8 @@
 # Project Introduction
 
-## 1.1 Project Overview
+## Project Overview
 
-### 1.1.1 What is AmritaCore?
+### What is AmritaCore?
 
 AmritaCore is a **flexible progressive Agent framework built on [AmritaSense](https://sense.amritabot.com)**. It leverages the AmritaSense async workflow engine to deliver composable, high-performance agent execution with minimal overhead.
 
@@ -14,7 +14,7 @@ Think of AmritaCore as providing the essential "operating system" capabilities f
 
 **AmritaCore is not a replacement for existing frameworks** like LangChain or LlamaIndex. Instead, it is a **lightweight, infrastructure-focused agent framework** that provides essential building blocks atop a proven workflow engine.
 
-### 1.1.2 Project Background and Mission
+### Project Background and Mission
 
 The mission of AmritaCore is to provide a lightweight yet powerful foundation for agent development that prioritizes simplicity, performance, and flexibility. As AI applications demand real-time responsiveness and efficient resource utilization, there's a need for frameworks that:
 
@@ -26,7 +26,7 @@ The mission of AmritaCore is to provide a lightweight yet powerful foundation fo
 
 AmritaCore addresses these requirements with a focused architecture that emphasizes core capabilities while avoiding unnecessary complexity.
 
-### 1.1.3 Core Value Propositions
+### Core Value Propositions
 
 - **Built on AmritaSense**: Leverages a battle-tested async workflow engine with composable nodes, dependency injection, and native control flow (IF/WHILE/JUMP/TRY)
 - **Stream-based Design**: All message outputs are designed as asynchronous streams for real-time responses

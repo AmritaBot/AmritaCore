@@ -8,28 +8,28 @@ AmritaCore implements a flexible Agent Strategy architecture that allows differe
 
 AmritaCore supports four distinct strategy categories, each designed for specific use cases:
 
-#### 1. Agent Category (`"agent"`)
+#### Agent Category (`"agent"`)
 
 - **Execution Method**: `single_execute()`
 - **Framework Control**: Full framework management of execution loop, call counting, and termination
 - **Use Case**: Standard tool-calling agents that require framework-level control
 - **Context**: Full conversation history with system message, memory, and user query
 
-#### 2. RAG Category (`"rag"`)
+#### RAG Category (`"rag"`)
 
 - **Execution Method**: `run()`
 - **Framework Control**: Minimal context only (system message + user query)
 - **Use Case**: Retrieval-Augmented Generation scenarios where external knowledge retrieval is primary
 - **Context**: Only system message and user query, no historical conversation context
 
-#### 3. Workflow Category (`"workflow"`)
+#### Workflow Category (`"workflow"`)
 
 - **Execution Method**: `run()`
 - **Framework Control**: Complete manual control over everything
 - **Use Case**: Complex multi-step workflows with custom orchestration logic
 - **Context**: Full conversation history with complete manual management
 
-#### 4. Agent-Mixed Category (`"agent-mixed"`)
+#### Agent-Mixed Category (`"agent-mixed"`)
 
 - **Execution Method**: `single_execute()`
 - **Framework Control**: Framework-managed execution with dynamic mode switching
@@ -265,6 +265,7 @@ async def use_builtin_strategies():
         async for chunk in chat.io_stream.get_response_generator():
             content = chunk if isinstance(chunk, str) else chunk.get_content()
             print(content, end="", flush=True)
+        await chat  # Wait for the task to finish before exiting
     # Chat is cleaned up automatically after exiting context
 ```
 

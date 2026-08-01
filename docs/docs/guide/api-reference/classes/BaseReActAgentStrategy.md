@@ -76,7 +76,7 @@ When native thinking is enabled the provider may reject forced values (`"require
 
 **Parameters**:
 
-- `desired` ([ToolChoice](../api-reference/classes/ToolChoice.md)): The desired tool_choice value
+- `desired` (`ToolChoice`): The desired tool_choice value
 
 **Returns**: ToolChoice - The actual tool_choice value to send
 

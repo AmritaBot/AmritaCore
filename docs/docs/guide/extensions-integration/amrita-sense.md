@@ -2,7 +2,7 @@
 
 # AmritaSense Integration
 
-## 5.5.1 Overview
+## Overview
 
 [AmritaSense](https://sense.amritabot.com) is a **general-purpose workflow orchestration engine** that AmritaCore uses to drive its processing pipeline. Instead of traditional node-edge graphs, Sense compiles workflows into a **linear instruction sequence** executed by a lightweight virtual machine — much like a CPU runs machine code.
 
@@ -27,7 +27,7 @@ graph TD
     VM --> INS
 ```
 
-## 5.5.2 Instruction Set Architecture vs Graph Model
+## Instruction Set Architecture vs Graph Model
 
 Traditional engines define explicit nodes and edges. Sense compiles them into instructions driven by a **program counter** (`PointerVector`) and a **call stack**.
 
@@ -52,7 +52,7 @@ flowchart LR
 | Interrupt    | Extra state management             | Native `Future`-based suspend/resume |
 | Compile perf | O(V+E) traversal                   | ~200 ms for 100,000 nodes            |
 
-## 5.5.3 @Node Decorator
+## @Node Decorator
 
 `@Node` converts a regular Python function into a workflow node. Sense captures the call frame at decoration time and stores all required metadata.
 
@@ -74,7 +74,7 @@ async def my_node(param1: int, param2: str) -> str:
 | `wrap_to_async` | `bool`        | `True`        | Wrap synchronous functions for async execution     |
 | `address_able`  | `bool`        | `True`        | Allow `GOTO` / `CALL` to target this node by alias |
 
-## 5.5.4 WorkflowInterpreter — Virtual Machine
+## WorkflowInterpreter — Virtual Machine
 
 `WorkflowInterpreter` receives a compiled graph and drives execution via its program counter:
 
@@ -102,7 +102,7 @@ async for result in interpreter.run_step_by():  # step debug
 
 It manages a **call stack** (`Stack`) for `CALL` / `GOTO` / `INTERRUPT`, handles exceptions at every node boundary, and resolves dependencies before calling each node function.
 
-## 5.5.5 Dependency Injection
+## Dependency Injection
 
 Nodes declare dependencies via **function signatures**. At runtime, the interpreter matches parameter types against a pool of registered `@dataclass` instances.
 
@@ -136,7 +136,7 @@ async def LOAD_STATE(
 
 All context objects live in `contexts.py` as `@dataclass` definitions. No manual wiring is needed — Sense resolves them automatically.
 
-## 5.5.6 Suspend / Resume
+## Suspend / Resume
 
 Sense supports bidirectional pause-and-resume via `Future` callbacks. When an external hook signals a suspend at a `SuspendEnum` point, the current node awaits and its full context is preserved until the hook signals resume.
 
@@ -171,7 +171,7 @@ AmritaCore's `SuspendEnum` maps each node to an intercept point:
 | `APPLY_CONTEXT`     | APPLY_CONTEXT        | before writing back to memory |
 | `COMMIT_MEMORY`     | COMMIT_MEMORY        | before persistence            |
 
-## 5.5.7 Control Flow Instructions
+## Control Flow Instructions
 
 All control flow compiles into linear instruction sequences. These are the available instructions:
 
@@ -205,7 +205,7 @@ def echo(msg: str): print(f"Echo: {msg}")
 flow = IF(is_greeting, greet, echo) >> NOP
 ```
 
-## 5.5.8 How AmritaCore Uses AmritaSense
+## How AmritaCore Uses AmritaSense
 
 ### Complete Node Graph
 
@@ -249,7 +249,7 @@ All contexts are `@dataclass` definitions in `contexts.py`, resolved by Sense's 
 | `AgentLoopState`     | Strategy, backup, counter            | AGENT_ENTRY, REACT_COUNTER, SINGLE_STRATEGY_CALL, AGENT_POST_PROCESS                             |
 | `StrategyPayload`    | Strategy factory                     | AGENT_ENTRY                                                                                      |
 
-## 5.5.9 Practical Examples
+## Practical Examples
 
 ### Adding a Content Filter Node
 

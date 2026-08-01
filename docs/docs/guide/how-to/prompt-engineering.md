@@ -2,7 +2,7 @@
 
 Prompt engineering is the practice of designing and refining the inputs (prompts) given to large language models (LLMs) to produce accurate, relevant, and well-structured outputs. As LLMs become more capable, the quality of your prompts increasingly determines the quality of your results.
 
-## 1. What is Prompt Engineering?
+## What is Prompt Engineering?
 
 A **prompt** is the text you feed into an LLM — it can be a simple question, a set of instructions, or a complex template with multiple variables. Prompt engineering is the process of iteratively crafting these inputs to:
 
@@ -15,9 +15,9 @@ A **prompt** is the text you feed into an LLM — it can be a simple question, a
 
 > **Key insight**: Modern LLMs are incredibly capable, but they are also impressionable. A well-designed prompt can make a mediocre model perform well; a poorly-designed prompt can make a great model produce nonsense.
 
-## 2. Core Principles
+## Core Principles
 
-### 2.0 Two Scenarios: Task Agent vs. Chat Agent
+### Two Scenarios: Task Agent vs. Chat Agent
 
 Prompt engineering strategies differ fundamentally based on what you are building:
 
@@ -35,7 +35,7 @@ Prompt engineering strategies differ fundamentally based on what you are buildin
 
 The principles below (§2.1–§2.7) apply to both scenarios, but their relative importance shifts: **task agents** prioritize structure constraints (§2.2, §2.6) and execution frameworks (§2.4); **chat agents** prioritize clarity (§2.1), examples (§2.5), and tone control (§2.3).
 
-### 2.1 Be Clear and Specific
+### Be Clear and Specific
 
 Vague prompts produce vague answers. Replace "Tell me about AI" with "Explain the difference between supervised and unsupervised learning, with two real-world examples for each."
 
@@ -50,7 +50,7 @@ Explain Python's async/await syntax with three code examples, covering:
 3. Common pitfalls and how to avoid them
 ```
 
-### 2.2 Use Structured Instructions
+### Use Structured Instructions
 
 Break complex tasks into numbered steps or bullet points. The model follows explicit structure much better than implicit expectations.
 
@@ -68,7 +68,7 @@ Format your response as:
 - **Refactored Code**: (code block, if needed)
 ```
 
-### 2.3 Understand Personas: Language Style, Not Knowledge Injection
+### Understand Personas: Language Style, Not Knowledge Injection
 
 Role-playing ("You are a senior Python developer") is a **language style constraint** — it shapes tone, vocabulary, and output conventions. It does **not** inject domain knowledge or transform a general-purpose LLM into a subject-matter expert.
 
@@ -117,7 +117,7 @@ Key principles:
 - **Rules over suggestions** — use `<rule>` tags or bullet lists, not polite requests
 - **Constraints over character** — specify format, length, and forbidden behaviors explicitly
 
-### 2.4 Design Execution Frameworks, Not Surface-Level Triggers
+### Design Execution Frameworks, Not Surface-Level Triggers
 
 Modern LLMs are already well-optimized for internal reasoning — simply adding "think step by step" yields diminishing marginal returns, not because the model is worse at reasoning but because it already reasons well without the nudge.
 
@@ -142,7 +142,7 @@ STAGE 3 — VERIFY: Check your answer. Does it satisfy all constraints?
 
 **Why this works**: Chain-of-Thought is an LLM-inherent capability, not something you add via prompting. What you _can_ control is the **execution protocol** — the sequence of named stages, their expected outputs, and the format the model must follow. The model uses its native reasoning within that structure. You define _what stages to follow_; the model decides _how to think within each stage_.
 
-### 2.5 Provide Examples (Few-Shot Prompting)
+### Provide Examples (Few-Shot Prompting)
 
 Show the model what you want by providing input-output examples. Even one or two examples can dramatically improve output quality and format consistency.
 
@@ -162,7 +162,7 @@ Review: "Best purchase I've made all year. Highly recommend!"
 Sentiment:
 ```
 
-### 2.6 Set Constraints and Boundaries
+### Set Constraints and Boundaries
 
 Explicitly state what the model should NOT do, what format to use, and any word/token limits. Constraints prevent unwanted behavior and keep outputs focused.
 
@@ -173,7 +173,7 @@ Summarize the following article in exactly 3 bullet points.
 - Do NOT use the words "the article says" or "according to"
 ```
 
-### 2.7 LLMs Are Uncontrollable — Never Delegate Security
+### LLMs Are Uncontrollable — Never Delegate Security
 
 > **Critical principle**: LLMs are stochastic, non-deterministic systems. No prompt — no matter how carefully crafted — can **guarantee** the model will follow your instructions. Prompt engineering reduces error rates; it does not eliminate them.
 
@@ -186,9 +186,9 @@ Summarize the following article in exactly 3 bullet points.
 
 > AmritaCore provides **cookie security detection** and **content filtering hooks**, but these are defense-in-depth layers — not substitutes for manual approval of sensitive operations.
 
-## 3. Prompt Structure Patterns
+## Prompt Structure Patterns
 
-### 3.1 The Message Role System
+### The Message Role System
 
 Most LLM APIs use a multi-role message structure:
 
@@ -201,7 +201,7 @@ Most LLM APIs use a multi-role message structure:
 
 **Best practice**: Put permanent instructions (persona, rules, output format) in the `system` message. Put task-specific queries in `user` messages.
 
-### 3.2 System Prompt Design
+### System Prompt Design
 
 The system prompt is your most powerful tool — it persists across the entire conversation. A well-crafted system prompt should:
 
@@ -210,7 +210,7 @@ The system prompt is your most powerful tool — it persists across the entire c
 3. **Specify output format**: "Respond in JSON with keys: issues, suggestions..."
 4. **Set boundaries**: "Never generate executable SQL without confirmation..."
 
-### 3.3 Context Window Management
+### Context Window Management
 
 LLMs have limited context windows. Plan your prompt structure accordingly:
 
@@ -219,9 +219,9 @@ LLMs have limited context windows. Plan your prompt structure accordingly:
 - **Summarize long documents** — don't pass raw 50-page PDFs; summarize or chunk them
 - **Use tool calls** — for large datasets, provide tools rather than inline data
 
-## 4. Common Techniques
+## Common Techniques
 
-### 4.1 Chain-of-Thought (CoT) and Execution Frameworks
+### Chain-of-Thought (CoT) and Execution Frameworks
 
 **Chain-of-Thought is an LLM-inherent capability, not a prompt technique.** Some models are explicitly trained for it ("thinking" models like o1, DeepSeek-R1); others exhibit it naturally. You cannot "add" CoT to a model via prompting — you can only provide an **execution framework** that structures how the model applies its native reasoning.
 
@@ -241,7 +241,7 @@ of the remaining in the afternoon. How many apples are left?
 
 > **Key distinction**: CoT is the model's internal process; the numbered phases are an **execution protocol** you impose. Don't conflate the two — "think step by step" is a language-style nudge, not CoT engineering.
 
-### 4.2 ReAct (Reasoning + Acting)
+### ReAct (Reasoning + Acting)
 
 ReAct combines reasoning traces with action steps. The model alternates between thinking about what to do and executing tools to gather information.
 
@@ -254,7 +254,7 @@ You have access to a search tool. For each question:
 5. If yes, provide the answer. If no, search again.
 ```
 
-### 4.3 Self-Reflection
+### Self-Reflection
 
 Ask the model to review and critique its own output. This catches errors and improves quality, especially useful for code generation and creative writing.
 
@@ -267,7 +267,7 @@ After generating your answer, review it for:
 Then provide a revised version if needed.
 ```
 
-### 4.4 Tool-Use Prompts
+### Tool-Use Prompts
 
 When the model has access to tools/functions, your prompts should clearly specify when and how to use them:
 
@@ -282,11 +282,11 @@ Rules:
 - NEVER guess when a tool can give you the correct answer
 ```
 
-## 5. Prompt Engineering in AmritaCore
+## Prompt Engineering in AmritaCore
 
 AmritaCore provides several mechanisms for prompt engineering at the framework level, enabling you to build prompts programmatically rather than manually.
 
-### 5.1 Jinja2 Template System
+### Jinja2 Template System
 
 AmritaCore uses Jinja2 templates to render system prompts. The default template (`DEFAULT_TEMPLATE`) provides structure, but you can supply your own:
 
@@ -329,7 +329,7 @@ chat = ChatObject(
 
 **Built-in template variables**: `train`, `memory`, `chatobj`, `config` are automatically available. Avoid overriding them in `jinja2_vars`.
 
-### 5.2 The `train` System Message
+### The `train` System Message
 
 The `train` parameter sets the system-level instruction for the entire conversation. AmritaCore's built-in `DEFAULT_INSTRUCTIONS` uses a **mode-driven, rule-based** style — no persona, no \"you are an expert\" — just concrete behavioral rules for each mode:
 
@@ -365,7 +365,7 @@ chat = ChatObject(
 
 > **Design philosophy**: Define **what the model should do in each mode**, not **who the model should pretend to be**. Modes and rules produce more consistent behavior than personas.
 
-### 5.3 Structured Reasoning Templates
+### Structured Reasoning Templates
 
 When using `ReActAgentStrategy` with structured reasoning enabled, the framework uses a Jinja2 template (`STRUCTURED_REASONING_TEMPLATE` in `builtins/consts.py`) that provides a **phase-based reasoning framework** — not a persona or a \"think step by step\" trigger:
 
@@ -388,7 +388,7 @@ config.builtin.react_config.tool_prediction = True  # predict needed tools
 
 > **CoT vs execution framework**: Chain-of-Thought is the model's own internal reasoning process — you don't control it via prompts. What `STRUCTURED_REASONING_TEMPLATE` provides is an **execution protocol**: named phases, explicit output format, and a fixed reasoning taxonomy. The framework defines _what structure to follow_; the model's native CoT handles _how to think within that structure_.
 
-### 5.4 Prompt Engineering Best Practices for AmritaCore
+### Prompt Engineering Best Practices for AmritaCore
 
 1. **Design modes, not personas** — follow `DEFAULT_INSTRUCTIONS`: define what to do in each mode, not who the model should pretend to be
 2. **Use `jinja2_vars` for dynamic content** — inject variables rather than rebuilding templates

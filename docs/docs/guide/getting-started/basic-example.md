@@ -1,6 +1,6 @@
 # Basic Example
 
-## 2.3.1 Complete Basic Functionality Demonstration
+## Complete Basic Functionality Demonstration
 
 Let's look at a more complete example that demonstrates context retention and multiple interactions using the simplified `create_agent` interface:
 
@@ -60,6 +60,7 @@ async def basic_example():
             # message can be a string or a Message object
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
+        await chat  # Wait for the task to finish before exiting
 
     print("\n")  # New line after response
 
@@ -77,6 +78,7 @@ async def basic_example():
         async for message in chat2.io_stream.get_response_generator():
             content = message if isinstance(message, str) else message.get_content()
             print(content, end="")
+        await chat2  # Wait for the task to finish before exiting
 
     print("\n")  # New line after response
 
@@ -112,6 +114,7 @@ async def minimal_example():
 
     async with chat.begin():
         response = await chat.full_response()
+        await chat  # Wait for the task to finish before exiting
 
     print(f"💬 Response: {response}")
     print("✅ Minimal example completed!")
@@ -125,7 +128,7 @@ if __name__ == "__main__":
     print("\n✨ All examples completed!")
 ```
 
-## 2.3.2 Configuration Details
+## Configuration Details
 
 The new API simplifies configuration:
 
@@ -134,7 +137,7 @@ The new API simplifies configuration:
 - **Context handling**: The agent automatically retains conversation history. You do **not** need to manage `MemoryModel` or `train` messages manually – they are built in, unless you need to dump or deserialize memory.
 - **System prompt**: A sensible default system prompt is provided. If you need to customize it, `create_agent` accepts an optional `train` parameter.
 
-## 2.3.3 Common Issue Troubleshooting
+## Common Issue Troubleshooting
 
 **Issue**: Connection errors to API endpoint  
 **Solution**: Verify that `base_url` and `api_key` are correct and that your network can reach the endpoint.

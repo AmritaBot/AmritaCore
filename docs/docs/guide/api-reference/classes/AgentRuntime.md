@@ -64,5 +64,6 @@ chat = agent.get_chatobject("Hello, what can you do?")
 # Execute the interaction
 async with chat.begin():
     response = await chat.full_response()
+    await chat  # Wait for the task to finish before exiting
     print(response)
 ```

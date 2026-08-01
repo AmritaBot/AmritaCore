@@ -1,25 +1,25 @@
 # Function Implementation
 
-## 4.1 Initialization and Loading
+## Initialization and Loading
 
-### 4.1.1 load_amrita() Asynchronous Loading
+### load_amrita() Asynchronous Loading
 
-The `load_amrita()` function asynchronously loads AmritaCore components, especially when MCP client functionality is enabled:
+The `load_amrita()` function asynchronously loads MCP clients when MCP is enabled in the configuration. Tokenizers and adapters are already registered automatically at import time:
 
 ```python
 import asyncio
 from amrita_core import load_amrita
 
 async def main():
-    # Load AmritaCore components
+    # Load MCP clients (only needed when MCP is enabled)
     await load_amrita()
 
 asyncio.run(main())
 ```
 
-### 4.1.2 Configuration Setting and Retrieval
+### Configuration Setting and Retrieval
 
-#### 4.1.2.1 set_config() Setting Configuration
+#### set_config() Setting Configuration
 
 The `set_config()` function applies a configuration to AmritaCore:
 
@@ -31,7 +31,7 @@ config = AmritaConfig()
 set_config(config)
 ```
 
-#### 4.1.2.2 get_config() Retrieving Configuration
+#### get_config() Retrieving Configuration
 
 The `get_config()` function retrieves the current AmritaCore configuration:
 
@@ -43,12 +43,12 @@ current_config = get_config()
 print(current_config.function_config.use_minimal_context)
 ```
 
-### 4.1.4 Initialization Process Details
+### Initialization Process Details
 
 Since v0.9.0rc1, the initialization process has been simplified:
 
 1. _(Optional)_ Set the desired configuration with `set_config()`
-2. Load additional components with `load_amrita()` (required when MCP is enabled)
+2. Call `load_amrita()` to start MCP clients (only required when MCP is enabled; tokenizers and adapters are already registered at import time)
 
 ```python
 from amrita_core import load_amrita
@@ -58,16 +58,16 @@ from amrita_core.config import AmritaConfig, set_config
 config = AmritaConfig()
 set_config(config)
 
-# Step 3: Load additional components
+# Step 2: Start MCP clients (only needed when MCP is enabled)
 import asyncio
 asyncio.run(load_amrita())
 ```
 
-## 4.2 Agent Strategy Lifecycle Methods
+## Agent Strategy Lifecycle Methods
 
 Agent strategies in AmritaCore implement several lifecycle methods that are called at different points during execution.
 
-### 4.2.1 on_post_process() Post-Process Hook
+### on_post_process() Post-Process Hook
 
 The `on_post_process()` method is a **post-execution hook** that is called after all agent steps complete successfully. This hook is invoked for **all strategy categories** (`"agent"`, `"rag"`, `"workflow"`, `"agent-mixed"`).
 
@@ -94,7 +94,7 @@ async def on_post_process(self) -> None:
 - Can modify the conversation context before final completion
 - Useful for adding final instructions or context summarization
 
-### 4.2.2 Other Lifecycle Methods
+### Other Lifecycle Methods
 
 - **`run()`**: Main execution method for `"workflow"` and `"rag"` categories
 - **`single_execute()`**: Single-step execution method for `"agent"` and `"agent-mixed"` categories
@@ -133,9 +133,9 @@ class CustomAgentStrategy(AgentStrategy):
 - If you need the old behavior (re-raising exceptions), explicitly call `raise exc` in your custom implementation
 - This change improves robustness for production environments where graceful error handling is preferred
 
-## 4.3 Conversation Interaction Flow
+## Conversation Interaction Flow
 
-### 4.2.1 Creating ChatObject Conversation Objects
+### Creating ChatObject Conversation Objects
 
 The [ChatObject](../api-reference/classes/ChatObject.md) class is the primary interface for conversations:
 
@@ -185,29 +185,31 @@ chat = ChatObject(
 
 > See [`builtins.workflows`](../guide/builtins#_9-6-built-in-workflows-v0-12-6) for all available workflows.
 
-### 4.2.2 begin() Executing Conversations
+### begin() Executing Conversations
 
 #### Basic Usage
 
-The `begin()` method executes the conversation and processes the input:
+The `begin()` method starts the internal task; you must then await the `ChatObject` itself for completion (this is recommended when you are using a callback function):
 
 ```python
-# Execute the conversation (this is recommended when you are using a callback function)
-await chat.begin()
+# Start the task, then wait for it to finish
+chat.begin()
+await chat
 
 ```
 
 #### Use as Context Manager(Recommended)
 
-```python
+> ⚠️ Exiting the context manager terminates the internal task instead of waiting for it. Always `await chat` inside the block:
 
-# We prefer to use context manager as this:
+```python
 async with chat.begin():
     ...
+    await chat  # Wait for the task to finish before exiting
 
 ```
 
-### 4.2.3 full_response() Obtaining Complete Response
+### full_response() Obtaining Complete Response
 
 The `full_response()` method retrieves the complete response from the conversation:
 
@@ -217,7 +219,7 @@ response = await chat.full_response()
 print(response)
 ```
 
-### 4.2.4 Streaming Response Processing
+### Streaming Response Processing
 
 AmritaCore uses **AnyIO memory object streams** for streaming responses, which provides built-in backpressure handling:
 
@@ -240,7 +242,7 @@ await asyncio.wait_for(self._send_stream.send(item), timeout=self._q_tout)
 
 When the buffer is full, the producer automatically waits until space becomes available, eliminating the need for complex overflow logic.
 
-### 4.2.5 Response Callback
+### Response Callback
 
 AmritaCore supports response callbacks for real-time interaction:
 
@@ -249,7 +251,8 @@ async def response_callback(message):
     print(message)
 
 chat.io_stream.set_callback_func(response_callback)
-await chat.begin()
+chat.begin()
+await chat
 ```
 
 ::: warning
@@ -258,7 +261,7 @@ The `get_response_generator()` or `full_response()` is a one-time operation. Tha
 
 :::
 
-### 4.2.5 Conversation Lifecycle
+### Conversation Lifecycle
 
 The typical conversation lifecycle includes:
 
@@ -282,14 +285,15 @@ async with ChatObject(
 ).begin() as chat:
     async for message in chat.io_stream.get_response_generator():
         print(message, end="")
+    await chat  # Wait for the task to finish before exiting
 
 # Update context for next interaction
 context = chat.data
 ```
 
-## 4.4 Event Processing Implementation
+## Event Processing Implementation
 
-### 4.3.1 @on_event Event Listeners
+### @on_event Event Listeners
 
 Event listeners are created using the `@on_event` decorator:
 
@@ -302,7 +306,7 @@ def my_event_handler(event):
 
 ```
 
-### 4.3.2 @on_precompletion Pre-Completion Hooks
+### @on_precompletion Pre-Completion Hooks
 
 Pre-completion hooks are executed before sending the request to the LLM:
 
@@ -317,7 +321,7 @@ async def preprocess_request(event: PreCompletionEvent):
 
 ```
 
-### 4.3.3 @on_completion Post-Completion Hooks
+### @on_completion Post-Completion Hooks
 
 Post-completion hooks are executed after receiving the response from the LLM:
 
@@ -332,16 +336,16 @@ async def postprocess_response(event: CompletionEvent):
 
 ```
 
-### 4.3.4 Event Processing Best Practices
+### Event Processing Best Practices
 
 - Use pre-completion hooks to modify messages before LLM processing
 - Use post-completion hooks to process or log responses
 - Ensure event handlers are async when performing async operations
 - Return the event object from handlers to continue the chain
 
-## 4.5 Tool Calling Implementation
+## Tool Calling Implementation
 
-### 4.4.1 Tool Registration Example
+### Tool Registration Example
 
 Registering tools for use by the agent with comprehensive validation:
 
@@ -409,7 +413,7 @@ async def get_current_weather(data: dict) -> str:
 
 These constraints are automatically validated when the LLM generates tool calls, ensuring that only valid parameter values are passed to your tool functions.
 
-### 4.4.2 Tool Execution Flow
+### Tool Execution Flow
 
 The tool execution flow includes:
 
@@ -418,7 +422,7 @@ The tool execution flow includes:
 3. Tool execution
 4. Result incorporation into conversation
 
-### 4.4.3 Error Handling
+### Error Handling
 
 Proper error handling in tool implementations:
 
@@ -465,7 +469,7 @@ async def safe_divide(data: dict) -> str:
         return f"Error occurred: {str(e)}"
 ```
 
-### 4.4.4 Custom Run Mode
+### Custom Run Mode
 
 Some tools may need access to the event context or require more advanced processing. For this, the `custom_run` option can be enabled:
 
@@ -514,9 +518,9 @@ In custom run mode:
 - Functions can be synchronous or asynchronous
 - Return type can be `str` or `None`
 
-## 4.6 Memory Management
+## Memory Management
 
-### 4.5.1 MemoryModel Memory Structure
+### MemoryModel Memory Structure
 
 The [MemoryModel](../api-reference/classes/MemoryModel.md) class structure:
 
@@ -529,7 +533,7 @@ memory.messages.append(Message(role="user", content="Hello"))
 memory.messages.append(Message(role="assistant", content="Hi there!"))
 ```
 
-### 4.5.2 Context Window Management
+### Context Window Management
 
 Managing the context window with configuration:
 
@@ -542,7 +546,7 @@ llm_config = LLMConfig(
 )
 ```
 
-### 4.5.3 Message Summary Function
+### Message Summary Function
 
 Automatic message summarization:
 
@@ -556,7 +560,7 @@ llm_config = LLMConfig(
 )
 ```
 
-### 4.5.4 Long Conversation Handling
+### Long Conversation Handling
 
 Handling long conversations efficiently:
 
@@ -575,16 +579,16 @@ long_convo_config = AmritaConfig(
 )
 ```
 
-### 4.5.5 Memory Optimization Techniques
+### Memory Optimization Techniques
 
 - Use minimal context when appropriate
 - Enable memory summarization for long-running sessions
 - Implement session cleanup strategies
 - Monitor token usage regularly
 
-## 4.7 Logging and Debugging
+## Logging and Debugging
 
-### 4.6.1 Logger Logging System
+### Logger Logging System
 
 Using the built-in logger:
 
@@ -601,13 +605,13 @@ logger.debug("Processing message: %s", user_input)
 logger.error("Failed to process request: %s", error)
 ```
 
-### 4.6.2 get_last_response() Getting Last Response
+### get_last_response() Getting Last Response
 
 Retrieve the last response from a conversation generator. This function supports streaming intermediate chunks to a target stream while extracting the final response.
 
 ```python
 from amrita_core.libchat import get_last_response
-from amrita_core.streaming import SuspendObjectStream
+from amrita_core import SuspendObjectStream
 
 # Basic usage - get only the last response
 last_resp = await get_last_response(chat_object)
@@ -679,9 +683,10 @@ async with chat.begin():
     # Now you have both streamed content and final response metadata
     print(f"Total tokens used: {final_response.usage.total_tokens}")
     print(f"Tool calls made: {len(final_response.tool_calls or [])}")
+    await chat  # Wait for the task to finish before exiting
 ```
 
-### 4.6.3 Debugging Tips
+### Debugging Tips
 
 - Enable debug logging during development
 - Monitor token usage to prevent exceeding limits

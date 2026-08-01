@@ -1,16 +1,34 @@
 # FunctionDefinitionSchema
 
-The FunctionDefinitionSchema class is the schema definition for function parameters.
+FunctionDefinitionSchema 类是函数参数的模式定义。
 
-## Description
+## 属性
 
-The FunctionDefinitionSchema class is used to define the structure and type information of function parameters. It is typically used to describe the parameters of tool functions so that the AI model can correctly understand and call these functions.
+- `name` (str)：函数名
+- `description` (str)：函数描述
+- `parameters` ([FunctionParametersSchema](FunctionParametersSchema.md))：函数参数定义，包含参数 `type`、`properties` 和 `required` 列表
 
-This class inherits from BaseModel, thus possessing all features of Pydantic models, including data validation and serialization functions. It allows developers to define function parameter names, types, default values, and descriptions.
+## 描述
 
-## Purpose
+FunctionDefinitionSchema 类用于定义函数参数的结构和类型信息。通常用于描述工具函数的参数，以便 AI 模型能够正确理解并调用这些函数。
 
-- Define parameter schemas for tool functions
-- Validate parameters passed to functions
-- Provide structure information of function parameters to AI models
-- Ensure correctness of parameters during function calls
+## 示例
+
+```python
+from amrita_core.tools.models import FunctionDefinitionSchema, FunctionParametersSchema, FunctionPropertySchema
+
+tool = FunctionDefinitionSchema(
+    name="calculate_math",
+    description="计算数学表达式的结果",
+    parameters=FunctionParametersSchema(
+        type="object",
+        properties={
+            "expression": FunctionPropertySchema(
+                type="string",
+                description="要计算的数学表达式",
+            ),
+        },
+        required=["expression"],
+    ),
+)
+```

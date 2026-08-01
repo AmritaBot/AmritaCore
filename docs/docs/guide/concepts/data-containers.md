@@ -149,15 +149,15 @@ Since v0.12.0, ChatObject internally uses the following DI context objects to re
 
 | DI Context                                                                         | Purpose                           |
 | ---------------------------------------------------------------------------------- | --------------------------------- |
-| `_di_session` ([`SessionMetadata`](../api-reference/classes/SessionMetadata.md))   | Session identity and timing       |
-| `_di_memory` ([`MemoryContext`](../api-reference/classes/MemoryContext.md))        | Runtime conversation memory       |
-| `_di_ability` ([`AbilityState`](../api-reference/classes/AbilityState.md))         | Config, preset, backend slots     |
-| `_di_input` ([`GeneralInput`](../api-reference/classes/GeneralInput.md))           | User input, template, Jinja2 vars |
-| `_di_working` ([`WorkingState`](../api-reference/classes/WorkingState.md))         | Context message wrapper           |
-| `_di_resp` ([`RespState`](../api-reference/classes/RespState.md))                  | LLM response and usage stats      |
-| `_di_loop` ([`AgentLoopState`](../api-reference/classes/AgentLoopState.md))        | Agent loop state                  |
+| `_di_session` (`SessionMetadata`)                                                  | Session identity and timing       |
+| `_di_memory` (`MemoryContext`)                                                     | Runtime conversation memory       |
+| `_di_ability` (`AbilityState`)                                                     | Config, preset, backend slots     |
+| `_di_input` (`GeneralInput`)                                                       | User input, template, Jinja2 vars |
+| `_di_working` (`WorkingState`)                                                     | Context message wrapper           |
+| `_di_resp` (`RespState`)                                                           | LLM response and usage stats      |
+| `_di_loop` (`AgentLoopState`)                                                      | Agent loop state                  |
 | `_di_opt` ([`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md)) | Backend fetch/commit control      |
-| `_di_agent` ([`StrategyPayload`](../api-reference/classes/StrategyPayload.md))     | Agent strategy reference          |
+| `_di_agent` (`StrategyPayload`)                                                    | Agent strategy reference          |
 
 These DI objects are automatically injected into workflow nodes by `WorkflowInterpreter`'s dependency injection, no manual passing required.
 

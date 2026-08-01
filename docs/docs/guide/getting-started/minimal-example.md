@@ -1,6 +1,6 @@
 # Minimal Example
 
-## 2.2.1 5-Minute Quick Start
+## 5-Minute Quick Start
 
 Here's a minimal example to get you started with AmritaCore using the simplified `create_agent` function:
 
@@ -23,14 +23,16 @@ async def minimal_example():
 
     # Execute the interaction and get the response
     async with chat.begin():
-        print(await chat.full_response())
+        response = await chat.full_response()
+        await chat  # Wait for the task to finish before exiting
+        print(response)
 
 # Run the example
 if __name__ == "__main__":
     asyncio.run(minimal_example())
 ```
 
-## 2.2.2 Code Example Explanation
+## Code Example Explanation
 
 In this minimal example:
 
@@ -52,7 +54,7 @@ In this minimal example:
 
 For most basic use cases, `create_agent` is sufficient and much simpler to use. However, when you need fine-grained control or want to implement custom behavior, you can work directly with `ChatObject`.
 
-## 2.2.3 Running and Debugging
+## Running and Debugging
 
 To run the example:
 

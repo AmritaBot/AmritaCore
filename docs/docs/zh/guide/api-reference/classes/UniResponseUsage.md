@@ -1,17 +1,15 @@
 # UniResponseUsage
 
-UniResponseUsage class represents usage statistics for responses.
+UniResponseUsage 类表示响应的使用统计信息。
 
-## Properties
+## 属性
 
-- `prompt_tokens` (T_INT): Number of tokens used in the prompt
-- `completion_tokens` (T_INT): Number of tokens used in the completion (generation)
-- `total_tokens` (T_INT): Total number of tokens used
-- `cache_creation` (int | None): 用于创建缓存条目的 token 数（Anthropic prompt caching）
-- `cache_hit` (int | None): 从缓存中读取的 token 数（Anthropic prompt caching）
+- `prompt_tokens` (T_INT)：提示词中使用的 token 数
+- `completion_tokens` (T_INT)：完成（生成）中使用的 token 数
+- `total_tokens` (T_INT)：使用的总 token 数
+- `cache_creation` (int | None)：创建缓存条目使用的 token 数（Anthropic 提示缓存）
+- `cache_hit` (int | None)：从缓存读取的 token 数（Anthropic 提示缓存）
 
-## Description
+## 描述
 
-The UniResponseUsage class inherits from BaseModel and implements generics, used to record and track usage information for AI model calls. This information is crucial for monitoring API usage, cost calculation, and performance optimization.
-
-UniResponseUsage is part of AmritaCore's usage management system, helping users understand resource consumption for each AI interaction.
+UniResponseUsage 类继承自 BaseModel 并实现泛型，用于记录和跟踪 AI 模型调用的使用信息。

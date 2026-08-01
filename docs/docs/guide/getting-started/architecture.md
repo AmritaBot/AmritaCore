@@ -1,6 +1,6 @@
-# 2.4 Project Architecture Understanding
+# Project Architecture Understanding
 
-## 2.4.1 Architecture Diagram
+## Architecture Diagram
 
 ### Core Architecture
 
@@ -136,7 +136,7 @@ graph LR
     RunMethod --> AgentLoop
 ```
 
-## 2.4.2 AmritaSense — The Runtime Substrate
+## AmritaSense — The Runtime Substrate
 
 AmritaCore is built on [**AmritaSense**](https://sense.amritabot.com), which serves as the **runtime** that powers every `ChatObject` execution. Think of AmritaSense as the "operating system" for agent workflows — it provides the scheduling, composition, and event plumbing, while AmritaCore defines the domain-specific agent logic on top.
 
@@ -176,7 +176,7 @@ sequenceDiagram
 
 This separation keeps AmritaCore's Agent layer thin and focused on strategy, sessions, tools, MCP, and adapters — all the orchestration is handled by AmritaSense.
 
-## 2.4.3 Core Component Relationships
+## Core Component Relationships
 
 - **Entry Layer**: Provides a simplified interaction interface for users
   - `create_agent()`: Factory function that creates an `AgentRuntime` with minimal parameters
@@ -202,7 +202,7 @@ This separation keeps AmritaCore's Agent layer thin and focused on strategy, ses
   - `LegacyBackend`: Built-in in-memory backend using global containers
   - Custom backends can replace memory or ability slots for database/cloud persistence
 
-## 2.4.4 Agent Loop and Backend Data Flow
+## Agent Loop and Backend Data Flow
 
 ```mermaid
 sequenceDiagram

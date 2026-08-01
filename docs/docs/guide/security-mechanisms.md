@@ -2,15 +2,15 @@
 
 # Security Mechanisms
 
-## 6.1 Cookie Security Detection
+## Cookie Security Detection
 
-### 6.1.1 Prompt Injection Protection
+### Prompt Injection Protection
 
 AmritaCore implements robust prompt injection protection through its cookie security detection mechanism. This feature adds a unique "cookie" to conversations that helps detect if an attacker is attempting to manipulate the AI's behavior by injecting malicious instructions.
 
 The cookie system works by inserting a unique identifier into the conversation context that remains consistent throughout a session. If this cookie is detected in unexpected places in the AI's response, it indicates a potential prompt injection attack.
 
-### 6.1.2 CookieConfig Configuration
+### CookieConfig Configuration
 
 The [CookieConfig](../api-reference/classes/CookieConfig.md) class manages cookie-related security settings. Cookie security is **enabled by default** (`enable_cookie=True`) — no explicit configuration is needed unless you want to customise the cookie string:
 
@@ -29,7 +29,7 @@ default_security_config = CookieConfig(enable_cookie=True)
 
 The cookie is automatically generated as a random alphanumeric string if not explicitly provided, ensuring uniqueness across sessions.
 
-### 6.1.3 Security Detection Examples
+### Security Detection Examples
 
 Here's how to implement and use the cookie security detection:
 
@@ -57,9 +57,9 @@ chat = ChatObject(
 )
 ```
 
-## 6.2 Content Filtering
+## Content Filtering
 
-### 6.2.1 Content Filtering Mechanism
+### Content Filtering Mechanism
 
 AmritaCore provides a flexible content filtering mechanism that can be customized to meet specific security requirements. The framework doesn't include a built-in content filter by default, but provides hooks to implement custom filtering:
 
@@ -96,7 +96,7 @@ def contains_harmful_content(content: str) -> bool:
     return any(keyword in content_lower for keyword in harmful_keywords)
 ```
 
-### 6.2.2 Custom Filtering Rules
+### Custom Filtering Rules
 
 Implement custom filtering rules based on your specific requirements:
 
@@ -131,7 +131,7 @@ def contains_sensitive_info(content: str) -> bool:
     return any(pattern in content_lower for pattern in sensitive_patterns)
 ```
 
-### 6.2.3 Sensitive Information Detection
+### Sensitive Information Detection
 
 Implement detection for sensitive information to prevent data leakage:
 
@@ -159,9 +159,9 @@ def detect_sensitive_information(text: str):
     return found_items
 ```
 
-## 6.3 Template Security Enhancements
+## Template Security Enhancements
 
-### 6.3.1 Jinja2 Template Escaping
+### Jinja2 Template Escaping
 
 AmritaCore automatically applies HTML escaping to user-provided content in Jinja2 templates to **prevent user input from breaking the structured format of system messages**.
 
@@ -188,7 +188,7 @@ The `|escape` filter is now automatically applied to the `original_msg` variable
 - Ensures predictable prompt formatting regardless of user input content
 - Backward compatible - existing templates continue to work as expected
 
-### 6.3.2 Adapter Type Safety Validation
+### Adapter Type Safety Validation
 
 AmritaCore now includes built-in type safety validation for adapter usage to prevent accidental misuse of adapters.
 
@@ -216,7 +216,7 @@ embeddings = await call_completion(preset=embedding_preset, messages=["Hello"])
 RuntimeError: Invalid adapter type for text-gen when using adapter: MyEmbeddingAdapter, this adapter only supports embed.
 ```
 
-### 6.3.3 Best Practices for Secure Template Usage
+### Best Practices for Secure Template Usage
 
 When working with custom Jinja2 templates in AmritaCore, follow these security best practices:
 
@@ -248,7 +248,7 @@ rendered = safe_template.render(
 **Template Variable Naming Security**:
 As documented in the [Jinja2 Template Variables Safety](../extensions-integration/jinja2-templates.md#template-variable-naming-safety) section, avoid using variable names that conflict with built-in parameters (`train`, `memory`, `chatobj`, `config`) to prevent `TypeError` due to duplicate keyword arguments.
 
-### 6.3.4 Comprehensive Security Architecture
+### Comprehensive Security Architecture
 
 AmritaCore's security enhancements work together to provide defense in depth:
 
@@ -261,11 +261,11 @@ AmritaCore's security enhancements work together to provide defense in depth:
 
 These layers ensure that AmritaCore applications remain secure against common attack vectors while maintaining ease of use and developer productivity.
 
-## 6.4 Session Isolation
+## Session Isolation
 
-Session isolation is handled by the [data backend](../guide/concepts/data-backend.md) mechanism. Each `ChatObject` receives a `BackendSlots` instance that controls how memory and abilities are loaded and persisted per session.
+Session isolation is handled by the [data backend](./concepts/data-backend.md) mechanism. Each `ChatObject` receives a `BackendSlots` instance that controls how memory and abilities are loaded and persisted per session.
 
-### 6.4.1 Backend-Driven Isolation
+### Backend-Driven Isolation
 
 The default `LegacyBackend` stores all session data in in-process global containers. For stronger isolation, implement a custom backend:
 
@@ -277,7 +277,7 @@ from amrita_core.builtins.backends import LegacyBackend
 backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
 ```
 
-### 6.4.2 Session ID Management
+### Session ID Management
 
 Each session is identified by a unique `session_id` string. The backend uses this ID to look up or create per-session state:
 
@@ -290,7 +290,7 @@ def create_session_id() -> str:
     return uuid.uuid4().hex
 ```
 
-### 6.4.3 Data Isolation Example
+### Data Isolation Example
 
 Ensure data isolation by using a custom backend that strictly separates per-session memory:
 
@@ -328,10 +328,12 @@ class SecureConversationManager:
             backend=self._slot,
         )
         async with chat.begin():
-            return await chat.full_response()
+            response = await chat.full_response()
+            await chat  # Wait for the task to finish before exiting
+        return response
 ```
 
-### 6.4.4 Cross-Session Protection
+### Cross-Session Protection
 
 Protect against cross-session contamination:
 
@@ -354,9 +356,9 @@ async def session_isolation_check(event: PreCompletionEvent, session_id: str = N
 
 ```
 
-## 6.5 Access Control
+## Access Control
 
-### 6.4.1 Permission Mechanisms
+### Permission Mechanisms
 
 While AmritaCore itself doesn't implement a comprehensive permission system, it provides hooks to integrate with external access control mechanisms:
 
@@ -408,7 +410,7 @@ def filter_advanced_tools(messages):
     return messages
 ```
 
-### 6.4.2 Access Limitations
+### Access Limitations
 
 Implement rate limiting and access constraints:
 
@@ -447,7 +449,7 @@ def handle_request(user_id: str):
     pass
 ```
 
-### 6.4.3 Audit Logging
+### Audit Logging
 
 Implement audit logging to track security-relevant events:
 
