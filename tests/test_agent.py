@@ -309,7 +309,9 @@ async def test_amrita_agent_strategy_single_execute_with_tool_calls(
         usage=None,
     )
 
-    with patch("amrita_core.builtins.agent.tools_caller", return_value=mock_response):
+    with patch(
+        "amrita_core.builtins.agent.react_comm.tools_caller", return_value=mock_response
+    ):
         strategy = ReActAgentStrategy(mock_strategy_context)
         fun = strategy.tools_manager.get_tool
         try:
@@ -364,7 +366,9 @@ async def test_amrita_agent_strategy_single_execute_stop_tool(
         usage=None,
     )
 
-    with patch("amrita_core.builtins.agent.tools_caller", return_value=mock_response):
+    with patch(
+        "amrita_core.builtins.agent.react_comm.tools_caller", return_value=mock_response
+    ):
         strategy = ReActAgentStrategy(mock_strategy_context)
         strategy.tools = [STOP_TOOL]
 
@@ -429,7 +433,8 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
 
     try:
         with patch(
-            "amrita_core.builtins.agent.tools_caller", return_value=mock_response
+            "amrita_core.builtins.agent.react_comm.tools_caller",
+            return_value=mock_response,
         ):
             strategy = ReActAgentStrategy(mock_strategy_context)
             strategy.tools = [
@@ -858,7 +863,9 @@ async def test_reasoning_aware_tool_prioritization(mock_strategy_context, mock_c
 
     mock_response = UniResponse(content=None, tool_calls=[], usage=None)
 
-    with patch("amrita_core.builtins.agent.tools_caller", return_value=mock_response):
+    with patch(
+        "amrita_core.builtins.agent.react_comm.tools_caller", return_value=mock_response
+    ):
         await strategy.single_execute()
     # Tool prioritization happens inside; we just verify no crash
     # (the actual reordering is tested by the function logic above)
