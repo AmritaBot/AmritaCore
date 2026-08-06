@@ -276,7 +276,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiologic", specifier = ">=0.16.0" },
     { name = "amrita-core", extras = ["anthropic", "jieba"], marker = "extra == 'all'", editable = "." },
-    { name = "amrita-sense", specifier = ">=0.4.5.1" },
+    { name = "amrita-sense", specifier = ">=0.6.0" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.116.0,<0.119.0" },
     { name = "fastmcp-slim", extras = ["client"], specifier = ">=3.4.4" },
     { name = "filetype", specifier = ">=1.2.0" },

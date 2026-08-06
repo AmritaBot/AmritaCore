@@ -153,6 +153,110 @@ class TestValidateMsgList:
             _validate_msg_list(messages)
 
 
+class TestThinkingFilter:
+    """Test _apply_thinking_filter: must not mutate original Message objects.
+
+    Providers like DeepSeek require assistant ``reasoning_content`` to be
+    passed back verbatim on subsequent requests — stripping it from the
+    live objects would cause HTTP 400.
+    """
+
+    def _thinking_config(self, content_mode: str):
+        from amrita_core.types import ThinkingConfig
+
+        return ThinkingConfig(thinking_type="enabled", content_mode=content_mode)  # type: ignore[arg-type]
+
+    def test_never_mode_does_not_mutate_original(self):
+        from amrita_core.libchat import _apply_thinking_filter
+
+        msgs = [
+            Message(
+                role="assistant",
+                content="answer",
+                reasoning_content="thinking text",
+            ),
+            Message(role="user", content="next question"),
+        ]
+        validated = list(msgs)
+        _apply_thinking_filter(validated, self._thinking_config("never"))
+
+        # The validated list has a stripped *copy*...
+        assert validated[0].reasoning_content is None
+        # ...but the original object keeps its reasoning_content.
+        assert msgs[0].reasoning_content == "thinking text"
+
+    def test_by_tool_keeps_reasoning_for_tool_calls(self):
+        from amrita_core.libchat import _apply_thinking_filter
+        from amrita_core.types import ToolCall
+
+        msgs = [
+            Message(
+                role="assistant",
+                content=None,
+                reasoning_content="thinking with tools",
+                tool_calls=[
+                    ToolCall(
+                        id="t1",
+                        function={"name": "search", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
+                    )
+                ],
+            )
+        ]
+        validated = list(msgs)
+        _apply_thinking_filter(validated, self._thinking_config("by-tool"))
+        # Same object identity when nothing is stripped (no copy needed).
+        assert validated[0] is msgs[0]
+        assert validated[0].reasoning_content == "thinking with tools"
+
+    def test_by_tool_strips_plain_assistant(self):
+        from amrita_core.libchat import _apply_thinking_filter
+
+        msgs = [
+            Message(
+                role="assistant",
+                content="answer",
+                reasoning_content="thinking text",
+            )
+        ]
+        validated = list(msgs)
+        _apply_thinking_filter(validated, self._thinking_config("by-tool"))
+        assert validated[0].reasoning_content is None
+        assert msgs[0].reasoning_content == "thinking text"  # original intact
+
+    def test_optional_passthrough_no_copy(self):
+        from amrita_core.libchat import _apply_thinking_filter
+
+        msgs = [
+            Message(
+                role="assistant",
+                content="answer",
+                reasoning_content="thinking text",
+            )
+        ]
+        validated = list(msgs)
+        _apply_thinking_filter(validated, self._thinking_config("optional"))
+        assert validated[0] is msgs[0]
+        assert validated[0].reasoning_content == "thinking text"
+
+    def test_disabled_thinking_no_op(self):
+        from amrita_core.libchat import _apply_thinking_filter
+        from amrita_core.types import ThinkingConfig
+
+        msgs = [
+            Message(
+                role="assistant",
+                content="answer",
+                reasoning_content="thinking text",
+            )
+        ]
+        validated = list(msgs)
+        _apply_thinking_filter(
+            validated, ThinkingConfig(thinking_type="disabled", content_mode="never")
+        )
+        assert validated[0] is msgs[0]
+        assert validated[0].reasoning_content == "thinking text"
+
+
 class TestCallWithReflection:
     """Test _call_with_reflection function"""
 

@@ -30,6 +30,7 @@ from amrita_core.builtins.tools import (
     REASONING_TOOL,
     REFLECTION_TOOL,
     STOP_TOOL,
+    UPDATE_STEP_TOOL,
 )
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, set_config
@@ -112,24 +113,26 @@ def mock_strategy_context(mock_chat_object, create_send_message_wrap):
 def test_builtin_tools_constants():
     """Test that built-in tools constants are properly defined."""
     # Test BUILTIN_TOOLS_NAME set
-    assert len(BUILTIN_TOOLS_NAME) == 4
+    assert len(BUILTIN_TOOLS_NAME) == 5
     assert isinstance(BUILTIN_TOOLS_NAME, set)
     expected_names = {
         STOP_TOOL.function.name,
         REASONING_TOOL.function.name,
         PROCESS_MESSAGE.function.name,
         REFLECTION_TOOL.function.name,
+        UPDATE_STEP_TOOL.function.name,
     }
     assert BUILTIN_TOOLS_NAME == expected_names
 
     # Test AGENT_PROCESS_TOOLS tuple
-    assert len(AGENT_PROCESS_TOOLS) == 4
+    assert len(AGENT_PROCESS_TOOLS) == 5
     assert isinstance(AGENT_PROCESS_TOOLS, tuple)
     assert AGENT_PROCESS_TOOLS == (
         REASONING_TOOL,
         STOP_TOOL,
         PROCESS_MESSAGE,
         REFLECTION_TOOL,
+        UPDATE_STEP_TOOL,
     )
 
 

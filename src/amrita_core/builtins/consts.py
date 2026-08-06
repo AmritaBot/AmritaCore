@@ -5,6 +5,7 @@ from amrita_core.builtins.tools import (
     REASONING_TOOL,
     REFLECTION_TOOL,
     STOP_TOOL,
+    UPDATE_STEP_TOOL,
 )
 
 BUILTIN_TOOLS_NAME = {
@@ -12,6 +13,7 @@ BUILTIN_TOOLS_NAME = {
     REASONING_TOOL.function.name,
     PROCESS_MESSAGE.function.name,
     REFLECTION_TOOL.function.name,
+    UPDATE_STEP_TOOL.function.name,
 }
 
 AGENT_PROCESS_TOOLS = (
@@ -19,6 +21,7 @@ AGENT_PROCESS_TOOLS = (
     STOP_TOOL,
     PROCESS_MESSAGE,
     REFLECTION_TOOL,
+    UPDATE_STEP_TOOL,
 )
 
 HYBRID_TEMPLATE = Template("""<TOOL_CALL name="{{tool_name}}">

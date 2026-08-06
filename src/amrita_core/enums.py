@@ -18,6 +18,9 @@ class SuspendEnum(str, Enum):
     CALL_SINGLE_STRATEGY = "ChatObject::call_single_strategy"
     COMMIT_MEMORY = "ChatObject::commit_memory"
     APPLY_CONTEXT = "Component::apply_context"
+    # Builtin ReAct step-loop boundary markers (native instruction loop).
+    STEP_INTRO = "ChatObject::step_intro"
+    STEP_LEAVE = "ChatObject::step_leave"
 
 
 class BuiltinName(str, Enum):

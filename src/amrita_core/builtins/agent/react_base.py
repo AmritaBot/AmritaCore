@@ -5,15 +5,27 @@ import json
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Awaitable, Callable
-from typing import Any, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
+from amrita_sense.hook.matcher import MatcherFactory
 from amrita_sense.logging import debug_log, logger
 from jinja2 import Template
 from typing_extensions import Self, override
 
+if TYPE_CHECKING:
+    from amrita_sense.hook.event import ConstructableEvent
+
+    from amrita_core.builtins.agent.state import Phase
+
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
-from amrita_core.contents import MessageWithMetadata
+from amrita_core.builtins.agent.events import (
+    StepAbortError,
+    StepToolCallEvent,
+    StepToolReturnEvent,
+)
+from amrita_core.builtins.agent.state import AgentRunState, DAGNode
+from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
 from amrita_core.libchat import (
     call_completion,
     get_last_response,
@@ -22,6 +34,7 @@ from amrita_core.libchat import (
 from amrita_core.tools.models import ToolChoice, ToolFunctionSchema
 from amrita_core.types import (
     CONTENT_LIST_TYPE_ITEM,
+    Function,
     Message,
     TextContent,
     ToolCall,
@@ -41,6 +54,7 @@ from ..tools import (
     REASONING_TOOL,
     REFLECTION_TOOL,
     STOP_TOOL,
+    UPDATE_STEP_TOOL,
 )
 from ..types import (
     AgentLoopErrorMetadata,
@@ -108,7 +122,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     _reflection_template: Template = REFLECTION_TEMPLATE
 
     #  Reasoning Enhancement State
-    _predicted_tools: list[str]  # Tools predicted during structured reasoning
+    _predicted_tools: list[str]
+    """Tools predicted during structured reasoning."""
+
+    #  Semantic step-level run state (native step loop)
+    _run_state: "AgentRunState | None" = None
+    """Semantic step-level run state, bridged from the framework loop state."""
 
     def _is_native_thinking_enabled(self) -> bool:
         """Return True when the model preset has native thinking enabled.
@@ -148,6 +167,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         self.tools.extend(self.tools_manager.tools_meta().values())
         #  Initialize reasoning enhancement state
         self._predicted_tools = []
+        self._run_state = None
         self.origin_msg: str = (
             "".join(
                 chunk.text
@@ -156,6 +176,193 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
             if isinstance(ctx.original_context.user_query.content, list)
             else ctx.original_context.user_query.content
+        )
+
+    # Step lifecycle (native step loop): intro/leave mark boundaries; a
+    # Step may span multiple iterations, all state lives in self.run_state.
+
+    @property
+    def run_state(self) -> "AgentRunState | None":
+        """Semantic step-level run state, bridged from the loop state."""
+        return self._run_state
+
+    @run_state.setter
+    def run_state(self, value: "AgentRunState | None") -> None:
+        self._run_state = value
+
+    def _init_run_state(self) -> "AgentRunState":
+        """Create (or reuse) the semantic run state for this strategy.
+
+        The framework bridge (``AGENT_ENTRY``) shares one instance between
+        ``AgentLoopState.run_state`` and the strategy; when running outside
+        the framework (unit tests), a fresh instance is created here.
+        """
+        if self._run_state is None:
+            self._run_state = AgentRunState()
+        return self._run_state
+
+    async def intro_step(self, phase: "Phase" = "analyze") -> None:
+        """Enter a Step boundary (default no-op; subclasses may override).
+
+        Args:
+            phase: the reasoning phase being entered.
+        """
+        rs = self._init_run_state()
+        rs.begin_step(phase)
+
+    async def leave_step(self, phase: "Phase | None" = None) -> None:
+        """Leave a Step boundary (default no-op; subclasses may override)."""
+        # Hook point: token accounting, stall injection, compression and the
+        # subject-predicate summary are implemented by subclasses / mixins.
+        return
+
+    async def after_iteration(self) -> None:
+        """Per-iteration hook, called after each successful tool round.
+
+        Runs *inside* the execute-phase iteration loop (STEP_EXEC), so it can
+        stop the loop early — e.g. stall detection with give-up prompt
+        injection — before more tokens are burned.  Default no-op; subclasses
+        may override.
+        """
+        return
+
+    async def _trigger_step_event(
+        self,
+        event: "ConstructableEvent",
+        *,
+        exception_ignored: tuple[type[BaseException], ...] = (),
+    ) -> None:
+        """Dispatch a step-lifecycle event to registered matchers.
+
+        Handlers may mutate the event (the caller reads fields back) or raise
+        an exception type listed in ``exception_ignored`` — it propagates out
+        of ``trigger_event`` back to the calling lifecycle hook.
+        """
+        await MatcherFactory.trigger_event(event, exception_ignored=exception_ignored)
+
+    async def _trigger_tool_call_event(self, tool_call: ToolCall) -> tuple[str, bool]:
+        """Fire the pre-call event for a regular tool.
+
+        Returns ``(arguments, cancel)`` — matchers may rewrite ``arguments``
+        or set ``cancel`` (or raise :class:`StepAbortError`) to cancel the
+        call without executing it.
+        """
+        rs = self._init_run_state()
+        ev = StepToolCallEvent.constructor(
+            rs,
+            tool_name=tool_call.function.name,
+            tool_id=tool_call.id,
+            arguments=tool_call.function.arguments,
+        )
+        try:
+            await self._trigger_step_event(ev, exception_ignored=(StepAbortError,))
+        except StepAbortError:
+            logger.info(f"Tool call {tool_call.function.name} aborted by matcher.")
+            return (ev.arguments, True)
+        return (ev.arguments, ev.cancel)
+
+    async def _trigger_tool_return_event(
+        self, tool_call: ToolCall, result: str
+    ) -> tuple[str, bool]:
+        """Fire the post-call event for a regular tool.
+
+        Returns ``(result, skip_append)`` — matchers may rewrite ``result``
+        or set ``skip_append`` (or raise :class:`StepAbortError`) to skip
+        writing the result back to the context.
+        """
+        rs = self._init_run_state()
+        ev = StepToolReturnEvent.constructor(
+            rs,
+            tool_name=tool_call.function.name,
+            tool_id=tool_call.id,
+            result=result,
+        )
+        try:
+            await self._trigger_step_event(ev, exception_ignored=(StepAbortError,))
+        except StepAbortError:
+            logger.info(f"Tool return {tool_call.function.name} skipped by matcher.")
+            return (ev.result, True)
+        return (ev.result, ev.skip_append)
+
+    async def _emit_step_event(
+        self,
+        content: str,
+        metadata: MessageMetadataPayload,
+    ) -> None:
+        """Push a step-loop lifecycle event as stream metadata.
+
+        Shared helper for the step-loop lifecycle hooks (intro_step /
+        leave_step / decomposition / stall / compression); the payloads are
+        the ``AgentStep*Metadata`` TypedDicts from ``builtins.types``.
+
+        Note: distinct from ``_emit_step_metadata(step: dict)`` which emits
+        a *structured-reasoning* step parsed from the model output.
+        """
+        await self.io_stream.yield_response(
+            MessageWithMetadata(content=content, metadata=metadata)
+        )
+
+    def _record_tool_signature(self, tool_call: ToolCall) -> None:
+        """Record a tool-call signature in the current Step (stall detection).
+
+        Base implementation is a no-op; the built-in ReAct strategy records
+        signatures into ``run_state.step_tool_signatures``.
+        """
+        return
+
+    def _detect_step_stall(self) -> bool:
+        """Check whether the current Step is stalled (duplicate tool calls).
+
+        Base implementation always reports ``False``; the built-in ReAct
+        strategy performs real signature-based detection.
+        """
+        return False
+
+    def _should_cancel_tool_call(self, tool_call: ToolCall) -> bool:
+        """Whether this tool call should be cancelled *before* execution.
+
+        Base implementation always returns ``False``.  Subclasses (e.g. the
+        built-in ReAct strategy) may override this to return ``True`` when
+        the call would trip the stall detector — the caller then returns a
+        ``"Cancelled: ..."`` result instead of executing the tool, so the
+        model sees an explicit cancellation rather than a normal result.
+        """
+        return False
+
+    async def _handle_update_step(self, args: dict[str, Any]) -> None:
+        """Handle the ``update_step`` built-in tool.
+
+        Updates the semantic plan in ``run_state`` only — the Sense workflow
+        itself is not modified (DAG is a hint layer, execution stays linear).
+
+        Args:
+            args: tool arguments with ``action`` (replan/mark_done/add_step/
+                remove_step) and optional ``dag`` / ``node`` / ``node_id``.
+        """
+        rs = self._init_run_state()
+        action = args.get("action")
+
+        if action == "replan" and args.get("dag"):
+            rs.plan = [DAGNode.model_validate(n) for n in args["dag"]]
+            rs.completed_step_ids = []
+            rs.current_step_id = None
+        elif action == "mark_done":
+            rs.complete_current_node()
+        elif action == "add_step" and args.get("node"):
+            node = DAGNode.model_validate(args["node"])
+            if rs.plan is None:
+                rs.plan = []
+            rs.plan.append(node)
+        elif action == "remove_step" and args.get("node_id"):
+            nid = args["node_id"]
+            if rs.plan:
+                rs.plan = [n for n in rs.plan if n.id != nid]
+            if nid in rs.completed_step_ids:
+                rs.completed_step_ids.remove(nid)
+        rs.plan_revision += 1
+        logger.info(
+            f"update_step({action}) applied, plan_revision={rs.plan_revision}, "
+            f"plan={[n.id for n in (rs.plan or [])]}, done={rs.completed_step_ids}"
         )
 
     async def _generate_reasoning_content(
@@ -213,9 +420,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             content=template_content,
         )
 
-        # Custom yield wrapper that emits reasoning chunk metadata during streaming.
-        # Note: accurate per-step metadata is emitted post-hoc by _emit_step_metadata
-        # once the full structured reasoning text has been parsed.
+        # Custom yield wrapper that emits reasoning chunk metadata during
+        # streaming (per-step metadata emitted post-hoc after parsing).
         def _yield_wrapper(chunk):
             if isinstance(chunk, str):
                 return MessageWithMetadata(
@@ -238,10 +444,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             yield_to_wrapper=_yield_wrapper,
         )
 
-        #  Post-process structured reasoning
-        # Note: prefer `content` (the reasoning template output) but fall back
-        # to the model's native `reasoning_content` field, in case the provider
-        # put the reasoning there instead of the completion body.
+        # Prefer `content` (template output), fall back to the provider's
+        # native `reasoning_content` field.
         reasoning_text = ct.content or ct.reasoning_content or ""
         if use_structured:
             # Parse steps for metadata tracking
@@ -267,7 +471,11 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         )
                     )
 
+        # Account for the reasoning LLM call: resp_extra_usage (framework)
+        # and run_state.tokens (drives between-Step compression).
         self.resp_extra_usage = gather_usage(self.resp_extra_usage, ct.usage)
+        rs = self._init_run_state()
+        rs.tokens.update(ct.usage)
         return ct
 
     def _should_use_structured_reasoning(self) -> bool:
@@ -647,7 +855,18 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         async def _exec_one(tc: ToolCall) -> tuple[ToolCall, str, BaseException | None]:
             fn = tc.function.name
+            # Record the tool-call signature for per-Step stall detection
+            # (covers built-in and regular tools uniformly).
+            self._record_tool_signature(tc)
             try:
+                # Cancel the call before execution when it would trip the
+                # stall detector (explicit cancellation, not a normal result).
+                if self._should_cancel_tool_call(tc):
+                    return (
+                        tc,
+                        "Cancelled: Reach the max limit of repeatly calling tool.",
+                        None,
+                    )
                 if fn == REASONING_TOOL.function.name:
                     content: UniResponse[
                         str, None
@@ -656,6 +875,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     )
                     await self._append_reasoning(tc, content)
                     return (tc, content.content, None)
+                if fn == UPDATE_STEP_TOOL.function.name:
+                    try:
+                        args = json.loads(tc.function.arguments)
+                    except json.JSONDecodeError:
+                        args = {}
+                    await self._handle_update_step(args)
+                    return (tc, "<STEP_PLAN_UPDATED>", None)
                 if fn == STOP_TOOL.function.name:
                     args: dict[str, Any] = json.loads(tc.function.arguments)
                     self.agent_last_step = "Stopped"
@@ -691,8 +917,28 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     result = self._build_stop_response(args)
                     return (tc, result, None)
 
-                # Regular tool
+                # Regular tool: pre-call event (rewrite/cancel), execute,
+                # then post-call event (rewrite/skip append).
+                args_str, cancel = await self._trigger_tool_call_event(tc)
+                if cancel:
+                    return (
+                        tc,
+                        "Cancelled: Reach the max limit of repeatly calling tool.",
+                        None,
+                    )
+                # Apply any argument rewrite from the matcher.
+                if args_str != tc.function.arguments:
+                    tc = ToolCall(
+                        id=tc.id,
+                        function=Function(
+                            name=tc.function.name,
+                            arguments=args_str,
+                        ),
+                    )
                 result = await self.call_tool(tc)
+                result, skip_append = await self._trigger_tool_return_event(tc, result)
+                if skip_append:
+                    return (tc, "", None)
                 return (tc, result, None)
             except Exception as e:
                 error_content = await self._handle_tool_error_common(fn, e, tc.id)
@@ -758,9 +1004,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
             if is_reasoning:
                 if func_response.startswith("ERR:"):
-                    # Reasoning generation failed (raised inside
-                    # _run_tool_calls_concurrently). Surface the error instead
-                    # of silently swallowing it.
+                    # Reasoning generation failed (raised inside the
+                    # concurrent runner); surface the error, don't swallow.
                     self.reasoning_pc = 0
                     await self._handle_error_append(
                         function_name,

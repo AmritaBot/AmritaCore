@@ -120,6 +120,88 @@ REFLECTION_TOOL = ToolFunctionSchema(
     strict=True,
 )
 
+UPDATE_STEP_TOOL = ToolFunctionSchema(
+    type="function",
+    function=FunctionDefinitionSchema(
+        name="update_step",
+        description=(
+            "Adjust the remaining sub-steps of the current task plan. "
+            "Use when you discover the original decomposition was wrong, the task "
+            "has changed, or a sub-step is done or unnecessary. "
+            'The plan is a DAG: [{"id": "step-1", "description": "...", "depends_on": ["step-0"]}, ...]'
+        ),
+        parameters=FunctionParametersSchema(
+            type="object",
+            properties={
+                "action": FunctionPropertySchema(
+                    type="string",
+                    enum=["replan", "mark_done", "add_step", "remove_step"],
+                    description=(
+                        "replan: replace the whole plan with `dag`; "
+                        "mark_done: finish the current sub-step; "
+                        "add_step: append the node in `node`; "
+                        "remove_step: remove the node whose id is `node_id`."
+                    ),
+                ),
+                "dag": FunctionPropertySchema(
+                    type="array",
+                    items=FunctionPropertySchema(
+                        type="object",
+                        description="A single DAG node",
+                        properties={
+                            "id": FunctionPropertySchema(
+                                type="string", description="Sub-step id"
+                            ),
+                            "description": FunctionPropertySchema(
+                                type="string", description="What this sub-step does"
+                            ),
+                            "depends_on": FunctionPropertySchema(
+                                type="array",
+                                items=FunctionPropertySchema(
+                                    type="string",
+                                    description="Dependency sub-step id",
+                                ),
+                                description="Ids this sub-step depends on",
+                            ),
+                        },
+                    ),
+                    description="New DAG for `replan` (optional).",
+                ),
+                "node": FunctionPropertySchema(
+                    type="object",
+                    properties={
+                        "id": FunctionPropertySchema(
+                            type="string", description="Sub-step id"
+                        ),
+                        "description": FunctionPropertySchema(
+                            type="string", description="What this sub-step does"
+                        ),
+                        "depends_on": FunctionPropertySchema(
+                            type="array",
+                            items=FunctionPropertySchema(
+                                type="string",
+                                description="Dependency sub-step id",
+                            ),
+                            description="Ids this sub-step depends on",
+                        ),
+                    },
+                    description="Single DAG node for `add_step` (optional).",
+                ),
+                "node_id": FunctionPropertySchema(
+                    type="string",
+                    description="Sub-step id for `remove_step` (optional).",
+                ),
+                "note": FunctionPropertySchema(
+                    type="string",
+                    description="Short note explaining the revision (optional).",
+                ),
+            },
+            required=["action"],
+        ),
+    ),
+    strict=True,
+)
+
 
 @on_tools(
     data=PROCESS_MESSAGE_TOOL,

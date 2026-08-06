@@ -30,6 +30,7 @@ AmritaCore is a **lightweight Agent runtime** built on top of **AmritaSense**. I
 import asyncio
 from amrita_core import create_agent
 
+
 async def main():
     agent = create_agent(
         base_url="https://api.openai.com/v1",
@@ -38,6 +39,7 @@ async def main():
     )
     chat = agent.get_chatobject("Hello, how are you?")
     print(await chat.full_response())
+
 
 asyncio.run(main())
 ```
