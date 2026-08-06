@@ -901,6 +901,83 @@ class TestStepLifecycleEvents:
             matcher._dead_at = datetime_now()
 
 
+# Peer input (reverse stream): send_to_producer → drained at Step boundary
+
+
+class TestPeerInputDrain:
+    """Peer messages pushed via the reverse stream land in the context."""
+
+    @pytest.fixture
+    def strategy(self):
+        from unittest.mock import MagicMock
+
+        from amrita_sense.streaming import SuspendObjectStream
+
+        from amrita_core.builtins.agent.react_comm import ReActAgentStrategy
+        from amrita_core.chatmanager import ChatObject
+
+        config = AmritaConfig()
+        config.function_config = FunctionConfig()
+        config.llm = LLMConfig()
+        config.builtin.loop_reasoning_trigger = 2
+
+        chat_obj = MagicMock(spec=ChatObject)
+        chat_obj.session_id = "test-session"
+        chat_obj.preset = "default-preset"
+        chat_obj.config = config
+        # Real bidirectional stream: yield_response buffers internally
+        # (no consumer attached) and the reverse channel stays usable.
+        chat_obj.io_stream = SuspendObjectStream()
+
+        train_msg = Message(role="system", content="Test system message")
+        user_msg = Message(role="user", content="test user input")
+        original_context = SendMessageWrap(
+            train=train_msg,
+            memory=[user_msg],
+            user_query=user_msg,
+        )
+        ctx = StrategyContext(
+            user_input="test user input",
+            original_context=original_context,
+            chat_object=chat_obj,
+            io_stream=chat_obj.io_stream,
+        )
+        st = ReActAgentStrategy(ctx)
+        st.tools_manager = MagicMock()
+        st.tools_manager.tools_meta = MagicMock(return_value={})
+        return st
+
+    def test_peer_messages_drained_at_step_boundary(self, strategy):
+        """Messages pushed before intro_step appear in the context."""
+
+        stream = strategy.io_stream
+        asyncio_run(stream.send_to_producer("human says hi"))
+        asyncio_run(stream.send_to_producer({"key": "value"}))
+
+        asyncio_run(strategy.intro_step("execute"))
+
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        peer_msgs = [m for m in msgs if "[peer message]" in getattr(m, "content", "")]
+        assert len(peer_msgs) == 2
+        assert peer_msgs[0].content == "[peer message]\nhuman says hi"
+        assert peer_msgs[1].content == "[peer message]\n{'key': 'value'}"
+
+    def test_no_peer_messages_is_noop(self, strategy):
+        """Empty reverse stream: intro_step leaves the context untouched."""
+        asyncio_run(strategy.intro_step("execute"))
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        peer_msgs = [m for m in msgs if "[peer message]" in getattr(m, "content", "")]
+        assert peer_msgs == []
+
+    def test_peer_messages_after_close_are_dropped(self, strategy):
+        """After on_post_process, later peer pushes never reach the context."""
+        asyncio_run(strategy.on_post_process())
+        asyncio_run(strategy.intro_step("execute"))
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        peer_msgs = [m for m in msgs if "[peer message]" in getattr(m, "content", "")]
+        assert peer_msgs == []
+
+
 def datetime_now():
     from datetime import datetime, timedelta
 

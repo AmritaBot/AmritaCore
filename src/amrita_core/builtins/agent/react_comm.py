@@ -437,7 +437,11 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         In plan mode (decomposed task) the next ready DAG node is picked via
         ``next_ready_node()`` and becomes the current Step.  In simple mode
         (bare run) a single implicit ``"execute"`` Step is used.
+
+        Pending peer messages are drained first so the incoming Step sees
+        them as the latest context (see ``_drain_peer_input``).
         """
+        await self._drain_peer_input()
         rs = self._init_run_state()
         if rs.step_index == 0 and rs.plan is None and not rs.simple_mode:
             # First Step ever: decide whether to decompose.

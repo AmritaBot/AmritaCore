@@ -1,14 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import re
 from abc import ABC, abstractmethod
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from amrita_sense.exceptions import StreamStateError
 from amrita_sense.hook.matcher import MatcherFactory
 from amrita_sense.logging import debug_log, logger
+from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
 from typing_extensions import Self, override
 
@@ -168,6 +171,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         #  Initialize reasoning enhancement state
         self._predicted_tools = []
         self._run_state = None
+        # Peer (reverse-stream) input: lazily opened on first Step boundary;
+        # closed once (idempotent) when the agent run finishes.
+        self._peer_input_gen: AsyncGenerator[Any, None] | None = None
+        self._peer_input_closed: bool = False
         self.origin_msg: str = (
             "".join(
                 chunk.text
@@ -204,11 +211,76 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def intro_step(self, phase: "Phase" = "analyze") -> None:
         """Enter a Step boundary (default no-op; subclasses may override).
 
+        Pending peer messages (reverse stream) are drained and appended to
+        the context before the Step starts, so the next LLM request sees
+        them as the latest input.
+
         Args:
             phase: the reasoning phase being entered.
         """
+        await self._drain_peer_input()
         rs = self._init_run_state()
         rs.begin_step(phase)
+
+    async def _drain_peer_input(self) -> None:
+        """Drain pending peer messages at a Step boundary (non-blocking).
+
+        Consumes every object the consumer pushed over the reverse stream
+        (``send_to_producer``) and appends it to the context as a ``user``
+        message marked ``[peer message]``.  Messages pushed while the agent
+        is inside a Step stay queued until the next boundary; messages
+        pushed after the run finishes are dropped (queue closed).
+        """
+        if self._peer_input_closed:
+            return
+        stream = self.io_stream
+        if not isinstance(stream, SuspendObjectStream):
+            self._peer_input_closed = True
+            return
+        if self._peer_input_gen is None:
+            try:
+                self._peer_input_gen = stream.get_producer_input_generator()
+            except StreamStateError:
+                # Reverse stream already consumed (callback mode, another
+                # consumer, ...): silently skip peer draining.
+                self._peer_input_closed = True
+                return
+        while True:
+            # Non-blocking drain: wait_for(coro, 0) would time out before the
+            # coroutine even runs; a 1ms window is enough for an already
+            # buffered item (anyio receive_nowait returns synchronously).
+            try:
+                item = await asyncio.wait_for(
+                    self._peer_input_gen.__anext__(), timeout=0.001
+                )
+            except asyncio.TimeoutError:
+                break  # No more pending messages right now.
+            except StopAsyncIteration:
+                self._peer_input_closed = True
+                break  # Peer sent the done marker.
+            self.ctx.message.append(
+                Message(role="user", content=f"[peer message]\n{item}")
+            )
+
+    async def _close_peer_input(self) -> None:
+        """Notify the peer that the agent run is finished (idempotent).
+
+        After this, further ``send_to_producer`` calls from the consumer
+        side fail fast instead of blocking on the queue timeout.
+        """
+        if self._peer_input_closed:
+            return
+        self._peer_input_closed = True
+        stream = self.io_stream
+        if not isinstance(stream, SuspendObjectStream):
+            return
+        with contextlib.suppress(StreamStateError):
+            await stream.send_done_to_producer()
+
+    @override
+    async def on_post_process(self) -> None:
+        """Agent run finished: close the peer input channel (idempotent)."""
+        await self._close_peer_input()
 
     async def leave_step(self, phase: "Phase | None" = None) -> None:
         """Leave a Step boundary (default no-op; subclasses may override)."""
