@@ -34,7 +34,7 @@ class _StrategyBase(ABC):
     differ only in how the context is injected (``__init__`` vs ``__call__``)."""
 
     tools_manager: MultiToolsManager
-    chat_object: ChatObject  # deprecated — use the convenience properties below
+    chat_object: ChatObject  # lifecycle-manager handle, resolved from StrategyContext
     ctx: StrategyContext
 
     # Convenience properties — prefer StrategyContext DI fields,
@@ -106,7 +106,7 @@ class _StrategyBase(ABC):
 
     def _bind(self, ctx: StrategyContext) -> None:
         self.ctx = ctx
-        # Legacy path — ctx.chat_object may be None in new-style DI workflows
+        # ctx.chat_object may be None in new-style DI workflows
         self.chat_object = ctx.chat_object  # pyright: ignore[reportAttributeAccessIssue]
         # tools_manager: prefer ctx field, fallback to chat_object
         if ctx.tools_manager is not None:

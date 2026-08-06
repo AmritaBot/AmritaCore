@@ -11,10 +11,12 @@ from typing_extensions import override
 from amrita_core.libchat import tools_caller
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import (
+    Function,
     Message,
     SendMessageWrap,
     TextContent,
     ToolCall,
+    ToolResult,
     UniResponse,
 )
 
@@ -122,12 +124,10 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         (re.compile(r"</(?i:TOOL_CALL|TOOL_RESULT|PARAMS|PARAM)>", re.IGNORECASE), ""),
     ]
     _tool_call_jinja2: Template = HYBRID_TEMPLATE
-    _process_message: list[str]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.origin_msg = self._sanitize(self.origin_msg)
-        self._process_message = []
         if isinstance(self.ctx.message.user_query.content, list):
             for content in self.ctx.message.user_query.content:
                 if isinstance(content, TextContent):
@@ -160,10 +160,32 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         tool_call: ToolCall,
         reasoning_content: UniResponse[str, None],
     ):
-        """Hybrid strategy specific reasoning handler that appends to assistant message."""
+        """Hybrid strategy reasoning handler with ToolCall-ToolResult pairing.
+
+        Reasoning is stored in ``Message.reasoning_content`` (never in
+        ``content``) so that thinking-mode providers receive it back verbatim
+        and the thinking filter can strip it when configured to.
+        """
         self.reasoning_pc += 1
-        self.ctx.message.append(
-            Message(role="assistant", content=reasoning_content.content)
+        reasoning = (
+            reasoning_content.content or reasoning_content.reasoning_content or ""
+        )
+        msg: SendMessageWrap = self.ctx.get_original_context()
+        msg.append(
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[tool_call],
+                reasoning_content=reasoning,
+            )
+        )
+        msg.append(
+            ToolResult(
+                role="tool",
+                name=tool_call.function.name,
+                content="<REASONING_COMPLETED>",
+                tool_call_id=tool_call.id,
+            )
         )
 
     @override
@@ -173,13 +195,30 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         func_response: str,
         response_msg: UniResponse[None, list[ToolCall] | None],
     ):
-        """Hybrid strategy: render tool result as XML string and append to _process_message."""
-        self._process_message.append(self._render_tool(tool_call, func_response))
+        """Hybrid strategy: render tool result as XML, paired with the call.
 
-    @override
-    async def _handle_loop_reasoning_cleanup(self, prompt: str):
-        """Hybrid strategy: clear _process_message when loop is detected."""
-        self._process_message = []
+        The XML-rendered text lives in the ``ToolResult.content`` — keeping the
+        MoE-friendly text style while satisfying the OpenAI-compatible
+        ToolCall-ToolResult pairing requirement.
+        """
+        reasoning = response_msg.reasoning_content if response_msg else None
+        msg: SendMessageWrap = self.ctx.get_original_context()
+        msg.append(
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[tool_call],
+                reasoning_content=reasoning,
+            )
+        )
+        msg.append(
+            ToolResult(
+                role="tool",
+                name=tool_call.function.name,
+                content=self._render_tool(tool_call, func_response),
+                tool_call_id=tool_call.id,
+            )
+        )
 
     @override
     async def _build_stop_response_and_append(
@@ -190,16 +229,35 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
         function_call_id: str,
         function_response: str,
     ):
-        """Hybrid strategy: append stop instructions as user message with XML-like format.
+        """Hybrid strategy: append stop instructions as a paired tool message.
 
-        Unlike ReActAgentStrategy which adds an assistant message, Hybrid strategy
-        adds the stop instructions as a user message to maintain consistency with
-        its context-based integration approach.
+        Unlike the old plain-text injection, the stop response is appended as
+        a ToolCall-ToolResult pair (XML style kept in the result content) to
+        satisfy the OpenAI-compatible pairing requirement.
         """
+        reasoning = response_msg.reasoning_content if response_msg else None
         self.ctx.message.append(
             Message(
-                role="user",
-                content=self._build_stop_response(function_args),
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id=function_call_id,
+                        function=Function(
+                            name=function_name,
+                            arguments=json.dumps(function_args),
+                        ),
+                    )
+                ],
+                reasoning_content=reasoning,
+            )
+        )
+        self.ctx.message.append(
+            ToolResult(
+                role="tool",
+                tool_call_id=function_call_id,
+                name=function_name,
+                content=function_response,
             )
         )
 
@@ -279,20 +337,10 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
             preset=self.preset,
         )
 
-        # Use template method for common execution flow
-        should_continue = await self._execute_tool_loop(response_msg)
-
-        if should_continue and self._process_message:
-            # Hybrid strategy: merge all process messages into a single user message
-            self.ctx.message.append(
-                Message(
-                    role="user",
-                    content=("\n".join(self._process_message)),
-                )
-            )
-            self._process_message = []
-
-        return should_continue
+        # Use template method for common execution flow.
+        # Tool results were already appended as paired assistant + tool
+        # messages inside _execute_tool_loop.
+        return await self._execute_tool_loop(response_msg)
 
     @classmethod
     def get_category(

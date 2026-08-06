@@ -53,19 +53,16 @@ class StrategyContext:
     """Execution context passed to agent strategies.
 
     Holds both the original message context and the DI resources that strategies
-    need at runtime.  Historically strategies obtained resources by reaching through
-    ``chat_object``, but the ChatObject DI architecture now allows them to be
-    supplied directly via the fields below.  When both a new-style field and
-    ``chat_object`` are available, the new-style field takes precedence.
-
-    .. deprecated:: 0.13
-        ``chat_object`` — use the individual resource fields instead.
+    need at runtime.  ``chat_object`` is the lifecycle-manager handle for the
+    current conversation (the core unit of a dialogue); the DI resource fields
+    below are the preferred way to reach individual resources, falling back to
+    ``chat_object`` when a resource is not injected.
     """
 
     user_input: USER_INPUT
     original_context: SendMessageWrap
 
-    # Legacy reference (deprecated, kept for backward compat)
+    # Lifecycle-manager handle for the current conversation (core unit).
     chat_object: ChatObject | None = None
 
     # DI resource fields (preferred path)

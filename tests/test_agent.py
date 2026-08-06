@@ -470,7 +470,6 @@ async def test_hybrid_react_agent_strategy_initialization(mock_strategy_context)
 
     # Test that origin_msg is sanitized
     assert isinstance(strategy.origin_msg, str)
-    assert strategy._process_message == []
 
 
 @pytest.mark.asyncio
@@ -593,6 +592,95 @@ async def test_hybrid_strategy_post_process(mock_strategy_context):
     assert len(mock_strategy_context.original_context.end_messages) > 0
     last_msg = mock_strategy_context.original_context.end_messages[-1]
     assert "END_OF_PROCESS" in last_msg.content
+
+
+@pytest.mark.asyncio
+async def test_hybrid_tool_result_appends_paired_messages(mock_strategy_context):
+    """Hybrid appends a paired assistant ToolCall + ToolResult (API requirement).
+
+    v0.13 fix: the old plain-text injection (no assistant pairing) violates
+    the OpenAI-compatible "tool_calls must be followed by tool messages"
+    requirement, causing HTTP 400 on DeepSeek/OpenAI.
+    """
+    from amrita_core.types import ToolCall, UniResponse
+
+    strategy = HybridReActAgentStrategy(mock_strategy_context)
+    tool_call = ToolCall(
+        id="t1",
+        function={"name": "search", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
+    )
+    response_msg: UniResponse[None, list[ToolCall] | None] = UniResponse(
+        content=None,
+        tool_calls=[tool_call],
+        reasoning_content="thinking about the search",
+    )
+    await strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+
+    msgs = mock_strategy_context.original_context.end_messages
+    assert msgs[-2].role == "assistant"
+    assert msgs[-2].tool_calls == [tool_call]
+    # Thinking-mode round-trip: reasoning must be carried back verbatim.
+    assert msgs[-2].reasoning_content == "thinking about the search"
+    assert msgs[-1].role == "tool"
+    assert msgs[-1].tool_call_id == "t1"
+    # MoE-friendly XML rendering is kept in the ToolResult content.
+    assert "<TOOL_RESULT" in msgs[-1].content
+
+
+@pytest.mark.asyncio
+async def test_hybrid_reasoning_stored_in_reasoning_content(mock_strategy_context):
+    """Hybrid stores reasoning in ``Message.reasoning_content``, not content.
+
+    v0.13 fix: appending reasoning as plain assistant text leaks it into the
+    model context and breaks the DeepSeek thinking-mode round-trip (HTTP 400).
+    """
+    from amrita_core.types import ToolCall, UniResponse
+
+    strategy = HybridReActAgentStrategy(mock_strategy_context)
+    tool_call = ToolCall(
+        id="r1",
+        function={"name": "reasoning", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
+    )
+    reasoning: UniResponse[str, None] = UniResponse(
+        content="thinking text",
+        tool_calls=None,
+        reasoning_content=None,
+    )
+    await strategy._append_reasoning(tool_call, reasoning)
+
+    msgs = mock_strategy_context.original_context.end_messages
+    assert msgs[-2].role == "assistant"
+    assert msgs[-2].content is None
+    assert msgs[-2].reasoning_content == "thinking text"
+    assert msgs[-1].role == "tool"
+    assert msgs[-1].content == "<REASONING_COMPLETED>"
+
+
+@pytest.mark.asyncio
+async def test_hybrid_stop_appends_paired_messages(mock_strategy_context):
+    """Hybrid stop response is appended as a paired tool message with reasoning."""
+    from amrita_core.types import UniResponse
+
+    strategy = HybridReActAgentStrategy(mock_strategy_context)
+    response_msg: UniResponse[None, list[ToolCall] | None] = UniResponse(
+        content=None,
+        tool_calls=[],
+        reasoning_content="final thinking",
+    )
+    await strategy._build_stop_response_and_append(
+        {"result": "Done"},
+        response_msg,
+        "agent_stop",
+        "stop1",
+        "<STOP>Done</STOP>",
+    )
+
+    msgs = mock_strategy_context.original_context.end_messages
+    assert msgs[-2].role == "assistant"
+    assert msgs[-2].tool_calls[0].id == "stop1"
+    assert msgs[-2].reasoning_content == "final thinking"
+    assert msgs[-1].role == "tool"
+    assert msgs[-1].content == "<STOP>Done</STOP>"
 
 
 @pytest.mark.asyncio

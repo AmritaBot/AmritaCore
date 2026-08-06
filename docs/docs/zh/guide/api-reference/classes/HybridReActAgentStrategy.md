@@ -1,5 +1,11 @@
 # HybridReActAgentStrategy
 
+> **已弃用**：计划在 **v0.14.0** 移除。推荐使用 [ReActAgentStrategy](ReActAgentStrategy.md)。
+>
+> **v0.13 维护性修复**：
+> - 推理内容存入 `Message.reasoning_content`（不再作为普通文本），thinking 模式（DeepSeek）下正确回传，不再 HTTP 400；
+> - 工具结果以 **ToolCall-ToolResult 配对**追加（XML 渲染文本保留在 ToolResult 内容中），满足 OpenAI 兼容 API 的配对要求。
+
 `HybridReActAgentStrategy` 是**针对混合专家（MoE）架构模型优化**的专用 agent 策略。
 
 ## 继承

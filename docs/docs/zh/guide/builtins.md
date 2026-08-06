@@ -92,7 +92,9 @@ AmritaCore 为多个 LLM 提供商提供内置适配器，实现 `amrita_core.ba
 
 ### HybridReActAgentStrategy
 
-针对**混合专家（MoE）架构模型**优化的专用策略。使用 `<TOOL_CALL>` 和 `<TOOL_RESULT>` XML 标签表示工具交互。
+> **已弃用**：计划在 **v0.14.0** 移除，推荐使用 ReActAgentStrategy。
+
+针对**混合专家（MoE）架构模型**优化的专用策略。使用 `<TOOL_CALL>` 和 `<TOOL_RESULT>` XML 标签表示工具交互。v0.13 起工具结果以 ToolCall-ToolResult 配对追加（满足 API 配对要求），推理内容正确存入 `reasoning_content`（thinking 模式兼容）。
 
 ### NoActionAgentStrategy
 
