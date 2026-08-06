@@ -24,12 +24,12 @@ config = AmritaConfig(
     function_config=FunctionConfig(
         agent_mcp_client_enable=True,
         agent_mcp_server_scripts=[
-            "path/to/filesystem-server.py",       # stdio
-            "https://mcp.example.com/sse",        # HTTP/SSE
+            "path/to/filesystem-server.py",  # stdio
+            "https://mcp.example.com/sse",  # HTTP/SSE
         ],
     )
 )
-await minimal_init(config)   # 加载并初始化所有 MCP 客户端
+await minimal_init(config)  # 加载并初始化所有 MCP 客户端
 ```
 
 之后每个 MCP 工具都像常规工具一样注册进全局工具管理器——agent 按名调用即可。
@@ -42,16 +42,18 @@ await minimal_init(config)   # 加载并初始化所有 MCP 客户端
 ```python
 from amrita_core.tools.mcp import ClientManager
 
-manager = ClientManager()   # 单例
+manager = ClientManager()  # 单例
 
 # 一次性：注册 + 立即连接。
 await manager.initialize_this("path/to/server.py")
 
 # 或批量（单个失败不影响其余）。
-await manager.initialize_scripts_all([
-    "path/to/server-a.py",
-    "https://mcp.example.com/sse",
-])
+await manager.initialize_scripts_all(
+    [
+        "path/to/server-a.py",
+        "https://mcp.example.com/sse",
+    ]
+)
 
 # 延迟：先注册，后连接（例如绑定到会话之后）。
 manager.register_only(server_script="path/to/server-b.py")

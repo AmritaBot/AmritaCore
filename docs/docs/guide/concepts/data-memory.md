@@ -8,8 +8,8 @@ conversation history of one session:
 ```python
 from amrita_core.types.memory import MemoryModel
 
-memory = MemoryModel()            # empty history
-memory.messages                   # list[Message | ToolResult]
+memory = MemoryModel()  # empty history
+memory.messages  # list[Message | ToolResult]
 ```
 
 - `messages` — the conversation: `Message` entries (user / assistant) and
@@ -43,7 +43,7 @@ conversation loads — the framework only orchestrates the calls.
 The runtime memory lives in the `MemoryContext` DI slot:
 
 ```python
-chat._di_memory.memory   # MemoryModel | None — set after LOAD_STATE
+chat._di_memory.memory  # MemoryModel | None — set after LOAD_STATE
 ```
 
 Workflow nodes and strategies access it via type-matched injection

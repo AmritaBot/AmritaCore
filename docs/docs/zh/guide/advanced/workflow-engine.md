@@ -27,11 +27,7 @@ flowchart LR
 
 ```python
 # STEP_BODY —— 一次任务循环迭代 = 一个 Step
-STEP_BODY = (
-    NODE_INTRO
-    >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC)
-    >> NODE_LEAVE
-)
+STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAVE
 ```
 
 ## DI 上下文作为状态层

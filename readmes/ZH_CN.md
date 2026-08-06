@@ -87,13 +87,14 @@ AmritaCore 提供高级和低级API：
 ```python
 from amrita_core import create_agent, minimal_init
 
+
 async def example():
     await minimal_init()
     agent = create_agent(
         base_url="https://api.example.com",
         api_key="your-api-key",
         model="gpt-4",
-        model_config={"temperature": 0.7}
+        model_config={"temperature": 0.7},
     )
     # 使用 agent.get_chatobject() 进行交互
 ```
@@ -175,18 +176,18 @@ pip install amrita-core
 import asyncio
 from amrita_core import create_agent, minimal_init
 
+
 async def main():
     await minimal_init()
     agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="your-openai-key",
-        model="gpt-4"
+        base_url="https://api.openai.com/v1", api_key="your-openai-key", model="gpt-4"
     )
 
     chat = agent.get_chatobject("你好！What can you do?")
     async with chat.begin():
         response = await chat.full_response()
         print(response)
+
 
 if __name__ == "__main__":
     asyncio.run(main())

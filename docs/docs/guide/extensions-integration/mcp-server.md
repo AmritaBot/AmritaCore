@@ -24,12 +24,12 @@ config = AmritaConfig(
     function_config=FunctionConfig(
         agent_mcp_client_enable=True,
         agent_mcp_server_scripts=[
-            "path/to/filesystem-server.py",       # stdio
-            "https://mcp.example.com/sse",        # HTTP/SSE
+            "path/to/filesystem-server.py",  # stdio
+            "https://mcp.example.com/sse",  # HTTP/SSE
         ],
     )
 )
-await minimal_init(config)   # loads and initializes all MCP clients
+await minimal_init(config)  # loads and initializes all MCP clients
 ```
 
 After this, every MCP tool is registered in the global tools manager like a
@@ -43,16 +43,18 @@ regular tool — the agent can call them by name.
 ```python
 from amrita_core.tools.mcp import ClientManager
 
-manager = ClientManager()   # singleton
+manager = ClientManager()  # singleton
 
 # One-shot: register + connect immediately.
 await manager.initialize_this("path/to/server.py")
 
 # Or in bulk (fails per-server without raising for the rest).
-await manager.initialize_scripts_all([
-    "path/to/server-a.py",
-    "https://mcp.example.com/sse",
-])
+await manager.initialize_scripts_all(
+    [
+        "path/to/server-a.py",
+        "https://mcp.example.com/sse",
+    ]
+)
 
 # Deferred: register first, connect later (e.g. after binding to a session).
 manager.register_only(server_script="path/to/server-b.py")
@@ -73,7 +75,9 @@ integrations:
 ```python
 from amrita_core.tools.mcp import MCPClient, MultiClientManager
 
-client = MCPClient("path/to/server.py", connection_ttl=120)  # TTL before idle close; -1 disables
+client = MCPClient(
+    "path/to/server.py", connection_ttl=120
+)  # TTL before idle close; -1 disables
 
 # Bind to a manager (registers + loads tools).
 await client.bound_to(MultiClientManager())

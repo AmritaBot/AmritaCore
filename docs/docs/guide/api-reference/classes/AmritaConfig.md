@@ -11,22 +11,21 @@ The AmritaConfig class is the central configuration object for AmritaCore.
 ## Example
 
 ```python
-from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, CookieConfig, BuiltinAgentConfig
+from amrita_core.config import (
+    AmritaConfig,
+    FunctionConfig,
+    LLMConfig,
+    CookieConfig,
+    BuiltinAgentConfig,
+)
 
 config = AmritaConfig(
     function_config=FunctionConfig(
-        use_minimal_context=False,
-        tool_calling_mode="agent"
+        use_minimal_context=False, tool_calling_mode="agent"
     ),
-    llm=LLMConfig(
-        enable_memory_abstract=True
-    ),
-    cookie=CookieConfig(
-        enable_cookie=True
-    ),
-    builtin=BuiltinAgentConfig(
-        tool_calling_mode="agent"
-    )
+    llm=LLMConfig(enable_memory_abstract=True),
+    cookie=CookieConfig(enable_cookie=True),
+    builtin=BuiltinAgentConfig(tool_calling_mode="agent"),
 )
 ```
 

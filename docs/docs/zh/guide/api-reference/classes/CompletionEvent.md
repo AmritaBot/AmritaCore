@@ -24,6 +24,7 @@ CompletionEvent 继承自 `Event`，携带模型的响应。其事件类型为 `
 from amrita_core import on_completion
 from amrita_core.hook.event import CompletionEvent
 
+
 @on_completion
 async def handle_completion(event: CompletionEvent):
     response = event.get_model_response()

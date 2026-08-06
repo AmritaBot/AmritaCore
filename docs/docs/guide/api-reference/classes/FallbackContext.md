@@ -69,6 +69,7 @@ Get the event type enum value.
 from amrita_core.hook.event import FallbackContext
 from amrita_core.hook.on import on_preset_fallback
 
+
 @on_preset_fallback().handle()
 async def handle_fallback(event: FallbackContext):
     print(f"Request failed: {event.exc_info}")

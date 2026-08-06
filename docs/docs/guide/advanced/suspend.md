@@ -15,13 +15,14 @@ workflow is the producer; your code is the consumer). The stream supports
 ```python
 import asyncio
 
+
 async def interactive(chat):
     stream = chat.io_stream
     suspend_task = asyncio.create_task(stream.wait_to_suspend("ChatObject::step_intro"))
     run_task = asyncio.create_task(chat.begin())
-    await suspend_task           # producer is now paused at a Step boundary
+    await suspend_task  # producer is now paused at a Step boundary
     # ... inspect or inject ...
-    stream.resume()              # let the agent continue
+    stream.resume()  # let the agent continue
     await run_task
 ```
 

@@ -92,7 +92,7 @@ from amrita_core.agent.context import StrategyContext
 ctx = StrategyContext(
     user_input="What can you do?",
     original_context=message_context,
-    chat_object=chat_obj
+    chat_object=chat_obj,
 )
 
 user_msg = ctx.get_user_input()

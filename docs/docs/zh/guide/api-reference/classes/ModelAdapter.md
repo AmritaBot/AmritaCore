@@ -12,6 +12,7 @@
 from dataclasses import dataclass, field
 from amrita_core.base.adapter import ModelAdapter
 
+
 @dataclass
 class ModelAdapter:
     preset: ModelPreset

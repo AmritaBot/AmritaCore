@@ -77,6 +77,7 @@ See [`MultiClientManager`](MultiClientManager.md) documentation for detailed met
 import asyncio
 from amrita_core.tools.mcp import ClientManager
 
+
 async def main():
     # Get the singleton instance
     manager = ClientManager()
@@ -85,11 +86,7 @@ async def main():
     # See AmritaConfig for declarative configuration
 
     # Method 2: Programmatic setup
-    scripts = [
-        "/path/to/weather.mcp",
-        "/path/to/database.mcp",
-        "/path/to/calendar.mcp"
-    ]
+    scripts = ["/path/to/weather.mcp", "/path/to/database.mcp", "/path/to/calendar.mcp"]
 
     # Register and initialize all servers
     await manager.initialize_scripts_all(scripts)
@@ -113,6 +110,7 @@ async def main():
 
     # Reinitialize all (refresh connections)
     await manager.reinitialize_all()
+
 
 asyncio.run(main())
 ```

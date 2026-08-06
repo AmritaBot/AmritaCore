@@ -34,8 +34,10 @@ manager.register(schema, handler, custom_run=False)
 ```python
 from amrita_core import on_tools
 from amrita_core.tools.models import (
-    FunctionDefinitionSchema, FunctionParametersSchema,
-    FunctionPropertySchema, ToolContext,
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
+    ToolContext,
 )
 
 STATUS_DEFINITION = FunctionDefinitionSchema(
@@ -43,6 +45,7 @@ STATUS_DEFINITION = FunctionDefinitionSchema(
     description="Report the agent's current progress to the user",
     parameters=FunctionParametersSchema(type="object", properties={}),
 )
+
 
 @on_tools(STATUS_DEFINITION)
 async def report_progress(tool_ctx: ToolContext) -> str:

@@ -23,6 +23,7 @@ BaseTokenizer（继承 `ABC`）定义了分词器接口。子类通过 `__init_s
 ```python
 from amrita_core.base.tokenizer import BaseTokenizer
 
+
 class MyTokenizer(BaseTokenizer):
     @staticmethod
     def get_type() -> str:

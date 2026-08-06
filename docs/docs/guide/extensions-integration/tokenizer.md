@@ -10,6 +10,7 @@ default is a lightweight heuristic; plug your own for provider-exact counts.
 ```python
 from amrita_core.base.tokenizer import BaseTokenizer
 
+
 class MyTokenizer(BaseTokenizer):
     def tokenize(self, text: str) -> list[str]:
         """Split text into tokens."""
@@ -37,8 +38,9 @@ the key from `get_type()`:
 ```python
 from amrita_core.base.tokenizer import BaseTokenizer
 
-class MyTokenizer(BaseTokenizer):
-    ...
+
+class MyTokenizer(BaseTokenizer): ...
+
 
 # Done — `TokenizerManager().get_tokenizer("my-tokenizer")` now finds it.
 ```

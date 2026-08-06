@@ -19,6 +19,7 @@
 ```python
 from amrita_core import simple_tool
 
+
 @simple_tool
 def add(a: int, b: int) -> int:
     """Add two numbers
@@ -44,6 +45,7 @@ import os
 
 from amrita_core import create_agent, minimal_init
 
+
 async def main() -> None:
     await minimal_init()
     agent = create_agent(
@@ -55,6 +57,7 @@ async def main() -> None:
     async with chat.begin():
         async for msg in chat.io_stream.get_response_generator():
             print(msg, end="", flush=True)
+
 
 asyncio.run(main())
 ```
@@ -93,6 +96,7 @@ WEATHER_DEFINITION = FunctionDefinitionSchema(
         required=["city"],
     ),
 )
+
 
 @on_tools(WEATHER_DEFINITION)
 async def get_weather(data: dict[str, str]) -> str:

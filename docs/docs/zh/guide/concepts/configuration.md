@@ -22,9 +22,9 @@ config = AmritaConfig(
     function_config=FunctionConfig(agent_tool_call_limit=15),
     llm=LLMConfig(stream=True),
 )
-await minimal_init(config)                 # 全局默认
+await minimal_init(config)  # 全局默认
 
-agent = create_agent(..., config=config)   # 或按 agent
+agent = create_agent(..., config=config)  # 或按 agent
 ```
 
 `get_config()` 返回全局配置；`set_config()` 替换它。

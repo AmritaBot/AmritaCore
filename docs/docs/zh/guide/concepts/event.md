@@ -14,9 +14,9 @@ from amrita_sense.hook.matcher import Matcher
 
 matcher = Matcher("agent.step_intro", priority=1)
 
+
 @matcher.handle()
-async def on_step_intro(event):
-    ...
+async def on_step_intro(event): ...
 ```
 
 > 使用**字面量字符串**，不要用 `SomeEvent.event_type`——那是 property 对象
@@ -54,7 +54,7 @@ async def on_step_intro(event):
    ```python
    @on_event("agent.step_leave")
    async def fix_summary(event):
-       event.override_verb = "Reviewed"      # 替换自动摘要
+       event.override_verb = "Reviewed"  # 替换自动摘要
    ```
 
 2. **`exception_ignored`**——列出的异常从 `trigger_event` 传播回钩子。
@@ -63,9 +63,10 @@ async def on_step_intro(event):
    ```python
    from amrita_core.builtins.agent.events import StepAbortError
 
+
    @on_event("agent.tool_call")
    async def block_tool(event):
-       raise StepAbortError("blocked")        # 工具永不执行
+       raise StepAbortError("blocked")  # 工具永不执行
    ```
 
 ## 事件如何到达节点

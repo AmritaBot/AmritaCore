@@ -26,6 +26,6 @@ from amrita_core.types.response import RequestMetadata
 
 # 通过 UniResponse 访问
 response: UniResponse = ...
-print(response.metadata.model)           # 例如 "gpt-4o"
-print(response.metadata.stop_reason)     # 例如 "end_turn"
+print(response.metadata.model)  # 例如 "gpt-4o"
+print(response.metadata.stop_reason)  # 例如 "end_turn"
 ```

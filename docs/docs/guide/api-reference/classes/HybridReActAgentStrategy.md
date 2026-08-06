@@ -58,6 +58,7 @@ import asyncio
 from amrita_core import create_agent, minimal_init
 from amrita_core.builtins.agent import HybridReActAgentStrategy
 
+
 async def use_hybrid_strategy():
     # Initialize AmritaCore
     await minimal_init()
@@ -66,7 +67,7 @@ async def use_hybrid_strategy():
     agent = create_agent(
         url="https://api.moemodel.com",
         key="your-api-key",
-        strategy=HybridReActAgentStrategy
+        strategy=HybridReActAgentStrategy,
     )
 
     # Use the agent

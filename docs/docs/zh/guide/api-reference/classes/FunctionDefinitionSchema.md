@@ -15,7 +15,11 @@ FunctionDefinitionSchema 类用于定义函数参数的结构和类型信息。�
 ## 示例
 
 ```python
-from amrita_core.tools.models import FunctionDefinitionSchema, FunctionParametersSchema, FunctionPropertySchema
+from amrita_core.tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
+)
 
 tool = FunctionDefinitionSchema(
     name="calculate_math",

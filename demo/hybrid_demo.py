@@ -22,9 +22,7 @@ SEARCH_DEFINITION = FunctionDefinitionSchema(
     parameters=FunctionParametersSchema(
         type="object",
         properties={
-            "query": FunctionPropertySchema(
-                type="string", description="Search query"
-            ),
+            "query": FunctionPropertySchema(type="string", description="Search query"),
         },
         required=["query"],
     ),

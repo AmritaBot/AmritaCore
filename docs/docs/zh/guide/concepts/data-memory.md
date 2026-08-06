@@ -7,8 +7,8 @@
 ```python
 from amrita_core.types.memory import MemoryModel
 
-memory = MemoryModel()            # 空历史
-memory.messages                   # list[Message | ToolResult]
+memory = MemoryModel()  # 空历史
+memory.messages  # list[Message | ToolResult]
 ```
 
 - `messages` —— 对话本身：`Message` 条目（user / assistant）与配对的
@@ -37,7 +37,7 @@ flowchart LR
 运行时记忆存在于 `MemoryContext` DI 槽位：
 
 ```python
-chat._di_memory.memory   # MemoryModel | None——LOAD_STATE 之后被设置
+chat._di_memory.memory  # MemoryModel | None——LOAD_STATE 之后被设置
 ```
 
 工作流节点与策略通过类型匹配注入访问（`mem: MemoryContext`）。

@@ -63,6 +63,7 @@ Full details: [Advanced → Step Loop](../advanced/step-loop.md).
 from amrita_core.agent.strategy import AgentStrategy
 from typing import Literal
 
+
 class MyStrategy(AgentStrategy):
     async def single_execute(self) -> bool:
         # One tool round. Return True to continue, False to stop.

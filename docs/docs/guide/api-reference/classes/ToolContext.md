@@ -22,6 +22,7 @@ ToolContext is automatically passed to tools that are registered with the `custo
 from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import ToolContext
 
+
 @on_tools(data=my_tool_schema, custom_run=True)
 async def my_custom_tool(ctx: ToolContext) -> str | None:
     # Access tool parameters

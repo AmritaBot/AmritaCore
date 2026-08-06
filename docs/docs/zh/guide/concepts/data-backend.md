@@ -17,13 +17,15 @@ flowchart LR
 ```python
 from amrita_core.base.backend import AbilityBackend, MemoryBackend
 
-class AbilityBackend:            # 抽象
+
+class AbilityBackend:  # 抽象
     async def load_ability_all(self, session_id: str) -> AbilityContext: ...
     async def load_mcp_clients(self, session_id: str) -> MultiClientManager: ...
     async def load_tools(self, session_id: str) -> MultiToolsManager: ...
     async def load_presets(self, session_id: str) -> MultiPresetManager: ...
 
-class MemoryBackend:             # 抽象
+
+class MemoryBackend:  # 抽象
     async def load_memory(self, session_id: str) -> MemoryModel: ...
     async def commit_memory(self, session_id: str, memory: MemoryModel) -> None: ...
 ```
@@ -42,7 +44,7 @@ class MemoryBackend:             # 抽象
 ```python
 from amrita_core.builtins.backends import LegacyBackend
 
-backend = LegacyBackend()          # 进程内按会话记忆
+backend = LegacyBackend()  # 进程内按会话记忆
 ```
 
 > **推论**：两个 `ChatObject` 用同一 `session_id`"共享"历史，*仅仅*因为

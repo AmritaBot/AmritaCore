@@ -28,11 +28,7 @@ flowchart LR
 
 ```python
 # STEP_BODY — one task-loop iteration = one Step
-STEP_BODY = (
-    NODE_INTRO
-    >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC)
-    >> NODE_LEAVE
-)
+STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAVE
 ```
 
 ## DI Contexts as the State Layer

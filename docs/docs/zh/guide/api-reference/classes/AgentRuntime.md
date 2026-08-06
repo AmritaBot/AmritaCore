@@ -43,7 +43,7 @@ agent = create_agent(
     "https://api.example.com",
     "your-api-key",
     model="gpt-4",
-    model_config={"temperature": 0.7}
+    model_config={"temperature": 0.7},
 )
 
 chat = agent.get_chatobject("你好，你能做什么？")

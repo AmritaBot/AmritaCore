@@ -10,6 +10,7 @@ Tokenizer 为用量统计与上下文管理计数 token。默认是轻量启发�
 ```python
 from amrita_core.base.tokenizer import BaseTokenizer
 
+
 class MyTokenizer(BaseTokenizer):
     def tokenize(self, text: str) -> list[str]:
         """把文本切成 token 列表。"""
@@ -36,8 +37,9 @@ class MyTokenizer(BaseTokenizer):
 ```python
 from amrita_core.base.tokenizer import BaseTokenizer
 
-class MyTokenizer(BaseTokenizer):
-    ...
+
+class MyTokenizer(BaseTokenizer): ...
+
 
 # 完成——`TokenizerManager().get_tokenizer("my-tokenizer")` 现在能找到它。
 ```

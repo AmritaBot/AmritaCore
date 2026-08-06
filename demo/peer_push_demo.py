@@ -66,12 +66,17 @@ async def run() -> None:
             else:
                 content = getattr(msg, "content", None)
                 if content:
-                    print(f"\n[meta:{getattr(msg, 'metadata', None)}] {content}", flush=True)
+                    print(
+                        f"\n[meta:{getattr(msg, 'metadata', None)}] {content}",
+                        flush=True,
+                    )
     await push_task
     print("\n--- done ---")
     rs = chat._di_loop.run_state
     if rs is not None:
-        print(f"steps={rs.step_index} phase={rs.current_phase} simple_mode={rs.simple_mode}")
+        print(
+            f"steps={rs.step_index} phase={rs.current_phase} simple_mode={rs.simple_mode}"
+        )
 
 
 if __name__ == "__main__":

@@ -50,8 +50,8 @@ from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
 chat = ChatObject(train=..., user_input=..., session_id="s1")
 
 # 显式：内置预组合管线
-chat = ChatObject(..., workflow=SIMPLE_CHAT)       # 无 agent，纯对话
-chat = ChatObject(..., workflow=SIMPLE_REACT)      # 传统 ReAct 循环
+chat = ChatObject(..., workflow=SIMPLE_CHAT)  # 无 agent，纯对话
+chat = ChatObject(..., workflow=SIMPLE_REACT)  # 传统 ReAct 循环
 ```
 
 > `workflow` 与 `archived_nodes` 互斥。

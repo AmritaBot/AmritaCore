@@ -18,13 +18,15 @@ flowchart LR
 ```python
 from amrita_core.base.backend import AbilityBackend, MemoryBackend
 
-class AbilityBackend:            # abstract
+
+class AbilityBackend:  # abstract
     async def load_ability_all(self, session_id: str) -> AbilityContext: ...
     async def load_mcp_clients(self, session_id: str) -> MultiClientManager: ...
     async def load_tools(self, session_id: str) -> MultiToolsManager: ...
     async def load_presets(self, session_id: str) -> MultiPresetManager: ...
 
-class MemoryBackend:             # abstract
+
+class MemoryBackend:  # abstract
     async def load_memory(self, session_id: str) -> MemoryModel: ...
     async def commit_memory(self, session_id: str, memory: MemoryModel) -> None: ...
 ```
@@ -44,7 +46,7 @@ The default implementation keeps everything **in-process**:
 ```python
 from amrita_core.builtins.backends import LegacyBackend
 
-backend = LegacyBackend()          # per-session in-process memory
+backend = LegacyBackend()  # per-session in-process memory
 ```
 
 > **Consequence**: two `ChatObject`s with the same `session_id` "share" history

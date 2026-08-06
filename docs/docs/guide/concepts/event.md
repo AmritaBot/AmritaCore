@@ -15,9 +15,9 @@ from amrita_sense.hook.matcher import Matcher
 
 matcher = Matcher("agent.step_intro", priority=1)
 
+
 @matcher.handle()
-async def on_step_intro(event):
-    ...
+async def on_step_intro(event): ...
 ```
 
 > Use the **literal string**, not `SomeEvent.event_type` — the latter is a
@@ -56,7 +56,7 @@ Two powerful properties:
    ```python
    @on_event("agent.step_leave")
    async def fix_summary(event):
-       event.override_verb = "Reviewed"      # replaces the auto summary
+       event.override_verb = "Reviewed"  # replaces the auto summary
    ```
 
 2. **`exception_ignored`** — exceptions listed there propagate out of
@@ -66,9 +66,10 @@ Two powerful properties:
    ```python
    from amrita_core.builtins.agent.events import StepAbortError
 
+
    @on_event("agent.tool_call")
    async def block_tool(event):
-       raise StepAbortError("blocked")        # tool never executes
+       raise StepAbortError("blocked")  # tool never executes
    ```
 
 ## How Events Reach Nodes

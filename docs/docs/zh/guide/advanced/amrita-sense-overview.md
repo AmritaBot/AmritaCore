@@ -12,13 +12,16 @@ AmritaSense 把工作流编译为**线性指令序列**，由轻量 VM 执行—
 ```python
 from amrita_sense import Node, WorkflowInterpreter
 
+
 @Node()
 async def step_one() -> None:
     print("[1] load state")
 
+
 @Node()
 async def step_two() -> None:
     print("[2] process")
+
 
 composition = step_one >> step_two
 interpreter = WorkflowInterpreter(composition.render())

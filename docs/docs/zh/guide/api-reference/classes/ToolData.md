@@ -16,7 +16,11 @@ ToolData 类继承自 BaseModel，将工具的元数据与其实现函数包装�
 ## 示例
 
 ```python
-from amrita_core.tools.models import ToolData, ToolFunctionSchema, FunctionDefinitionSchema
+from amrita_core.tools.models import (
+    ToolData,
+    ToolFunctionSchema,
+    FunctionDefinitionSchema,
+)
 
 tool_data = ToolData(
     data=ToolFunctionSchema(

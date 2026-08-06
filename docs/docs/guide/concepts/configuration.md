@@ -22,9 +22,9 @@ config = AmritaConfig(
     function_config=FunctionConfig(agent_tool_call_limit=15),
     llm=LLMConfig(stream=True),
 )
-await minimal_init(config)                 # global default
+await minimal_init(config)  # global default
 
-agent = create_agent(..., config=config)   # or per-agent
+agent = create_agent(..., config=config)  # or per-agent
 ```
 
 `get_config()` returns the global config; `set_config()` replaces it.

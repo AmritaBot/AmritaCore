@@ -32,6 +32,7 @@ async def trace_middleware(chat: ChatObject) -> None:
     finally:
         print(f"[trace] done {chat.stream_id}")
 
+
 chat = ChatObject(..., middleware=trace_middleware)
 ```
 

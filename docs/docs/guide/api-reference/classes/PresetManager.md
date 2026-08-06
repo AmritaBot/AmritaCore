@@ -103,16 +103,8 @@ Adds a new preset to the manager.
 **Example:**
 
 ```python
-preset1 = ModelPreset(
-    model="gpt-3.5-turbo",
-    name="fast-model",
-    api_key="your-key"
-)
-preset2 = ModelPreset(
-    model="gpt-4",
-    name="smart-model",
-    api_key="your-key"
-)
+preset1 = ModelPreset(model="gpt-3.5-turbo", name="fast-model", api_key="your-key")
+preset2 = ModelPreset(model="gpt-4", name="smart-model", api_key="your-key")
 
 manager.add_preset(preset1)
 manager.add_preset(preset2)
@@ -191,19 +183,20 @@ from amrita_core.types import ModelPreset, ModelConfig
 manager = PresetManager()
 
 # Add multiple presets
-manager.add_preset(ModelPreset(
-    model="gpt-3.5-turbo",
-    name="fast",
-    api_key="sk-xxx",
-    config=ModelConfig(stream=True)
-))
+manager.add_preset(
+    ModelPreset(
+        model="gpt-3.5-turbo",
+        name="fast",
+        api_key="sk-xxx",
+        config=ModelConfig(stream=True),
+    )
+)
 
-manager.add_preset(ModelPreset(
-    model="gpt-4",
-    name="smart",
-    api_key="sk-xxx",
-    config=ModelConfig(stream=False)
-))
+manager.add_preset(
+    ModelPreset(
+        model="gpt-4", name="smart", api_key="sk-xxx", config=ModelConfig(stream=False)
+    )
+)
 
 # Set a default preset (optional, but recommended)
 manager.set_default_preset("fast")

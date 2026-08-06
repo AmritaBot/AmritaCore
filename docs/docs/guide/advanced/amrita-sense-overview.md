@@ -13,13 +13,16 @@ by a lightweight VM — much like a CPU runs machine code. Nodes are chained wit
 ```python
 from amrita_sense import Node, WorkflowInterpreter
 
+
 @Node()
 async def step_one() -> None:
     print("[1] load state")
 
+
 @Node()
 async def step_two() -> None:
     print("[2] process")
+
 
 composition = step_one >> step_two
 interpreter = WorkflowInterpreter(composition.render())

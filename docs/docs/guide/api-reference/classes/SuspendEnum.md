@@ -109,6 +109,7 @@ The > **v0.12.0 migration**: `SuspendEnum` and `BuiltinName` have been moved fro
 from amrita_core import ChatObject, SuspendEnum
 from amrita_core.types import MemoryModel, Message
 
+
 async def main():
     context = MemoryModel()
     train = Message(content="You are a helpful assistant.", role="system")
@@ -117,7 +118,7 @@ async def main():
         context=context,
         session_id="session_123",
         user_input="What's the weather like?",
-        train=train.model_dump()
+        train=train.model_dump(),
     )
 
     # External controller using standard breakpoints

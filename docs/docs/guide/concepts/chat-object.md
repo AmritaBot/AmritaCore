@@ -52,8 +52,8 @@ from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
 chat = ChatObject(train=..., user_input=..., session_id="s1")
 
 # Explicit: built-in pre-composed pipelines
-chat = ChatObject(..., workflow=SIMPLE_CHAT)       # no agent, plain chat
-chat = ChatObject(..., workflow=SIMPLE_REACT)      # legacy ReAct loop
+chat = ChatObject(..., workflow=SIMPLE_CHAT)  # no agent, plain chat
+chat = ChatObject(..., workflow=SIMPLE_REACT)  # legacy ReAct loop
 ```
 
 > `workflow` and `archived_nodes` are mutually exclusive.

@@ -16,7 +16,11 @@ The ToolData class inherits from BaseModel and wraps a tool's metadata together 
 ## Example
 
 ```python
-from amrita_core.tools.models import ToolData, ToolFunctionSchema, FunctionDefinitionSchema
+from amrita_core.tools.models import (
+    ToolData,
+    ToolFunctionSchema,
+    FunctionDefinitionSchema,
+)
 
 tool_data = ToolData(
     data=ToolFunctionSchema(

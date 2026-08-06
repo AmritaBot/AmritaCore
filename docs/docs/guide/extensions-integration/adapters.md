@@ -13,7 +13,7 @@ endpoint.
 
 ```python
 agent = create_agent(
-    base_url="https://api.deepseek.com",     # OpenAI-compatible
+    base_url="https://api.deepseek.com",  # OpenAI-compatible
     api_key=os.environ["DEEPSEEK_API_KEY"],
     model="deepseek-chat",
 )
@@ -59,6 +59,7 @@ Subclass `ModelAdapter`; it **registers itself automatically**
 
 ```python
 from amrita_core.base.adapter import ModelAdapter
+
 
 class MyAdapter(ModelAdapter):
     # Declare which protocol(s) this adapter serves.

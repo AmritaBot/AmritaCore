@@ -61,6 +61,7 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 from amrita_core.agent.strategy import AgentStrategy
 from typing import Literal
 
+
 class MyStrategy(AgentStrategy):
     async def single_execute(self) -> bool:
         # 一轮工具调用。返回 True 继续，False 停止。

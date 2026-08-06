@@ -150,6 +150,7 @@ Closes the connection to the MCP server.
 import asyncio
 from amrita_core.tools.mcp import MCPClient
 
+
 async def main():
     # Method 1: Using context manager (recommended)
     async with MCPClient("/path/to/server.mcp") as client:
@@ -158,10 +159,7 @@ async def main():
         print(f"Available tools: {[t.function.name for t in tools]}")
 
         # Call a tool
-        result = await client.simple_call(
-            "calculate",
-            {"expression": "2 + 2"}
-        )
+        result = await client.simple_call("calculate", {"expression": "2 + 2"})
         print(f"Result: {result}")
 
     # Method 2: Manual connection management
@@ -172,6 +170,7 @@ async def main():
         result = await client.simple_call("search", {"query": "test"})
     finally:
         await client._close()
+
 
 asyncio.run(main())
 ```

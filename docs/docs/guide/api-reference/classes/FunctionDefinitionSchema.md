@@ -24,7 +24,11 @@ This class inherits from BaseModel, thus possessing all features of Pydantic mod
 ## Example
 
 ```python
-from amrita_core.tools.models import FunctionDefinitionSchema, FunctionParametersSchema, FunctionPropertySchema
+from amrita_core.tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
+)
 
 # Define a tool function schema with parameter validation
 tool = FunctionDefinitionSchema(

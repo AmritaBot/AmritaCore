@@ -12,8 +12,10 @@ The `load_amrita()` function asynchronously loads MCP clients when MCP is enable
 import asyncio
 from amrita_core import load_amrita
 
+
 async def main():
     await load_amrita()
+
 
 asyncio.run(main())
 ```
@@ -263,18 +265,18 @@ DEFINITION = FunctionDefinitionSchema(
     parameters=FunctionParametersSchema(
         type="object",
         properties={
-            "a": FunctionPropertySchema(type="number",description="The first number"),
-            "b": FunctionPropertySchema(type="number",description="The second number"),
+            "a": FunctionPropertySchema(type="number", description="The first number"),
+            "b": FunctionPropertySchema(type="number", description="The second number"),
         },
         required=["a", "b"],
     ),
 )
 
+
 @on_tools(DEFINITION)
 async def add(data: dict[str, Any]) -> str:
     """Add two numbers"""
     return str(data["a"] + data["b"])
-
 ```
 
 **Purpose**: Registers a function as an available tool that the agent can call with fine-grained control over the tool schema.
@@ -297,6 +299,7 @@ The `@on_event` decorator registers functions as event handlers.
 ```python
 from amrita_core.hook.on import on_event
 
+
 @on_event()
 def my_event_handler(event):
     # Handle custom events
@@ -313,6 +316,7 @@ The `@on_precompletion` decorator registers functions to run before the completi
 from amrita_core.hook.event import PreCompletionEvent
 from amrita_core.hook.on import on_precompletion
 
+
 @on_precompletion().handle()
 async def preprocess_request(event: PreCompletionEvent):
     # Modify the messages before sending to LLM
@@ -328,6 +332,7 @@ The `@on_completion` decorator registers functions to run after receiving the co
 ```python
 from amrita_core.hook.event import CompletionEvent
 from amrita_core.hook.on import on_completion
+
 
 @on_completion().handle()
 async def postprocess_response(event: CompletionEvent):
@@ -383,6 +388,7 @@ AmritaCore uses Pydantic models extensively for type validation. When creating c
 ```python
 from typing import Optional
 from amrita_core.types import BaseModel
+
 
 class CustomConfig(BaseModel):
     param1: str

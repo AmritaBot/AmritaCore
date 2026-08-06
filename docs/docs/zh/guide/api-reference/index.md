@@ -12,8 +12,10 @@
 import asyncio
 from amrita_core import load_amrita
 
+
 async def main():
     await load_amrita()
+
 
 asyncio.run(main())
 ```

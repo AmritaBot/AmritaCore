@@ -18,6 +18,7 @@ from amrita_core.base.adapter import ModelAdapter
 from amrita_core.types import ModelPreset
 from amrita_core.config import AmritaConfig
 
+
 @dataclass
 class ModelAdapter:
     preset: ModelPreset
@@ -61,6 +62,7 @@ class MyAdapter(ModelAdapter):
     @staticmethod
     def get_adapter_protocol() -> str:
         return "my-custom-protocol"
+
 
 # Or support multiple protocols
 class MultiProtocolAdapter(ModelAdapter):
@@ -146,13 +148,12 @@ async def call_tools(self, messages, tools, tool_choice=None):
         model=self.preset.model,
         messages=messages,
         tools=tools,
-        tool_choice=tool_choice or "auto"
+        tool_choice=tool_choice or "auto",
     )
 
     # Extract tool calls
     tool_calls = [
-        ToolCall.model_validate(tc)
-        for tc in response.choices[0].message.tool_calls
+        ToolCall.model_validate(tc) for tc in response.choices[0].message.tool_calls
     ]
 
     return UniResponse(tool_calls=tool_calls, content=None)
@@ -181,9 +182,7 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     for idx, text in enumerate(texts):
         # Generate embedding vector
         vector = await self._generate_embedding(text)
-        embeddings.append(
-            EmbeddingChunk(embedding=vector, index=idx)
-        )
+        embeddings.append(EmbeddingChunk(embedding=vector, index=idx))
     return embeddings
 ```
 
@@ -208,6 +207,7 @@ class MyAdapter(ModelAdapter):
     @staticmethod
     def get_adapter_protocol() -> str:
         return "my-protocol"
+
 
 # This adapter will NOT be automatically registered
 class AbstractBaseAdapter(ModelAdapter):
@@ -258,6 +258,7 @@ from collections.abc import AsyncGenerator, Iterable
 from amrita_core.base.adapter import ModelAdapter, COMPLETION_RETURNING
 from amrita_core.types import ModelPreset, UniResponse, UniResponseUsage
 
+
 class CustomAdapter(ModelAdapter):
     """Custom model adapter example"""
 
@@ -266,9 +267,7 @@ class CustomAdapter(ModelAdapter):
         return "custom-api"
 
     async def call_api(
-        self,
-        messages: Iterable,
-        **kwargs
+        self, messages: Iterable, **kwargs
     ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
         # Your custom API logic here
         response_text = ""
@@ -282,10 +281,8 @@ class CustomAdapter(ModelAdapter):
         yield UniResponse(
             content=response_text,
             usage=UniResponseUsage(
-                prompt_tokens=100,
-                completion_tokens=50,
-                total_tokens=150
-            )
+                prompt_tokens=100, completion_tokens=50, total_tokens=150
+            ),
         )
 ```
 

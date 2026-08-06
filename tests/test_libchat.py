@@ -178,7 +178,7 @@ class TestThinkingFilter:
             Message(role="user", content="next question"),
         ]
         validated = list(msgs)
-        _apply_thinking_filter(validated, self._thinking_config("never"))
+        _apply_thinking_filter(validated, self._thinking_config("never"))  # type: ignore
 
         # The validated list has a stripped *copy*...
         assert validated[0].reasoning_content is None
@@ -203,7 +203,7 @@ class TestThinkingFilter:
             )
         ]
         validated = list(msgs)
-        _apply_thinking_filter(validated, self._thinking_config("by-tool"))
+        _apply_thinking_filter(validated, self._thinking_config("by-tool"))  # type: ignore
         # Same object identity when nothing is stripped (no copy needed).
         assert validated[0] is msgs[0]
         assert validated[0].reasoning_content == "thinking with tools"
@@ -219,7 +219,7 @@ class TestThinkingFilter:
             )
         ]
         validated = list(msgs)
-        _apply_thinking_filter(validated, self._thinking_config("by-tool"))
+        _apply_thinking_filter(validated, self._thinking_config("by-tool"))  # type: ignore
         assert validated[0].reasoning_content is None
         assert msgs[0].reasoning_content == "thinking text"  # original intact
 
@@ -234,7 +234,7 @@ class TestThinkingFilter:
             )
         ]
         validated = list(msgs)
-        _apply_thinking_filter(validated, self._thinking_config("optional"))
+        _apply_thinking_filter(validated, self._thinking_config("optional"))  # type: ignore
         assert validated[0] is msgs[0]
         assert validated[0].reasoning_content == "thinking text"
 
@@ -251,8 +251,9 @@ class TestThinkingFilter:
         ]
         validated = list(msgs)
         _apply_thinking_filter(
-            validated, ThinkingConfig(thinking_type="disabled", content_mode="never")
-        )
+            validated, # type: ignore
+            ThinkingConfig(thinking_type="disabled", content_mode="never"),  # type: ignore
+        )  # type: ignore
         assert validated[0] is msgs[0]
         assert validated[0].reasoning_content == "thinking text"
 

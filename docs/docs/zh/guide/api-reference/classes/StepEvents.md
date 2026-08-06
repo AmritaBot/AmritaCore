@@ -8,9 +8,11 @@ from amrita_sense.hook.matcher import Matcher
 
 matcher = Matcher("agent.tool_call", priority=1)
 
+
 @matcher.handle()
 async def guard(event):
     event.cancel = True
+
 
 # 测试/运行后清理:
 # matcher._dead_at = <过去的时间>

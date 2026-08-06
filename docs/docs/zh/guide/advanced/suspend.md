@@ -13,13 +13,14 @@
 ```python
 import asyncio
 
+
 async def interactive(chat):
     stream = chat.io_stream
     suspend_task = asyncio.create_task(stream.wait_to_suspend("ChatObject::step_intro"))
     run_task = asyncio.create_task(chat.begin())
-    await suspend_task           # producer 现在停在 Step 边界
+    await suspend_task  # producer 现在停在 Step 边界
     # ... 检查或注入 ...
-    stream.resume()              # 让 agent 继续
+    stream.resume()  # 让 agent 继续
     await run_task
 ```
 

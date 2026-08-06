@@ -276,16 +276,13 @@ Handles the complete lifecycle of multiple MCP connections:
 import asyncio
 from amrita_core.tools.mcp import MultiClientManager
 
+
 async def main():
     # Create manager instance
     manager = MultiClientManager()
 
     # Method 1: Programmatic setup
-    scripts = [
-        "/path/to/weather.mcp",
-        "/path/to/database.mcp",
-        "/path/to/calendar.mcp"
-    ]
+    scripts = ["/path/to/weather.mcp", "/path/to/database.mcp", "/path/to/calendar.mcp"]
 
     # Register and initialize all servers
     await manager.initialize_scripts_all(scripts)
@@ -316,6 +313,7 @@ async def main():
     custom_client = manager.get_client_by_script("/special/server.mcp")
     manager.register_only(client=custom_client)
     await manager.initialize_all()
+
 
 asyncio.run(main())
 ```

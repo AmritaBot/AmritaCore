@@ -11,7 +11,7 @@
 
 ```python
 agent = create_agent(
-    base_url="https://api.deepseek.com",     # OpenAI 兼容
+    base_url="https://api.deepseek.com",  # OpenAI 兼容
     api_key=os.environ["DEEPSEEK_API_KEY"],
     model="deepseek-chat",
 )
@@ -54,6 +54,7 @@ agent = create_agent(
 
 ```python
 from amrita_core.base.adapter import ModelAdapter
+
 
 class MyAdapter(ModelAdapter):
     # 声明此适配器服务的协议。
