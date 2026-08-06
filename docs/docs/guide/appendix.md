@@ -1,154 +1,98 @@
-# Appendix and Resources
+# Appendix & Design Philosophy
 
-## Glossary and Terminology
+## Design Philosophy
 
-### Agent
+The decisions below shape the whole framework. Understanding them explains
+_why_ the code looks the way it does.
 
-An autonomous program that perceives its environment, makes decisions, and takes actions to achieve specific goals. In AmritaCore, agents can interact with users, call tools, and manage complex tasks.
+### ChatObject is the Lifecycle Manager — the Unit of a Dialogue
 
-### Token
+`ChatObject` is not a thin wrapper: it owns the workflow, the interpreter, the
+bidirectional stream, and every DI context for one conversation. Strategies and
+hooks receive resources; ChatObject wires them together. That makes it the
+basic unit of a dialogue and the natural place to attach middleware, sessions,
+and lifecycle.
 
-A unit of text that language models process and generate. Tokens can be as short as one character or as long as one word (e.g., "a", "hello", "123"). Managing token usage is crucial for performance and cost efficiency.
+### The Step Is the Unit of Prompt Engineering
 
-### Prompt
+The built-in ReAct loop treats each **Step** (one DAG node) as an explicit
+prompt-engineering unit: enter → execute → summarize. No hardcoded planner or
+subagent machinery — the LLM decomposes into a **semantic DAG**, the framework
+walks it in topological order with stdlib `graphlib`, and execution stays
+linear. The DAG is a hint layer, not a parallel graph.
 
-Input text provided to a language model to guide its response. Well-crafted prompts lead to better, more relevant outputs. In AmritaCore, prompts include system messages, user inputs, and contextual information.
+### Everything Observable and Interruptible
 
-### Memory
+Every boundary emits events and metadata: step intro/leave, iteration, tool
+call/return. Matchers mutate events; `StepAbortError` is the control-flow
+escape hatch. Stall detection runs _inside_ the loop so a stuck agent stops
+burning tokens.
 
-The mechanism by which an AI system retains and accesses information from previous interactions. AmritaCore's memory system manages conversation history and context to enable coherent multi-turn conversations.
+### Framework-Managed Loop, Strategy-Managed Step
 
-### LLM
+`get_category()` decides who owns the loop: `agent`/`agent-mixed` → the
+framework loops and calls `single_execute()` per round; `rag`/`workflow` →
+the strategy owns everything. This keeps custom strategies small and the
+framework's guarantees (limits, rollback, events) uniform.
 
-Large Language Model - sophisticated AI systems trained on vast amounts of text to understand and generate human-like language. Examples include GPT, Claude, and other transformer-based models.
+### Sense-Specific Knowledge Is Not Duplicated
 
-### MCP
+AmritaCore recaps AmritaSense inline where needed and links out for the rest.
+The documentation journey mirrors the engineering journey: run → use →
+understand → extend → tune → go deeper.
 
-Model Context Protocol - a standard for connecting tools and data sources to AI models. MCP allows models to interact with external systems in a structured way, extending their capabilities beyond their training data.
+## Naming Conventions
 
-### Other Core Terms
+### `*Manager` vs `Multi*Manager`
 
-- **Context Window**: The maximum amount of text (in tokens) that a model can process at once
-- **Streaming**: Delivering responses in chunks as they're generated, rather than waiting for the complete response
-- **Tool Calling**: The ability for an agent to invoke external functions to perform specific tasks
-- **Event System**: A mechanism for intercepting and modifying the processing pipeline at various stages
-- **Session**: An isolated conversation thread with its own memory and state
-- **Configuration**: Settings that control how AmritaCore behaves in different scenarios
-- **Workflow Engine**: A composable node graph system that drives ChatObject execution since v0.9.0rc1. Nodes are connected with `>>` and executed by `WorkflowInterpreter`. Provided by the `amrita-sense` package.
-- **StrategyLikedObject**: An abstract base class for stateful agent strategy instances. Unlike `AgentStrategy` (passed as a type), `StrategyLikedObject` is passed as a pre-initialised instance, enabling internal state machines and resource management.
-- **Pre-composed Workflow**: A ready-to-use `NodeComposeRendered` pipeline graph that can be passed to `ChatObject(workflow=...)`. Shipped in `amrita_core.builtins.workflows` (e.g. `SIMPLE_REACT`, `SIMPLE_CHAT`).
-- **DI Resource Field**: A Dependency Injection resource field on `StrategyContext` (e.g. `preset`, `config`, `io_stream`) that carries framework services directly to agent strategies without routing through `ChatObject`.
-- **STRATEGY_INIT**: A workflow node in `amrita_core.components.react` that initializes `StrategyContext` with DI resource fields before the agent entry point. Used by pre-composed external workflows.
-- **Prompt Engineering**: The practice of designing and refining prompts (system messages, templates, instructions) to guide LLMs toward desired outputs. Includes techniques such as structured instructions, Chain-of-Thought, few-shot prompting, and role assignment.
+Manager classes follow one simple rule:
 
-### Abbreviations
+| Name                                                            | Kind                   | Scope                                                                                                     |
+| --------------------------------------------------------------- | ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `ToolsManager`, `ClientManager`, `PresetManager`                | **Singleton**          | A global, process-wide container — everyone shares the same instance                                      |
+| `MultiToolsManager`, `MultiClientManager`, `MultiPresetManager` | **Ordinary container** | Create your own instances for isolation (per-session tools, per-session MCP clients, per-session presets) |
 
-- API: Application Programming Interface
-- JSON: JavaScript Object Notation
-- HTTP: HyperText Transfer Protocol
-- SSL/TLS: Secure Sockets Layer/Transport Layer Security
-- REST: Representational State Transfer
-- SDK: Software Development Kit
+The non-`Multi` managers are implemented as singletons (`__new__` + `_instance`)
+over their `Multi*` base; the `Multi*` versions are plain instantiable
+containers. Examples:
+
+- `@simple_tool` registers into the global `ToolsManager`
+- a `MultiToolsManager` instance can be attached to a session's ability for
+  per-session tools
+- `ClientManager()` (singleton) is what `load_amrita()` drives; a
+  `MultiClientManager` instance gives a session its own MCP set
+
+### Other prefixes
+
+- `Base*` — abstract base classes (`BaseTokenizer`, `BaseReActAgentStrategy`)
+- `Legacy*` — backward-compatible implementations (`LegacyBackend`)
+
+## Glossary
+
+| Term                      | Meaning                                                                |
+| ------------------------- | ---------------------------------------------------------------------- |
+| **Agent**                 | A strategy-driven executor that calls tools to achieve goals           |
+| **ChatObject**            | The lifecycle manager — the unit of a dialogue                         |
+| **Step**                  | One DAG node of the built-in step loop (enter → execute → leave)       |
+| **Stall**                 | Repeating identical tool signatures within a Step                      |
+| **`SuspendObjectStream`** | Bidirectional stream between workflow (producer) and caller (consumer) |
+| **DI Context**            | Typed state injected into workflow nodes (e.g. `AgentLoopState`)       |
+| **Workflow**              | A pre-compiled AmritaSense instruction sequence                        |
+| **Matcher**               | An event handler registered by type string                             |
+| **Preset**                | Bundle of endpoint + model + thinking config + tools                   |
+| **Backend**               | `AbilityBackend` / `MemoryBackend` implementations                     |
+| **Session**               | Isolated conversation history keyed by `session_id`                    |
+
+## Abbreviations
+
+API · JSON · HTTP · LLM · MCP (Model Context Protocol) · MoE (Mixture of
+Experts) · VM (Virtual Machine) · DI (Dependency Injection) · DAG (Directed
+Acyclic Graph)
 
 ## Project Resources
 
-### GitHub Repository Link
-
-- **Repository**: [https://github.com/AmritaBot/AmritaCore](https://github.com/AmritaBot/AmritaCore)
-- **Issue Reporting**: Report bugs and request features in the GitHub repository
-- **Pull Requests**: Contributions are welcome through pull requests
-
-### Official Websites
-
-- **AmritaCore Website**: [https://core.amritabot.com](https://core.amritabot.com) (This site)
-- **amrita-sense Website**: [https://sense.amritabot.com](https://sense.amritabot.com) — Documentation for the shared infrastructure package
-- **Documentation**: Comprehensive guides and tutorials
-- **Community Forum**: Connect with other users and developers
-
-### Contribution Guidelines
-
-Contributions to AmritaCore are welcome. Here's how you can contribute:
-
-1. **Fork the Repository**: Create your own copy of the project
-2. **Create a Branch**: Make your changes in a new branch
-3. **Write Tests**: Ensure your changes don't break existing functionality
-4. **Update Documentation**: Keep the documentation up to date
-5. **Submit a Pull Request**: Describe your changes and submit for review
-
-**Code Style Guidelines**:
-
-- Follow PEP 8 Python style guide
-- Write docstrings for all public functions and classes
-- Use type hints for all function parameters and return values
-- Keep functions focused and concise
-- Write meaningful commit messages
-
-For more information, please refer to the `CONTRIBUTING.md` file in the project repository.
-
-## Community and Support
-
-### Discussion Forums
-
-- **GitHub Discussions**: Use the Discussions tab in the GitHub repository
-- **Discord Server**: Join our community chat (link in repository)
-- **Stack Overflow**: Tag questions with "amrita-core"
-
-### Issue Submission
-
-When reporting issues:
-
-1. Search existing issues to avoid duplicates
-2. Provide a clear, descriptive title
-3. Include reproduction steps
-4. Share relevant code snippets
-5. Specify your environment (OS, Python version, AmritaCore version)
-6. Include any relevant error messages
-
-### License Information (Apache 2.0)
-
-AmritaCore is released under the Apache 2.0 license.
-
-#### Licensing
-
-Permission is hereby granted to any person obtaining a copy of this software and associated documentation files (the "Software"), to use the Software under the Apache 2.0 license, including for commercial purposes.
-
-For the full license text, please refer to the `LICENSE` file in the repository.
-
-### Code of Conduct
-
-Our community follows the Contributor Covenant Code of Conduct:
-
-- **Be Respectful**: Treat everyone with respect regardless of their background
-- **Be Constructive**: Provide constructive feedback and suggestions
-- **Be Inclusive**: Welcome people from all backgrounds
-- **Focus on Quality**: Strive to improve the quality of the project
-
-## Related Resources
-
-### LLM Documentation Links
-
-- **DeepSeek AI API Documentation**: [https://api-docs.deepseek.com/](https://api-docs.deepseek.com/)
-- **OpenAI API Documentation**: [https://platform.openai.com/docs/](https://platform.openai.com/docs/)
-- **Anthropic Claude Documentation**: [https://docs.anthropic.com/claude/](https://docs.anthropic.com/claude/)
-- **Google AI Documentation**: [https://ai.google.dev/](https://ai.google.dev/)
-- **Hugging Face Models**: [https://huggingface.co/models](https://huggingface.co/models)
-
-### Python Tutorials
-
-- **Official Python Tutorial**: [https://docs.python.org/3/tutorial/](https://docs.python.org/3/tutorial/)
-- **Real Python**: [https://realpython.com/](https://realpython.com/)
-- **Python Type Hints Guide**: [https://mypy.readthedocs.io/en/stable/kinds_of_types.html](https://mypy.readthedocs.io/en/stable/kinds_of_types.html)
-- **Async/Await in Python**: [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
-
-### Asynchronous Programming Guides
-
-- **Python AsyncIO Documentation**: [https://docs.python.org/3/library/asyncio.html](https://docs.python.org/3/library/asyncio.html)
-- **AsyncIO for Working Python Developers**: [https://github.com/gaogaotiantian/asynciolib](https://github.com/gaogaotiantian/asynciolib)
-- **Understanding Asyncio**: [https://www.roguelynn.com/words/understanding-asyncio/](https://www.roguelynn.com/words/understanding-asyncio/)
-
-### Other Reference Resources
-
-- **Pydantic Documentation**: [https://docs.pydantic.dev/](https://docs.pydantic.dev/)
-- **FastAPI Documentation**: [https://fastapi.tiangolo.com/](https://fastapi.tiangolo.com/) (for API integration examples)
-- **Semantic Search with Embeddings**: [https://platform.openai.com/docs/guides/embeddings](https://platform.openai.com/docs/guides/embeddings)
-- **Prompt Engineering Guide**: [https://www.promptingguide.ai/](https://www.promptingguide.ai/)
+- **Repository**: [github.com/AmritaBot/AmritaCore](https://github.com/AmritaBot/AmritaCore)
+- **Issues**: report bugs and feature requests in GitHub Issues
+- **AmritaCore site**: [core.amritabot.com](https://core.amritabot.com)
+- **AmritaSense docs**: [sense.amritabot.com](https://sense.amritabot.com)
+- **Contributing**: see `CONTRIBUTING.md` in the repository

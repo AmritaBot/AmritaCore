@@ -1,97 +1,99 @@
-# 流式输出与回调
+# 3. 流式与回调
 
-AmritaCore 默认对所有响应进行流式输出。在本教程中，你将直接消费流，并切换到基于回调的风格。
+## 本章目标
 
-## 1. 流式消费响应
+看到 agent 输出实时产生——并读懂藏在流里的结构化事件。学完你能：
 
-每个 [ChatObject](../api-reference/classes/ChatObject.md) 都暴露 `io_stream`，其 `get_response_generator()` 会在响应块到达时逐个产出：
+- 用异步生成器（拉）或回调（推）消费流
+- 区分纯文本 chunk 与 `MessageWithMetadata` 事件
+- 通过反向通道把消息*推回*给 agent
 
-```python
-import asyncio
+## 概念速览（用到才讲）
 
-from amrita_core import create_agent, minimal_init
+- **`SuspendObjectStream`**：每个 `ChatObject` 拥有的双向通道。工作流写入它；
+  你的代码从它读取。
+- **`MessageWithMetadata`**：与纯文本同行的结构化事件（Step 边界、工具调用、
+  推理 chunk）。
 
+## 1. 流式读取响应
 
-async def main() -> None:
-    await minimal_init()
-
-    agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="sk-...",
-        model="gpt-4o-mini",
-        train="你是一个有帮助的助手。",
-    )
-
-    chat = agent.get_chatobject("写一首关于大海的俳句。")
-    async with chat.begin():
-        async for message in chat.io_stream.get_response_generator():
-            print(message if isinstance(message, str) else message.get_content(), end="")
-        await chat  # 等待任务完成——退出会取消它
-    print("\n")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-每个产出的元素要么是普通 `str` 块，要么是类型化的内容对象——`message.get_content()` 返回其文本。退出 `async with` 代码块会取消内部任务，因此请始终在代码块内 `await chat`。
-
-## 2. 基于回调的消费方式
-
-如果你更喜欢，可以注册一个回调函数，每个块都会被调用。在流上使用 `set_callback_func()`，然后 `begin()` 运行对话并驱动回调：
+每个 `ChatObject` 暴露 `chat.io_stream`——一个 `SuspendObjectStream`。
+用 AmritaSense 的术语：工作流是 _producer_，你的代码是 _consumer_；
+用异步生成器读取响应：
 
 ```python
-async def response_callback(chunk) -> None:
-    print(chunk if isinstance(chunk, str) else chunk.get_content(), end="")
-
-
-async def main() -> None:
-    await minimal_init()
-
-    agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="sk-...",
-        model="gpt-4o-mini",
-        train="你是一个有帮助的助手。",
-    )
-
-    chat = agent.get_chatobject("告诉我一个关于太空的有趣事实。")
-    chat.io_stream.set_callback_func(response_callback)
-    chat.begin()
-    await chat  # begin() 只启动任务；await 等待它完成
-    print("\n")
+async with chat.begin():
+    async for msg in chat.io_stream.get_response_generator():
+        print(msg, end="", flush=True)
 ```
 
-## 3. 使用 `full_response()` 获取完整响应
+## 2. 两种条目
 
-要一次性收集完整响应（不流式），在 `begin()` 后使用 `full_response()`：
+流携带**两种**条目：
+
+| 条目                  | 含义                                        |
+| --------------------- | ------------------------------------------- |
+| `str`                 | 纯文本 chunk（逐 token）                    |
+| `MessageWithMetadata` | 结构化事件：Step 边界、工具调用、推理 chunk |
 
 ```python
-async def main() -> None:
-    await minimal_init()
-
-    agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="sk-...",
-        model="gpt-4o-mini",
-    )
-
-    chat = agent.get_chatobject("法国的首都是什么？")
-    chat.begin()
-    response = await chat.full_response()
-    print(response)
+async with chat.begin():
+    async for msg in chat.io_stream.get_response_generator():
+        if isinstance(msg, str):
+            print(msg, end="", flush=True)
+        else:
+            content = getattr(msg, "content", None)
+            meta = getattr(msg, "metadata", None)
+            if content:
+                print(f"\n[{meta}] {content}", flush=True)
 ```
 
-`full_response()` 是一次性消费者——用它**替代** `get_response_generator()`，不要两者都使用。
+### 常见元数据类型
 
-## 刚刚发生了什么
+| `type`            | `extra_type`         | 触发时机                                            |
+| ----------------- | -------------------- | --------------------------------------------------- |
+| `step`            | `decompose`          | 策略决定 simple 还是 DAG 规划                       |
+| `step`            | `intro` / `leave`    | Step 开始 / 结束（带摘要）                          |
+| `step`            | `stall` / `compress` | 检测到停滞 / 历史压缩                               |
+| `function_call`   | —                    | 工具开始（`is_done=False`）或结束（`is_done=True`） |
+| `reasoning_chunk` | `cot_chunk`          | thinking 模式推理流式输出                           |
 
-- `io_stream.get_response_generator()` 是一个异步生成器，实时发送块
-- `set_callback_func()` 切换到推送式消费——每个块触发回调，而 `begin()` 持续运行
-- `full_response()` 在执行完成后给你组装好的最终响应
+## 3. 基于回调的消费
+
+喜欢推而不是拉？注册回调代替读取生成器：
+
+```python
+from amrita_core import SuspendObjectStream
+
+stream = SuspendObjectStream(callback=on_chunk)
+```
+
+> 每个流只允许一种消费方式——生成器 _或_ 回调。
+
+## 4. 反向通道（Peer → Agent）
+
+`SuspendObjectStream` 是**双向**的。consumer 可以用 `send_to_producer()`
+把消息推回 producer；agent 在下一个 Step 边界消费并追加到对话上下文：
+
+```python
+await chat.io_stream.send_to_producer(
+    "IMPORTANT: end your final answer with the exact line: [peer-acked]"
+)
+```
+
+- **Step 开始前**推送的消息 → 在该边界被消费。
+- **agent 工作期间**推送 → 在下一个边界被拾取。
+- **运行结束后**推送 → 被丢弃（通道已关闭）。
+
+这是人机协同、工具反馈与流式输入的基础。完整机制见
+[挂起/恢复](../advanced/suspend.md)。
+
+## 刚才发生了什么
+
+- 流既可拉取（`get_response_generator`）也可推送（回调）
+- 结构化元数据与纯文本同行
+- 反向通道让你在 Step 边界注入上下文
 
 ## 下一步
 
-- [使用事件拦截管道](event-hooks.md)
-- [管理记忆和会话](memory.md)
-- 深入了解：`amrita-sense` 包中的 [SuspendObjectStream](https://sense.amritabot.com)
+[4. 事件与钩子](event-hooks.md)——以编程方式拦截管线。

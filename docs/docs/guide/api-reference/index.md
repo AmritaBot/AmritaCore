@@ -360,6 +360,14 @@ AmritaCore provides several predefined types for consistency:
 - [UniResponse](classes/UniResponse.md): Unified format for responses
 - [UniResponseUsage](classes/UniResponseUsage.md): Usage statistics for responses
 
+### Step-Loop Types (built-in ReAct)
+
+- [AgentRunState](classes/AgentRunState.md): Semantic step-level run state (plan, stall window, tokens)
+- [DAGNode](classes/DAGNode.md): A sub-step of the task plan
+- [StepEvents](classes/StepEvents.md): The mutable step lifecycle events (`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`) and `StepAbortError`
+
+See [Advanced → Step Loop](../advanced/step-loop.md) for how they fit together.
+
 ### Exception Types
 
 AmritaCore may raise the following exceptions:

@@ -1,152 +1,90 @@
 # Basic Example
 
-## Complete Basic Functionality Demonstration
+A slightly larger example that shows the three things you will use every day:
+**streaming**, **tools**, and **sessions**.
 
-Let's look at a more complete example that demonstrates context retention and multiple interactions using the simplified `create_agent` interface:
+> **What you will see**: the agent calling your `calculate` tool in the first
+> turn, then remembering the result in the second turn (same `session_id`).
+> If you are new to tools or sessions, Tutorials 2 and 5 explain them in depth.
 
 ```python
-"""
-Basic Example for AmritaCore - A simple demonstration of core functionality.
-
-This example shows how to create an agent, interact with it, and maintain
-conversation context across multiple turns using the new unified API.
-"""
-
 import asyncio
+import os
 
-from amrita_core import create_agent, minimal_init  # Main entry point
-from amrita_sense.logging import logger  # Optional logging
+from amrita_core import create_agent, minimal_init, on_tools
+from amrita_core.tools.models import (
+    FunctionDefinitionSchema,
+    FunctionParametersSchema,
+    FunctionPropertySchema,
+)
+
+# 1. Register a tool at module load time.
+CALC_DEFINITION = FunctionDefinitionSchema(
+    name="calculate",
+    description="Perform a simple arithmetic calculation",
+    parameters=FunctionParametersSchema(
+        type="object",
+        properties={
+            "expr": FunctionPropertySchema(
+                type="string", description="Arithmetic expression, e.g. '17*3'"
+            ),
+        },
+        required=["expr"],
+    ),
+)
 
 
-async def basic_example():
-    """
-    Basic example demonstrating core functionality with the new agent API.
-    Shows agent creation, streaming responses, and automatic context retention.
-    """
-    print("🚀 Starting AmritaCore Basic Example (New API)")
-    print("-" * 50)
+@on_tools(CALC_DEFINITION)
+async def calculate(data: dict[str, str]) -> str:
+    expr = data["expr"]
+    try:
+        return f"{expr} = {eval(expr)}"
+    except Exception as e:  # noqa: S307
+        return f"Error: {e!s}"
 
-    # Initialize AmritaCore before creating agent
+
+async def main() -> None:
     await minimal_init()
-    # Create an agent with minimal configuration
-    # All necessary defaults (system prompt, context handling) are built-in
     agent = create_agent(
-        base_url="https://api.example.com",           # Your API endpoint
-        api_key="your-api-key",                        # Your API key
-        model="gpt-3.5-turbo",                         # Model name
-        model_config={                                  # Optional model parameters
-            "temperature": 0.7,
-            "stream": True,                             # Enable streaming
-        }
+        base_url="https://api.openai.com/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        model="gpt-4o-mini",
     )
-    logger.info("✅ Agent created successfully.")
 
-    print("💬 Starting a sample conversation:")
-    print()
-
-    # Example 1: First interaction
-    user_input = "Hello! Can you tell me what AmritaCore is?"
-
-    print(f"👤 User: {user_input}")
-
-    # Get a chat object for this user input
-    chat = agent.get_chatobject(user_input)
-
-    print("🤖 Assistant: ", end="")
-
-    # Stream the response token by token
+    # 2. A session keeps memory across turns.
+    chat = agent.get_chatobject(
+        "What is 17*3? Use the calculate tool.",
+        session_id="demo-session",
+    )
     async with chat.begin():
-        async for message in chat.io_stream.get_response_generator():
-            # message can be a string or a Message object
-            content = message if isinstance(message, str) else message.get_content()
-            print(content, end="")
-        await chat  # Wait for the task to finish before exiting
+        async for msg in chat.io_stream.get_response_generator():
+            print(msg, end="", flush=True)
 
-    print("\n")  # New line after response
-
-    # Example 2: Follow-up question – context is automatically retained by the agent
-    follow_up = "Can you explain its main features?"
-
-    print(f"👤 User: {follow_up}")
-
-    # Simply create another chat object with the same agent
-    chat2 = agent.get_chatobject(follow_up)
-
-    print("🤖 Assistant: ", end="")
-
+    # 3. Same session → the agent remembers the previous turn.
+    chat2 = agent.get_chatobject(
+        "Double the number you just computed.",
+        session_id="demo-session",
+    )
     async with chat2.begin():
-        async for message in chat2.io_stream.get_response_generator():
-            content = message if isinstance(message, str) else message.get_content()
-            print(content, end="")
-        await chat2  # Wait for the task to finish before exiting
-
-    print("\n")  # New line after response
-
-    print("🎉 Basic example completed successfully!")
-    print("-" * 50)
-    print("💡 Key concepts demonstrated:")
-    print("   • Agent creation with create_agent()")
-    print("   • Obtaining chat objects via agent.get_chatobject()")
-    print("   • Streaming responses")
-    print("   • Automatic context retention across turns")
-    print("   • Built‑in default system prompt")
-
-
-async def minimal_example():
-    """
-    A minimal example showing the essential steps to run AmritaCore.
-    """
-    print("\n🧪 Minimal Example")
-    print("-" * 30)
-
-    # Initialize AmritaCore before creating agent
-    await minimal_init()
-    # Create an agent with just the required parameters
-    agent = create_agent(
-        base_url="https://api.example.com",
-        api_key="your-api-key",
-        model="gpt-4",
-        model_config={"temperature": 0.7}
-    )
-
-    # Get a chat object and get the full response (non‑streaming)
-    chat = agent.get_chatobject("Hello! What can you do?")
-
-    async with chat.begin():
-        response = await chat.full_response()
-        await chat  # Wait for the task to finish before exiting
-
-    print(f"💬 Response: {response}")
-    print("✅ Minimal example completed!")
+        async for msg in chat2.io_stream.get_response_generator():
+            print(msg, end="", flush=True)
 
 
 if __name__ == "__main__":
-    # Run examples with proper initialization
-    asyncio.run(basic_example())
-    asyncio.run(minimal_example())
-
-    print("\n✨ All examples completed!")
+    asyncio.run(main())
 ```
 
-## Configuration Details
+## Key Concepts Introduced
 
-The new API simplifies configuration:
+- **`@on_tools(schema)`**: registers a tool with a JSON Schema — the LLM sees the
+  schema, calls the function with validated arguments.
+- **`session_id`**: scopes memory. Two `ChatObject` instances with the same
+  `session_id` share history; different ids are isolated.
+- **Streaming**: `get_response_generator()` yields every chunk; the workflow
+  also emits structured `MessageWithMetadata` objects (step boundaries, tool
+  calls) — see [Streaming & Metadata](../tutorials/streaming.md).
 
-- **Agent creation**: `create_agent(base_url, api_key, model, model_config)` is the single entry point. It internally sets up default system prompts, context management, and model presets.
-- **Model configuration**: Pass any model parameters (e.g., `temperature`, `stream`) as a dictionary via `model_config`. The `stream` flag controls whether responses are streamed.
-- **Context handling**: The agent automatically retains conversation history. You do **not** need to manage `MemoryModel` or `train` messages manually – they are built in, unless you need to dump or deserialize memory.
-- **System prompt**: A sensible default system prompt is provided. If you need to customize it, `create_agent` accepts an optional `train` parameter.
+## Next
 
-## Common Issue Troubleshooting
-
-**Issue**: Connection errors to API endpoint  
-**Solution**: Verify that `base_url` and `api_key` are correct and that your network can reach the endpoint.
-
-**Issue**: High token usage in long conversations  
-**Solution**: The agent automatically applies memory abstraction (if enabled in your backend) to summarize old messages. You can also adjust the `max_tokens` parameter in `LLM_Config` to limit response length.
-
-**Issue**: Slow responses  
-**Solution**: Check network latency. For faster responses, consider using a smaller model or reducing `temperature` (which may make output more deterministic and slightly faster). Streaming (`stream=True`) also lets you start displaying text earlier.
-
-**Issue**: Context seems lost between turns  
-**Solution**: Ensure you are using the **same agent instance** for all turns in a conversation. Each `agent.get_chatobject()` call automatically uses the agent’s internal context.
+Follow the [Tutorials](../tutorials/index.md) — they build up systematically:
+first agent → tools → streaming → hooks → memory.

@@ -1,80 +1,71 @@
-# 为 Agent 添加工具
+# 2. 给 Agent 添加工具
 
-工具让你的智能体能够调用你定义的函数——查询数据库、计算数值、获取网页等等。在本教程中，你将使用 [`@simple_tool`](../api-reference/index.md#simple_tool) 和 [`@on_tools`](../api-reference/index.md#on_tools) 注册工具，然后让你的智能体使用它们。
+## 本章目标
 
-## 1. 使用 `@simple_tool` 创建简单工具
+让 agent 调用你写的函数。学完你能：
 
-[`@simple_tool`](../api-reference/index.md#simple_tool) 装饰器将函数注册为工具，并根据其类型注解和 Google 风格文档字符串自动推断 schema：
+- 用 `@simple_tool` 把 Python 函数暴露给模型
+- 用 `@on_tools` 精确控制调用契约
+
+## 概念速览（用到才讲）
+
+- **工具**：带 JSON Schema 的函数。模型**从不执行**你的函数——它只生成调用
+  请求；框架校验参数、运行函数、把结果喂回。
+
+## 1. 用 `@simple_tool` 定义简单工具
+
+最快的方式——类型与 docstring 自动转为 JSON Schema：
 
 ```python
 from amrita_core import simple_tool
 
-
 @simple_tool
 def add(a: int, b: int) -> int:
-    """两个数相加。
+    """Add two numbers
 
     Args:
-        a: 第一个数。
-        b: 第二个数。
+        a (int): First number
+        b (int): Second number
+
+    Returns:
+        int: Sum of a and b
     """
     return a + b
 ```
 
-支持的参数类型有 `str`、`int`、`float`、`bool`、`Literal[...]`、Pydantic 模型、单层 `list[T]` 和 `Optional[T]`。不支持的类型（如字典、嵌套容器、多类型联合）在注册时会引发 `ValueError`。
+`@simple_tool` 读取 Google 风格 docstring 构建 schema。支持的注解包括
+Pydantic 模型、`list[T]`、`Optional[T]` 与标量类型。
 
 ## 2. 在 Agent 中使用工具
 
-`@simple_tool` 注册到**全局容器**，因此你的智能体会自动获取它：
-
 ```python
 import asyncio
+import os
 
-from amrita_core import create_agent, minimal_init, simple_tool
-
-
-@simple_tool
-def add(a: int, b: int) -> int:
-    """两个数相加。
-
-    Args:
-        a: 第一个数。
-        b: 第二个数。
-    """
-    return a + b
-
+from amrita_core import create_agent, minimal_init
 
 async def main() -> None:
     await minimal_init()
-
     agent = create_agent(
         base_url="https://api.openai.com/v1",
-        api_key="sk-...",
+        api_key=os.environ["OPENAI_API_KEY"],
         model="gpt-4o-mini",
-        train="你是一个可以使用工具的有帮助的助手。",
     )
-
-    chat = agent.get_chatobject("1234 + 5678 等于多少？")
+    chat = agent.get_chatobject("What is 123 + 456? Use the add tool.")
     async with chat.begin():
-        async for message in chat.io_stream.get_response_generator():
-            print(message if isinstance(message, str) else message.get_content(), end="")
-        await chat  # 等待任务完成——退出会取消它
-    print("\n")
+        async for msg in chat.io_stream.get_response_generator():
+            print(msg, end="", flush=True)
 
-
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())
 ```
 
-默认的 [ReAct 策略](../concepts/agent-strategy.md) 将决定何时调用工具并将结果反馈回对话。
+agent **自行决定**何时调用 `add`；框架按 schema 校验参数并把结果回喂。
 
-## 3. 使用 `@on_tools` 获得完全控制
+## 3. 用 `@on_tools` 完全控制
 
-当你需要对工具 schema 进行精确控制（参数描述、必填字段）时，使用 [`@on_tools`](../api-reference/index.md#on_tools) 并搭配显式的 [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md)：
+需要精确控制 schema（校验约束、描述、枚举值）时手动定义：
 
 ```python
-from typing import Any
-
 from amrita_core import on_tools
 from amrita_core.tools.models import (
     FunctionDefinitionSchema,
@@ -82,35 +73,46 @@ from amrita_core.tools.models import (
     FunctionPropertySchema,
 )
 
-DEFINITION = FunctionDefinitionSchema(
-    name="add",
-    description="两个数相加",
+WEATHER_DEFINITION = FunctionDefinitionSchema(
+    name="get_weather",
+    description="Get the current weather for a city",
     parameters=FunctionParametersSchema(
         type="object",
         properties={
-            "a": FunctionPropertySchema(type="number", description="第一个数"),
-            "b": FunctionPropertySchema(type="number", description="第二个数"),
+            "city": FunctionPropertySchema(
+                type="string",
+                description="City name, e.g. 'Paris'",
+                minLength=1,
+            ),
+            "unit": FunctionPropertySchema(
+                type="string",
+                enum=["celsius", "fahrenheit"],
+                description="Temperature unit",
+            ),
         },
-        required=["a", "b"],
+        required=["city"],
     ),
 )
 
-
-@on_tools(DEFINITION)
-async def add(data: dict[str, Any]) -> str:
-    """两个数相加"""
-    return str(data["a"] + data["b"])
+@on_tools(WEATHER_DEFINITION)
+async def get_weather(data: dict[str, str]) -> str:
+    city = data["city"]
+    unit = data.get("unit", "celsius")
+    return f"Weather in {city}: 22°{unit[0].upper()}"
 ```
 
-请注意，使用 `@on_tools` 时，处理函数接收的是**参数字典**（`data`），而不是命名参数，并且必须返回一个字符串。
+handler 接收校验后的参数 `dict`，**必须返回字符串**（它成为模型看到的
+工具结果）。
 
-## 4. 刚刚发生了什么
+需要框架访问（流式、上下文）的工具请用 `custom_run` 模式——
+见[工具系统](../concepts/tool.md)。
 
-- `@simple_tool` 从你的签名和文档字符串推断出 schema，然后将工具注册到全局 [ToolsManager](../api-reference/classes/ToolsManager.md) 中
-- 智能体的[工具系统](../concepts/tool.md)将 schema 暴露给模型，在被调用时执行函数，并将结果作为 [ToolResult](../api-reference/classes/ToolResult.md) 返回
+## 刚才发生了什么
+
+- `@simple_tool`：schema 来自类型注解 + docstring，零样板
+- `@on_tools`：显式 JSON Schema 与校验约束
+- 两者都在模块加载时全局注册；结果流回模型
 
 ## 下一步
 
-- [流式响应与回调](streaming.md)
-- [使用事件拦截管道](event-hooks.md)
-- 在[核心概念：工具系统](../concepts/tool.md)中了解工具执行细节
+[3. 流式与回调](streaming.md)——读取流，包括结构化元数据。

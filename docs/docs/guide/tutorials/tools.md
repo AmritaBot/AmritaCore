@@ -1,80 +1,75 @@
-# Add Tools to Your Agent
+# 2. Add Tools to Your Agent
 
-Tools let your agent call functions you define — querying a database, calculating values, fetching web pages, and more. In this tutorial you will register tools with [`@simple_tool`](../api-reference/index.md#simple_tool) and [`@on_tools`](../api-reference/index.md#on_tools), then let your agent use them.
+## Goal of This Chapter
+
+Let your agent call functions you wrote. By the end you will be able to:
+
+- Expose a Python function to the model with `@simple_tool`
+- Control the call contract precisely with `@on_tools`
+
+## Concepts at a Glance (introduced only when needed)
+
+- **Tool**: a function with a JSON Schema. The model never _executes_ your
+  function — it only generates a call request; the framework validates the
+  arguments, runs the function, and feeds the result back.
 
 ## 1. A Simple Tool with `@simple_tool`
 
-The [`@simple_tool`](../api-reference/index.md#simple_tool) decorator registers a function as a tool with automatic schema inference from its type annotations and Google-style docstring:
+The fastest way to expose a function to the agent — types and docstring are
+turned into the JSON Schema automatically:
 
 ```python
 from amrita_core import simple_tool
 
-
 @simple_tool
 def add(a: int, b: int) -> int:
-    """Add two numbers.
+    """Add two numbers
 
     Args:
-        a: The first number.
-        b: The second number.
+        a (int): First number
+        b (int): Second number
+
+    Returns:
+        int: Sum of a and b
     """
     return a + b
 ```
 
-Supported parameter types are `str`, `int`, `float`, `bool`, `Literal[...]`, Pydantic models, single-level `list[T]`, and `Optional[T]`. Unsupported types (e.g. dicts, nested containers, multi-type unions) raise a `ValueError` at registration time.
+`@simple_tool` reads Google-style docstrings to build the schema. Supported
+annotations include Pydantic models, `list[T]`, `Optional[T]` and scalars.
 
 ## 2. Use the Tool in Your Agent
 
-`@simple_tool` registers into the **global container**, so your agent picks it up automatically:
-
 ```python
 import asyncio
+import os
 
-from amrita_core import create_agent, minimal_init, simple_tool
-
-
-@simple_tool
-def add(a: int, b: int) -> int:
-    """Add two numbers.
-
-    Args:
-        a: The first number.
-        b: The second number.
-    """
-    return a + b
-
+from amrita_core import create_agent, minimal_init
 
 async def main() -> None:
     await minimal_init()
-
     agent = create_agent(
         base_url="https://api.openai.com/v1",
-        api_key="sk-...",
+        api_key=os.environ["OPENAI_API_KEY"],
         model="gpt-4o-mini",
-        train="You are a helpful assistant with access to tools.",
     )
-
-    chat = agent.get_chatobject("What is 1234 + 5678?")
+    chat = agent.get_chatobject("What is 123 + 456? Use the add tool.")
     async with chat.begin():
-        async for message in chat.io_stream.get_response_generator():
-            print(message if isinstance(message, str) else message.get_content(), end="")
-        await chat  # Wait for the task to finish — exiting would cancel it
-    print("\n")
+        async for msg in chat.io_stream.get_response_generator():
+            print(msg, end="", flush=True)
 
-
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())
 ```
 
-The default [ReAct strategy](../concepts/agent-strategy.md) will decide when to call the tool and feed the result back into the conversation.
+The agent decides _when_ to call `add`; the framework validates the arguments
+against the schema and feeds the result back.
 
 ## 3. Full Control with `@on_tools`
 
-When you need precise control over the tool schema (parameter descriptions, required fields), use [`@on_tools`](../api-reference/index.md#on_tools) with an explicit [FunctionDefinitionSchema](../api-reference/classes/FunctionDefinitionSchema.md):
+When you need precise control over the schema (validation constraints,
+descriptions, enum values), define it manually:
 
 ```python
-from typing import Any
-
 from amrita_core import on_tools
 from amrita_core.tools.models import (
     FunctionDefinitionSchema,
@@ -82,35 +77,47 @@ from amrita_core.tools.models import (
     FunctionPropertySchema,
 )
 
-DEFINITION = FunctionDefinitionSchema(
-    name="add",
-    description="Add two numbers",
+WEATHER_DEFINITION = FunctionDefinitionSchema(
+    name="get_weather",
+    description="Get the current weather for a city",
     parameters=FunctionParametersSchema(
         type="object",
         properties={
-            "a": FunctionPropertySchema(type="number", description="The first number"),
-            "b": FunctionPropertySchema(type="number", description="The second number"),
+            "city": FunctionPropertySchema(
+                type="string",
+                description="City name, e.g. 'Paris'",
+                minLength=1,
+            ),
+            "unit": FunctionPropertySchema(
+                type="string",
+                enum=["celsius", "fahrenheit"],
+                description="Temperature unit",
+            ),
         },
-        required=["a", "b"],
+        required=["city"],
     ),
 )
 
-
-@on_tools(DEFINITION)
-async def add(data: dict[str, Any]) -> str:
-    """Add two numbers"""
-    return str(data["a"] + data["b"])
+@on_tools(WEATHER_DEFINITION)
+async def get_weather(data: dict[str, str]) -> str:
+    city = data["city"]
+    unit = data.get("unit", "celsius")
+    return f"Weather in {city}: 22°{unit[0].upper()}"
 ```
 
-Note that with `@on_tools` the handler receives the **arguments dict** (`data`), not named parameters, and must return a string.
+The handler receives the validated arguments as a `dict` and **must return a
+string** (it becomes the tool result the model sees).
 
-## 4. What Just Happened
+For tools that need framework access (streaming, context), use `custom_run`
+mode — see [Tool System](../concepts/tool.md).
 
-- `@simple_tool` inferred a schema from your signature and docstring, then registered the tool in the global [ToolsManager](../api-reference/classes/ToolsManager.md)
-- The agent's [tool system](../concepts/tool.md) exposed the schema to the model, executed the function when called, and returned the result as a [ToolResult](../api-reference/classes/ToolResult.md)
+## What Just Happened
 
-## Next Steps
+- `@simple_tool`: schema from type hints + docstring, zero boilerplate
+- `@on_tools`: explicit JSON Schema with validation constraints
+- Both register tools globally at module load; results flow back to the model
 
-- [Stream responses and use callbacks](streaming.md)
-- [Intercept the pipeline with events](event-hooks.md)
-- Learn about tool execution details in [Core Concepts: Tool System](../concepts/tool.md)
+## Next
+
+[3. Streaming and Callbacks](streaming.md) — read the stream, including
+structured metadata.

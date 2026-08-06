@@ -1,91 +1,87 @@
-# Create Your First Agent
+# 1. Create Your First Agent
 
-In this tutorial you will create a minimal chat agent using the [`create_agent()`](../api-reference/index.md#create_agent) factory function.
+## Goal of This Chapter
+
+Run a real conversation with an LLM. By the end you will be able to:
+
+- Initialize AmritaCore and create an agent
+- Understand what a `ChatObject` is and why it wraps the conversation
+- See the built-in step strategy at work (without configuring anything)
+
+## Concepts at a Glance (introduced only when needed)
+
+- **Agent**: a factory that binds your LLM endpoint. You ask it for
+  conversations (`get_chatobject`).
+- **`ChatObject`**: one dialogue. It owns the stream, the session state and the
+  workflow that runs the conversation.
+- **Strategy**: the "driver" that decides how the agent acts (call tools, stop,
+  answer). AmritaCore ships a step-driven ReAct strategy as the default.
 
 ## 1. Initialize AmritaCore
 
-Before creating an agent, initialize the framework. [`minimal_init()`](../api-reference/index.md#minimal_init) applies the global configuration and, if MCP is enabled, loads the MCP clients. Tokenizers and adapters are already registered automatically when you `import amrita_core`:
+Every process needs the config initialized once:
 
 ```python
 import asyncio
+import os
 
-from amrita_core import minimal_init
+from amrita_core import create_agent, minimal_init
 
 
 async def main() -> None:
     await minimal_init()
-```
-
-## 2. Create the Agent
-
-Call `create_agent()` with your LLM endpoint and API key. The factory automatically creates a temporary [ModelPreset](../api-reference/classes/ModelPreset.md) for you — no preset management needed:
-
-```python
-from amrita_core import create_agent
-
-agent = create_agent(
-    base_url="https://api.openai.com/v1",  # Your LLM API endpoint
-    api_key="sk-...",                       # Your API key
-    model="gpt-4o-mini",                    # Model identifier (default: "auto")
-    train="You are a helpful assistant.",   # Optional system prompt
-)
-```
-
-You can also pass model tuning parameters via `model_config` (as a dict or [ModelConfig](../api-reference/classes/ModelConfig.md) object):
-
-```python
-agent = create_agent(
-    base_url="https://api.openai.com/v1",
-    api_key="sk-...",
-    model="gpt-4o-mini",
-    model_config={
-        "temperature": 0.7,
-        "max_tokens": 1024,
-    },
-)
-```
-
-## 3. Send a Message
-
-`create_agent()` returns an [AgentRuntime](../api-reference/classes/AgentRuntime.md). Call `agent.get_chatobject(user_input)` to create a [ChatObject](../api-reference/classes/ChatObject.md) bound to the agent's configuration, then run it with `async with chat.begin()`:
-
-```python
-async def main() -> None:
-    await minimal_init()
-
     agent = create_agent(
         base_url="https://api.openai.com/v1",
-        api_key="sk-...",
+        api_key=os.environ["OPENAI_API_KEY"],
         model="gpt-4o-mini",
-        train="You are a helpful assistant.",
     )
+```
 
-    chat = agent.get_chatobject("Hello! What can you do?")
+`create_agent()` returns an `Agent` object — the factory for conversations.
+
+## 2. ChatObject — the Unit of Dialogue
+
+A conversation is a `ChatObject`. It owns the workflow, the stream, and the
+session state:
+
+```python
+    chat = agent.get_chatobject("What is the capital of France?")
     async with chat.begin():
-        async for message in chat.io_stream.get_response_generator():
-            print(message if isinstance(message, str) else message.get_content(), end="")
-        await chat  # Wait for the task to finish — exiting would cancel it
-    print("\n")
+        async for msg in chat.io_stream.get_response_generator():
+            print(msg, end="", flush=True)
 ```
 
-> ⚠️ **Important**: exiting the `async with` block terminates the internal task instead of waiting for it. Always `await chat` inside the block to let the response complete.
+- `get_chatobject(text)` creates one conversation
+- `chat.begin()` runs the workflow (streaming is built-in)
+- `chat.io_stream.get_response_generator()` yields response chunks
 
-## 4. Run It
+## 3. The Built-in ReAct Strategy
 
-```bash
-python your_script.py
+By default, `ChatObject` runs the **step-driven ReAct strategy**: the agent may
+call tools, and the framework drives it through a Step loop (decompose → execute
+→ summarize). You don't need to do anything — a plain question produces a plain
+answer; a multi-step task gets decomposed automatically.
+
+You can watch the steps as structured metadata:
+
+```python
+    async with chat.begin():
+        async for msg in chat.io_stream.get_response_generator():
+            if isinstance(msg, str):
+                print(msg, end="", flush=True)
+            else:
+                print(f"\n[meta:{msg.metadata}] {msg.content}", flush=True)
 ```
 
-You should see the model's streaming reply printed in your terminal.
+You will see `step` events (`intro` / `leave` / `decompose`) interleaved with
+the text — see [Streaming and Callbacks](streaming.md) for the full list.
 
 ## What Just Happened
 
-- `create_agent()` built a temporary `ModelPreset` from `base_url` / `api_key` / `model` and an [AgentRuntime](../api-reference/classes/AgentRuntime.md) around it
-- `get_chatobject()` created a `ChatObject` wired to that preset, the agent's system prompt (`train`), and a fresh `session_id`
-- `chat.begin()` executed the [ReAct agent strategy](../concepts/agent-strategy.md) (the default) and streamed the response through `io_stream`
+- `minimal_init()` + `create_agent()` → ready to talk
+- `ChatObject` = one dialogue: workflow + stream + session
+- The built-in strategy is already active — no configuration needed
 
-## Next Steps
+## Next
 
-- [Add tools to your agent](tools.md) so it can call functions
-- [Stream responses and use callbacks](streaming.md)
-- Understand what happened under the hood in [Core Concepts](../concepts/index.md)
+[2. Add Tools to Your Agent](tools.md) — give your agent something to do.

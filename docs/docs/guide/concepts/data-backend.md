@@ -1,183 +1,166 @@
-# Data Backend
+# Data Backend — Persisting Abilities and Memory
 
-The **data backend** mechanism decouples memory and ability management from `ChatObject`, enabling pluggable storage backends (in-memory global containers, databases, distributed caches, etc.) without changing the core execution logic.
+## What a Backend Is
 
-## BackendSlots
+AmritaCore itself does **not** store anything. It defines two interfaces and
+hands them the `session_id`; **your backend implementation** decides where data
+lives — in-process, a database, Redis, files, ...
 
-[`BackendSlots`](../api-reference/classes/BackendSlots.md) is a simple dataclass that holds two backend references:
-
-```python
-from amrita_core.base.backend import BackendSlots
-
-@dataclass
-class BackendSlots:
-    ability: AbilityBackend
-    memory: MemoryBackend
+```mermaid
+flowchart LR
+    CO["ChatObject"] -->|session_id| BS["BackendSlots"]
+    BS --> AB["ability: AbilityBackend<br/>tools, presets, MCP clients"]
+    BS --> MB["memory: MemoryBackend<br/>conversation history"]
 ```
 
-`ChatObject` receives a `BackendSlots` instance and delegates all data I/O to it via the workflow nodes `LOAD_STATE` and `COMMIT_MEMORY` (from the `amrita_core.components.process` package).
-
-## AbilityBackend (Abstract)
-
-[`AbilityBackend`](../api-reference/classes/AbilityBackend.md) defines the interface for loading session abilities:
+## The Interfaces
 
 ```python
-from amrita_core.base.backend import AbilityBackend
+from amrita_core.base.backend import AbilityBackend, MemoryBackend
 
-class AbilityBackend:
-    @abstractmethod
+class AbilityBackend:            # abstract
     async def load_ability_all(self, session_id: str) -> AbilityContext: ...
-
-    @abstractmethod
     async def load_mcp_clients(self, session_id: str) -> MultiClientManager: ...
-
-    @abstractmethod
     async def load_tools(self, session_id: str) -> MultiToolsManager: ...
-
-    @abstractmethod
     async def load_presets(self, session_id: str) -> MultiPresetManager: ...
-```
 
-- `load_ability_all()`: returns a fully populated `AbilityContext`
-- `load_mcp_clients()` / `load_tools()` / `load_presets()`: granular loading, used when `DatabackendOptions` skip flags are set
-
-## MemoryBackend (Abstract)
-
-[`MemoryBackend`](../api-reference/classes/MemoryBackend.md) defines the interface for loading and persisting conversation memory:
-
-```python
-from amrita_core.base.backend import MemoryBackend
-
-class MemoryBackend:
-    @abstractmethod
+class MemoryBackend:             # abstract
     async def load_memory(self, session_id: str) -> MemoryModel: ...
-
-    @abstractmethod
     async def commit_memory(self, session_id: str, memory: MemoryModel) -> None: ...
 ```
 
-- `load_memory()`: called at the start of each `ChatObject` execution
-- `commit_memory()`: called after completion to persist changes
+> `AbilityContext` bundles tools / presets / MCP clients; `MemoryModel` holds
+> `messages: list[Message | ToolResult]` (see [Memory Model](data-memory.md)).
 
-## LegacyBackend — Built-in Global Container
+## The Built-in `LegacyBackend`
 
-[`LegacyBackend`](../api-reference/classes/LegacyBackend.md) implements both `AbilityBackend` and `MemoryBackend` using in-process global containers. It is the **default** backend when none is provided:
+The default implementation keeps everything **in-process**:
+
+- Ability lives in a **global** container (`glb`) — the same tools and presets
+  for every session
+- Memory lives in a per-session `StateContext` — history survives only as long
+  as the process, and only for ids this process has seen
 
 ```python
 from amrita_core.builtins.backends import LegacyBackend
 
-# LegacyBackend uses a class-level global AbilityContext
-LegacyBackend.glb  # ClassVar[AbilityContext] — shared across all sessions
+backend = LegacyBackend()          # per-session in-process memory
 ```
 
-**Key behaviors**:
+> **Consequence**: two `ChatObject`s with the same `session_id` "share" history
+> _only_ because `LegacyBackend` stores by id. A different backend decides
+> differently — sharing is a backend property, not a framework feature.
 
-| Method               | Behavior                                                          |
-| -------------------- | ----------------------------------------------------------------- |
-| `load_ability_all()` | Returns the class-level `glb` (global singleton)                  |
-| `load_memory()`      | Creates/returns a per-session `StateContext` stored in `self.ctx` |
-| `commit_memory()`    | Writes `memory` into `self.ctx.memory` (in-process store)         |
+## Writing Your Own Backend
 
-```python
-from amrita_core.base.backend import BackendSlots
-from amrita_core.builtins.backends import LegacyBackend
-
-# Both slots share the same LegacyBackend instance
-backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
-```
-
-> **Note**: `LegacyBackend` stores data **in memory only**. Restart the process and all data is lost. For persistence, implement a custom backend.
-
-## DatabackendOptions — Fine-Grained Control
-
-[`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md) controls which backend operations are skipped during a `ChatObject` run:
-
-> **v0.12.0 migration**: `DatabackendOptions` has been moved to `amrita_core.contexts`.
-
-```python
-from amrita_core.contexts import DatabackendOptions
-
-options = DatabackendOptions(
-    skip_memory_fetch=False,        # Skip loading memory?
-    skip_tools_fetch=False,         # Skip loading tools?
-    skip_mcp_fetch=False,           # Skip loading MCP clients?
-    skip_presets_fetch=False,       # Skip loading presets?
-    skip_ability_extra_setting=False, # Skip the whole ability block?
-    skip_memory_commit=False,       # Skip committing memory after completion?
-)
-```
-
-Pass options to `ChatObject` via the `backend_options` parameter, or to `AgentRuntime.get_chatobject()` via `**kwargs`.
-
-## Custom Backend Example
-
-Implement a custom backend that persists memory to a JSON file:
+Implement one or both interfaces and wrap them in `BackendSlots`:
 
 ```python
 import json
 from pathlib import Path
-from amrita_core.base.backend import MemoryBackend
-from amrita_core.types import MemoryModel
 
-class JSONFileBackend(MemoryBackend):
-    """Persist each session's memory as a JSON file."""
+from amrita_core.base.backend import BackendSlots, AbilityBackend, MemoryBackend
+from amrita_core.contexts import AbilityContext
+from amrita_core.types.memory import MemoryModel
 
-    def __init__(self, base_dir: str = "./session_data"):
-        self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+class FileMemoryBackend(MemoryBackend):
+    """Store conversation history as JSON files, one per session."""
+
+    def __init__(self, directory: Path):
+        self.directory = directory
+        directory.mkdir(parents=True, exist_ok=True)
 
     def _path(self, session_id: str) -> Path:
-        return self.base_dir / f"{session_id}.json"
+        # session_id is user-controlled — sanitize it before touching the FS
+        safe = "".join(c for c in session_id if c.isalnum() or c in "-_")
+        return self.directory / f"{safe}.json"
 
     async def load_memory(self, session_id: str) -> MemoryModel:
         path = self._path(session_id)
-        if path.exists():
-            return MemoryModel.model_validate(json.loads(path.read_text()))
-        return MemoryModel()
+        if not path.exists():
+            return MemoryModel()
+        with path.open() as f:
+            return MemoryModel.model_validate(json.load(f))
 
     async def commit_memory(self, session_id: str, memory: MemoryModel) -> None:
-        self._path(session_id).write_text(
-            json.dumps(memory.model_dump(), ensure_ascii=False)
-        )
-```
+        with self._path(session_id).open("w") as f:
+            json.dump(memory.model_dump(), f)
 
-Use it with `AgentRuntime`:
 
-```python
-from amrita_core.agent.functions import AgentRuntime
-from amrita_core.base.backend import BackendSlots
-from amrita_core.builtins.backends import LegacyBackend
+class StaticAbilityBackend(AbilityBackend):
+    """Return the same global ability for every session (like LegacyBackend)."""
 
-runtime = AgentRuntime(
-    config=...,
-    preset=...,
-    train=...,
-    backend=BackendSlots(
-        ability=LegacyBackend(),       # Keep global abilities
-        memory=JSONFileBackend(),       # Custom persistence for memory
-    ),
+    def __init__(self, ability: AbilityContext):
+        self.ability = ability
+
+    async def load_ability_all(self, session_id: str) -> AbilityContext:
+        return self.ability
+
+    async def load_mcp_clients(self, session_id):
+        return self.ability.mcp
+
+    async def load_tools(self, session_id):
+        return self.ability.tools
+
+    async def load_presets(self, session_id):
+        return self.ability.presets
+
+
+my_backend = BackendSlots(
+    ability=StaticAbilityBackend(AbilityContext()),
+    memory=FileMemoryBackend(Path("./sessions")),
 )
 ```
 
-## Data Flow Summary
+## Attaching a Backend
 
-```mermaid
-sequenceDiagram
-    participant AR as AgentRuntime
-    participant CO as ChatObject
-    participant BS as BackendSlots
-    participant AB as AbilityBackend
-    participant MB as MemoryBackend
+```python
+# Direct ChatObject construction
+chat = ChatObject(
+    train=...,
+    user_input=...,
+    session_id="abc123",
+    backend=my_backend,
+)
 
-    AR->>CO: get_chatobject(user_input)
-    CO->>CO: LOAD_STATE node (load state)
-    CO->>BS: slot.ability.load_ability_all(session_id)
-    BS->>AB: load_ability_all()
-    AB-->>CO: AbilityContext
-    CO->>BS: slot.memory.load_memory(session_id)
-    BS->>MB: load_memory()
-    MB-->>CO: MemoryModel
-    Note over CO: ... workflow executes ...
-    CO->>BS: slot.memory.commit_memory(session_id, memory)
-    BS->>MB: commit_memory()
+# Through an Agent factory (it forwards to ChatObject)
+chat = agent.get_chatobject(
+    "Hello!",
+    session_id="abc123",
+    backend=my_backend,
+)
 ```
+
+From then on, every conversation loads its history from `load_memory` at start
+and saves it via `commit_memory` at the end — your files now survive restarts.
+
+## Fine-Grained Control: `DatabackendOptions`
+
+`backend_options=DatabackendOptions(...)` skips parts of the load/commit cycle:
+
+| Flag                         | Skips                                             |
+| ---------------------------- | ------------------------------------------------- |
+| `skip_memory_fetch`          | `load_memory` — start with an empty `MemoryModel` |
+| `skip_tools_fetch`           | `load_tools`                                      |
+| `skip_mcp_fetch`             | `load_mcp_clients`                                |
+| `skip_presets_fetch`         | `load_presets`                                    |
+| `skip_ability_extra_setting` | the whole `load_ability_all`                      |
+| `skip_memory_commit`         | `commit_memory` at the end                        |
+
+```python
+from amrita_core.contexts import DatabackendOptions
+
+chat = ChatObject(
+    train=...,
+    user_input=...,
+    session_id="abc123",
+    backend=my_backend,
+    backend_options=DatabackendOptions(skip_memory_commit=True),  # read-only
+)
+```
+
+## Next
+
+[Memory Model](data-memory.md) — what `MemoryModel` carries and how the
+load/commit lifecycle works.

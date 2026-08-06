@@ -86,3 +86,11 @@ agent = create_agent(
 - `**kwargs`：转发给 [AgentRuntime](classes/AgentRuntime.md) 的额外参数
 
 **返回**：[AgentRuntime](classes/AgentRuntime.md) - 配置好的 agent 运行时实例
+
+## Step 循环类型（内置 ReAct）
+
+- [AgentRunState](classes/AgentRunState.md)：语义级 step 运行状态（计划、停滞窗口、token）
+- [DAGNode](classes/DAGNode.md)：任务计划的子步骤
+- [StepEvents](classes/StepEvents.md)：可变 step 生命周期事件（`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`）与 `StepAbortError`
+
+完整机制见[进阶 → Step 循环](../advanced/step-loop.md)。
