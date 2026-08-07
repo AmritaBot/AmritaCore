@@ -55,7 +55,7 @@ async def calculate(data: dict[str, str]) -> str:
     expr = data["expr"]
     try:
         return f"{expr} = {eval(expr)}"
-    except Exception as e:  # noqa: S307
+    except Exception as e:
         return f"Error: {e!s}"
 
 
