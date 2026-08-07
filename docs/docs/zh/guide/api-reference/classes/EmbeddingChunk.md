@@ -27,11 +27,10 @@ class EmbeddingChunk(BaseModel):
 ```python
 from amrita_core.types import EmbeddingChunk
 
-chunk = EmbeddingChunk(
-    embedding=[0.1, -0.5, 0.8, 0.3],
-    index=0
-)
+chunk = EmbeddingChunk(embedding=[0.1, -0.5, 0.8, 0.3], index=0)
 
 texts = ["你好", "世界"]
-embeddings: list[EmbeddingChunk] = await call_completion(preset=embedding_preset, messages=texts)
+embeddings: list[EmbeddingChunk] = await call_completion(
+    preset=embedding_preset, messages=texts
+)
 ```

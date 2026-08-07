@@ -1,28 +1,39 @@
 # Core Concepts
 
-This section explains the fundamental ideas behind AmritaCore: what each component is, why it exists, and how the pieces fit together. If you are looking for step-by-step instructions, start with the [Tutorials](../tutorials/index.md) instead.
+This section explains how AmritaCore works _under the hood_ — the components,
+their responsibilities, and how they fit together. It assumes you have finished
+the [Tutorials](../tutorials/index.md).
 
-## Key Concepts
+## Mental Model
 
-| Concept                                             | What it covers                                                                                                     |
-| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| [Configuration System](configuration.md)            | `AmritaConfig`, `FunctionConfig`, `LLMConfig`, `CookieConfig`, `BuiltinAgentConfig` — how AmritaCore is configured |
-| [ChatObject — Conversation Objects](chat-object.md) | The core conversation class, presets, streaming, callbacks, and memory summarization                               |
-| [Event System](event.md)                            | Hooks into the processing pipeline: pre-completion, completion, and fallback events                                |
-| [Tool System](tool.md)                              | How tools are defined, registered, and invoked by the agent                                                        |
-| [Agent Strategy](agent-strategy.md)                 | Strategy pattern for agent behavior: ReAct, Hybrid ReAct, NoAction                                                 |
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ChatObject — the unit of a dialogue (lifecycle manager)     │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Workflow (AmritaSense instruction sequence)            │ │
+│  │  LOAD_STATE → render → strategy loop → completion        │ │
+│  │  ┌───────────────────────────────────────────────────┐  │ │
+│  │  │  Strategy (step-driven ReAct by default)          │  │ │
+│  │  │  decompose → Step loop → summarize                 │  │ │
+│  │  └───────────────────────────────────────────────────┘  │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│  SuspendObjectStream (bidirectional)  ·  Events (matchers)   │
+└─────────────────────────────────────────────────────────────┘
+```
 
-## Data Management
+## Concepts
 
-The data layer separates **what data looks like** from **how data is stored**:
-
-- [Data Management](data-management.md) — Overview of the data architecture
-- [Data Containers](data-containers.md) — `Message`, `MemoryModel`, `StateContext`, tool registries, and MCP client managers
-- [Data Backend](data-backend.md) — `AbilityBackend` / `MemoryBackend` interfaces and `LegacyBackend`
-- [Data Misc](data-misc.md) — `ModelConfig`, `ModelPreset`, `UniResponse`, `SendMessageWrap`, and embedding chunks
+| Concept                             | What it covers                                                                          |
+| ----------------------------------- | --------------------------------------------------------------------------------------- |
+| [ChatObject](chat-object.md)        | The lifecycle manager: workflow, DI contexts, stream                                    |
+| [Configuration](configuration.md)   | `AmritaConfig`, `FunctionConfig`, `LLMConfig`, presets                                  |
+| [Event System](event.md)            | Pipeline events + the matcher hook system                                               |
+| [Tool System](tool.md)              | Tool registration, validation, execution                                                |
+| [Agent Strategy](agent-strategy.md) | Strategy pattern; the step-driven ReAct loop                                            |
+| [Data Management](data.md)          | Messages, DI contexts, [backend](data-backend.md) + [memory](data-memory.md) deep-dives |
 
 ## Where to Go Next
 
-- Want to build your first agent? → [Tutorials](../tutorials/index.md)
-- Need to implement a specific feature? → [How-to Guides](../how-to/function-implementation.md)
-- Dive deeper into internals? → [Advanced](../advanced/index.md)
+- Extend it → [Extensions & Integration](../extensions-integration/index.md)
+- Tune it → [Agent Engineering](../agent-engineering/index.md)
+- Go deeper → [Advanced](../advanced/index.md)

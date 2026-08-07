@@ -1,97 +1,101 @@
-# Streaming and Callbacks
+# 3. Streaming and Callbacks
 
-AmritaCore streams all responses by default. In this tutorial you will consume the stream directly and switch to a callback-based style.
+## Goal of This Chapter
+
+See your agent's output as it is produced — and read the structured events
+hiding inside the stream. By the end you will be able to:
+
+- Consume the stream with an async generator (pull) or a callback (push)
+- Tell plain text chunks from `MessageWithMetadata` events
+- Push messages _back_ to the agent through the reverse channel
+
+## Concepts at a Glance (introduced only when needed)
+
+- **`SuspendObjectStream`**: the bidirectional channel every `ChatObject` owns.
+  The workflow writes into it; your code reads from it.
+- **`MessageWithMetadata`**: a structured event (step boundary, tool call,
+  reasoning chunk) that travels alongside plain text.
 
 ## 1. Stream the Response
 
-Every [ChatObject](../api-reference/classes/ChatObject.md) exposes `io_stream`, whose `get_response_generator()` yields response chunks as they arrive:
+Every `ChatObject` exposes `chat.io_stream` — a `SuspendObjectStream`. In
+AmritaSense terms, the workflow is the _producer_ and your code is the
+_consumer_; you read the response with an async generator:
 
 ```python
-import asyncio
-
-from amrita_core import create_agent, minimal_init
-
-
-async def main() -> None:
-    await minimal_init()
-
-    agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="sk-...",
-        model="gpt-4o-mini",
-        train="You are a helpful assistant.",
-    )
-
-    chat = agent.get_chatobject("Write a haiku about the sea.")
-    async with chat.begin():
-        async for message in chat.io_stream.get_response_generator():
-            print(message if isinstance(message, str) else message.get_content(), end="")
-        await chat  # Wait for the task to finish — exiting would cancel it
-    print("\n")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+async with chat.begin():
+    async for msg in chat.io_stream.get_response_generator():
+        print(msg, end="", flush=True)
 ```
 
-Each yielded item is either a plain `str` chunk or a typed content object — `message.get_content()` returns its text. Exiting the `async with` block cancels the internal task, so always `await chat` inside the block.
+## 2. Two Kinds of Items
 
-## 2. Callback-Based Consumption
+The stream carries **two** item types:
 
-If you prefer, register a callback that is invoked for every chunk. Use `set_callback_func()` on the stream, then `begin()` runs the conversation and drives the callback:
+| Item                  | Meaning                                                          |
+| --------------------- | ---------------------------------------------------------------- |
+| `str`                 | A plain text chunk (token-by-token)                              |
+| `MessageWithMetadata` | Structured events: step boundaries, tool calls, reasoning chunks |
 
 ```python
-async def response_callback(chunk) -> None:
-    print(chunk if isinstance(chunk, str) else chunk.get_content(), end="")
-
-
-async def main() -> None:
-    await minimal_init()
-
-    agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="sk-...",
-        model="gpt-4o-mini",
-        train="You are a helpful assistant.",
-    )
-
-    chat = agent.get_chatobject("Tell me a fun fact about space.")
-    chat.io_stream.set_callback_func(response_callback)
-    chat.begin()
-    await chat  # begin() only starts the task; await it to completion
-    print("\n")
+async with chat.begin():
+    async for msg in chat.io_stream.get_response_generator():
+        if isinstance(msg, str):
+            print(msg, end="", flush=True)
+        else:
+            content = getattr(msg, "content", None)
+            meta = getattr(msg, "metadata", None)
+            if content:
+                print(f"\n[{meta}] {content}", flush=True)
 ```
 
-## 3. Full Response with `full_response()`
+### Common metadata types
 
-To collect the complete response at once (no streaming), use `full_response()` after `begin()`:
+| `type`            | `extra_type`         | Emitted when                                                 |
+| ----------------- | -------------------- | ------------------------------------------------------------ |
+| `step`            | `decompose`          | The strategy decides simple vs DAG plan                      |
+| `step`            | `intro` / `leave`    | A Step starts / ends (with summary)                          |
+| `step`            | `stall` / `compress` | Stall detected / history compressed                          |
+| `function_call`   | —                    | A tool starts (`is_done=False`) or finishes (`is_done=True`) |
+| `reasoning_chunk` | `cot_chunk`          | Thinking-mode reasoning streamed                             |
+
+## 3. Callback-Based Consumption
+
+Prefer push over pull? Register a callback instead of reading the generator:
 
 ```python
-async def main() -> None:
-    await minimal_init()
+from amrita_core import SuspendObjectStream
 
-    agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="sk-...",
-        model="gpt-4o-mini",
-    )
-
-    chat = agent.get_chatobject("What is the capital of France?")
-    chat.begin()
-    response = await chat.full_response()
-    print(response)
+stream = SuspendObjectStream(callback=on_chunk)
 ```
 
-`full_response()` is a one-time consumer — use it **instead of** `get_response_generator()`, never both.
+> Only one consumption mode is allowed per stream — generator _or_ callback.
+
+## 4. The Reverse Channel (Peer → Agent)
+
+`SuspendObjectStream` is **bidirectional**. The consumer can push messages back
+to the producer with `send_to_producer()`; the agent drains them at the next
+Step boundary and appends them to the conversation context:
+
+```python
+await chat.io_stream.send_to_producer(
+    "IMPORTANT: end your final answer with the exact line: [peer-acked]"
+)
+```
+
+- Messages pushed **before a Step starts** are consumed at that boundary.
+- Messages pushed **while the agent is working** are picked up at the next Step.
+- Messages pushed **after the run finishes** are dropped (channel closed).
+
+This is the foundation for human-in-the-loop, tool feedback and streaming
+inputs. See [Suspend/Resume](../advanced/suspend.md) for the full picture.
 
 ## What Just Happened
 
-- `io_stream.get_response_generator()` is an async generator that emits chunks in real time
-- `set_callback_func()` switches to push-style consumption — the callback fires per chunk while `begin()` runs
-- `full_response()` gives you the assembled final response after execution
+- The stream is pull-based (`get_response_generator`) or push-based (callback)
+- Structured metadata travels alongside plain text
+- The reverse channel lets you inject context at Step boundaries
 
-## Next Steps
+## Next
 
-- [Intercept the pipeline with events](event-hooks.md)
-- [Manage memory and sessions](memory.md)
-- Deep dive: [SuspendObjectStream](https://sense.amritabot.com) in the `amrita-sense` package
+[4. Events and Hooks](event-hooks.md) — intercept the pipeline programmatically.

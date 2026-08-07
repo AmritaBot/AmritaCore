@@ -91,32 +91,19 @@ export default withMermaid({
           { text: "Start", link: "/guide/introduction" },
         ],
         logo: "/Amrita.png",
-
         sidebar: [
-          {
-            text: "Introduction",
-            collapsed: false,
-            items: [
-              { text: "Overview", link: "/guide/introduction/" },
-              { text: "Key Features", link: "/guide/introduction/features" },
-            ],
-          },
           {
             text: "Getting Started",
             collapsed: false,
             items: [
               { text: "Index", link: "/guide/getting-started/" },
               {
-                text: "Minimal Example",
-                link: "/guide/getting-started/minimal-example",
-              },
-              {
                 text: "Basic Example",
                 link: "/guide/getting-started/basic-example",
               },
               {
-                text: "Architecture Understanding",
-                link: "/guide/getting-started/architecture",
+                text: "Minimal Example",
+                link: "/guide/getting-started/minimal-example",
               },
             ],
           },
@@ -129,16 +116,22 @@ export default withMermaid({
                 text: "Create Your First Agent",
                 link: "/guide/tutorials/chat-object",
               },
-              { text: "Add Tools", link: "/guide/tutorials/tools" },
+              {
+                text: "Events and Hooks",
+                link: "/guide/tutorials/event-hooks",
+              },
+              {
+                text: "Memory and Sessions",
+                link: "/guide/tutorials/memory",
+              },
               {
                 text: "Streaming and Callbacks",
                 link: "/guide/tutorials/streaming",
               },
               {
-                text: "Events and Hooks",
-                link: "/guide/tutorials/event-hooks",
+                text: "Add Tools to Your Agent",
+                link: "/guide/tutorials/tools",
               },
-              { text: "Memory and Sessions", link: "/guide/tutorials/memory" },
             ],
           },
           {
@@ -147,67 +140,67 @@ export default withMermaid({
             items: [
               { text: "Index", link: "/guide/concepts/" },
               {
-                text: "Configuration System",
-                link: "/guide/concepts/configuration",
-              },
-              {
-                text: "ChatObject — Conversation Objects",
-                link: "/guide/concepts/chat-object",
-              },
-              { text: "Event System", link: "/guide/concepts/event" },
-              { text: "Tool System", link: "/guide/concepts/tool" },
-              {
                 text: "Agent Strategy",
                 link: "/guide/concepts/agent-strategy",
               },
-            ],
-          },
-          {
-            text: "Data Management",
-            collapsed: false,
-            items: [
               {
-                text: "Data Management",
-                link: "/guide/concepts/data-management",
+                text: "ChatObject — Lifecycle Manager",
+                link: "/guide/concepts/chat-object",
               },
               {
-                text: "Data Containers",
-                link: "/guide/concepts/data-containers",
+                text: "Configuration",
+                link: "/guide/concepts/configuration",
               },
+              { text: "Data Management", link: "/guide/concepts/data" },
               { text: "Data Backend", link: "/guide/concepts/data-backend" },
-              { text: "Data Misc", link: "/guide/concepts/data-misc" },
-            ],
-          },
-          {
-            text: "Implementation Guide",
-            collapsed: false,
-            items: [
-              {
-                text: "Function Implementation",
-                link: "/guide/how-to/function-implementation",
-              },
-              {
-                text: "Prompt Engineering",
-                link: "/guide/how-to/prompt-engineering",
-              },
+              { text: "Memory Model", link: "/guide/concepts/data-memory" },
+              { text: "Event System", link: "/guide/concepts/event" },
+              { text: "Tool System", link: "/guide/concepts/tool" },
             ],
           },
           {
             text: "Extensions & Integration",
             collapsed: false,
             items: [
-              { text: "Overview", link: "/guide/extensions-integration" },
+              { text: "Index", link: "/guide/extensions-integration/" },
+              {
+                text: "Model Adapters",
+                link: "/guide/extensions-integration/adapters",
+              },
+              {
+                text: "MCP Servers",
+                link: "/guide/extensions-integration/mcp-server",
+              },
+              {
+                text: "Custom Tokenizers",
+                link: "/guide/extensions-integration/tokenizer",
+              },
+              {
+                text: "Custom Tools",
+                link: "/guide/extensions-integration/tools",
+              },
+            ],
+          },
+          {
+            text: "Agent Engineering",
+            collapsed: false,
+            items: [
+              { text: "Index", link: "/guide/agent-engineering/" },
               {
                 text: "Jinja2 Templates",
-                link: "/guide/extensions-integration/jinja2-templates",
+                link: "/guide/agent-engineering/jinja2-templates",
               },
               {
-                text: "MCP Server Integration",
-                link: "/guide/extensions-integration/mcp-server-integration",
+                text: "Prompt Engineering",
+                link: "/guide/agent-engineering/prompt-engineering",
               },
               {
-                text: "AmritaSense Integration",
-                link: "/guide/extensions-integration/amrita-sense",
+                text: "Custom Strategy",
+                link: "/guide/agent-engineering/custom-strategy",
+              },
+              {
+                text: "Troubleshooting",
+                link: "/guide/agent-engineering/troubleshooting",
               },
             ],
           },
@@ -217,22 +210,31 @@ export default withMermaid({
             items: [
               { text: "Index", link: "/guide/advanced/" },
               {
-                text: "Suspend Mechanism",
+                text: "AmritaSense Overview",
+                link: "/guide/advanced/amrita-sense-overview",
+              },
+              {
+                text: "The Step Loop",
+                link: "/guide/advanced/step-loop",
+              },
+              {
+                text: "Suspend & Resume",
                 link: "/guide/advanced/suspend",
+              },
+              {
+                text: "Workflow Debugging",
+                link: "/guide/advanced/workflow-debugging",
               },
               {
                 text: "Workflow Engine",
                 link: "/guide/advanced/workflow-engine",
               },
-              {
-                text: "Workflow-Level Debugging",
-                link: "/guide/advanced/workflow-debugging",
-              },
-              {
-                text: "Dependency Intro",
-                link: "/guide/advanced/dependency-intro",
-              },
             ],
+          },
+          {
+            text: "Built-in Capabilities",
+            collapsed: false,
+            items: [{ text: "Built-in Capabilities", link: "/guide/builtins" }],
           },
           {
             text: "Security Mechanisms",
@@ -245,25 +247,41 @@ export default withMermaid({
             ],
           },
           {
+            text: "Appendix & Design Philosophy",
+            collapsed: false,
+            items: [
+              {
+                text: "Appendix & Design Philosophy",
+                link: "/guide/appendix",
+              },
+            ],
+          },
+          {
+            text: "Project Introduction",
+            collapsed: false,
+            items: [
+              {
+                text: "Project Introduction",
+                link: "/guide/introduction",
+              },
+            ],
+          },
+          {
             text: "API Reference",
             collapsed: true,
             items: [
               { text: "Index", link: "/guide/api-reference/" },
               {
-                text: "AmritaConfig",
-                link: "/guide/api-reference/classes/AmritaConfig",
+                text: "AbilityBackend",
+                link: "/guide/api-reference/classes/AbilityBackend",
               },
               {
-                text: "FunctionConfig",
-                link: "/guide/api-reference/classes/FunctionConfig",
+                text: "AbilityContext",
+                link: "/guide/api-reference/classes/AbilityContext",
               },
               {
-                text: "LLMConfig",
-                link: "/guide/api-reference/classes/LLMConfig",
-              },
-              {
-                text: "CookieConfig",
-                link: "/guide/api-reference/classes/CookieConfig",
+                text: "AgentRunState",
+                link: "/guide/api-reference/classes/AgentRunState",
               },
               {
                 text: "AgentRuntime",
@@ -274,12 +292,8 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/AgentStrategy",
               },
               {
-                text: "AbilityBackend",
-                link: "/guide/api-reference/classes/AbilityBackend",
-              },
-              {
-                text: "AbilityContext",
-                link: "/guide/api-reference/classes/AbilityContext",
+                text: "AmritaConfig",
+                link: "/guide/api-reference/classes/AmritaConfig",
               },
               {
                 text: "BackendSlots",
@@ -318,6 +332,14 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/CompletionEvent",
               },
               {
+                text: "CookieConfig",
+                link: "/guide/api-reference/classes/CookieConfig",
+              },
+              {
+                text: "DAGNode",
+                link: "/guide/api-reference/classes/DAGNode",
+              },
+              {
                 text: "DatabackendOptions",
                 link: "/guide/api-reference/classes/DatabackendOptions",
               },
@@ -330,6 +352,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/FallbackContext",
               },
               {
+                text: "FunctionConfig",
+                link: "/guide/api-reference/classes/FunctionConfig",
+              },
+              {
                 text: "FunctionDefinitionSchema",
                 link: "/guide/api-reference/classes/FunctionDefinitionSchema",
               },
@@ -338,20 +364,32 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
+                text: "LLMConfig",
+                link: "/guide/api-reference/classes/LLMConfig",
+              },
+              {
                 text: "LegacyBackend",
                 link: "/guide/api-reference/classes/LegacyBackend",
               },
               {
-                text: "MemoryModel",
-                link: "/guide/api-reference/classes/MemoryModel",
+                text: "MCPClient",
+                link: "/guide/api-reference/classes/MCPClient",
               },
               {
                 text: "MemoryBackend",
                 link: "/guide/api-reference/classes/MemoryBackend",
               },
               {
+                text: "MemoryModel",
+                link: "/guide/api-reference/classes/MemoryModel",
+              },
+              {
                 text: "Message",
                 link: "/guide/api-reference/classes/Message",
+              },
+              {
+                text: "ModelAdapter",
+                link: "/guide/api-reference/classes/ModelAdapter",
               },
               {
                 text: "ModelConfig",
@@ -360,14 +398,6 @@ export default withMermaid({
               {
                 text: "ModelPreset",
                 link: "/guide/api-reference/classes/ModelPreset",
-              },
-              {
-                text: "ModelAdapter",
-                link: "/guide/api-reference/classes/ModelAdapter",
-              },
-              {
-                text: "MCPClient",
-                link: "/guide/api-reference/classes/MCPClient",
               },
               {
                 text: "MultiClientManager",
@@ -398,16 +428,24 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ReActAgentStrategy",
               },
               {
+                text: "RequestMetadata",
+                link: "/guide/api-reference/classes/RequestMetadata",
+              },
+              {
                 text: "SendMessageWrap",
                 link: "/guide/api-reference/classes/SendMessageWrap",
               },
               {
-                text: "StrategyContext",
-                link: "/guide/api-reference/classes/StrategyContext",
-              },
-              {
                 text: "StateContext",
                 link: "/guide/api-reference/classes/StateContext",
+              },
+              {
+                text: "StepEvents",
+                link: "/guide/api-reference/classes/StepEvents",
+              },
+              {
+                text: "StrategyContext",
+                link: "/guide/api-reference/classes/StrategyContext",
               },
               {
                 text: "SuspendEnum",
@@ -455,16 +493,6 @@ export default withMermaid({
               },
             ],
           },
-          {
-            text: "Builtin Functions",
-            collapsed: false,
-            items: [{ text: "Index", link: "/guide/builtins" }],
-          },
-          {
-            text: "Appendix",
-            collapsed: false,
-            items: [{ text: "Appendix", link: "/guide/appendix" }],
-          },
         ],
         footer: {
           message: `Apache 2.0 License`,
@@ -489,30 +517,20 @@ export default withMermaid({
           { text: "开始", link: "/zh/guide/introduction" },
         ],
         logo: "/Amrita.png",
-
         sidebar: [
-          {
-            text: "介绍",
-            collapsed: false,
-            items: [
-              { text: "概述", link: "/zh/guide/introduction/" },
-              { text: "主要特性", link: "/zh/guide/introduction/features" },
-            ],
-          },
           {
             text: "快速开始",
             collapsed: false,
             items: [
               { text: "索引", link: "/zh/guide/getting-started/" },
               {
-                text: "最小示例",
-                link: "/zh/guide/getting-started/minimal-example",
-              },
-              {
                 text: "基础示例",
                 link: "/zh/guide/getting-started/basic-example",
               },
-              { text: "架构", link: "/zh/guide/getting-started/architecture" },
+              {
+                text: "最小示例",
+                link: "/zh/guide/getting-started/minimal-example",
+              },
             ],
           },
           {
@@ -524,10 +542,10 @@ export default withMermaid({
                 text: "创建你的第一个 Agent",
                 link: "/zh/guide/tutorials/chat-object",
               },
-              { text: "添加工具", link: "/zh/guide/tutorials/tools" },
-              { text: "流式输出与回调", link: "/zh/guide/tutorials/streaming" },
               { text: "事件与钩子", link: "/zh/guide/tutorials/event-hooks" },
               { text: "记忆与会话", link: "/zh/guide/tutorials/memory" },
+              { text: "流式与回调", link: "/zh/guide/tutorials/streaming" },
+              { text: "给 Agent 添加工具", link: "/zh/guide/tutorials/tools" },
             ],
           },
           {
@@ -535,75 +553,90 @@ export default withMermaid({
             collapsed: false,
             items: [
               { text: "索引", link: "/zh/guide/concepts/" },
-              { text: "配置系统", link: "/zh/guide/concepts/configuration" },
+              { text: "Agent 策略", link: "/zh/guide/concepts/agent-strategy" },
               {
-                text: "ChatObject — 对话对象",
+                text: "ChatObject——生命周期管理器",
                 link: "/zh/guide/concepts/chat-object",
               },
+              { text: "配置系统", link: "/zh/guide/concepts/configuration" },
+              { text: "数据管理", link: "/zh/guide/concepts/data" },
+              { text: "数据后端", link: "/zh/guide/concepts/data-backend" },
+              { text: "记忆模型", link: "/zh/guide/concepts/data-memory" },
               { text: "事件系统", link: "/zh/guide/concepts/event" },
               { text: "工具系统", link: "/zh/guide/concepts/tool" },
-              { text: "Agent 策略", link: "/zh/guide/concepts/agent-strategy" },
-            ],
-          },
-          {
-            text: "数据管理",
-            collapsed: false,
-            items: [
-              { text: "数据管理", link: "/zh/guide/concepts/data-management" },
-              { text: "数据容器", link: "/zh/guide/concepts/data-containers" },
-              { text: "数据后端", link: "/zh/guide/concepts/data-backend" },
-              { text: "数据杂项", link: "/zh/guide/concepts/data-misc" },
-            ],
-          },
-          {
-            text: "实现指南",
-            collapsed: false,
-            items: [
-              {
-                text: "函数实现",
-                link: "/zh/guide/how-to/function-implementation",
-              },
-              { text: "提示工程", link: "/zh/guide/how-to/prompt-engineering" },
             ],
           },
           {
             text: "扩展与集成",
             collapsed: false,
             items: [
-              { text: "概述", link: "/zh/guide/extensions-integration/" },
+              { text: "索引", link: "/zh/guide/extensions-integration/" },
               {
-                text: "Jinja2 模板",
-                link: "/zh/guide/extensions-integration/jinja2-templates",
+                text: "模型适配器",
+                link: "/zh/guide/extensions-integration/adapters",
               },
               {
-                text: "MCP 服务器集成",
-                link: "/zh/guide/extensions-integration/mcp-server-integration",
+                text: "MCP 服务器",
+                link: "/zh/guide/extensions-integration/mcp-server",
               },
               {
-                text: "AmritaSense 集成",
-                link: "/zh/guide/extensions-integration/amrita-sense",
+                text: "自定义 Tokenizer",
+                link: "/zh/guide/extensions-integration/tokenizer",
+              },
+              {
+                text: "自定义工具",
+                link: "/zh/guide/extensions-integration/tools",
               },
             ],
           },
           {
-            text: "高级",
+            text: "代理工程",
+            collapsed: false,
+            items: [
+              { text: "索引", link: "/zh/guide/agent-engineering/" },
+              {
+                text: "Jinja2 模板",
+                link: "/zh/guide/agent-engineering/jinja2-templates",
+              },
+              {
+                text: "提示词工程",
+                link: "/zh/guide/agent-engineering/prompt-engineering",
+              },
+              {
+                text: "自定义策略",
+                link: "/zh/guide/agent-engineering/custom-strategy",
+              },
+              {
+                text: "异常排查",
+                link: "/zh/guide/agent-engineering/troubleshooting",
+              },
+            ],
+          },
+          {
+            text: "进阶",
             collapsed: false,
             items: [
               { text: "索引", link: "/zh/guide/advanced/" },
-              { text: "挂起机制", link: "/zh/guide/advanced/suspend" },
+              {
+                text: "AmritaSense 概览",
+                link: "/zh/guide/advanced/amrita-sense-overview",
+              },
+              { text: "Step 循环", link: "/zh/guide/advanced/step-loop" },
+              { text: "挂起与恢复", link: "/zh/guide/advanced/suspend" },
+              {
+                text: "工作流调试",
+                link: "/zh/guide/advanced/workflow-debugging",
+              },
               {
                 text: "工作流引擎",
                 link: "/zh/guide/advanced/workflow-engine",
               },
-              {
-                text: "工作流级调试",
-                link: "/zh/guide/advanced/workflow-debugging",
-              },
-              {
-                text: "依赖注入简介",
-                link: "/zh/guide/advanced/dependency-intro",
-              },
             ],
+          },
+          {
+            text: "内置能力",
+            collapsed: false,
+            items: [{ text: "内置能力", link: "/zh/guide/builtins" }],
           },
           {
             text: "安全机制",
@@ -613,25 +646,31 @@ export default withMermaid({
             ],
           },
           {
+            text: "附录与设计哲学",
+            collapsed: false,
+            items: [{ text: "附录与设计哲学", link: "/zh/guide/appendix" }],
+          },
+          {
+            text: "项目介绍",
+            collapsed: false,
+            items: [{ text: "项目介绍", link: "/zh/guide/introduction" }],
+          },
+          {
             text: "API 参考",
             collapsed: true,
             items: [
-              { text: "索引", link: "/zh/guide/api-reference/" },
+              { text: "Index", link: "/zh/guide/api-reference/" },
               {
-                text: "AmritaConfig",
-                link: "/zh/guide/api-reference/classes/AmritaConfig",
+                text: "AbilityBackend",
+                link: "/zh/guide/api-reference/classes/AbilityBackend",
               },
               {
-                text: "FunctionConfig",
-                link: "/zh/guide/api-reference/classes/FunctionConfig",
+                text: "AbilityContext",
+                link: "/zh/guide/api-reference/classes/AbilityContext",
               },
               {
-                text: "LLMConfig",
-                link: "/zh/guide/api-reference/classes/LLMConfig",
-              },
-              {
-                text: "CookieConfig",
-                link: "/zh/guide/api-reference/classes/CookieConfig",
+                text: "AgentRunState",
+                link: "/zh/guide/api-reference/classes/AgentRunState",
               },
               {
                 text: "AgentRuntime",
@@ -642,12 +681,8 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/AgentStrategy",
               },
               {
-                text: "AbilityBackend",
-                link: "/zh/guide/api-reference/classes/AbilityBackend",
-              },
-              {
-                text: "AbilityContext",
-                link: "/zh/guide/api-reference/classes/AbilityContext",
+                text: "AmritaConfig",
+                link: "/zh/guide/api-reference/classes/AmritaConfig",
               },
               {
                 text: "BackendSlots",
@@ -686,6 +721,14 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/CompletionEvent",
               },
               {
+                text: "CookieConfig",
+                link: "/zh/guide/api-reference/classes/CookieConfig",
+              },
+              {
+                text: "DAGNode",
+                link: "/zh/guide/api-reference/classes/DAGNode",
+              },
+              {
                 text: "DatabackendOptions",
                 link: "/zh/guide/api-reference/classes/DatabackendOptions",
               },
@@ -698,6 +741,10 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/FallbackContext",
               },
               {
+                text: "FunctionConfig",
+                link: "/zh/guide/api-reference/classes/FunctionConfig",
+              },
+              {
                 text: "FunctionDefinitionSchema",
                 link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
               },
@@ -706,20 +753,32 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
+                text: "LLMConfig",
+                link: "/zh/guide/api-reference/classes/LLMConfig",
+              },
+              {
                 text: "LegacyBackend",
                 link: "/zh/guide/api-reference/classes/LegacyBackend",
               },
               {
-                text: "MemoryModel",
-                link: "/zh/guide/api-reference/classes/MemoryModel",
+                text: "MCPClient",
+                link: "/zh/guide/api-reference/classes/MCPClient",
               },
               {
                 text: "MemoryBackend",
                 link: "/zh/guide/api-reference/classes/MemoryBackend",
               },
               {
+                text: "MemoryModel",
+                link: "/zh/guide/api-reference/classes/MemoryModel",
+              },
+              {
                 text: "Message",
                 link: "/zh/guide/api-reference/classes/Message",
+              },
+              {
+                text: "ModelAdapter",
+                link: "/zh/guide/api-reference/classes/ModelAdapter",
               },
               {
                 text: "ModelConfig",
@@ -728,14 +787,6 @@ export default withMermaid({
               {
                 text: "ModelPreset",
                 link: "/zh/guide/api-reference/classes/ModelPreset",
-              },
-              {
-                text: "ModelAdapter",
-                link: "/zh/guide/api-reference/classes/ModelAdapter",
-              },
-              {
-                text: "MCPClient",
-                link: "/zh/guide/api-reference/classes/MCPClient",
               },
               {
                 text: "MultiClientManager",
@@ -766,16 +817,24 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/ReActAgentStrategy",
               },
               {
+                text: "RequestMetadata",
+                link: "/zh/guide/api-reference/classes/RequestMetadata",
+              },
+              {
                 text: "SendMessageWrap",
                 link: "/zh/guide/api-reference/classes/SendMessageWrap",
               },
               {
-                text: "StrategyContext",
-                link: "/zh/guide/api-reference/classes/StrategyContext",
-              },
-              {
                 text: "StateContext",
                 link: "/zh/guide/api-reference/classes/StateContext",
+              },
+              {
+                text: "StepEvents",
+                link: "/zh/guide/api-reference/classes/StepEvents",
+              },
+              {
+                text: "StrategyContext",
+                link: "/zh/guide/api-reference/classes/StrategyContext",
               },
               {
                 text: "SuspendEnum",
@@ -822,16 +881,6 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/UniResponseUsage",
               },
             ],
-          },
-          {
-            text: "内置能力",
-            collapsed: false,
-            items: [{ text: "索引", link: "/zh/guide/builtins" }],
-          },
-          {
-            text: "附录",
-            collapsed: false,
-            items: [{ text: "附录", link: "/zh/guide/appendix" }],
           },
         ],
         footer: {

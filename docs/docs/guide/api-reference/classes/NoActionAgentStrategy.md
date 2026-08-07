@@ -36,6 +36,7 @@ import asyncio
 from amrita_core import create_agent, minimal_init
 from amrita_core.builtins.agent import NoActionAgentStrategy
 
+
 async def use_no_action_strategy():
     # Initialize AmritaCore
     await minimal_init()
@@ -44,7 +45,7 @@ async def use_no_action_strategy():
     agent = create_agent(
         url="https://api.example.com",
         key="your-api-key",
-        strategy=NoActionAgentStrategy
+        strategy=NoActionAgentStrategy,
     )
 
     # Use the agent - it will respond directly without calling tools

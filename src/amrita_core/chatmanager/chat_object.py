@@ -22,7 +22,8 @@ from amrita_sense import (
 from amrita_sense._unsafe import __flags__
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
 from amrita_sense.instructions import GOTO
-from amrita_sense.instructions.subprogram import SubprogramStorage
+from amrita_sense.instructions.native import NATIVE_DO
+from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT, SubprogramStorage
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
@@ -45,6 +46,8 @@ from amrita_core.components.react import (
     AGENT_POST_PROCESS,
     REACT_COUNTER,
     SINGLE_STRATEGY_CALL,
+    STEP_BODY,
+    task_cond,
 )
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
@@ -615,7 +618,7 @@ class ChatObject:
                     )
                     self.io_stream._queue_done = True
                 self.end_at = datetime.now(utc)
-                self._chatman.running_chat_object_id2map.pop(self.stream_id, None)  # type: ignore[arg-type]
+                self._chatman.running_chat_object_id2map.pop(self.stream_id, None)
                 if self._chatman.clean_obj(
                     self.session_id, 10000
                 ):  # A hard limit just to avoid memory leaks
@@ -627,7 +630,7 @@ class ChatObject:
 
         else:
             raise RuntimeError(
-                f"ChatObject of {self.stream_id} is already running or done"  # type: ignore[arg-type]
+                f"ChatObject of {self.stream_id} is already running or done"
             )
 
     # Private helpers
@@ -855,3 +858,31 @@ _workflow: NodeCompose = (
     >> COMMIT_MEMORY
 )
 _workflow_rendered = _workflow.render()
+
+# Native step-loop variant: same outer shell, NATIVE_DO step loop inside.
+_step_workflow: NodeCompose = (
+    LOAD_STATE
+    >> JINJA2_RENDER
+    >> _limiting_memory
+    >> BUILD_MESSAGE
+    >> _pre_runner
+    >> _run_strategy
+    >> (
+        ARCHIVED_SEGMENT(
+            ALIAS(AGENT_ENTRY, BuiltinName.AGENT_STRATEGY)
+            >> NATIVE_DO(STEP_BODY).WHILE(task_cond)
+            >> AGENT_POST_PROCESS
+        )
+        >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
+    )
+    >> LLM_COMPLETION
+    >> _post_runner
+    >> COMMIT_MEMORY
+)
+_step_workflow_rendered = _step_workflow.render()
+
+__all__ = [
+    "ChatObject",
+    "_step_workflow_rendered",
+    "_workflow_rendered",
+]

@@ -10,13 +10,21 @@ graph TD
 ```
 """
 
+from typing import TYPE_CHECKING
+
 from amrita_sense import POINTER_DEPENDS, Node, NodeType, WorkflowInterpreter
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import Depends
+from amrita_sense.instructions.native import NATIVE_WHILE
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 
+if TYPE_CHECKING:
+    from amrita_core.builtins.agent.react_base import BaseReActAgentStrategy
+    from amrita_core.builtins.agent.state import Phase
+
 from amrita_core.agent.context import build_strategy_context
+from amrita_core.builtins.agent.state import AgentRunState
 from amrita_core.contents import MessageMetadataPayloadError, MessageWithMetadata
 from amrita_core.contexts import (
     AbilityState,
@@ -102,6 +110,16 @@ def AGENT_ENTRY(
             "Context wrap is not set, please set it before running the agent"
         )
     loop.ctx_backup = mem.context_wrap.copy()
+    if loop.run_state is None:
+        loop.run_state = AgentRunState()
+    # Bridge the SAME run_state instance between loop and strategy so that
+    # conditions/hooks observe identical state (step strategies only).
+    strategy = loop.strategy
+    if isinstance(strategy, _step_strategy_guard()):
+        if strategy.run_state is None:
+            strategy.run_state = loop.run_state
+        else:
+            loop.run_state = strategy.run_state
 
 
 @Node()
@@ -243,3 +261,198 @@ def SINGLE_STRATEGY_CALL(fallback_on_fail: bool = True) -> NodeType[bool]:
             return False
 
     return _single_strategy_exec
+
+
+# Native step-loop nodes (additive over legacy SINGLE_STRATEGY_CALL /
+# REACT_COUNTER; wired via NATIVE_DO/NATIVE_WHILE in workflows.py).
+
+
+def _step_strategy_guard() -> type["BaseReActAgentStrategy"]:
+    """Resolve the strategy class required by the native step loop.
+
+    Imported lazily to avoid a circular import (``builtins.agent`` imports
+    workflow components).  Used as the isinstance guard so that the step
+    lifecycle hooks (``intro_step`` / ``leave_step`` / ``run_state``) are
+    only called on strategies that actually provide them.
+    """
+    from amrita_core.builtins.agent.react_base import BaseReActAgentStrategy
+
+    return BaseReActAgentStrategy
+
+
+def _step_strategy(loop: AgentLoopState) -> "BaseReActAgentStrategy":
+    """Resolve the strategy for the native step loop (isinstance guard).
+
+    The step-loop nodes (``STEP_INTRO`` / ``STEP_EXEC`` / ``STEP_LEAVE`` /
+    ``STEP_SLOT``) require the step lifecycle hooks ``intro_step`` /
+    ``leave_step`` / ``run_state``, provided by ``BaseReActAgentStrategy``
+    and its subclasses.
+    """
+    strategy = loop.strategy
+    if not isinstance(strategy, _step_strategy_guard()):
+        raise RuntimeError(
+            "Native step-loop requires a BaseReActAgentStrategy subclass, "
+            f"got {type(strategy).__name__}"
+        )
+    return strategy
+
+
+@Node(SuspendEnum.STEP_INTRO)
+async def STEP_INTRO(loop: AgentLoopState):
+    """Step entry boundary — calls ``strategy.intro_step()``.
+
+    The ``@Node(SuspendEnum.STEP_INTRO)`` tag doubles as the interpreter-level
+    suspend point (``_call()`` waits on ``node.tag`` before executing), so no
+    manual ``_wait_for_continue`` is needed.
+    """
+    assert loop.run_state is not None
+    await _step_strategy(loop).intro_step()
+
+
+@Node(SuspendEnum.SINGLE_TOOL)
+async def STEP_EXEC(
+    loop: AgentLoopState,
+    mem: WorkingState,
+    intp: WorkflowInterpreter[SuspendObjectStream] = Depends(POINTER_DEPENDS),
+) -> bool:
+    """Execute one strategy iteration (single tool round) with rollback.
+
+    Error handling mirrors the legacy ``SINGLE_STRATEGY_CALL(fallback_on_fail=True)``
+    path: on failure, stream an error, call ``strategy.on_exception()`` and
+    restore ``mem.context_wrap`` from ``loop.ctx_backup``.
+
+    Also advances ``loop.called_count`` (replacing the legacy REACT_COUNTER)
+    and records ``run_state.exec_finished`` when the strategy reports it is
+    done calling tools.
+    """
+    assert loop.strategy is not None
+    loop.called_count += 1
+    try:
+        result = await loop.strategy.single_execute()
+    except Exception as e:
+        logger.warning(
+            f"ERROR\n{e!s}\n!Failed to call Strategy! Continuing with old data..."
+        )
+        await intp.object_io.yield_response(
+            MessageWithMetadata(
+                content=f"Agent run failed:{e!s}",
+                metadata=MessageMetadataPayloadError(
+                    error=str(e), type="error", extra_type=None
+                ),
+            )
+        )
+        await loop.strategy.on_exception(e)
+        assert loop.ctx_backup is not None
+        mem.context_wrap = loop.ctx_backup
+        result = False
+    if loop.run_state is not None and result:
+        # Per-iteration hook runs inside the loop so a stalled agent stops
+        # burning tokens (leave_step only runs after the loop exits).
+        strategy = _step_strategy(loop)
+        await strategy.after_iteration()
+    elif loop.run_state is not None and not result:
+        # No more tool calls: the execute-phase iteration loop can end.
+        loop.run_state.exec_finished = True
+    return result
+
+
+@Node(SuspendEnum.STEP_LEAVE)
+async def STEP_LEAVE(loop: AgentLoopState):
+    """Step exit boundary — calls ``strategy.leave_step()``."""
+    assert loop.run_state is not None
+    await _step_strategy(loop).leave_step()
+
+
+def STEP_SLOT(phase: "Phase"):
+    """Factory: build an intro/leave node pair for a reasoning phase.
+
+    Args:
+        phase: one of ``"analyze"``, ``"plan"``, ``"execute"``, ``"verify"``.
+
+    Returns:
+        ``(intro_node, leave_node)`` — both are ``@Node`` with a phase-specific
+        tag that doubles as the interpreter-level suspend point.
+    """
+
+    @Node(f"ChatObject::step_{phase}_intro")
+    async def _intro(loop: AgentLoopState):
+        assert loop.strategy is not None
+        await _step_strategy(loop).intro_step(phase=phase)
+
+    @Node(f"ChatObject::step_{phase}_leave")
+    async def _leave(loop: AgentLoopState):
+        assert loop.strategy is not None
+        await _step_strategy(loop).leave_step(phase=phase)
+
+    return _intro, _leave
+
+
+@Node()
+async def task_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
+    """Task-loop condition (single ``Node[bool]``).
+
+    Stops when the tool-call limit is reached, the strategy suggests stop,
+    the strategy finished calling tools (``exec_finished``), or a stall was
+    detected and the give-up prompt injected.
+    """
+    assert loop.strategy is not None
+    max_times: int = ab.config.function_config.agent_tool_call_limit + 1
+    if loop.called_count > max_times:
+        await loop.strategy.on_limited()
+        return False
+    if getattr(loop.strategy, "_suggested_stop", False):
+        return False
+    if loop.run_state is None:
+        return True
+    if loop.run_state.stall_injected:
+        return False
+    if loop.run_state.simple_mode:
+        # Bare run: one implicit execute Step; stop when the strategy is done.
+        return not loop.run_state.exec_finished
+    # Plan mode: keep walking the topological order until every node is done.
+    return not loop.run_state.all_plan_done()
+
+
+@Node()
+async def iter_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
+    """Within-Step iteration condition (single ``Node[bool]``).
+
+    Continues while this Step (one DAG node, or the implicit execute Step in
+    simple mode) still has tool calls to make: no stall injected, no budget
+    exhausted, the strategy has not finished calling tools and has not
+    suggested stopping.
+
+    Hard stop: the tool-call limit (``agent_tool_call_limit``) is enforced
+    here as well — the inner iteration loop must never burn tokens past the
+    configured limit, regardless of what the strategy decides.
+    """
+    assert loop.strategy is not None
+    rs = loop.run_state
+    if rs is None:
+        return False
+    max_times: int = ab.config.function_config.agent_tool_call_limit + 1
+    if loop.called_count > max_times:
+        await loop.strategy.on_limited()
+        return False
+    if rs.stall_injected:
+        return False
+    if rs.tokens.exhausted:
+        return False
+    if rs.exec_finished:
+        return False
+    return not getattr(loop.strategy, "_suggested_stop", False)
+
+
+@Node()
+async def simple_mode(loop: AgentLoopState) -> bool:
+    """Whether the LLM decided to run the task directly (no decomposition)."""
+    return bool(loop.run_state and loop.run_state.simple_mode)
+
+
+# STEP_BODY — node-driven step-loop body (shared with workflows.py and
+# chat_object.py): each task-loop iteration is ONE Step = ONE DAG node.
+NODE_INTRO, NODE_LEAVE = STEP_SLOT("node")
+
+# BREAK_LOOP cannot sit inside a NATIVE_IF branch (DFS scanner configures
+# loop-control nodes pre-expansion); plan completion lives in task_cond.
+STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAVE

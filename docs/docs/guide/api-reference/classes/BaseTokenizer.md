@@ -23,6 +23,7 @@ BaseTokenizer (inheriting from `ABC`) defines the tokenizer interface. Subclasse
 ```python
 from amrita_core.base.tokenizer import BaseTokenizer
 
+
 class MyTokenizer(BaseTokenizer):
     @staticmethod
     def get_type() -> str:

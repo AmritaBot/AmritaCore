@@ -32,17 +32,16 @@ class EmbeddingChunk(BaseModel):
 from amrita_core.types import EmbeddingChunk
 
 # Create an embedding chunk
-chunk = EmbeddingChunk(
-    embedding=[0.1, -0.5, 0.8, 0.3],
-    index=0
-)
+chunk = EmbeddingChunk(embedding=[0.1, -0.5, 0.8, 0.3], index=0)
 
 print(f"Vector: {chunk.embedding}")
 print(f"Original index: {chunk.index}")
 
 # When processing multiple texts
 texts = ["Hello", "World"]
-embeddings: list[EmbeddingChunk] = await call_completion(preset=embedding_preset, messages=texts)
+embeddings: list[EmbeddingChunk] = await call_completion(
+    preset=embedding_preset, messages=texts
+)
 
 for chunk in embeddings:
     print(f"Text '{texts[chunk.index]}' -> Embedding length: {len(chunk.embedding)}")

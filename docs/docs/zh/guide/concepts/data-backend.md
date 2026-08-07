@@ -1,183 +1,165 @@
-# 数据后端
+# 数据后端——持久化能力与记忆
 
-**数据后端**机制将记忆和能力管理与 `ChatObject` 解耦，支持可插拔的存储后端（内存中的全局容器、数据库、分布式缓存等），而无需更改核心执行逻辑。
+## 后端是什么
 
-## BackendSlots
+AmritaCore 本身**不存储**任何东西。它定义两个接口并把 `session_id` 交给它们；
+**你的后端实现**决定数据存放在哪里——进程内、数据库、Redis、文件……
 
-[`BackendSlots`](../api-reference/classes/BackendSlots.md) 是一个简单的 dataclass，持有两个后端引用：
-
-```python
-from amrita_core.base.backend import BackendSlots
-
-@dataclass
-class BackendSlots:
-    ability: AbilityBackend
-    memory: MemoryBackend
+```mermaid
+flowchart LR
+    CO["ChatObject"] -->|session_id| BS["BackendSlots"]
+    BS --> AB["ability: AbilityBackend<br/>工具、preset、MCP 客户端"]
+    BS --> MB["memory: MemoryBackend<br/>对话历史"]
 ```
 
-`ChatObject` 接收一个 `BackendSlots` 实例，并通过工作流节点 `LOAD_STATE` 和 `COMMIT_MEMORY`（来自 `amrita_core.components.process` 包）将所有数据 I/O 委托给它。
-
-## AbilityBackend（抽象）
-
-[`AbilityBackend`](../api-reference/classes/AbilityBackend.md) 定义了加载会话能力的接口：
+## 接口
 
 ```python
-from amrita_core.base.backend import AbilityBackend
+from amrita_core.base.backend import AbilityBackend, MemoryBackend
 
-class AbilityBackend:
-    @abstractmethod
+
+class AbilityBackend:  # 抽象
     async def load_ability_all(self, session_id: str) -> AbilityContext: ...
-
-    @abstractmethod
     async def load_mcp_clients(self, session_id: str) -> MultiClientManager: ...
-
-    @abstractmethod
     async def load_tools(self, session_id: str) -> MultiToolsManager: ...
-
-    @abstractmethod
     async def load_presets(self, session_id: str) -> MultiPresetManager: ...
-```
 
-- `load_ability_all()`：返回完全填充的 `AbilityContext`
-- `load_mcp_clients()` / `load_tools()` / `load_presets()`：细粒度加载，当 `DatabackendOptions` 跳过标志设置时使用
 
-## MemoryBackend（抽象）
-
-[`MemoryBackend`](../api-reference/classes/MemoryBackend.md) 定义了加载和持久化对话记忆的接口：
-
-```python
-from amrita_core.base.backend import MemoryBackend
-
-class MemoryBackend:
-    @abstractmethod
+class MemoryBackend:  # 抽象
     async def load_memory(self, session_id: str) -> MemoryModel: ...
-
-    @abstractmethod
     async def commit_memory(self, session_id: str, memory: MemoryModel) -> None: ...
 ```
 
-- `load_memory()`：在每次 `ChatObject` 执行开始时调用
-- `commit_memory()`：完成后调用以持久化更改
+> `AbilityContext` 打包工具 / preset / MCP 客户端；`MemoryModel` 持有
+> `messages: list[Message | ToolResult]`（见[记忆模型](data-memory.md)）。
 
-## LegacyBackend——内置全局容器
+## 内置 `LegacyBackend`
 
-[`LegacyBackend`](../api-reference/classes/LegacyBackend.md) 使用进程内全局容器实现了 `AbilityBackend` 和 `MemoryBackend`。当未提供后端时，它是**默认**后端：
+默认实现把一切保存在**进程内**：
+
+- Ability 在**全局**容器（`glb`）——所有会话共享同一批工具与 preset
+- Memory 在按会话的 `StateContext`——历史只存活于进程生命周期，且仅限本进程
+  见过的 id
 
 ```python
 from amrita_core.builtins.backends import LegacyBackend
 
-# LegacyBackend 使用类级全局 AbilityContext
-LegacyBackend.glb  # ClassVar[AbilityContext]——所有会话共享
+backend = LegacyBackend()  # 进程内按会话记忆
 ```
 
-**关键行为**：
+> **推论**：两个 `ChatObject` 用同一 `session_id`"共享"历史，*仅仅*因为
+> `LegacyBackend` 按 id 存储。换一个后端就不同——**共享是后端属性，不是
+> 框架特性**。
 
-| 方法                 | 行为                                                 |
-| -------------------- | ---------------------------------------------------- |
-| `load_ability_all()` | 返回类级的 `glb`（全局单例）                         |
-| `load_memory()`      | 创建/返回存储在 `self.ctx` 中的每会话 `StateContext` |
-| `commit_memory()`    | 将 `memory` 写入 `self.ctx.memory`（进程内存储）     |
+## 编写自己的后端
 
-```python
-from amrita_core.base.backend import BackendSlots
-from amrita_core.builtins.backends import LegacyBackend
-
-# 两个槽共享同一个 LegacyBackend 实例
-backend = BackendSlots(ability=LegacyBackend(), memory=LegacyBackend())
-```
-
-> **注意**：`LegacyBackend` **仅存储在内存中**。重启进程后所有数据丢失。如需持久化，请实现自定义后端。
-
-## DatabackendOptions——细粒度控制
-
-[`DatabackendOptions`](../api-reference/classes/DatabackendOptions.md) 控制在 `ChatObject` 运行期间跳过哪些后端操作：
-
-> **v0.12.0 迁移**：`DatabackendOptions` 已移至 `amrita_core.contexts`。
-
-```python
-from amrita_core.contexts import DatabackendOptions
-
-options = DatabackendOptions(
-    skip_memory_fetch=False,        # 跳过加载记忆？
-    skip_tools_fetch=False,         # 跳过加载工具？
-    skip_mcp_fetch=False,           # 跳过加载 MCP 客户端？
-    skip_presets_fetch=False,       # 跳过加载预设？
-    skip_ability_extra_setting=False, # 跳过整个能力块？
-    skip_memory_commit=False,       # 跳过完成后提交记忆？
-)
-```
-
-通过 `backend_options` 参数传递给 `ChatObject`，或通过 `**kwargs` 传递给 `AgentRuntime.get_chatobject()`。
-
-## 自定义后端示例
-
-实现一个将记忆持久化到 JSON 文件的自定义后端：
+实现一个或两个接口，用 `BackendSlots` 包装：
 
 ```python
 import json
 from pathlib import Path
-from amrita_core.base.backend import MemoryBackend
-from amrita_core.types import MemoryModel
 
-class JSONFileBackend(MemoryBackend):
-    """将每个会话的记忆持久化为 JSON 文件。"""
+from amrita_core.base.backend import BackendSlots, AbilityBackend, MemoryBackend
+from amrita_core.contexts import AbilityContext
+from amrita_core.types.memory import MemoryModel
 
-    def __init__(self, base_dir: str = "./session_data"):
-        self.base_dir = Path(base_dir)
-        self.base_dir.mkdir(parents=True, exist_ok=True)
+
+class FileMemoryBackend(MemoryBackend):
+    """把对话历史存为 JSON 文件，每会话一个。"""
+
+    def __init__(self, directory: Path):
+        self.directory = directory
+        directory.mkdir(parents=True, exist_ok=True)
 
     def _path(self, session_id: str) -> Path:
-        return self.base_dir / f"{session_id}.json"
+        # session_id 是用户可控输入——碰文件系统前先净化
+        safe = "".join(c for c in session_id if c.isalnum() or c in "-_")
+        return self.directory / f"{safe}.json"
 
     async def load_memory(self, session_id: str) -> MemoryModel:
         path = self._path(session_id)
-        if path.exists():
-            return MemoryModel.model_validate(json.loads(path.read_text()))
-        return MemoryModel()
+        if not path.exists():
+            return MemoryModel()
+        with path.open() as f:
+            return MemoryModel.model_validate(json.load(f))
 
     async def commit_memory(self, session_id: str, memory: MemoryModel) -> None:
-        self._path(session_id).write_text(
-            json.dumps(memory.model_dump(), ensure_ascii=False)
-        )
-```
+        with self._path(session_id).open("w") as f:
+            json.dump(memory.model_dump(), f)
 
-与 `AgentRuntime` 一起使用：
 
-```python
-from amrita_core.agent.functions import AgentRuntime
-from amrita_core.base.backend import BackendSlots
-from amrita_core.builtins.backends import LegacyBackend
+class StaticAbilityBackend(AbilityBackend):
+    """每个会话返回同一份全局 ability（像 LegacyBackend）。"""
 
-runtime = AgentRuntime(
-    config=...,
-    preset=...,
-    train=...,
-    backend=BackendSlots(
-        ability=LegacyBackend(),       # 保持全局能力
-        memory=JSONFileBackend(),       # 自定义记忆持久化
-    ),
+    def __init__(self, ability: AbilityContext):
+        self.ability = ability
+
+    async def load_ability_all(self, session_id: str) -> AbilityContext:
+        return self.ability
+
+    async def load_mcp_clients(self, session_id):
+        return self.ability.mcp
+
+    async def load_tools(self, session_id):
+        return self.ability.tools
+
+    async def load_presets(self, session_id):
+        return self.ability.presets
+
+
+my_backend = BackendSlots(
+    ability=StaticAbilityBackend(AbilityContext()),
+    memory=FileMemoryBackend(Path("./sessions")),
 )
 ```
 
-## 数据流总结
+## 挂接后端
 
-```mermaid
-sequenceDiagram
-    participant AR as AgentRuntime
-    participant CO as ChatObject
-    participant BS as BackendSlots
-    participant AB as AbilityBackend
-    participant MB as MemoryBackend
+```python
+# 直接构造 ChatObject
+chat = ChatObject(
+    train=...,
+    user_input=...,
+    session_id="abc123",
+    backend=my_backend,
+)
 
-    AR->>CO: get_chatobject(user_input)
-    CO->>CO: LOAD_STATE 节点（加载状态）
-    CO->>BS: slot.ability.load_ability_all(session_id)
-    BS->>AB: load_ability_all()
-    AB-->>CO: AbilityContext
-    CO->>BS: slot.memory.load_memory(session_id)
-    BS->>MB: load_memory()
-    MB-->>CO: MemoryModel
-    Note over CO: ... 工作流执行 ...
-    CO->>BS: slot.memory.commit_memory(session_id, memory)
-    BS->>MB: commit_memory()
+# 通过 Agent 工厂（转发给 ChatObject）
+chat = agent.get_chatobject(
+    "Hello!",
+    session_id="abc123",
+    backend=my_backend,
+)
 ```
+
+此后每次对话在开始时从 `load_memory` 加载历史，结束时经 `commit_memory`
+保存——你的文件现在跨重启存活。
+
+## 细粒度控制：`DatabackendOptions`
+
+`backend_options=DatabackendOptions(...)` 跳过加载/提交周期的部分环节：
+
+| 标志                         | 跳过                                   |
+| ---------------------------- | -------------------------------------- |
+| `skip_memory_fetch`          | `load_memory`——以空 `MemoryModel` 开始 |
+| `skip_tools_fetch`           | `load_tools`                           |
+| `skip_mcp_fetch`             | `load_mcp_clients`                     |
+| `skip_presets_fetch`         | `load_presets`                         |
+| `skip_ability_extra_setting` | 整个 `load_ability_all`                |
+| `skip_memory_commit`         | 结束时的 `commit_memory`               |
+
+```python
+from amrita_core.contexts import DatabackendOptions
+
+chat = ChatObject(
+    train=...,
+    user_input=...,
+    session_id="abc123",
+    backend=my_backend,
+    backend_options=DatabackendOptions(skip_memory_commit=True),  # 只读
+)
+```
+
+## 下一步
+
+[记忆模型](data-memory.md)——`MemoryModel` 携带什么、加载/提交生命周期如何运作。

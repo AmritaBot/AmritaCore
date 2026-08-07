@@ -248,15 +248,25 @@ def _apply_thinking_filter(
     validated_messages: CONTENT_LIST_TYPE,
     thinking_config: ThinkingConfig | None,
 ) -> None:
-    """Filter reasoning_content according to thinking_config."""
+    """Filter reasoning_content according to thinking_config.
+
+    IMPORTANT: the filter must never mutate the original ``Message`` objects
+    in place.  The message list is shared with the strategy context (e.g.
+    ``ctx.message.unwrap()``), and providers like DeepSeek require the
+    assistant ``reasoning_content`` to be passed back verbatim on subsequent
+    requests — stripping it from the live objects would cause HTTP 400
+    ("The `reasoning_content` in the thinking mode must be passed back").
+    Modified messages are therefore shallow-copied into the validated list.
+    """
     if thinking_config is None or thinking_config.thinking_type != "enabled":
         return
-    for m in validated_messages:
+    for idx, m in enumerate(validated_messages):
         if not isinstance(m, Message):
             continue
+        new_value: str | None = m.reasoning_content
         match thinking_config.content_mode:
             case "never":
-                m.reasoning_content = None
+                new_value = None
             case "by-tool":
                 if m.role == "assistant":
                     if m.tool_calls:
@@ -266,8 +276,13 @@ def _apply_thinking_filter(
                                 " have reasoning_content"
                             )
                     else:
-                        m.reasoning_content = None
-            # "optional" -> no-op
+                        new_value = None
+            # "optional" -> no-op (keep original value)
+        if new_value is not m.reasoning_content:
+            # Shallow copy so the original object keeps its reasoning_content.
+            copy = m.model_copy(deep=False)
+            copy.reasoning_content = new_value
+            validated_messages[idx] = copy
 
 
 async def _call_with_reflection(

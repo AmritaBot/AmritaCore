@@ -109,3 +109,95 @@ class AgentToolPredictionMetadata(MessageMetadataPayload):
 
     predicted_next_action: str
     """Brief description of the next action the model expects to take."""
+
+
+# Native step-loop Metadata — emitted by the step-loop strategy lifecycle
+# (intro/leave, decomposition, stall recovery, compression) for front-ends.
+
+
+class AgentStepIntroMetadata(MessageMetadataPayload):
+    """Metadata for entering a Step (``intro_step``).
+
+    Emitted once per phase boundary (analyze/plan/execute/verify) with the
+    current global step index and mode so the front-end can render the step
+    progression.
+    """
+
+    phase: str | None
+    """The phase being entered — a DAG node id (or ``"execute"`` in simple
+    mode)."""
+
+    step_index: int
+    """Global step counter (1-based, mirrors ``<think_step>``)."""
+
+    simple_mode: bool
+    """True when the LLM decided to run directly (no decomposition)."""
+
+    current_step_id: str | None
+    """Id of the DAG node being executed (``None`` in simple mode)."""
+
+    description: str | None
+    """Description of the DAG node being executed (``None`` in simple mode)."""
+
+
+class AgentStepLeaveMetadata(MessageMetadataPayload):
+    """Metadata for leaving a Step (``leave_step``).
+
+    Emitted once per phase boundary; for the execute phase it carries the
+    subject-predicate summary produced by ``_summarize_step``.
+    """
+
+    phase: str | None
+    """The phase being left — a DAG node id (or ``"execute"`` in simple
+    mode)."""
+
+    step_index: int
+    """Global step counter (1-based)."""
+
+    stall_injected: bool
+    """True when a "give up" prompt was injected in this Step."""
+
+    summary_verb: str | None
+    """Subject-predicate summary verb, e.g. ``"Reviewed"``."""
+
+    summary_object: str | None
+    """Subject-predicate summary object phrase."""
+
+
+class AgentStepDecomposeMetadata(MessageMetadataPayload):
+    """Metadata for the decomposition decision (analyze phase)."""
+
+    needs_decomposition: bool
+    """Whether the LLM decided the task needs multi-step execution."""
+
+    simple_mode: bool
+    """``not needs_decomposition`` — bare run without a DAG."""
+
+    dag: list[str]
+    """Ids of the DAG nodes (``[]`` in simple mode)."""
+
+    descriptions: dict[str, str]
+    """Node id → description map for the DAG (``{}`` in simple mode)."""
+
+    reason: str
+    """LLM-provided rationale for the decision."""
+
+
+class AgentStepStallMetadata(MessageMetadataPayload):
+    """Metadata for stall detection and the injected "give up" prompt."""
+
+    signatures: list[str]
+    """The repeated tool-call signatures that triggered the stall."""
+
+    injected: bool
+    """True once the give-up prompt was appended to the context."""
+
+
+class AgentStepCompressMetadata(MessageMetadataPayload):
+    """Metadata for between-Step history compression."""
+
+    prompt_tokens: int
+    """Real API prompt-token count that triggered the compression."""
+
+    threshold: int | None
+    """Configured ``memory_abstract_threshold`` (``None`` = never)."""

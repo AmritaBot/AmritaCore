@@ -15,6 +15,7 @@ ToolContext 自动传递给使用 `custom_run=True` 参数注册的工具：
 from amrita_core.tools.manager import on_tools
 from amrita_core.tools.models import ToolContext
 
+
 @on_tools(data=my_tool_schema, custom_run=True)
 async def my_custom_tool(ctx: ToolContext) -> str | None:
     param_value = ctx.data["param_name"]

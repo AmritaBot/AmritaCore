@@ -1,81 +1,94 @@
-# 事件与钩子
+# 4. 事件与钩子
 
-AmritaCore 暴露了一个事件系统，允许你拦截处理管道。在本教程中，你将附加在 LLM 完成前后运行的钩子。
+## 本章目标
 
-## 1. 使用 `@on_completion` 响应完成事件
+不碰框架代码就能拦截管线。学完你能：
 
-[`@on_completion`](../api-reference/index.md#on_completion) 注册一个在模型完成生成后运行的处理函数。处理函数接收一个 [CompletionEvent](../api-reference/classes/CompletionEvent.md)：
+- 用装饰器钩住完成与预完成
+- 按类型字符串匹配任意事件——包括 step 生命周期事件
+- 修改事件并用 `StepAbortError` 控制流程
+
+## 概念速览（用到才讲）
+
+- **事件**：描述某事发生的对象（一次完成、一个 Step 边界、一次工具调用）。
+- **Matcher**：按事件*类型字符串*注册的处理器。Matcher 可以修改事件；
+  框架读回修改后的值。
+
+管线是事件驱动的：基于 `Matcher` 的钩子让你拦截各阶段、修改消息、注入上下文。
+
+## 1. 用 `@on_completion` 响应完成
 
 ```python
-import asyncio
-
-from amrita_core import create_agent, minimal_init, on_completion
+from amrita_core import on_completion
 from amrita_core.hook.event import CompletionEvent
 
 
-@on_completion().handle()
-async def log_completion(event: CompletionEvent) -> None:
-    print(f"[完成] 模型说: {event.get_model_response()}")
-
-
-async def main() -> None:
-    await minimal_init()
-
-    agent = create_agent(
-        base_url="https://api.openai.com/v1",
-        api_key="sk-...",
-        model="gpt-4o-mini",
-        train="你是一个有帮助的助手。",
-    )
-
-    chat = agent.get_chatobject("2 + 2 等于多少？")
-    async with chat.begin():
-        async for message in chat.io_stream.get_response_generator():
-            print(message if isinstance(message, str) else message.get_content(), end="")
-        await chat  # 等待任务完成——退出会取消它
-    print("\n")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())
+@on_completion
+async def log_response(event: CompletionEvent):
+    print(f"[completion] {event.model_response[:80]}...")
 ```
 
-`CompletionEvent` 在每次完成轮次中触发一次——包括单次对话中的工具调用轮次。
+`CompletionEvent` 携带最终响应；你可以在提交前改写
+`event.model_response`。
 
-## 2. 使用 `@on_precompletion` 的预完成钩子
-
-[`@on_precompletion`](../api-reference/index.md#on_precompletion) 在请求发送到 LLM **之前**运行，允许你检查或修改传出的消息。处理函数接收一个 [PreCompletionEvent](../api-reference/classes/PreCompletionEvent.md)：
+## 2. 用 `@on_precompletion` 预完成钩子
 
 ```python
 from amrita_core import on_precompletion
 from amrita_core.hook.event import PreCompletionEvent
 
 
-@on_precompletion().handle()
-async def log_request(event: PreCompletionEvent) -> None:
-    print(f"[请求] 正在向模型发送 {len(event.messages)} 条消息")
+@on_precompletion
+async def inject_context(event: PreCompletionEvent):
+    # `event.original_context` 是 SendMessageWrap——可追加任何内容。
+    event.original_context.append(
+        Message(role="user", content="[system note] Today is 2026-08-06.")
+    )
 ```
 
-## 3. 使用 `@on_event` 自定义事件
+## 3. 用 `@on_event` 自定义事件
 
-对于应用程序特定的事件，使用 [`@on_event`](../api-reference/index.md#on_event) 并传入你自己的事件类型：
+按字符串匹配任意事件类型：
 
 ```python
 from amrita_core import on_event
 
 
-@on_event("my_app:user_login").handle()
-async def handle_login(event) -> None:
-    print("用户登录:", event)
+@on_event("agent.step_intro")
+async def on_step_intro(event):
+    print(f"[step intro] {event.phase}")
 ```
 
-## 4. 刚刚发生了什么
+### Step 生命周期事件（内置 ReAct）
 
-- `@on_completion` / `@on_precompletion` 使用内置的 [EventTypeEnum](../api-reference/index.md#events--hooks)（`COMPLETION` / `BEFORE_COMPLETION`）包装了通用的 [`on_event`](../api-reference/index.md#on_event)
-- 处理函数由 `MatcherManager`（由 `amrita-sense` 包提供）调度，支持可选的 `priority` 和 `block` 行为
-- 完整的事件目录和回退处理参见[核心概念：事件系统](../concepts/event.md)
+| 事件类型               | 可变字段                           | 触发时机              |
+| ---------------------- | ---------------------------------- | --------------------- |
+| `agent.step_intro`     | `override_phase`                   | Step 开始             |
+| `agent.step_leave`     | `override_verb`、`override_object` | Step 结束（覆盖摘要） |
+| `agent.step_iteration` | `end_step`                         | 每轮工具调用后        |
+| `agent.tool_call`      | `arguments`、`cancel`              | 常规工具执行前        |
+| `agent.tool_return`    | `result`、`skip_append`            | 常规工具返回后        |
+
+handler 可以**修改事件**，生命周期钩子读回修改后的值；也可以抛
+`StepAbortError` 中止当前操作（取消工具调用、提前结束 Step、跳过追加结果）。
+
+```python
+from amrita_core import on_event
+from amrita_core.builtins.agent.events import StepAbortError
+
+
+@on_event("agent.tool_call")
+async def guard_tool(event):
+    if event.tool_name == "dangerous_delete":
+        event.cancel = True  # 或: raise StepAbortError("blocked")
+```
+
+## 4. 刚才发生了什么
+
+- `@on_completion` / `@on_precompletion`——管线边界
+- `@on_event("<type>")`——任意事件，包括 step 生命周期
+- 事件可变；`StepAbortError` 是控制流逃生舱
 
 ## 下一步
 
-- [管理记忆和会话](memory.md)
-- 深入了解：[核心概念：事件系统](../concepts/event.md)
+[5. 记忆与会话](memory.md)——跨轮次持久化历史。

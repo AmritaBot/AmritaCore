@@ -130,12 +130,17 @@ This class should not be instantiated directly. Instead, create subclasses that 
 ```python
 from amrita_core.builtins.agent import BaseReActAgentStrategy
 
+
 class MyCustomReActStrategy(BaseReActAgentStrategy):
-    async def _append_tool_result_to_context(self, tool_call, func_response, response_msg):
+    async def _append_tool_result_to_context(
+        self, tool_call, func_response, response_msg
+    ):
         # Implement strategy-specific tool result handling
         pass
 
-    async def _handle_error_append(self, function_name, error_content, tool_call_id, original_exception):
+    async def _handle_error_append(
+        self, function_name, error_content, tool_call_id, original_exception
+    ):
         # Implement strategy-specific error handling
         pass
 

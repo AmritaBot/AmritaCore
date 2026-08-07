@@ -25,6 +25,7 @@ PreCompletionEvent inherits from `Event` and is used in the event hook system to
 from amrita_core import on_precompletion
 from amrita_core.hook.event import PreCompletionEvent
 
+
 @on_precompletion
 async def before_completion(event: PreCompletionEvent):
     # Modify the message context before the model is called

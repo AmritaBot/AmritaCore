@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from jinja2 import Template
 from typing_extensions import deprecated
+
+if TYPE_CHECKING:
+    from amrita_core.builtins.agent.state import AgentRunState
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import (
@@ -114,6 +117,9 @@ class AgentLoopState:
     ctx_backup: SendMessageWrap | None = None
 
     called_count: int = 0
+
+    # Semantic step-level run state (builtin ReAct step loop).
+    run_state: AgentRunState | None = None
 
 
 @dataclass

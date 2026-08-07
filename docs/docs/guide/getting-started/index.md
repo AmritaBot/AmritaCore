@@ -1,23 +1,19 @@
 # Getting Started
 
-## Environment Preparation
+Welcome! This section gets you from zero to a running agent as fast as possible.
 
-### System Requirements
+## Before You Start
 
-To use AmritaCore, you'll need:
+- **Python 3.10+** (up to 3.14)
+- **An LLM API endpoint** — OpenAI-compatible, Anthropic, or any [supported adapter](../extensions-integration/adapters.md)
+- A few MB of RAM for the framework itself (context memory grows with your session)
 
-- Python 3.10 or higher (up to 3.14)
-- Sufficient RAM to handle context memory (minimum 1GB recommended for project.)
-- Internet connection for connecting to LLM APIs
-- Access to an LLM provider (OpenAI, Azure OpenAI, or compatible service)
+No prior knowledge of AmritaSense is required for this section — everything you
+need is covered inline.
 
-### Python Version Support
+## Install
 
-AmritaCore officially supports Python versions from 3.10 up to 3.13. While it may work with other versions, these are the tested and recommended versions.
-
-### Dependency Installation
-
-We recommend using a virtual environment for development by using `uv` , `pdm` etc.
+We recommend `uv` for environment management:
 
 ```bash
 uv init
@@ -25,30 +21,17 @@ uv venv
 uv add amrita-core
 ```
 
-Create a AmritaCore project using `Amctl` (our template tool, based on `uv`):
-
-```bash
-# If you haven't installed Amctl yet, run these commands first
-# pip install amctl
-# or use uv:
-# uv tool install amctl
-amctl create -t amrita_core
-```
-
-Install AmritaCore using pip:
+Or with pip:
 
 ```bash
 pip install amrita-core
 ```
 
-Or if you're working directly with the source code:
+Working directly from the source repository? Clone it and `pip install -e .`
+(see the repo `README.md`).
 
-```bash
-git clone https://github.com/AmritaBot/AmritaCore.git
-cd AmritaCore
-pip install -e .
-```
+## What's Next
 
-### Code demo
-
-You can view more demo at repo's path `/demo`.
+1. [Minimal Example](minimal-example.md) — a 10-line runnable agent
+2. [Basic Example](basic-example.md) — streaming, tools and sessions in one place
+3. Then follow the [Tutorials](../tutorials/index.md) to build up systematically

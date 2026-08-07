@@ -26,8 +26,8 @@ from amrita_core.types.response import RequestMetadata
 
 # Accessed via UniResponse
 response: UniResponse = ...
-print(response.metadata.model)          # e.g. "gpt-4o"
-print(response.metadata.stop_reason)    # e.g. "end_turn"
+print(response.metadata.model)  # e.g. "gpt-4o"
+print(response.metadata.stop_reason)  # e.g. "end_turn"
 print(response.metadata.original_request_id)  # Provider's request ID
 ```
 

@@ -1,70 +1,65 @@
-# Workflow Engine — 工作流引擎
+# 工作流引擎
 
-AmritaCore 的工作流引擎允许你定义涉及多个步骤、决策和外部交互的复杂顺序处理。
+## 管线
 
-> **重要**：工作流引擎仅通过 `amrita-sense` 包提供。本节介绍概念以及如何在 AmritaCore 中集成工作流。
+每个 `ChatObject` 运行预编译工作流。默认（Step 驱动）管线：
 
-## 什么是工作流引擎？
-
-工作流引擎是一个状态机，它编排多个步骤——agent 调用、工具执行和自定义逻辑——在一个单一的连贯流中。与简单的顺序执行不同，工作流支持：
-
-- **条件分支**——根据前一步的输出改变步骤
-- **并行执行**——同时运行独立步骤
-- **错误恢复**——定义重试和回退行为
-- **状态持久化**——跨步骤持久化数据
-
-## 核心概念
-
-### 步骤
-
-工作流中的最小执行单元，一个步骤可以：
-
-- 调用 LLM（获取完成结果）
-- 执行工具（`ToolResult` 消耗）
-- 运行业务逻辑（自定义处理函数）
-
-### 转换
-
-转换定义了步骤之间的移动方式：
-
-- **条件**：仅当条件为真时应用
-- **默认**：无条件应用
-
-### 状态
-
-工作流引擎维护跨步骤的持久状态：
-
-- 来自前一步骤的结果数据
-- 中间值和累积输出
-- 错误和历史信息
-
-## 基本工作流结构
-
-```python
-from amrita_sense.workflow import WorkflowEngine, Step, Transition
-
-# 定义步骤
-step1 = Step(name="获取上下文", handler=fetch_context_fn)
-step2 = Step(name="生成响应", handler=generate_response_fn)
-
-# 定义转换
-transitions = [
-    Transition(source="获取上下文", target="生成响应"),
-]
-
-# 创建并运行工作流
-engine = WorkflowEngine(steps=[step1, step2], transitions=transitions)
-result = await engine.run()
+```mermaid
+flowchart LR
+    A["LOAD_STATE"] --> B["JINJA2_RENDER"]
+    B --> C["BUILD_MESSAGE"]
+    C --> D["_pre_runner (事件)"]
+    D --> E["_run_strategy → 策略块"]
+    E --> F["LLM_COMPLETION"]
+    F --> G["_post_runner (事件)"]
+    G --> H["COMMIT_MEMORY"]
 ```
 
-## 与智能体策略集成
+**策略块**按模式变化：
 
-工作流引擎与智能体策略（如 AmritaCore 内置智能体使用的 ReAct 循环）共享其架构，但是为显式步骤定义进行了推广。你可以：
+```mermaid
+flowchart LR
+    S["_run_strategy<br/>(按 get_category 分派)"] -->|agent / agent-mixed| J["jump_to AGENT_STRATEGY"]
+    J --> K["AGENT_ENTRY<br/>(实例化策略)"]
+    K --> L["NATIVE_DO(STEP_BODY).WHILE(task_cond)"]
+    L --> M["AGENT_POST_PROCESS"]
+```
 
-- 在策略内使用工作流进行复杂的多步骤智能体行为
-- 直接从工作流调用工具
-- 步骤之间的挂起/恢复以进行交互式工作流
+```python
+# STEP_BODY —— 一次任务循环迭代 = 一个 Step
+STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAVE
+```
 
-## 高级示例
+## DI 上下文作为状态层
 
-参见[工作流调试](./workflow-debugging.md)中关于调试复杂工作流的完整示例，以及[依赖注入](./dependency-intro.md)中关于在工作流步骤中注入依赖的示例。
+工作流节点是**无状态函数**；所有状态存在于按参数类型注入的 DI 上下文中
+（见[数据层](../concepts/data.md)）。这就是同一批节点可跨管线复用的原因。
+
+## 预组合管线
+
+`amrita_core.builtins.workflows` 提供现成图：
+
+| 管线                   | 组合                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------- |
+| `STEP_REACT_BLOCK`     | `STRATEGY_INIT >> AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS`             |
+| `SIMPLE_STEP_REACT`    | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`     |
+| `REACT_BLOCK`（遗留）  | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS` |
+| `SIMPLE_REACT`（遗留） | `LOAD_STATE >> ... >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`                                     |
+| `SIMPLE_CHAT`          | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                         |
+
+`ChatObject(workflow=...)` 接受任意渲染图；`workflow` 与 `archived_nodes`
+互斥。
+
+## 循环条件
+
+| 条件        | 何时停止                                                    |
+| ----------- | ----------------------------------------------------------- |
+| `task_cond` | 调用上限、`_suggested_stop`、停滞注入、或全部 DAG 节点完成  |
+| `iter_cond` | 调用上限、停滞、token 预算耗尽、`exec_finished`、或建议停止 |
+
+两者都在 `amrita_core.components.react` 中，读取 `loop.run_state`——在循环与
+策略之间桥接的语义状态。
+
+## 下一步
+
+[挂起与恢复](suspend.md)——中途暂停工作流。

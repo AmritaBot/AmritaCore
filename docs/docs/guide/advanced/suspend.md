@@ -1,447 +1,64 @@
-# Suspend and Resume Mechanism
+# Suspend & Resume
 
-> **Starting from v0.9.0rc1**: `SuspendObjectStream` has been migrated to [AmritaSense](https://sense.amritabot.com). See the full docs at [Execution & Interrupt](https://sense.amritabot.com/guide/concepts/exec_and_interrupt) and [SuspendObjectStream API](https://sense.amritabot.com/reference/api/suspend-object-stream). The `amrita_core.streaming` compatibility endpoint was removed in v0.10.x+; import directly from `amrita_sense`.
+## The Mechanism
 
-**Note: This is an advanced feature for special scenarios. Most users do not need to use it directly.**
+Every `ChatObject` owns a `SuspendObjectStream` (in AmritaSense terms, the
+workflow is the producer; your code is the consumer). The stream supports
+**suspension**: the producer blocks at marked points until an external
+`resume()`.
 
-::: tip Where does suspend fit in?
-
-- **For observation** (logging, auditing, notifications), use the [event system](../tutorials/event-hooks.md) — it broadcasts and never blocks the workflow.
-- **For interactive development debugging** (stepping, breakpoints, state inspection), use [Workflow-Level Debugging](workflow-debugging.md) — it operates directly on the interpreter and injects middleware, with no cooperation needed from your code.
-- **Suspend is the production-ready debugging breakpoint** — cooperative, tag-based, and safe to ship: it only pauses when an external controller is explicitly waiting for it.
-
-:::
-
-AmritaCore provides a simple and explicit suspend mechanism that allows external control over the execution flow of `ChatObject`, pausing and resuming processing at specified nodes. This mechanism is provided by the `SuspendObjectStream` class, which `ChatObject` uses via its `io_stream` attribute (composition since v0.9.1).
-
-Applicable scenarios:
-
-- Interactive debugging that requires state inspection between processing steps
-- Implementing custom flow control in complex multi-agent systems
-- Coordinating with external systems that require synchronization points
-- **Tagged breakpoint control**: Use tags to mark specific breakpoints for precise flow control
-
-## Standard Breakpoint Tags
-
-AmritaCore provides **standardized breakpoint tags** through the `SuspendEnum` enumeration. These built-in tags correspond to key execution points in the ChatObject lifecycle. Since v0.9.0rc1, ChatObject is driven by a [workflow engine](workflow-engine.md) with additional node-level breakpoints:
-
-> **v0.12.0 migration**: `SuspendEnum` has been moved from `amrita_core.chatmanager.enums` to `amrita_core.enums`. The `amrita_core` top-level package re-exports all enum values, so `from amrita_core import SuspendEnum` still works.
-
-```python
-from amrita_core import SuspendEnum
-
-# Available standard breakpoint tags:
-SuspendEnum.ENTRY_POINT        # "ChatObject::_entry" - Entry point
-SuspendEnum.TRAIN_RENDER       # "ChatObject::render_train_template" - Template rendering
-SuspendEnum.MEMORY             # "ChatObject::memory_limiting" - Memory summarization
-SuspendEnum.MESSAGES_PREPARED  # "ChatObject::prepare_send_messages" - Messages prepared
-SuspendEnum.PRECOMPLE          # "matcher_call::pre_completion" - Before model completion
-SuspendEnum.STRATEGY_START     # "ChatObject::run_strategy_start" - Strategy execution
-SuspendEnum.LLM_CALL           # "ChatObject::call_llm" - LLM API call
-SuspendEnum.SINGLE_TOOL        # "ChatObject::single_tool_call" - Before each tool call
-SuspendEnum.COMPLE             # "matcher_call::post_completion" - After model completion
-SuspendEnum.FINALIZE           # "ChatObject::finalize" - End of pipeline
-```
-
-**Recommendation**: Use these standard tags instead of custom string tags for better maintainability and compatibility.
-
-## Architecture Overview
-
-The suspend/resume mechanism operates at two distinct levels within `SuspendObjectStream`:
-
-```mermaid
-graph TD
-    A[Producer: yield_response] --> B{Level 1: Outer Suspend}
-    B -->|Check wait_to_suspend| C[_wait_for_continue]
-    C -->|If suspended| D[Block until resume]
-    C -->|If not suspended| E{Level 2: Mode Selection}
-    D --> E
-    E -->|Callback Mode| F[Inner Suspend: Callback Function]
-    E -->|Queue Mode| G[Queue Buffer]
-    F --> H[Immediate Processing]
-    G --> I[Buffered for Consumption]
-    H --> J[Consumer]
-    I --> J
-
-    style B fill:#e1f5ff
-    style F fill:#fff4e1
-    style G fill:#f0f0f0
-```
-
-### Two-Level Interruption Mechanism
-
-#### Outer Suspend - Control Flow Interruption
-
-Implemented via the `@SuspendObjectStream.suspend` decorator and `wait_to_suspend()/resume()` methods:
-
-- **Externally driven**: Triggered by external calls to `wait_to_suspend()`
-- **Flow control**: Pauses execution of the entire coroutine
-- **Tag filtering**: Supports fine-grained breakpoint selection
-- **Bidirectional communication**: Requires explicit `resume()` to continue
-
-**Analogy**: 🚦 Traffic light - complete stop, waiting for green light (resume) to proceed
-
-#### Inner Suspend / Callback - Data Flow Interception
-
-Implemented via the `callback` mechanism:
-
-- **Internally driven**: Automatically triggered on each `yield_response`
-- **Data interception**: Inserts processing logic into the data transmission path
-- **Real-time response**: No external `resume()` needed, continues automatically
-- **Unidirectional flow**: Data flows through and is processed without blocking production
-
-**Analogy**: 🛂 Customs checkpoint - every item must be inspected, but inspection completes immediately without prolonged detention
-
-::: warning Callback and Iterator Are Mutually Exclusive
-**Important Limitation**: `callback` and `async for` iteration consumption are **mutually exclusive**. A single `ChatObject` instance can only use one method to handle the response stream. Using both callback and iterator simultaneously will result in a `RuntimeError`.
-:::
-
-## How It Works
-
-Since v0.9.0rc1, the core lifecycle of `ChatObject` is driven by a [composable workflow engine](workflow-engine.md). Since v0.12.0, core workflow nodes have been extracted to the `amrita_core.components` package (`LOAD_STATE`, `JINJA2_RENDER`, `BUILD_MESSAGE`, `LLM_COMPLETION`, `COMMIT_MEMORY` etc.). Each workflow node is decorated with `@SuspendObjectStream.suspend` and automatically checks for suspend signals before execution.
-
-Basic usage steps:
-
-1. Call `chat.begin()` to start the internal task of the ChatObject
-2. From **outside** the ChatObject execution context, in a separate asynchronous task, call `await chat.io_stream.wait_to_suspend(timeout)` to listen for the suspend state
-3. The ChatObject automatically pauses when it reaches the next method decorated with `@SuspendObjectStream.suspend`
-4. Call `chat.io_stream.resume()` to resume normal execution flow
-
-## Using Tags to Mark Breakpoints
-
-AmritaCore supports using the `tag` parameter to assign unique identifiers to suspension points, enabling precise breakpoint control:
-
-### Basic Usage with Standard Tags
-
-```python
-from amrita_core import ChatObject, SuspendEnum
-from amrita_core.types import MemoryModel, Message
-
-context = MemoryModel()
-train = Message(content="You are a helpful assistant.", role="system")
-
-chat = ChatObject(
-    context=context,
-    session_id="session_123",
-    user_input="Hello!",
-    train=train.model_dump()
-)
-
-# External controller listening for a specific standard breakpoint
-async def external_controller(chat_obj):
-    # Wait for the standard "single_tool_call" breakpoint
-    await chat_obj.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
-    print("Suspended before tool call!")
-
-    # You can inspect or modify state here
-    # ...
-
-    chat_obj.io_stream.resume()
-
-chat.begin()
-# Start the controller task
-controller_task = asyncio.create_task(external_controller(chat))
-# Wait for the chat task to finish
-await chat
-controller_task.cancel()
-```
-
-### Using Tags in Custom Functions
-
-Suspension is a mechanism of the **IO stream** (`SuspendObjectStream`), not of `ChatObject`. To insert a tagged suspension point inside your own function, call `_wait_for_continue(tag)` on the stream — it blocks only while an external controller is waiting for a matching tag, and returns immediately otherwise:
-
-```python
-from amrita_core import SuspendObjectStream
-
-class MyAgent:
-    async def call_external_api(self, chat_obj: ChatObject, url: str):
-        """Suspend before calling external API (if an external listener is waiting for this tag)"""
-        # Blocks only if an external controller called wait_to_suspend("before_api_call")
-        await chat_obj.io_stream._wait_for_continue("before_api_call")
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                return await response.json()
-
-    async def post_process_response(self, chat_obj: ChatObject, response: str):
-        """Suspend after processing response"""
-        await chat_obj.io_stream._wait_for_continue("after_response")
-
-        # Post-processing logic
-        print(f"Processing response: {response}")
-```
-
-Alternatively, the `@SuspendObjectStream.suspend_with_tag` decorator automates the same call: it invokes `_wait_for_continue(tag)` on the stream before running the function body. The decorator locates the stream by scanning the function's parameters, so the decorated function **must declare a `SuspendObjectStream` parameter** — otherwise a `TypeError` is raised:
-
-```python
-from amrita_core import SuspendObjectStream
-
-class MyAgent:
-    @SuspendObjectStream.suspend_with_tag("before_api_call")
-    async def call_external_api(self, io_stream: SuspendObjectStream, url: str):
-        # Equivalent to: await io_stream._wait_for_continue("before_api_call")
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as response:
-                return await response.json()
-```
-
-Both forms are equivalent — pick whichever fits your function signature.
-
-### Tag Matching Rules
-
-1. **Exact match**: `wait_to_suspend("xxx")` only matches suspension points tagged `"xxx"` — whether inserted via the decorator or a manual `_wait_for_continue("xxx")` call
-2. **Untagged suspend**: `wait_to_suspend()` (no tags) matches **all** suspension points: every `_wait_for_continue()` call blocks while such a wait is pending
-3. **Tagged wait skips untagged points**: while a tagged `wait_to_suspend("xxx")` is pending, untagged suspension points (calls without a tag) return immediately instead of blocking
-
-```python
-# Example: Multi-breakpoint control flow
-async def multi_breakpoint_controller(chat_obj):
-    # Wait for first breakpoint
-    await chat_obj.io_stream.wait_to_suspend("step1")
-    print("Step 1 completed")
-
-    # Continue waiting for second breakpoint
-    await chat_obj.io_stream.wait_to_suspend("step2")
-    print("Step 2 completed")
-
-    # Finally wait for any breakpoint
-    await chat_obj.io_stream.wait_to_suspend()  # Matches any method decorated with suspend
-    print("Any step completed")
-
-    chat_obj.io_stream.resume()
-```
-
-## Manual Use of `_wait_for_continue()`
-
-For finer-grained control, you can manually call `await chat_obj.io_stream._wait_for_continue()` within custom asynchronous logic to freely insert custom suspension points:
+- `wait_to_suspend(tags)` — request the producer to block at tagged break points
+- `resume()` — release it
+- `@Node(SuspendEnum.X)` tags double as break points (e.g. `STEP_INTRO`,
+  `MEMORY`, `COMPLE`)
 
 ```python
 import asyncio
-from amrita_core import create_agent, minimal_init
 
-async def custom_processing_step(chat_obj):
-    """Custom processing function with a manual suspension point"""
-    print("Starting processing step...")
-    await asyncio.sleep(0.5)
 
-    # Manual suspension point: blocks only if external wait_to_suspend triggered, otherwise returns immediately
-    await chat_obj.io_stream._wait_for_continue()
-
-    print("Continuing after suspension point...")
-    await asyncio.sleep(0.5)
-
-async def main():
-    await minimal_init()
-    agent = create_agent(
-        base_url="https://api.example.com",
-        api_key="your-api-key",
-        model="gpt-3.5-turbo",
-    )
-
-    chat = agent.get_chatobject("Hello!")
-
-    # External independent control task
-    async def external_controller(chat_obj):
-        await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
-        print("Chat suspended!")
-        await asyncio.sleep(1)
-        chat_obj.io_stream.resume()
-        print("Chat resumed!")
-
-    controller_task = asyncio.create_task(external_controller(chat))
-
-    try:
-        await custom_processing_step(chat)
-        chat.begin()
-        async with chat:
-            async for response in chat.io_stream.get_response_generator():
-                content = response if isinstance(response, str) else response.get_content()
-                print(content, end="", flush=True)
-            await chat  # Wait for the task to finish before exiting
-    finally:
-        controller_task.cancel()
-
-asyncio.run(main())
+async def interactive(chat):
+    stream = chat.io_stream
+    suspend_task = asyncio.create_task(stream.wait_to_suspend("ChatObject::step_intro"))
+    run_task = asyncio.create_task(chat.begin())
+    await suspend_task  # producer is now paused at a Step boundary
+    # ... inspect or inject ...
+    stream.resume()  # let the agent continue
+    await run_task
 ```
 
-### Key Notes
+> Core recaps the Sense mechanics here; the full API is at
+> [sense.amritabot.com — SuspendObjectStream](https://sense.amritabot.com/reference/api/suspend-object-stream).
 
-- `_wait_for_continue()` is automatically called by all methods decorated with `@SuspendObjectStream.suspend`
-- Developers can manually insert it to customize internal business suspension points
-- When no pending suspend request exists, the call returns immediately without blocking the flow
-- Based on asynchronous signals, independent of the business execution flow
-- **Tag parameter passing**: When calling manually, you can pass a tag parameter: `await chat_obj.io_stream._wait_for_continue(tag="custom_tag")`
+## The Bidirectional Stream
 
-## Combining Both Interruption Mechanisms
+The stream has **two independent channels**:
 
-The two interruption mechanisms are orthogonal and can be combined. However, because **callback and iterator are mutually exclusive**, you need to adjust the combination strategy based on the chosen response consumption method.
+| Direction   | Producer API                        | Consumer API                                    |
+| ----------- | ----------------------------------- | ----------------------------------------------- |
+| Agent → You | `yield_response()`, `push_object()` | `get_response_generator()`                      |
+| You → Agent | `get_producer_input_generator()`    | `send_to_producer()`, `send_done_to_producer()` |
 
-```mermaid
-sequenceDiagram
-    participant P as Producer
-    participant OS as Outer Suspend<br/>(wait_to_suspend)
-    participant IS as Inner Suspend<br/>(Callback)
-    participant C as Consumer
+### Peer → Agent Injection at Step Boundaries
 
-    P->>OS: yield_response(data)
-    OS->>OS: Check if suspended?
-    alt Suspended
-        OS-->>P: Block execution
-        Note over OS: Waiting for resume()
-    else Not suspended
-        OS->>IS: Pass data
-        IS->>IS: Execute callback
-        IS->>C: Deliver result
-    end
-```
+Messages pushed with `send_to_producer()` are drained by the strategy at the
+next Step boundary (`intro_step`) and appended to the conversation context as
+`[peer message]` user messages:
 
-### Callback Mode + Outer Suspend
+- pushed **before** a Step starts → consumed at that boundary
+- pushed **while** the agent works → queued until the next boundary
+- pushed **after** the run → dropped (channel closed)
 
-When using callbacks to handle responses, outer suspension still works correctly. **Note**: You must first call `chat.begin()` to start the task, then wait for the task to finish using `await chat`.
+This enables human-in-the-loop feedback, external context injection, and
+streaming inputs. See [Streaming](../tutorials/streaming.md) for the practical
+usage.
 
-```python
-# Scenario: Monitor data while pausing at key points (callback mode)
+## Rules
 
-async def monitor(response):
-    """Inner suspend: real-time monitoring of each response"""
-    if "error" in str(response):
-        await send_alert(response)
+- One consumer per direction: generator _or_ callback (not both)
+- After `set_queue_done()`, further `yield_response` raises `StreamStateError`
+- After `send_done_to_producer()`, further `send_to_producer` fails fast —
+  no blocking on the queue timeout
 
-chat.io_stream.set_callback_func(monitor)  # Set inner suspend (callback)
+## Next
 
-# Outer suspend: pause at specific moment
-async def controller():
-    await chat.io_stream.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
-    print("About to call LLM, continue?")
-    await asyncio.to_thread(input, "Press Enter to continue...")
-    chat.io_stream.resume()
-
-# Start the task and controller task
-chat.begin()
-asyncio.create_task(controller())
-
-# Wait for ChatObject execution to complete
-await chat
-# Or get the full response
-# final_response = await chat.full_response()
-```
-
-### Iterator Mode + Outer Suspend
-
-If not using callbacks and only consuming via iterator, outer suspension is also effective. Using the `async with chat:` context manager is recommended.
-
-```python
-# Scenario: Streaming output with suspension support (iterator mode)
-
-# Outer suspend control task
-async def controller():
-    await chat.io_stream.wait_to_suspend(SuspendEnum.PRECOMPLE.value)
-    print("\n[System] About to call LLM, pausing...")
-    input("Press Enter to continue...")
-    chat.io_stream.resume()
-
-chat.begin()
-async with chat:
-    asyncio.create_task(controller())
-    async for chunk in chat.io_stream.get_response_generator():
-        content = chunk if isinstance(chunk, str) else chunk.get_content()
-        print(content, end="", flush=True)
-    # Iterator exhausts naturally, then wait for the task to finish before exiting
-    await chat
-```
-
-::: tip How to Choose?
-
-- Need to process chunks but don't want to write manual loops? Use **callback mode**, start with `chat.begin()` then `await chat` to wait for completion.
-- Need streaming output to terminal or WebSocket? Use **iterator mode** with the `async with chat:` context manager.
-- Regardless of mode, outer suspension (`wait_to_suspend`) works normally.
-  :::
-
-## Usage Pattern Examples
-
-### Iterator Mode (Most Common)
-
-```python
-import asyncio
-from amrita_core import create_agent, minimal_init
-
-async def main():
-    await minimal_init()
-    agent = create_agent(
-        base_url="https://api.example.com",
-        api_key="your-api-key",
-        model="gpt-3.5-turbo",
-    )
-
-    chat = agent.get_chatobject("Hello!")
-
-    # External concurrent control logic
-    async def external_controller(chat_obj):
-        await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
-        print("Chat suspended.")
-        await asyncio.sleep(1)
-        chat_obj.io_stream.resume()
-        print("Chat resumed.")
-
-    chat.begin()
-    async with chat:
-        controller_task = asyncio.create_task(external_controller(chat))
-        try:
-            async for response in chat.io_stream.get_response_generator():
-                content = response if isinstance(response, str) else response.get_content()
-                print(content, end="", flush=True)
-        finally:
-            controller_task.cancel()
-        await chat  # Wait for the task to finish before exiting
-
-asyncio.run(main())
-```
-
-### Callback Mode
-
-```python
-async def handle_chunk(chunk):
-    print(chunk, end="", flush=True)
-
-chat.io_stream.set_callback_func(handle_chunk)
-
-async def external_controller(chat_obj):
-    await chat_obj.io_stream.wait_to_suspend(timeout=5.0)
-    print("\n[Suspended]")
-    await asyncio.sleep(1)
-    chat_obj.io_stream.resume()
-
-chat.begin()
-asyncio.create_task(external_controller(chat))
-# Wait for the flow to complete naturally
-await chat
-```
-
-## Important Usage Notes
-
-- Control interfaces must be called from a separate concurrent task, outside the main asynchronous context of the `ChatObject`
-- The `wait_to_suspend` timeout parameter is used to avoid indefinite blocking
-- **Tag parameters help precise positioning**: In complex flows, using tags enables accurate control of specific breakpoints
-- This is a low-level capability intended for framework extension, advanced debugging, and custom flow orchestration scenarios
-- **Composition relationship**: `ChatObject` uses `SuspendObjectStream` via its `io_stream` attribute (composition since v0.9.1). Access suspend/resume methods through `chat_obj.io_stream.*`.
-
-::: warning Callback and Iterator Are Mutually Exclusive
-Do not set a callback function and use `get_response_generator()` simultaneously; this will cause a `RuntimeError`.
-:::
-
-::: danger Lifecycle Management
-
-- You must call `chat.begin()` to create the internal task before using `async with chat:` or `await chat`.
-- `async with chat:` is the recommended approach for **iterator mode**; it automatically terminates the task upon exit.
-- In **callback mode**, start the task with `chat.begin()` and then directly `await chat` to wait for completion; there is no need to enter the context manager.
-  :::
-
-## When Not to Use This Feature
-
-For normal business development, prefer the standard interaction patterns:
-
-- Streaming response output: `chat.begin(); async with chat: async for response in chat.io_stream.get_response_generator()`
-- Callback-style response: `chat.io_stream.set_callback_func(callback); chat.begin(); await chat`
-- Complete one-time response: `chat.begin(); response = await chat.full_response()`
-
-Enable the suspend/resume capability only in advanced scenarios that require fine-grained external control over internal execution flow.
+[The Step Loop](step-loop.md) — the built-in step-driven ReAct loop.

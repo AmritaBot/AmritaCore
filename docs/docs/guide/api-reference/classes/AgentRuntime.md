@@ -55,7 +55,7 @@ agent = create_agent(
     "https://api.example.com",
     "your-api-key",
     model="gpt-4",
-    model_config={"temperature": 0.7}
+    model_config={"temperature": 0.7},
 )
 
 # Get a chat object for interaction

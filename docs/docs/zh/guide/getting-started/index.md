@@ -1,23 +1,18 @@
 # 快速开始
 
-## 环境准备
+欢迎！本节带你从零到第一个可运行的 agent，用最短路径。
 
-### 系统要求
+## 开始之前
 
-使用 AmritaCore 需要：
+- **Python 3.10+**（最高 3.14）
+- **一个 LLM API 端点**——OpenAI 兼容、Anthropic 或任意[受支持适配器](../extensions-integration/adapters.md)
+- 少量内存（框架本身很小；上下文记忆随会话增长）
 
-- Python 3.10 及以上（最高 3.14）
-- 足够的内存处理上下文记忆（建议至少 1GB）
-- 网络连接以访问 LLM API
-- 访问 LLM 提供商（OpenAI、Azure OpenAI 或兼容服务）
+本节不需要任何 AmritaSense 前置知识——所需内容均内联覆盖。
 
-### Python 版本支持
+## 安装
 
-AmritaCore 官方支持 Python 3.10 至 3.13。其他版本可能也能运行，但以上为经过测试和推荐的版本。
-
-### 安装依赖
-
-建议使用虚拟环境进行开发，推荐使用 `uv`、`pdm` 等工具。
+推荐使用 `uv` 管理环境：
 
 ```bash
 uv init
@@ -25,30 +20,16 @@ uv venv
 uv add amrita-core
 ```
 
-使用 `Amctl`（我们的模板工具，基于 `uv`）创建 AmritaCore 项目：
-
-```bash
-# 如果尚未安装 Amctl，先运行以下命令
-# pip install amctl
-# 或使用 uv：
-# uv tool install amctl
-amctl create -t amrita_core
-```
-
-使用 pip 安装 AmritaCore：
+或用 pip：
 
 ```bash
 pip install amrita-core
 ```
 
-或者直接使用源码：
+直接从源码仓库开发？Clone 后 `pip install -e .`（见仓库 `README.md`）。
 
-```bash
-git clone https://github.com/AmritaBot/AmritaCore.git
-cd AmritaCore
-pip install -e .
-```
+## 下一步
 
-### 代码演示
-
-你可以在仓库的 `/demo` 路径下查看更多演示。
+1. [最小示例](minimal-example.md) —— 一个 10 行的可运行 agent
+2. [基础示例](basic-example.md) —— 流式、工具与会话一站式
+3. 然后跟随[教程](../tutorials/index.md)系统化构建

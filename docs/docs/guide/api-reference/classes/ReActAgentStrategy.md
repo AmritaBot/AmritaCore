@@ -62,7 +62,7 @@ from amrita_core.builtins.agent import ReActAgentStrategy
 ctx = StrategyContext(
     user_input="What can you do?",
     original_context=message_context,
-    chat_object=chat_obj
+    chat_object=chat_obj,
 )
 
 # Create and use the strategy

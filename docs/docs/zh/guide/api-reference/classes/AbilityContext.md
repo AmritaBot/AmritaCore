@@ -15,6 +15,6 @@
 from amrita_core.contexts import AbilityContext
 
 ctx = AbilityContext()
-print(ctx.tools)    # ToolsManager 单例
+print(ctx.tools)  # ToolsManager 单例
 print(ctx.presets)  # PresetManager 单例
 ```

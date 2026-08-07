@@ -97,7 +97,7 @@ async def on_post_process(self) -> None:
         self.ctx.message.append(
             Message(
                 role="user",
-                content="<END_OF_PROCESS>\nPlease answer me directly based on the information we got before.\n<END_OF_PROCESS>"
+                content="<END_OF_PROCESS>\nPlease answer me directly based on the information we got before.\n<END_OF_PROCESS>",
             )
         )
 ```

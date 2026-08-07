@@ -1,65 +1,52 @@
 # Minimal Example
 
-## 5-Minute Quick Start
+The shortest complete AmritaCore program. Copy, paste, run.
 
-Here's a minimal example to get you started with AmritaCore using the simplified `create_agent` function:
+> **What you will see**: the agent's reply streaming out token by token. The
+> three lines before the loop (`minimal_init`, `create_agent`,
+> `get_chatobject`) are the entire setup — everything else is AmritaCore doing
+> the work.
 
 ```python
 import asyncio
+import os
+
 from amrita_core import create_agent, minimal_init
 
-async def minimal_example():
-    # Initialize AmritaCore before creating agent
+
+async def main() -> None:
     await minimal_init()
-    # Create an agent with minimal parameters
     agent = create_agent(
-    "https://api.example.com", # Replace with your API URL
-    "your-api-key", # Replace with your API key
-    model="gpt-4", # Replace with your desired model
-    model_config={"temperature": 0.7}
+        base_url="https://api.openai.com/v1",
+        api_key=os.environ["OPENAI_API_KEY"],
+        model="gpt-4o-mini",
     )
-    # Get a chat object for the interaction
-    chat = agent.get_chatobject("Hello, what can you do?")
-
-    # Execute the interaction and get the response
+    chat = agent.get_chatobject("Hello! Who are you?")
     async with chat.begin():
-        response = await chat.full_response()
-        await chat  # Wait for the task to finish before exiting
-        print(response)
+        async for msg in chat.io_stream.get_response_generator():
+            print(msg, end="", flush=True)
 
-# Run the example
+
 if __name__ == "__main__":
-    asyncio.run(minimal_example())
+    asyncio.run(main())
 ```
 
-## Code Example Explanation
+## What Just Happened
 
-In this minimal example:
+| Line                         | What it does                                                         |
+| ---------------------------- | -------------------------------------------------------------------- |
+| `minimal_init()`             | Initializes the global config (required once per process)            |
+| `create_agent(...)`          | Builds an `Agent` factory with an LLM adapter bound to your endpoint |
+| `agent.get_chatobject(text)` | Creates a `ChatObject` — the basic unit of a dialogue                |
+| `chat.begin()`               | Runs the workflow; the agent answers inside this context             |
+| `get_response_generator()`   | Streams the response token by token                                  |
 
-1. We use `minimal_init()` to initialize AmritaCore before creating the agent
-2. We use `create_agent()` to create an agent with just the essential parameters (URL and API key)
-3. The `create_agent` function automatically handles initialization, configuration, and preset creation
-4. We call `agent.get_chatobject()` to get a `ChatObject` instance for our specific interaction
-5. We execute the interaction using `chat.begin()` and get the full response
+## Notes
 
-### Understanding ChatObject
+- `api_key` can be omitted if you use `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` env vars with the matching `base_url`.
+- For DeepSeek or other OpenAI-compatible providers, just change `base_url` and `model`.
+- Anthropic? Use `protocol="anthropic"` — see [Adapters](../extensions-integration/adapters.md).
 
-`ChatObject` is the fine-grained standard interface in AmritaCore that provides complete control over individual chat interactions. While `create_agent` offers a high-level, simplified API for common use cases, `ChatObject` gives you access to all the underlying functionality including:
+## Next
 
-- Direct control over session management
-- Custom context and memory handling
-- Advanced configuration options
-- Full access to the event system and hooks
-- Detailed control over streaming behavior
-
-For most basic use cases, `create_agent` is sufficient and much simpler to use. However, when you need fine-grained control or want to implement custom behavior, you can work directly with `ChatObject`.
-
-## Running and Debugging
-
-To run the example:
-
-1. Install AmritaCore
-2. Replace `https://api.example.com` and `your-api-key` with actual values
-3. Execute the script with `python your_script.py`
-
-For debugging, you can enable verbose logging by configuring the logger in your code.
+[Basic Example](basic-example.md) — add streaming metadata, tools and sessions.

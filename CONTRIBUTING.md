@@ -173,7 +173,7 @@ bash scripts/check.sh
 
 - Discord: [Discord Server](https://discord.gg/byAD3sbjjj)
 - QQ Group: 1006893368
-- Email: [admin@suggar.top](mailto:admin@suggar.top)
+- Email: [admin@amritabot.com](mailto:admin@amritabot.com)
 
 ## Acknowledgments
 

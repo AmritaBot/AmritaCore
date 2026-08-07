@@ -119,8 +119,14 @@ class OpenAIAdapter(ModelAdapter):
         # Process streaming response
         if self.preset.config.stream and isinstance(completion, openai.AsyncStream):
             async with completion as completion:
-                req_id: str | None = completion.response.headers.get(
-                    "x-request-id", None
+                # Provider-specific request/trace ids: OpenAI uses
+                # ``x-request-id``; DeepSeek uses ``x-ds-trace-id``/``eo-log-uuid``.
+                headers = completion.response.headers
+                req_id: str | None = (
+                    headers.get("x-request-id")
+                    or headers.get("x-ds-trace-id")
+                    or headers.get("eo-log-uuid")
+                    or getattr(completion, "_request_id", None)
                 )
                 async for chunk in completion:
                     try:

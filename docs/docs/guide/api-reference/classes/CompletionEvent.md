@@ -24,6 +24,7 @@ CompletionEvent inherits from `Event` and carries the model's response. Its even
 from amrita_core import on_completion
 from amrita_core.hook.event import CompletionEvent
 
+
 @on_completion
 async def handle_completion(event: CompletionEvent):
     response = event.get_model_response()

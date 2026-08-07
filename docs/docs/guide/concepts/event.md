@@ -1,374 +1,100 @@
 # Event System
 
-> **Since v0.9.0rc1**: The event system core (`BaseEvent`, `MatcherFactory`, `EventRegistry`, `MatcherException`, `CancelException`, `PassException`) has been migrated to [AmritaSense](https://sense.amritabot.com). Full documentation at [AmritaSense Event System](https://sense.amritabot.com/guide/advanced/event_system). The `amrita_core.hook.*` compatibility endpoints were removed in v0.10.x+; import directly from `amrita_sense`.
+AmritaCore's pipeline is **event-driven**. Workflow nodes and strategies
+dispatch events; registered **matchers** intercept them, may mutate them, and
+control flow through exceptions.
 
-## Event-Driven Design
+## Matcher — the Hook Primitive
 
-AmritaCore implements an event-driven architecture that allows you to intercept and modify the processing pipeline at various stages. Events can be registered to respond to specific conditions or actions.
-
-## PreCompletionEvent Pre-Completion Event
-
-The [PreCompletionEvent](../api-reference/classes/PreCompletionEvent.md) is triggered before the completion request is sent to the LLM:
-
-```python
-from amrita_core.hook.event import PreCompletionEvent
-from amrita_core.hook.on import on_precompletion
-
-@on_precompletion().handle()
-async def handle_pre_completion(event: PreCompletionEvent):
-    # Modify the messages before sending to LLM
-    event.message.memory.append(Message(role="system", content="Always be helpful"))
-    # Dynamically modify preset
-    event.chat_object.preset = get_new_preset()
-
-```
-
-## CompletionEvent Completion Event
-
-The [CompletionEvent](../api-reference/classes/CompletionEvent.md) is triggered after receiving the completion from the LLM:
+In AmritaSense terms: events are `BaseEvent`s, dispatched through
+`MatcherFactory.trigger_event(event, exception_ignored=...)`. Matchers match by
+**event type string**:
 
 ```python
-from amrita_core.hook.event import CompletionEvent
-from amrita_core.hook.on import on_completion
+from amrita_sense.hook.matcher import Matcher
 
-@on_completion().handle()
-async def handle_completion(event: CompletionEvent):
-    # Process the response before returning to user
-    print(f"Received response: {event.get_model_response()}")
+matcher = Matcher("agent.step_intro", priority=1)
 
+
+@matcher.handle()
+async def on_step_intro(event): ...
 ```
 
-## FallbackContext Preset Fallback Event
+> Use the **literal string**, not `SomeEvent.event_type` — the latter is a
+> property object, not a string.
 
-The [FallbackContext](../api-reference/classes/FallbackContext.md) is triggered when an LLM request fails and a fallback mechanism is needed. This event allows you to handle failures gracefully by switching to alternative model presets or implementing custom retry logic.
+### Event base classes
 
-```python
-from amrita_core.hook.event import FallbackContext
-from amrita_core.hook.on import on_preset_fallback
+AmritaSense ships two event bases:
 
-@on_preset_fallback().handle()
-async def handle_fallback(event: FallbackContext):
-    # Handle LLM request failure
-    print(f"LLM request failed with error: {event.exc_info}")
-    print(f"Current preset: {event.preset.name}")
+| Base class             | Abstract contract                                                                          | Use when                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `BaseEvent`            | `get_event_type()` only                                                                    | The event never needs a `constructor()`    |
+| `ConstructableEvent`   | `BaseEvent` **plus** abstract `constructor()` — every subclass **must** implement it       | The event is built via `constructor()`     |
 
-    # Switch to a different preset for retry
-    # The system will automatically use event.preset for the next attempt
-    if event.term == 0:  # First attempt
-        event.preset = get_alternative_preset()  # Your custom function to get alternative preset
-    elif event.term == 1:  # First retry
-        event.preset = get_safe_preset()  # Your custom function to get a safe/cheaper preset
-    else:
-        # Mark as failed if no more fallbacks available
-        event.fail("No more fallback presets available")
+`constructor()` is an **inheritance-tree constraint** (an abstract method),
+not a duck-typed protocol: a subclass of `ConstructableEvent` that omits it
+fails type-checking. All built-in step events inherit `ConstructableEvent` and
+implement `constructor()` — usually built manually via
+`StepIntroEvent.constructor(rs)` and dispatched with `trigger_event(instance)`,
+but also usable by a workflow `TRIGGER_EVENT` node, which builds the instance
+from the class.
 
-```
+## Event Categories
 
-The `FallbackContext` provides the following properties:
+### Pipeline events
 
-- `preset`: The current [ModelPreset](../api-reference/classes/ModelPreset.md) being used
-- `exc_info`: The exception that caused the failure
-- `config`: The current [AmritaConfig](../api-reference/classes/AmritaConfig.md)
-- `context`: The [SendMessageWrap](../api-reference/classes/SendMessageWrap.md) containing the message context
-- `term`: The current retry attempt number, counting from **0** (first call) up to `max_retries - 1`.
+| Event                | Type string | When                                          |
+| -------------------- | ----------- | --------------------------------------------- |
+| `PreCompletionEvent` | —           | Before the LLM call (mutate context here)     |
+| `CompletionEvent`    | —           | After the response (rewrite `model_response`) |
 
-You can modify the `event.preset` to switch to a different model preset for the next retry attempt. If no suitable fallback is available, call `event.fail(reason)` to terminate the retry process.
+Convenience decorators: `@on_precompletion`, `@on_completion`, `@on_event("<type>")`.
 
-## MatcherManager Event Matcher
+### Step lifecycle events (built-in ReAct)
 
-> **Note**: Since v0.9.0rc1, `MatcherManager` (`MatcherFactory`) has been moved to the `amrita-sense` package. The `amrita_core.hook.matcher` compatibility endpoint was removed in v0.10.x+; import directly from `amrita_sense`.
+| Type string            | Mutable fields                     | Raised on                      |
+| ---------------------- | ---------------------------------- | ------------------------------ |
+| `agent.step_intro`     | `override_phase`                   | Step starts                    |
+| `agent.step_leave`     | `override_verb`, `override_object` | Step ends                      |
+| `agent.step_iteration` | `end_step`                         | After each tool round          |
+| `agent.tool_call`      | `arguments`, `cancel`              | Before a regular tool executes |
+| `agent.tool_return`    | `result`, `skip_append`            | After a regular tool returns   |
 
-The `MatcherManager` handles matching events to appropriate handlers:
+All step events are constructed from `AgentRunState` via their `constructor()`
+classmethod.
 
-```python
-# From amrita-sense
-from amrita_sense.hook.matcher import MatcherFactory
-```
+## Mutation and Control Flow
 
-## Event Registration and Triggering
+Two powerful properties:
 
-Events are registered using decorators and automatically triggered during the processing pipeline:
+1. **Events are mutable** — the hook reads fields back after dispatch:
 
-```python
-from amrita_core.hook.on import on_event
+   ```python
+   @on_event("agent.step_leave")
+   async def fix_summary(event):
+       event.override_verb = "Reviewed"  # replaces the auto summary
+   ```
 
-@on_event()
-def my_custom_handler(event):
-    # Handle custom events
-    pass
-```
+2. **`exception_ignored`** — exceptions listed there propagate out of
+   `trigger_event` to the hook. `StepAbortError` (a `BaseException`) is the
+   framework's control-flow signal:
 
-## Event Hooks (Event Hooks)
+   ```python
+   from amrita_core.builtins.agent.events import StepAbortError
 
-Multiple types of event hooks are available:
 
-- `@on_precompletion`: Before sending request to LLM
-- `@on_completion`: After receiving response from LLM
-- `@on_preset_fallback`: When an LLM request fails
-- `@on_event`: For custom events
+   @on_event("agent.tool_call")
+   async def block_tool(event):
+       raise StepAbortError("blocked")  # tool never executes
+   ```
 
-## Custom Parameter Injection
+## How Events Reach Nodes
 
-The `ChatObject` class supports injecting custom parameters through constructor arguments, which are passed to event handlers when events are triggered:
+Workflow nodes and lifecycle hooks call `_trigger_step_event(...)`; matchers
+registered in the same process see every dispatch. This is the extension point
+for guardrails, telemetry, and human-in-the-loop.
 
-```python
-from amrita_core.chatmanager import ChatObject
+## Next
 
-class MyClass:
-    ...
-
-class MyObject:
-    ...
-
-
-# Pass custom parameters when creating ChatObject
-chat_obj = ChatObject(
-    train={"system": "You are a helpful assistant"},
-    user_input="Hello",
-    context=None,
-    session_id="session_123",
-    hook_args=(MyClass(), MyObject()),
-    hook_kwargs={"custom_key": "custom_value"}
-)
-
-# Receive these parameters in event handlers
-@on_precompletion().handle()
-async def handle_pre_completion(event: PreCompletionEvent, arg1: MyClass, arg2: MyObject, custom_key: str):
-    ...
-
-
-# You can also specify exception types to ignore (ignored exceptions will be re-raised)
-chat_obj = ChatObject(
-    train={"system": "You are a helpful assistant"},
-    user_input="Hello",
-    context=None,
-    session_id="session_123",
-    exception_ignored=(ValueError, TypeError)
-)
-```
-
-### Parameter Description
-
-- `hook_args`: Positional arguments tuple passed to event handlers
-- `hook_kwargs`: Keyword arguments dictionary passed to event handlers
-- `exception_ignored`: Tuple of exception types that should be ignored and re-raised in event handlers
-
-These parameters enable event handlers to access additional context information, enhancing the flexibility and extensibility of the event system.
-
-::: warning
-Function signatures cannot use `*args` or `**kwargs`, as they may prevent AmritaCore from properly parsing the function signature, causing the `Matcher` to be skipped.
-:::
-
-## Dependency Injection System (Depends)
-
-AmritaCore provides a powerful dependency injection system that allows event handlers to declare their required dependencies, and the system automatically resolves and injects these dependencies.
-
-### What is Dependency Injection?
-
-**Dependency Injection (DI)** is a design pattern where objects receive their dependencies from an external source rather than creating them internally. In AmritaCore's context:
-
-- **Dependencies** are resources your event handler needs (like database connections, API clients, configuration objects, etc.)
-- **Injection** means AmritaCore automatically provides these resources to your handler function when it's called
-- **Benefits**:
-  - Your handler functions don't need to know how to create or manage these resources
-  - Resources can be shared, cached, or mocked easily
-  - Code becomes more testable and maintainable
-  - Complex setup logic is centralized in dependency functions
-
-Instead of manually creating and passing resources like this:
-
-```python
-# Without DI - Manual resource management
-def get_database_connection():
-    return create_db_connection()
-
-def get_user_session(session_id):
-    return load_user_session(session_id)
-
-# Handler would need to call these functions manually
-async def handle_pre_completion(event: PreCompletionEvent):
-    db_conn = get_database_connection()
-    user_session = get_user_session(event.chat_object.session_id)
-    # ... use resources
-```
-
-With AmritaCore's DI system, you simply declare what you need:
-
-```python
-# With DI - Automatic resource injection
-@on_precompletion().handle()
-async def handle_with_dependencies(
-    event: PreCompletionEvent,
-    db_conn = Depends(get_database_connection),
-    user_session = Depends(get_user_session)
-):
-    # Resources are automatically provided!
-    # ... use resources directly
-```
-
-### Depends Decorator
-
-Use the `Depends` decorator to declare dependencies:
-
-```python
-from amrita_core.hook.matcher import Depends
-
-async def get_database_connection():
-    # Return database connection
-    return database_connection
-
-async def get_user_session(session_id: str):
-    # Get user session based on session_id
-    return user_session
-
-@on_precompletion().handle()
-async def handle_with_dependencies(
-    event: PreCompletionEvent,
-    db_conn = Depends(get_database_connection),
-    user_session = Depends(get_user_session)
-):
-    # The system will automatically call get_database_connection() and get_user_session()
-    # and inject the results into the handler parameters
-    user_data = await db_conn.get_user(user_session.user_id)
-    event.messages.append(Message(
-        role="system",
-        content=f"User info: {user_data.name}"
-    ))
-```
-
-### Dependency Injection for Authorization and Validation
-
-**Important**: If any dependency function returns `None` or raises an exception (that is not in the `exception_ignored` list), **the entire event handler will be automatically skipped**. This behavior makes dependency injection perfect for **authorization and permission validation**.
-
-#### Permission Validation Example
-
-You can use dependency injection to implement permission checks:
-
-```python
-async def require_admin_permission(session_id: str):
-    """Dependency that only returns a value for admin users"""
-    user = get_user_from_session(session_id)
-    if user.is_admin:
-        return user  # Admin user - allow handler to proceed
-    else:
-        return None  # Non-admin user - skip this handler
-
-async def validate_api_key(api_key: str):
-    """Dependency that validates API key"""
-    if is_valid_api_key(api_key):
-        return api_key  # Valid key - allow handler to proceed
-    else:
-        return None  # Invalid key - skip this handler
-
-# This handler will ONLY execute for admin users with valid API keys
-@on_precompletion().handle()
-async def admin_only_handler(
-    event: PreCompletionEvent,
-    admin_user = Depends(require_admin_permission),
-    valid_key = Depends(validate_api_key)
-):
-    # This code only runs if BOTH dependencies succeed
-    event.messages.append(Message(
-        role="system",
-        content="Admin mode activated"
-    ))
-```
-
-In this example:
-
-- If `require_admin_permission()` returns `None` (non-admin user), the handler is skipped
-- If `validate_api_key()` returns `None` (invalid key), the handler is skipped
-- Only when **both dependencies succeed** will the handler execute
-
-This pattern allows you to:
-
-- **Implement fine-grained access control** without cluttering your handler logic
-- **Chain multiple validation checks** easily
-- **Fail securely** by default (handlers are skipped on any validation failure)
-- **Keep authorization logic separate** from business logic
-
-::: tip
-For authorization scenarios, always return `None` from your dependency function when validation fails. Returning any other falsy value (like `False` or empty string) will still cause the handler to execute.
-
-**Note**: If any runtime dependency returns `None`, the event processing pipeline will end up with an exception.
-:::
-
-### Concurrent Dependency Resolution
-
-AmritaCore's dependency injection system supports **concurrent resolution** of multiple dependencies, significantly improving performance:
-
-- All `Depends` declared dependencies are **executed concurrently**
-- `DependsFactory` instances in positional arguments are resolved concurrently and updated at corresponding index positions
-- `DependsFactory` instances in keyword arguments are resolved concurrently and updated at corresponding key positions
-- If any dependency resolution fails (returns `None`), the entire event handler will be skipped
-
-### Runtime Dependency Injection
-
-In addition to declaring dependencies in function signatures, you can also pass `DependsFactory` instances at runtime through `hook_args` and `hook_kwargs`:
-
-```python
-from amrita_core.hook.matcher import Depends
-
-# Create dependency at runtime
-runtime_dependency = Depends(get_current_timestamp) # Let's assume this `get_current_timestamp` function returns an object of type `MyTimestamp`
-
-chat_obj = ChatObject(
-    train={"system": "You are a helpful assistant"},
-    user_input="What time is it now?",
-    hook_args=(runtime_dependency,),
-    hook_kwargs={"logger_dep": Depends(get_logger)}
-)
-
-@on_precompletion().handle()
-async def handle_runtime_deps(
-    event: PreCompletionEvent,
-    timestamp: MyTimestamp,  # Injected from hook_args
-    logger_dep  # Injected from hook_kwargs
-):
-    logger_dep.info(f"Processing time: {timestamp}")
-    event.messages.append(Message(
-        role="system",
-        content=f"Current time: {timestamp}"
-    ))
-```
-
-### Dependency Resolution Rules
-
-1. **Type Matching**: The dependency resolver automatically matches available dependencies based on parameter types
-2. **Concurrent Execution**: All dependency resolution tasks are executed concurrently, avoiding serial bottlenecks
-3. **Error Handling**:
-   - If a dependency function throws an exception not in the `exception_ignored` list, it's collected into an `ExceptionGroup`
-   - If a dependency function returns `None`, the entire event handler is skipped
-   - If a dependency function throws an exception in the `exception_ignored` list, it's directly re-raised
-4. **Context Isolation**: Each dependency resolution occurs in an isolated context, avoiding race conditions
-
-:::tip
-If there is a parameter that can only be passed as a positional argument, you need to ensure that the parameter has **type annotations** in the function signature, otherwise this Matcher will be ignored.
-
-e.g.
-
-```python
-chatobj = ChatObject(
-    ...
-    ,hook_args=(MyObject(),)
-)
-...
-@on_precompletion().handle()
-async def handle_with_dependencies(arg1,):... # This handler will be ignored because arg1 has no type annotation, and there is no such parameter in keyword arguments.
-
-@on_precompletion().handle()
-async def handle_with_dependencies(arg1:MyObject):... # Correct, it declares the type annotation for arg1, and there is indeed a MyObject type positional parameter
-
-```
-
-:::
-
-### Best Practices
-
-- **Async Dependencies**: Dependency functions can be async, and the system will automatically `await` the results
-- **Cached Dependencies**: For expensive dependency computations, consider implementing caching within the dependency function
-- **Type Annotations**: Add complete type annotations to dependency functions to ensure type safety
-- **Error Handling**: Appropriately handle errors in dependency functions, returning `None` to indicate dependency unavailability
-
-This dependency injection system allows event handlers to focus on business logic without worrying about dependency acquisition and management, while maintaining high performance and type safety.
-`
+[Tool System](tool.md) — how tools are defined and executed.

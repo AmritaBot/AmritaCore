@@ -1,61 +1,60 @@
-# SuspendObjectStream — 挂起与恢复
+# 挂起与恢复
 
-AmritaCore 提供了一个内置的**挂起/恢复**机制，允许你在处理过程中随时暂停和恢复 `ChatObject` 的执行流。此功能支持交互式应用程序，其中用户干预或外部事件可能需要临时暂停智能体的工作流。
+## 机制
 
-## 什么是挂起/恢复？
+每个 `ChatObject` 拥有一个 `SuspendObjectStream`（用 AmritaSense 的术语：
+工作流是 producer，你的代码是 consumer）。流支持**挂起**：producer 在标记点
+阻塞，直到外部 `resume()`。
 
-挂起/恢复机制允许 `ChatObject` 的控制流在处理过程中暂停并在稍后恢复，而不会丢失状态或导致故障。这是通过 `amrita-sense` 包中的 `SuspendObjectStream` 实现的，该包在 `ChatObject` 内部使用。
-
-## 核心特性
-
-- **非阻塞**：挂起不会阻塞主事件循环，允许其他 `asyncio` 任务并发运行
-- **细粒度控制**：你可以在处理过程中的确切点挂起
-- **可选超时**：支持超时以防止无限等待
-- **无状态丢失**：恢复后状态得以保持
-
-## 基本用法
-
-### 使用 `suspend_object` 挂起
+- `wait_to_suspend(tags)` —— 请求 producer 在带标签的断点阻塞
+- `resume()` —— 释放它
+- `@Node(SuspendEnum.X)` 标签兼作断点（如 `STEP_INTRO`、`MEMORY`、`COMPLE`）
 
 ```python
-from amrita_core import create_agent, minimal_init, suspend_object
+import asyncio
 
-@some_hook.handle()
-async def check_something(chat_obj):
-    result = await some_condition()
-    if not result:
-        await suspend_object(chat_obj)  # 挂起执行
-    return result
+
+async def interactive(chat):
+    stream = chat.io_stream
+    suspend_task = asyncio.create_task(stream.wait_to_suspend("ChatObject::step_intro"))
+    run_task = asyncio.create_task(chat.begin())
+    await suspend_task  # producer 现在停在 Step 边界
+    # ... 检查或注入 ...
+    stream.resume()  # 让 agent 继续
+    await run_task
 ```
 
-`timeout` 参数指定在取消前等待的最长时间（秒）：
+> Core 在此回顾 Sense 机制；完整 API 见
+> [sense.amritabot.com — SuspendObjectStream](https://sense.amritabot.com/reference/api/suspend-object-stream)。
 
-```python
-await suspend_object(chat_obj, timeout=30)  # 30 秒后取消
-```
+## 双向流
 
-### 使用 `.resume()` 恢复
+流有**两条独立通道**：
 
-挂起的 `ChatObject` 可以通过环境重置来重启：
+| 方向       | Producer API                        | Consumer API                                    |
+| ---------- | ----------------------------------- | ----------------------------------------------- |
+| Agent → 你 | `yield_response()`、`push_object()` | `get_response_generator()`                      |
+| 你 → Agent | `get_producer_input_generator()`    | `send_to_producer()`、`send_done_to_producer()` |
 
-```python
-if chat_obj.io_stream.is_suspended():
-    chat_obj.io_stream.resume()
-```
+### Peer → Agent 在 Step 边界注入
 
-## 使用场景
+`send_to_producer()` 推送的消息由策略在下一个 Step 边界（`intro_step`）消费，
+以 `[peer message]` 用户消息追加到对话上下文：
 
-- **用户确认**：在继续之前提示用户批准
-- **外部验证**：等待外部服务或 API
-- **资源限制**：在重负载下暂停处理
-- **调试**：暂停执行以检查智能体状态
+- **Step 开始前**推送 → 在该边界消费
+- **agent 工作期间**推送 → 排队至下一个边界
+- **运行结束后**推送 → 丢弃（通道关闭）
 
-## 内部原理
+这实现了人机协同反馈、外部上下文注入与流式输入。实践用法见
+[流式](../tutorials/streaming.md)。
 
-`ChatObject.io_stream` 内部使用的是来自 `amrita-sense` 包的 `SuspendObjectStream`，该包为 AmritaCore 流提供异步控制。该流在挂起状态和恢复能力之间转换，同时保持所有已消费的块完好无损。
+## 规则
 
-当调用 `suspend_object()` 时，`SuspendObjectStream` 进入等待 `resume()` 被调用的暂停状态。在此期间，`begin()` 之后的异步任务保持活动但被阻塞，直到恢复。
+- 每方向单一 consumer：生成器 _或_ 回调（不能同时）
+- `set_queue_done()` 后，进一步 `yield_response` 抛 `StreamStateError`
+- `send_done_to_producer()` 后，进一步 `send_to_producer` 快速失败——
+  不阻塞队列超时
 
-## 高级用法的完整工作流
+## 下一步
 
-参见[工作流调试](../advanced/workflow-debugging.md)和[依赖注入](../advanced/dependency-intro.md)中的示例，了解在工作流中进行挂起/恢复模式的完整示例。
+[Step 循环](step-loop.md)——内置 Step 驱动 ReAct 循环。

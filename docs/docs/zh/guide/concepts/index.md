@@ -1,28 +1,38 @@
 # 核心概念
 
-本节解释 AmritaCore 背后的基本概念：每个组件是什么、为什么存在，以及各部分如何组合。如果你在寻找分步指导，请从[教程](../tutorials/index.md)开始。
+本节解释 AmritaCore 的**底层运作**——组件、职责与协作方式。假设你已完成
+[教程](../tutorials/index.md)。
 
-## 核心概念
+## 心智模型
 
-| 概念                                   | 涵盖内容                                                                                                   |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| [配置系统](configuration.md)           | `AmritaConfig`、`FunctionConfig`、`LLMConfig`、`CookieConfig`、`BuiltinAgentConfig`——AmritaCore 的配置方式 |
-| [ChatObject——对话对象](chat-object.md) | 核心对话类、预设、流式传输、回调和记忆摘要                                                                 |
-| [事件系统](event.md)                   | 处理管道中的钩子：前置完成、完成和回退事件                                                                 |
-| [工具系统](tool.md)                    | 工具的定义、注册以及 agent 调用方式                                                                        |
-| [Agent 策略](agent-strategy.md)        | Agent 行为的策略模式：ReAct、Hybrid ReAct、NoAction                                                        |
+```
+┌─────────────────────────────────────────────────────────────┐
+│  ChatObject — 对话的基本单位（生命周期管理器）               │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  工作流（AmritaSense 指令序列）                          │ │
+│  │  LOAD_STATE → 渲染 → 策略循环 → 完成                     │ │
+│  │  ┌───────────────────────────────────────────────────┐  │ │
+│  │  │  策略（默认 Step 驱动 ReAct）                      │  │ │
+│  │  │  decompose → Step 循环 → summarize                 │  │ │
+│  │  └───────────────────────────────────────────────────┘  │ │
+│  └─────────────────────────────────────────────────────────┘ │
+│  SuspendObjectStream（双向）  ·  事件（matcher）              │
+└─────────────────────────────────────────────────────────────┘
+```
 
-## 数据管理
+## 概念
 
-数据层将**数据长什么样**与**数据如何存储**分离：
-
-- [数据管理](data-management.md)——数据架构概览
-- [数据容器](data-containers.md)——`Message`、`MemoryModel`、`StateContext`、工具注册表和 MCP 客户端管理器
-- [数据后端](data-backend.md)——`AbilityBackend` / `MemoryBackend` 接口和 `LegacyBackend`
-- [数据杂项](data-misc.md)——`ModelConfig`、`ModelPreset`、`UniResponse`、`SendMessageWrap` 和嵌入分块
+| 概念                            | 覆盖内容                                                              |
+| ------------------------------- | --------------------------------------------------------------------- |
+| [ChatObject](chat-object.md)    | 生命周期管理器：工作流、DI 上下文、流                                 |
+| [配置系统](configuration.md)    | `AmritaConfig`、`FunctionConfig`、`LLMConfig`、preset                 |
+| [事件系统](event.md)            | 管线事件 + matcher 钩子系统                                           |
+| [工具系统](tool.md)             | 工具注册、校验、执行                                                  |
+| [Agent 策略](agent-strategy.md) | 策略模式；Step 驱动的 ReAct 循环                                      |
+| [数据管理](data.md)             | 消息、DI 上下文、[后端](data-backend.md) + [记忆](data-memory.md)深入 |
 
 ## 下一步
 
-- 想构建第一个 agent？→ [教程](../tutorials/index.md)
-- 需要实现特定功能？→ [操作指南](../how-to/function-implementation.md)
-- 深入了解内部机制？→ [高级](../advanced/index.md)
+- 扩展它 → [扩展与集成](../extensions-integration/index.md)
+- 调优它 → [代理工程](../agent-engineering/index.md)
+- 深入它 → [进阶](../advanced/index.md)

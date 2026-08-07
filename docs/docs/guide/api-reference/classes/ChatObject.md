@@ -150,6 +150,7 @@ Manual suspend point, typically used inside custom functions to enable fine-grai
 ```python
 from amrita_core import SuspendObjectStream
 
+
 class MyProcessor:
     @SuspendObjectStream.suspend_with_tag("before_process")
     async def process_data(self, io_stream: SuspendObjectStream, data: dict):
@@ -174,9 +175,11 @@ chat = ChatObject(
     session_id="session_123",
 )
 
+
 # Example with callback (recommended for web scenarios)
 async def callback_handler(message):
     print("Received:", message)
+
 
 chat_with_callback = ChatObject(
     train=train.model_dump(),
@@ -192,7 +195,7 @@ chat_with_event_params = ChatObject(
     session_id="session_123",
     hook_args=("custom_arg1", "custom_arg2"),
     hook_kwargs={"custom_key": "custom_value"},
-    exception_ignored=(ValueError, TypeError)
+    exception_ignored=(ValueError, TypeError),
 )
 
 # Example with custom Jinja2 variables
@@ -200,11 +203,12 @@ chat_with_jinja2_vars = ChatObject(
     train=train.model_dump(),
     user_input="Hello!",
     session_id="session_123",
-    jinja2_vars={"custom_role": "AI expert", "company_name": "Amrita Corp"}
+    jinja2_vars={"custom_role": "AI expert", "company_name": "Amrita Corp"},
 )
 
 # Example with custom io_stream
 from amrita_sense.streaming import SuspendObjectStream
+
 custom_stream = SuspendObjectStream(queue_size=100, queue_timeout=30.0)
 chat_with_custom_stream = ChatObject(
     train=train.model_dump(),
