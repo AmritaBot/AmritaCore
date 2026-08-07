@@ -7,6 +7,13 @@ the lifecycle hook reads the modified values back.  Handlers may also raise
 :class:`StepAbortError` — the hook passes it in ``exception_ignored`` so it
 propagates through ``trigger_event`` and the hook can act on it (skip the
 remaining work, inject prompts, etc.).
+
+These events inherit :class:`ConstructableEvent` because ``constructor()``
+is an **abstract method** (an inheritance-tree contract): every subclass
+must implement it.  The events are normally built *manually* in the
+lifecycle hooks and dispatched via ``MatcherFactory.trigger_event(instance)``;
+the workflow ``TRIGGER_EVENT`` node (which builds instances from the class)
+is an alternative path that these events also support.
 """
 
 from __future__ import annotations
@@ -52,7 +59,7 @@ class StepIntroEvent(ConstructableEvent):
 
     @classmethod
     def constructor(cls, rs: "AgentRunState") -> "StepIntroEvent":
-        """Construct from the step run state."""
+        """Build the event from the step run state (abstract ``constructor``)."""
         plan = rs.plan or []
         return cls(
             step_index=rs.step_index,
@@ -88,7 +95,7 @@ class StepLeaveEvent(ConstructableEvent):
 
     @classmethod
     def constructor(cls, rs: "AgentRunState") -> "StepLeaveEvent":
-        """Construct from the step run state."""
+        """Build the event from the step run state (abstract ``constructor``)."""
         summary = rs.last_summary
         return cls(
             step_index=rs.step_index,
@@ -122,7 +129,7 @@ class StepIterationEvent(ConstructableEvent):
 
     @classmethod
     def constructor(cls, rs: "AgentRunState") -> "StepIterationEvent":
-        """Construct from the step run state."""
+        """Build the event from the step run state (abstract ``constructor``)."""
         return cls(
             step_index=rs.step_index,
             phase=rs.current_phase,
@@ -162,7 +169,7 @@ class StepToolCallEvent(ConstructableEvent):
         tool_id: str,
         arguments: str,
     ) -> "StepToolCallEvent":
-        """Construct from the step run state and the tool call."""
+        """Build the event from the run state and tool call (abstract ``constructor``)."""
         return cls(
             step_index=rs.step_index,
             phase=rs.current_phase,
@@ -203,7 +210,7 @@ class StepToolReturnEvent(ConstructableEvent):
         tool_id: str,
         result: str,
     ) -> "StepToolReturnEvent":
-        """Construct from the step run state and the tool result."""
+        """Build the event from the run state and tool result (abstract ``constructor``)."""
         return cls(
             step_index=rs.step_index,
             phase=rs.current_phase,

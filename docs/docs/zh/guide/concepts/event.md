@@ -5,7 +5,7 @@ AmritaCore 的管线是**事件驱动**的。工作流节点与策略分发事�
 
 ## Matcher——钩子原语
 
-用 AmritaSense 的术语：事件是 `ConstructableEvent`，通过
+用 AmritaSense 的术语：事件是 `BaseEvent`，通过
 `MatcherFactory.trigger_event(event, exception_ignored=...)` 分发。Matcher
 按**事件类型字符串**匹配：
 
@@ -21,6 +21,21 @@ async def on_step_intro(event): ...
 
 > 使用**字面量字符串**，不要用 `SomeEvent.event_type`——那是 property 对象
 > 而非字符串。
+
+### 事件基类
+
+AmritaSense 提供两个事件基类：
+
+| 基类                 | 抽象契约                                                                                | 适用场景                       |
+| -------------------- | --------------------------------------------------------------------------------------- | ------------------------------ |
+| `BaseEvent`          | 仅 `get_event_type()`                                                                   | 事件不需要 `constructor()`     |
+| `ConstructableEvent` | `BaseEvent` **加上**抽象 `constructor()`——每个子类**必须**实现                       | 事件经由 `constructor()` 构建  |
+
+`constructor()` 是**继承树约束**（抽象方法），不是鸭子类型的 protocol：继承
+`ConstructableEvent` 却漏掉它的子类会在类型检查阶段报错。内置 Step 事件全部
+继承 `ConstructableEvent` 并实现 `constructor()`——通常通过
+`StepIntroEvent.constructor(rs)` 手动构建、`trigger_event(实例)` 分发，但也能
+被工作流 `TRIGGER_EVENT` 节点使用（该节点从类构建实例）。
 
 ## 事件类别
 

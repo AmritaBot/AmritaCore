@@ -6,7 +6,7 @@ control flow through exceptions.
 
 ## Matcher — the Hook Primitive
 
-In AmritaSense terms: events are `ConstructableEvent`s, dispatched through
+In AmritaSense terms: events are `BaseEvent`s, dispatched through
 `MatcherFactory.trigger_event(event, exception_ignored=...)`. Matchers match by
 **event type string**:
 
@@ -22,6 +22,23 @@ async def on_step_intro(event): ...
 
 > Use the **literal string**, not `SomeEvent.event_type` — the latter is a
 > property object, not a string.
+
+### Event base classes
+
+AmritaSense ships two event bases:
+
+| Base class             | Abstract contract                                                                          | Use when                                   |
+| ---------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `BaseEvent`            | `get_event_type()` only                                                                    | The event never needs a `constructor()`    |
+| `ConstructableEvent`   | `BaseEvent` **plus** abstract `constructor()` — every subclass **must** implement it       | The event is built via `constructor()`     |
+
+`constructor()` is an **inheritance-tree constraint** (an abstract method),
+not a duck-typed protocol: a subclass of `ConstructableEvent` that omits it
+fails type-checking. All built-in step events inherit `ConstructableEvent` and
+implement `constructor()` — usually built manually via
+`StepIntroEvent.constructor(rs)` and dispatched with `trigger_event(instance)`,
+but also usable by a workflow `TRIGGER_EVENT` node, which builds the instance
+from the class.
 
 ## Event Categories
 
