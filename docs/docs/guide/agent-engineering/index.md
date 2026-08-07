@@ -8,6 +8,7 @@ when things go wrong.
 | ------------------------------------------- | ----------------------------------------------------------------------- |
 | [Prompt Engineering](prompt-engineering.md) | Designing system prompts and instructions that actually steer the model |
 | [Jinja2 Templates](jinja2-templates.md)     | The train-message template system and its variable rules                |
+| [Custom Strategy](custom-strategy.md)       | Writing your own agent strategy, step by step                           |
 | [Troubleshooting](troubleshooting.md)       | The common failure modes and their fixes                                |
 
 > Assumes you can build and run agents ([Tutorials](../tutorials/index.md)) and

@@ -195,6 +195,10 @@ export default withMermaid({
                 link: "/guide/agent-engineering/prompt-engineering",
               },
               {
+                text: "Custom Strategy",
+                link: "/guide/agent-engineering/custom-strategy",
+              },
+              {
                 text: "Troubleshooting",
                 link: "/guide/agent-engineering/troubleshooting",
               },
@@ -597,6 +601,10 @@ export default withMermaid({
               {
                 text: "提示词工程",
                 link: "/zh/guide/agent-engineering/prompt-engineering",
+              },
+              {
+                text: "自定义策略",
+                link: "/zh/guide/agent-engineering/custom-strategy",
               },
               {
                 text: "异常排查",

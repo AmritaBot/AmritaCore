@@ -251,7 +251,7 @@ class TestThinkingFilter:
         ]
         validated = list(msgs)
         _apply_thinking_filter(
-            validated, # type: ignore
+            validated,  # type: ignore
             ThinkingConfig(thinking_type="disabled", content_mode="never"),  # type: ignore
         )  # type: ignore
         assert validated[0] is msgs[0]

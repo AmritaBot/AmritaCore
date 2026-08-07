@@ -7,6 +7,7 @@
 | ----------------------------------- | ------------------------------------ |
 | [提示词工程](prompt-engineering.md) | 设计真正能引导模型的行为提示词与指令 |
 | [Jinja2 模板](jinja2-templates.md)  | train 消息模板系统及其变量规则       |
+| [自定义策略](custom-strategy.md)    | 一步一步编写自己的 agent 策略        |
 | [异常排查](troubleshooting.md)      | 常见失败模式与修复                   |
 
 > 假设你能构建和运行 agent（[教程](../tutorials/index.md)）并理解运行时
