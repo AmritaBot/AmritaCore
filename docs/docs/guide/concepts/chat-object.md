@@ -7,20 +7,20 @@ It is a _lifecycle manager_: it owns the workflow graph, the interpreter, the
 bidirectional stream, and every piece of runtime state (DI contexts) for one
 conversation.
 
-```
-ChatObject
-├── _workflow / _interpreter   ← the AmritaSense instruction sequence
-├── io_stream                  ← SuspendObjectStream (bidirectional)
-├── _di_* contexts             ← typed DI state shared with workflow nodes
-│   ├── _di_session            ← SessionMetadata (ids, timestamps)
-│   ├── _di_memory             ← MemoryContext
-│   ├── _di_ability            ← AbilityState (config, preset, backend slots)
-│   ├── _di_input              ← GeneralInput (user input, template)
-│   ├── _di_working            ← WorkingState (message wrap)
-│   ├── _di_resp               ← RespState (response + usage)
-│   ├── _di_loop               ← AgentLoopState (strategy, call count, run_state)
-│   └── _di_agent              ← StrategyPayload (strategy factory)
-└── state                      ← StateContext (backward-compat accessor)
+```mermaid
+flowchart TD
+    CO["ChatObject"] --> WF["_workflow / _interpreter"]
+    CO --> IO["io_stream — SuspendObjectStream (bidirectional)"]
+    CO --> DI["_di_* contexts — typed DI state shared with workflow nodes"]
+    CO --> ST["state — StateContext (backward-compat accessor)"]
+    DI --> S1["_di_session — SessionMetadata"]
+    DI --> S2["_di_memory — MemoryContext"]
+    DI --> S3["_di_ability — AbilityState"]
+    DI --> S4["_di_input — GeneralInput"]
+    DI --> S5["_di_working — WorkingState"]
+    DI --> S6["_di_resp — RespState"]
+    DI --> S7["_di_loop — AgentLoopState"]
+    DI --> S8["_di_agent — StrategyPayload"]
 ```
 
 ## Lifecycle

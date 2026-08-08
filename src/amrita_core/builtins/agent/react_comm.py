@@ -20,7 +20,13 @@ from amrita_core.builtins.types import (
     AgentStepLeaveMetadata,
     AgentStepStallMetadata,
 )
-from amrita_core.libchat import call_completion, get_last_response, tools_caller
+from amrita_core.consts import ABSTRACT_INSTRUCTION
+from amrita_core.libchat import (
+    call_completion,
+    get_last_response,
+    text_generator,
+    tools_caller,
+)
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import (
     Function,
@@ -399,32 +405,104 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
 
     async def _compress_history_between_steps(self) -> None:
-        """Between-Step compression: summarize completed Steps when the
-        real API prompt-token usage exceeds the configured threshold.
+        """Between-Step compression: summarize completed-Step history when
+        the real API prompt-token usage exceeds the configured threshold.
 
-        Placeholder: actual summarization reuses MemoryLimiter logic.  The
-        pairing is closed at Step boundaries, so compression is safe here;
-        the token baseline is reset after compression.
+        The pairing is closed at Step boundaries, so folding the oldest
+        ``memory`` prefix into one summary message is safe here: assistant
+        messages with ``tool_calls`` are folded together with their
+        consecutive ``ToolResult`` messages, keeping the remaining context
+        well-formed.  The token baseline is reset after compression.
         """
         rs = self._init_run_state()
-        threshold = getattr(self.config.llm, "memory_abstract_threshold", None)
+        threshold = self.config.llm.memory_abstract_threshold
         if threshold is None or rs.tokens.prompt_tokens <= threshold:
             return
         logger.info(
             f"Prompt tokens {rs.tokens.prompt_tokens} > threshold {threshold}; "
             "compressing history between Steps."
         )
+        trigger_tokens = rs.tokens.prompt_tokens
+        msg_wrap = self.ctx.message
+        history = msg_wrap.memory
+        # Fold the oldest proportion of the history, keeping recent context.
+        proportion = self.config.llm.memory_abstract_proportion
+        index = int(len(history) * proportion)
+        if index <= 0:
+            rs.tokens = type(rs.tokens)()
+            return
+        # Walk the boundary forward past tool pairs so the kept context is
+        # well-formed (every assistant(tool_calls) keeps its ToolResults).
+        idx = 0
+        while idx < index and idx < len(history):
+            element = history[idx]
+            if getattr(element, "tool_calls", None) is not None:
+                next_idx = idx + 1
+                while (
+                    next_idx < len(history)
+                    and getattr(history[next_idx], "role", None) == "tool"
+                ):
+                    next_idx += 1
+                idx = next_idx
+            else:
+                idx += 1
+        if idx <= 0:
+            rs.tokens = type(rs.tokens)()
+            return
+        dropped = history[:idx]
+        kept = history[idx:]
+        # Ask the LLM for a summary of the folded messages.
+        prompt: list = [
+            Message(role="system", content=ABSTRACT_INSTRUCTION),
+            Message(
+                role="user",
+                content=(
+                    "Make a summary of full informations in message list:"
+                    + "\n\n```text\n"
+                    + "".join(
+                        f"{it}\n" for it in text_generator(dropped, split_role=True)
+                    )
+                    + "\n```"
+                ),
+            ),
+        ]
+        try:
+            resp = await get_last_response(
+                call_completion(prompt, preset=self.preset, config=self.config)
+            )
+            # Account for the auxiliary LLM call (real API usage).
+            if resp.usage is not None:
+                if self.resp_extra_usage is not None:
+                    self.resp_extra_usage = gather_usage(
+                        self.resp_extra_usage, resp.usage
+                    )
+                rs.tokens.update(resp.usage)
+            summary = (resp.content or "").strip()
+            if not summary:
+                raise ValueError("empty compression response")
+        except Exception as e:
+            logger.warning(f"History compression failed, keeping history: {e!s}")
+            rs.tokens = type(rs.tokens)()
+            return
+        # Replace the folded history with a single summary message.
+        msg_wrap.memory = [
+            Message(
+                role="user",
+                content=f"[Summary of previous steps]\n{summary}",
+            ),
+            *kept,
+        ]
         # Push the compression metadata.
         await self._emit_step_event(
             content=(
                 "[step] compress: prompt tokens "
-                f"{rs.tokens.prompt_tokens} > threshold {threshold}; "
+                f"{trigger_tokens} > threshold {threshold}; "
                 "history between Steps summarized."
             ),
             metadata=AgentStepCompressMetadata(
                 type="step",
                 extra_type="compress",
-                prompt_tokens=rs.tokens.prompt_tokens,
+                prompt_tokens=trigger_tokens,
                 threshold=threshold,
             ),
         )

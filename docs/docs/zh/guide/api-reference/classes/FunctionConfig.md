@@ -8,6 +8,7 @@ FunctionConfig 类定义 Agent 运行时的功能行为配置。
 - `no_tokenizer` (bool)：默认 `False`。当响应不返回 token 计数时禁用内置分词器
 - `tokenizer_used` (str)：默认 `"simple"`。要使用的分词器
 - `agent_tool_call_limit` (int)：默认 `10`。调用工具时的工具调用限制
+- `agent_step_token_budget` (int | None)：默认 `None`。内置 step 循环的每 Step prompt-token 预算（`None` = 不限）。当该 Step 累计 prompt token 达到预算时，迭代循环停止
 - `agent_middle_message` (bool)：默认 `True`。是否允许 Agent 在工具调用期间向用户发送中间消息
 - `agent_mcp_client_enable` (bool)：默认 `False`。是否启用 MCP 客户端
 - `agent_mcp_server_scripts` (list[str])：默认 `[]`。MCP 服务器脚本列表

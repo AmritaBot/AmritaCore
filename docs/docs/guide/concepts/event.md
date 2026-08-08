@@ -27,10 +27,10 @@ async def on_step_intro(event): ...
 
 AmritaSense ships two event bases:
 
-| Base class             | Abstract contract                                                                          | Use when                                   |
-| ---------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------ |
-| `BaseEvent`            | `get_event_type()` only                                                                    | The event never needs a `constructor()`    |
-| `ConstructableEvent`   | `BaseEvent` **plus** abstract `constructor()` — every subclass **must** implement it       | The event is built via `constructor()`     |
+| Base class           | Abstract contract                                                                    | Use when                                |
+| -------------------- | ------------------------------------------------------------------------------------ | --------------------------------------- |
+| `BaseEvent`          | `get_event_type()` only                                                              | The event never needs a `constructor()` |
+| `ConstructableEvent` | `BaseEvent` **plus** abstract `constructor()` — every subclass **must** implement it | The event is built via `constructor()`  |
 
 `constructor()` is an **inheritance-tree constraint** (an abstract method),
 not a duck-typed protocol: a subclass of `ConstructableEvent` that omits it

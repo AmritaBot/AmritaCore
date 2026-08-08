@@ -45,6 +45,13 @@ class FunctionConfig(BaseModel):
         default=10, description="Tool call limit in calling tools."
     )
 
+    agent_step_token_budget: int | None = Field(
+        default=None,
+        description="Per-Step prompt-token budget for the built-in step loop "
+        "(None = unlimited). When the Step's accumulated prompt tokens reach "
+        "this budget, the iteration loop stops (``TokenBudget.exhausted``).",
+    )
+
     agent_middle_message: bool = Field(
         default=True,
         description="Whether to allow Agent to send intermediate messages to users in tools calling",
@@ -181,6 +188,13 @@ class LLMConfig(BaseModel):
     )
     memory_abstract_proportion: float = Field(
         default=50e-2, description="Context summarization proportion (0.5=50%)"
+    )
+    memory_abstract_threshold: int | None = Field(
+        default=None,
+        description="Prompt-token threshold that triggers between-Step history "
+        "compression (None = never). When the real API prompt-token count "
+        "exceeds this value at a Step boundary, completed-Step history is "
+        "summarized into the context.",
     )
     enable_multi_modal: bool = Field(
         default=True,

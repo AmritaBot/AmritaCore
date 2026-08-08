@@ -16,6 +16,7 @@ The LLMConfig class defines configuration parameters for LLM calls and memory ma
 - `max_fallbacks` (int): Default `5`. Maximum number of preset fallbacks
 - `enable_memory_abstract` (bool): Default `True`. Whether to enable context memory summarization (deletes context and inserts a summary into system instruction)
 - `memory_abstract_proportion` (float): Default `0.5`. Context summarization proportion (0.5 = 50%)
+- `memory_abstract_threshold` (int | None): Default `None`. Prompt-token threshold that triggers between-Step history compression (`None` = never). When the real API prompt-token count exceeds this value at a Step boundary, completed-Step history is summarized into the context
 - `enable_multi_modal` (bool): Default `True`. Whether to enable multi-modal support (currently only supports image)
 
 ## Description
