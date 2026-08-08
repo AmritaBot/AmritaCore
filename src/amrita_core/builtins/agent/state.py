@@ -80,6 +80,16 @@ class TokenBudget(BaseModel):
                 continue
             setattr(self, attr, getattr(self, attr) + value)
 
+    def reset(self) -> None:
+        """Reset the accumulated counts to zero, keeping the budget.
+
+        Used after between-Step compression so the next Step starts from a
+        fresh baseline without losing the configured per-run budget.
+        """
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.total_tokens = 0
+
 
 Phase = str
 """Reasoning phase name — a DAG node id (or ``"execute"`` in simple mode).

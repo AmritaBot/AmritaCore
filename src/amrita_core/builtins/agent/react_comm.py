@@ -429,7 +429,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         proportion = self.config.llm.memory_abstract_proportion
         index = int(len(history) * proportion)
         if index <= 0:
-            rs.tokens = type(rs.tokens)()
+            rs.tokens.reset()
             return
         # Walk the boundary forward past tool pairs so the kept context is
         # well-formed (every assistant(tool_calls) keeps its ToolResults).
@@ -447,7 +447,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             else:
                 idx += 1
         if idx <= 0:
-            rs.tokens = type(rs.tokens)()
+            rs.tokens.reset()
             return
         dropped = history[:idx]
         kept = history[idx:]
@@ -482,7 +482,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 raise ValueError("empty compression response")
         except Exception as e:
             logger.warning(f"History compression failed, keeping history: {e!s}")
-            rs.tokens = type(rs.tokens)()
+            rs.tokens.reset()
             return
         # Replace the folded history with a single summary message.
         msg_wrap.memory = [
@@ -506,7 +506,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 threshold=threshold,
             ),
         )
-        rs.tokens = type(rs.tokens)()  # reset baseline after compression
+        rs.tokens.reset()  # reset baseline after compression
 
     @override
     async def intro_step(self, phase: "Phase" = "execute") -> None:

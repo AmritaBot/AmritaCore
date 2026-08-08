@@ -65,8 +65,7 @@ Matcher 可修改事件或抛 `StepAbortError`（控制流）。内置工具
 设置 `llm.memory_abstract_threshold` 后，当真实 API prompt-token 数在
 Step 边界超过该值时，`leave_step` 会把最旧的历史折叠成一条摘要消息：LLM
 以 `ABSTRACT_INSTRUCTION` 提示总结被丢弃的前缀，摘要替换之，token 基线重置。
-折叠时 `assistant(tool_calls)` 与其 `ToolResult` 配对保持在一起，剩余上下文始终保持形态良好
-始终形态良好。摘要失败/为空时保留历史不动（基线仍重置，不重试循环）。
+折叠时 `assistant(tool_calls)` 与其 `ToolResult` 配对保持在一起，剩余上下文始终保持形态良好。摘要失败/为空时保留历史不动（基线仍重置，不重试循环）。
 `compress` 元数据携带触发时的 token 数与阈值。
 
 ## Step 元数据

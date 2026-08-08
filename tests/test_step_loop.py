@@ -1135,6 +1135,69 @@ class TestBetweenStepCompression:
         # Baseline reset after compression.
         assert rs.tokens.prompt_tokens == 0
 
+    def test_compression_accounts_summary_usage(self, strategy_with_history):
+        """The summary call's usage accrues into resp_extra_usage."""
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponse, UniResponseUsage
+
+        st = strategy_with_history
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 150
+        st.resp_extra_usage = UniResponseUsage(
+            prompt_tokens=100, completion_tokens=20, total_tokens=120
+        )
+
+        async def fake_generator():
+            yield UniResponse(
+                content="summarized with usage",
+                tool_calls=None,
+                usage=UniResponseUsage(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15
+                ),
+            )
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        # Summary usage accrued into resp_extra_usage (100+10, 20+5, 120+15).
+        assert st.resp_extra_usage.prompt_tokens == 110
+        assert st.resp_extra_usage.completion_tokens == 25
+        assert st.resp_extra_usage.total_tokens == 135
+        # Baseline reset after compression.
+        assert rs.tokens.prompt_tokens == 0
+
+    def test_budget_survives_baseline_reset(self, strategy_with_history):
+        """reset() keeps the configured budget — exhausted stays live."""
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponse
+
+        st = strategy_with_history
+        st.config.function_config.agent_step_token_budget = 200
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 150
+
+        async def fake_generator():
+            yield UniResponse(
+                content="summarized",
+                tool_calls=None,
+                usage=None,
+            )
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert rs.tokens.prompt_tokens == 0
+        assert rs.tokens.budget == 200  # budget survives the reset
+        # The next Step can still hit the budget.
+        rs.tokens.prompt_tokens = 200
+        assert rs.tokens.exhausted is True
+
     def test_fold_keeps_tool_pairing_intact(self, strategy_with_history):
         """The kept tail must stay well-formed: no dangling tool message."""
         from unittest.mock import patch
