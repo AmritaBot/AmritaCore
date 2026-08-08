@@ -16,6 +16,7 @@ LLMConfig 类定义 LLM 调用和记忆管理的配置参数。
 - `max_fallbacks` (int)：默认 `5`。最大预设回退次数
 - `enable_memory_abstract` (bool)：默认 `True`。是否启用上下文记忆摘要
 - `memory_abstract_proportion` (float)：默认 `0.5`。上下文摘要比例（0.5 = 50%）
+- `memory_abstract_threshold` (int | None)：默认 `None`。触发 Step 边界历史压缩的 prompt-token 阈值（`None` = 永不）。当真实 API prompt-token 数在 Step 边界超过该值时，已完成的 Step 历史会被摘要进上下文
 - `enable_multi_modal` (bool)：默认 `True`。是否启用多模态支持
 
 ## 示例

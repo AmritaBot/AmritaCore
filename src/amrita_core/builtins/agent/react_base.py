@@ -206,6 +206,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """
         if self._run_state is None:
             self._run_state = AgentRunState()
+            self._run_state.tokens.budget = (
+                self.config.function_config.agent_step_token_budget
+            )
         return self._run_state
 
     async def intro_step(self, phase: "Phase" = "analyze") -> None:

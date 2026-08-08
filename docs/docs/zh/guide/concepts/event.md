@@ -26,10 +26,10 @@ async def on_step_intro(event): ...
 
 AmritaSense 提供两个事件基类：
 
-| 基类                 | 抽象契约                                                                                | 适用场景                       |
-| -------------------- | --------------------------------------------------------------------------------------- | ------------------------------ |
-| `BaseEvent`          | 仅 `get_event_type()`                                                                   | 事件不需要 `constructor()`     |
-| `ConstructableEvent` | `BaseEvent` **加上**抽象 `constructor()`——每个子类**必须**实现                       | 事件经由 `constructor()` 构建  |
+| 基类                 | 抽象契约                                                       | 适用场景                      |
+| -------------------- | -------------------------------------------------------------- | ----------------------------- |
+| `BaseEvent`          | 仅 `get_event_type()`                                          | 事件不需要 `constructor()`    |
+| `ConstructableEvent` | `BaseEvent` **加上**抽象 `constructor()`——每个子类**必须**实现 | 事件经由 `constructor()` 构建 |
 
 `constructor()` 是**继承树约束**（抽象方法），不是鸭子类型的 protocol：继承
 `ConstructableEvent` 却漏掉它的子类会在类型检查阶段报错。内置 Step 事件全部

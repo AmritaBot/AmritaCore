@@ -31,14 +31,15 @@ agent = create_agent(..., config=config)  # 或按 agent
 
 ## 影响 Agent 行为的关键设置
 
-| 设置                                    | 默认      | 效果                                               |
-| --------------------------------------- | --------- | -------------------------------------------------- |
-| `function_config.agent_tool_call_limit` | —         | 每次运行的硬性工具轮次上限                         |
-| `builtin.tool_calling_mode`             | `"agent"` | `"agent"` / `"rag"` / `"none"`                     |
-| `builtin.agent_thought_mode`            | —         | `"reasoning"` / `"reasoning-required"`（显式推理） |
-| `builtin.loop_reasoning_trigger`        | —         | 停滞检测：N 个相同工具签名 → 放弃                  |
-| `llm.enable_memory_abstract`            | `False`   | 长历史自动摘要                                     |
-| `llm.memory_abstract_threshold`         | —         | 摘要的 token 阈值                                  |
+| 设置                                      | 默认      | 效果                                               |
+| ----------------------------------------- | --------- | -------------------------------------------------- |
+| `function_config.agent_tool_call_limit`   | `10`      | 每次运行的硬性工具轮次上限                         |
+| `function_config.agent_step_token_budget` | `None`    | 每 Step prompt-token 预算（达到即停止迭代循环）    |
+| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                     |
+| `builtin.agent_thought_mode`              | —         | `"reasoning"` / `"reasoning-required"`（显式推理） |
+| `builtin.loop_reasoning_trigger`          | —         | 停滞检测：N 个相同工具签名 → 放弃                  |
+| `llm.enable_memory_abstract`              | `True`    | 长历史自动摘要                                     |
+| `llm.memory_abstract_threshold`           | `None`    | 触发 Step 边界历史压缩的 prompt-token 阈值         |
 
 ## Preset
 

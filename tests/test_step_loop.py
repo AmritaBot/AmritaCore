@@ -178,44 +178,45 @@ class TestNativeWorkflowRender:
 # Strategy-level step lifecycle (ReActAgentStrategy)
 
 
+@pytest.fixture
+def strategy():
+    from unittest.mock import AsyncMock, MagicMock
+
+    from amrita_core.builtins.agent.react_comm import ReActAgentStrategy
+    from amrita_core.chatmanager import ChatObject
+
+    config = AmritaConfig()
+    config.function_config = FunctionConfig()
+    config.llm = LLMConfig()
+    config.builtin.loop_reasoning_trigger = 2
+
+    chat_obj = MagicMock(spec=ChatObject)
+    chat_obj.session_id = "test-session"
+    chat_obj.preset = "default-preset"
+    chat_obj.config = config
+    chat_obj.io_stream = MagicMock()
+    chat_obj.io_stream.yield_response = AsyncMock()
+    chat_obj.io_stream.set_queue_done = AsyncMock()
+
+    train_msg = Message(role="system", content="Test system message")
+    user_msg = Message(role="user", content="test user input")
+    original_context = SendMessageWrap(
+        train=train_msg,
+        memory=[user_msg],
+        user_query=user_msg,
+    )
+    ctx = StrategyContext(
+        user_input="test user input",
+        original_context=original_context,
+        chat_object=chat_obj,
+    )
+    st = ReActAgentStrategy(ctx)
+    st.tools_manager = MagicMock()
+    st.tools_manager.tools_meta = MagicMock(return_value={})
+    return st
+
+
 class TestStrategyStepLifecycle:
-    @pytest.fixture
-    def strategy(self):
-        from unittest.mock import AsyncMock, MagicMock
-
-        from amrita_core.builtins.agent.react_comm import ReActAgentStrategy
-        from amrita_core.chatmanager import ChatObject
-
-        config = AmritaConfig()
-        config.function_config = FunctionConfig()
-        config.llm = LLMConfig()
-        config.builtin.loop_reasoning_trigger = 2
-
-        chat_obj = MagicMock(spec=ChatObject)
-        chat_obj.session_id = "test-session"
-        chat_obj.preset = "default-preset"
-        chat_obj.config = config
-        chat_obj.io_stream = MagicMock()
-        chat_obj.io_stream.yield_response = AsyncMock()
-        chat_obj.io_stream.set_queue_done = AsyncMock()
-
-        train_msg = Message(role="system", content="Test system message")
-        user_msg = Message(role="user", content="test user input")
-        original_context = SendMessageWrap(
-            train=train_msg,
-            memory=[user_msg],
-            user_query=user_msg,
-        )
-        ctx = StrategyContext(
-            user_input="test user input",
-            original_context=original_context,
-            chat_object=chat_obj,
-        )
-        st = ReActAgentStrategy(ctx)
-        st.tools_manager = MagicMock()
-        st.tools_manager.tools_meta = MagicMock(return_value={})
-        return st
-
     def test_intro_step_advances_state(self, strategy):
         # Node-driven: in simple mode intro_step uses the implicit "execute"
         # Step regardless of the phase argument.
@@ -295,7 +296,7 @@ class TestStrategyStepLifecycle:
             yield UniResponse(content="not json at all", tool_calls=None, usage=None)
 
         with patch(
-            "amrita_core.libchat.call_completion",
+            "amrita_core.builtins.agent.react_comm.call_completion",
             return_value=fake_bad_generator(),
         ):
             asyncio.run(strategy._summarize_step())
@@ -988,3 +989,262 @@ def asyncio_run(coro):
     import asyncio
 
     return asyncio.run(coro)
+
+
+# Token budget (real per-run budget injected from config)
+
+
+class TestTokenBudget:
+    def test_exhausted_without_budget(self):
+        """No budget configured → never exhausted."""
+        budget = TokenBudget()
+        budget.update(
+            type(
+                "U",
+                (),
+                {"prompt_tokens": 10**9, "completion_tokens": 0, "total_tokens": 0},
+            )()
+        )
+        assert budget.exhausted is False
+
+    def test_exhausted_reaches_budget(self):
+        budget = TokenBudget(budget=100)
+        budget.update(
+            type(
+                "U",
+                (),
+                {"prompt_tokens": 50, "completion_tokens": 0, "total_tokens": 0},
+            )()
+        )
+        assert budget.exhausted is False
+        budget.update(
+            type(
+                "U",
+                (),
+                {"prompt_tokens": 50, "completion_tokens": 0, "total_tokens": 0},
+            )()
+        )
+        assert budget.exhausted is True
+
+    def test_budget_injected_from_config(self, strategy):
+        """_init_run_state injects config.function_config.agent_step_token_budget."""
+        strategy.config.function_config.agent_step_token_budget = 200
+        rs = strategy._init_run_state()
+        assert rs.tokens.budget == 200
+        assert rs.tokens.exhausted is False
+
+
+# Between-Step history compression (real implementation)
+
+
+class TestBetweenStepCompression:
+    @pytest.fixture
+    def strategy_with_history(self, strategy):
+        """Strategy whose context has a few folded history messages."""
+        from amrita_core.types import ToolCall, ToolResult
+
+        wrap = strategy.ctx.message
+        # Old history that will be folded: user → assistant(tool_calls) → tool.
+        wrap.memory = [
+            Message(role="user", content="old turn 1"),
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="t1",
+                        function={  # pyright: ignore[reportArgumentType]
+                            "name": "search",
+                            "arguments": '{"q": "old"}',
+                        },
+                    )
+                ],
+            ),
+            ToolResult(
+                role="tool", name="search", content="old result", tool_call_id="t1"
+            ),
+            Message(role="user", content="old turn 2"),
+        ]
+        strategy.config.llm.memory_abstract_threshold = 100
+        return strategy
+
+    def test_noop_below_threshold(self, strategy_with_history):
+        """Below the threshold → no LLM call, history untouched."""
+        from unittest.mock import patch
+
+        st = strategy_with_history
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 50
+
+        async def fake_generator():
+            raise AssertionError("LLM must not be called below threshold")
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert len(st.ctx.message.memory) == 4  # untouched
+
+    def test_noop_when_threshold_none(self, strategy_with_history):
+        """memory_abstract_threshold=None (default) → never compresses."""
+        from unittest.mock import patch
+
+        st = strategy_with_history
+        st.config.llm.memory_abstract_threshold = None
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 10**6
+
+        async def fake_generator():
+            raise AssertionError("LLM must not be called without threshold")
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert len(st.ctx.message.memory) == 4
+
+    def test_compresses_history_and_resets_baseline(self, strategy_with_history):
+        """Above threshold → LLM summary replaces the folded prefix.
+
+        Also covers token accounting: the summary call's usage accrues into
+        ``resp_extra_usage`` before the baseline reset.
+        """
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponse, UniResponseUsage
+
+        st = strategy_with_history
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 150
+        # Known baseline for resp_extra_usage so the accrual is verifiable.
+        st.resp_extra_usage = UniResponseUsage(
+            prompt_tokens=100, completion_tokens=20, total_tokens=120
+        )
+
+        async def fake_generator():
+            yield UniResponse(
+                content="summarized old turns",
+                tool_calls=None,
+                usage=UniResponseUsage(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15
+                ),
+            )
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        memory = st.ctx.message.memory
+        # user + assistant(tool_calls) + ToolResult folded → summary + tail.
+        assert len(memory) == 2
+        assert "[Summary of previous steps]" in memory[0].content  # type: ignore[union-attr]
+        assert memory[1].content == "old turn 2"  # type: ignore[union-attr]
+        # Summary usage accrued into resp_extra_usage (100+10, 20+5, 120+15).
+        assert st.resp_extra_usage.prompt_tokens == 110
+        assert st.resp_extra_usage.completion_tokens == 25
+        assert st.resp_extra_usage.total_tokens == 135
+        # Baseline reset after compression.
+        assert rs.tokens.prompt_tokens == 0
+
+    def test_budget_survives_baseline_reset(self, strategy_with_history):
+        """reset() keeps the configured budget — exhausted stays live."""
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponse
+
+        st = strategy_with_history
+        st.config.function_config.agent_step_token_budget = 200
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 150
+
+        async def fake_generator():
+            yield UniResponse(
+                content="summarized",
+                tool_calls=None,
+                usage=None,
+            )
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert rs.tokens.prompt_tokens == 0
+        assert rs.tokens.budget == 200  # budget survives the reset
+        # The next Step can still hit the budget.
+        rs.tokens.prompt_tokens = 200
+        assert rs.tokens.exhausted is True
+
+    def test_fold_keeps_tool_pairing_intact(self, strategy_with_history):
+        """The kept tail must stay well-formed: no dangling tool message."""
+        from unittest.mock import patch
+
+        from amrita_core.types import ToolCall, ToolResult, UniResponse
+
+        st = strategy_with_history
+        wrap = st.ctx.message
+        # Tail: assistant(tool_calls) + its ToolResult (must be kept together).
+        wrap.memory = [
+            Message(role="user", content="old turn"),
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(
+                        id="t2",
+                        function={  # pyright: ignore[reportArgumentType]
+                            "name": "read",
+                            "arguments": "{}",
+                        },
+                    )
+                ],
+            ),
+            ToolResult(
+                role="tool", name="read", content="kept result", tool_call_id="t2"
+            ),
+        ]
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 200
+
+        async def fake_generator():
+            yield UniResponse(
+                content="folded the old turn",
+                tool_calls=None,
+                usage=None,
+            )
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        memory = st.ctx.message.memory
+        # Summary + assistant(tool_calls) + ToolResult — pairing preserved.
+        assert len(memory) == 3
+        assert memory[0].role == "user"
+        assert memory[1].tool_calls is not None
+        assert memory[2].role == "tool"
+
+    def test_empty_summary_keeps_history(self, strategy_with_history):
+        """LLM returns empty → history untouched, baseline reset (no retry loop)."""
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponse
+
+        st = strategy_with_history
+        rs = st._init_run_state()
+        rs.tokens.prompt_tokens = 150
+
+        async def fake_generator():
+            yield UniResponse(content="", tool_calls=None, usage=None)
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert len(st.ctx.message.memory) == 4  # kept
+        assert rs.tokens.prompt_tokens == 0  # baseline reset

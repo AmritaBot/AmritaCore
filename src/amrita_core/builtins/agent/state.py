@@ -50,16 +50,25 @@ class TokenBudget(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    budget: int | None = None
+    """Per-run prompt-token budget (``None`` = unlimited).
+
+    Injected from ``config.function_config.agent_step_token_budget`` by the
+    strategy when the run state is created; ``exhausted`` compares the
+    accumulated ``prompt_tokens`` against it.
+    """
 
     @property
     def exhausted(self) -> bool:
-        """Whether the budget has been exhausted (placeholder policy).
+        """Whether the accumulated prompt tokens reached the budget.
 
-        Real per-step budget limits are configured via
-        ``config.function_config``; this property is a simple flag the
-        workflow conditions can consult.
+        ``False`` when no budget is configured (unlimited).  The workflow
+        iteration conditions consult this to stop the loop before burning
+        more tokens.
         """
-        return False
+        if self.budget is None:
+            return False
+        return self.prompt_tokens >= self.budget
 
     def update(self, usage: object | None) -> None:
         """Accumulate tokens from a ``UniResponseUsage``-like object."""
@@ -70,6 +79,16 @@ class TokenBudget(BaseModel):
             if value is None:
                 continue
             setattr(self, attr, getattr(self, attr) + value)
+
+    def reset(self) -> None:
+        """Reset the accumulated counts to zero, keeping the budget.
+
+        Used after between-Step compression so the next Step starts from a
+        fresh baseline without losing the configured per-run budget.
+        """
+        self.prompt_tokens = 0
+        self.completion_tokens = 0
+        self.total_tokens = 0
 
 
 Phase = str

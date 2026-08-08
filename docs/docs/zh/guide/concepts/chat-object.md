@@ -6,20 +6,20 @@
 管理器*：为一次对话拥有工作流图、解释器、双向流和全部运行时状态
 （DI 上下文）。
 
-```
-ChatObject
-├── _workflow / _interpreter   ← AmritaSense 指令序列
-├── io_stream                  ← SuspendObjectStream（双向）
-├── _di_* 上下文               ← 与工作流节点共享的类型化 DI 状态
-│   ├── _di_session            ← SessionMetadata（id、时间戳）
-│   ├── _di_memory             ← MemoryContext
-│   ├── _di_ability            ← AbilityState（配置、preset、后端槽位）
-│   ├── _di_input              ← GeneralInput（用户输入、模板）
-│   ├── _di_working            ← WorkingState（消息包装）
-│   ├── _di_resp               ← RespState（响应 + 用量）
-│   ├── _di_loop               ← AgentLoopState（策略、调用计数、run_state）
-│   └── _di_agent              ← StrategyPayload（策略工厂）
-└── state                      ← StateContext（向后兼容访问器）
+```mermaid
+flowchart TD
+    CO["ChatObject"] --> WF["_workflow / _interpreter — AmritaSense 指令序列"]
+    CO --> IO["io_stream — SuspendObjectStream（双向）"]
+    CO --> DI["_di_* 上下文 — 与工作流节点共享的类型化 DI 状态"]
+    CO --> ST["state — StateContext（向后兼容访问器）"]
+    DI --> S1["_di_session — SessionMetadata"]
+    DI --> S2["_di_memory — MemoryContext"]
+    DI --> S3["_di_ability — AbilityState"]
+    DI --> S4["_di_input — GeneralInput"]
+    DI --> S5["_di_working — WorkingState"]
+    DI --> S6["_di_resp — RespState"]
+    DI --> S7["_di_loop — AgentLoopState"]
+    DI --> S8["_di_agent — StrategyPayload"]
 ```
 
 ## 生命周期

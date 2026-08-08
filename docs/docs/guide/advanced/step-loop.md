@@ -6,10 +6,12 @@ interruptible.
 
 ## Anatomy of a Step
 
-```
-intro_step ──► NATIVE_WHILE(iter_cond) ──► STEP_EXEC (one tool round) ──► leave_step
-                   ▲                                   │
-                   └──────── after_iteration ◄─────────┘
+```mermaid
+flowchart LR
+    A["intro_step"] --> B["NATIVE_WHILE(iter_cond)"]
+    B --> C["STEP_EXEC (one tool round)"]
+    C --> D["leave_step"]
+    C -. "after_iteration" .-> B
 ```
 
 | Phase          | What happens                                                                                                                               |
@@ -60,6 +62,17 @@ repeatly calling tool."`
 
 Matchers may mutate events or raise `StepAbortError` (control flow). Built-in
 tools (REASONING / UPDATE_STEP / STOP) do not fire events.
+
+## Between-Step Compression
+
+When `llm.memory_abstract_threshold` is set and the real API prompt-token
+count exceeds it at a Step boundary, `leave_step` folds the oldest history
+into one summary message: the LLM summarizes the dropped prefix (with the
+`ABSTRACT_INSTRUCTION` prompt), the summary replaces it, and the token
+baseline resets. Folding keeps `assistant(tool_calls)` + `ToolResult` pairs
+together, so the remaining context stays well-formed. A failed/empty summary
+keeps the history untouched (baseline still resets, no retry loop). The
+`compress` metadata carries the triggering token count and threshold.
 
 ## Step Metadata
 
