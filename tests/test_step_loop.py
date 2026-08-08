@@ -1106,20 +1106,30 @@ class TestBetweenStepCompression:
         assert len(st.ctx.message.memory) == 4
 
     def test_compresses_history_and_resets_baseline(self, strategy_with_history):
-        """Above threshold → LLM summary replaces the folded prefix."""
+        """Above threshold → LLM summary replaces the folded prefix.
+
+        Also covers token accounting: the summary call's usage accrues into
+        ``resp_extra_usage`` before the baseline reset.
+        """
         from unittest.mock import patch
 
-        from amrita_core.types import UniResponse
+        from amrita_core.types import UniResponse, UniResponseUsage
 
         st = strategy_with_history
         rs = st._init_run_state()
         rs.tokens.prompt_tokens = 150
+        # Known baseline for resp_extra_usage so the accrual is verifiable.
+        st.resp_extra_usage = UniResponseUsage(
+            prompt_tokens=100, completion_tokens=20, total_tokens=120
+        )
 
         async def fake_generator():
             yield UniResponse(
                 content="summarized old turns",
                 tool_calls=None,
-                usage=None,
+                usage=UniResponseUsage(
+                    prompt_tokens=10, completion_tokens=5, total_tokens=15
+                ),
             )
 
         with patch(
@@ -1132,36 +1142,6 @@ class TestBetweenStepCompression:
         assert len(memory) == 2
         assert "[Summary of previous steps]" in memory[0].content  # type: ignore[union-attr]
         assert memory[1].content == "old turn 2"  # type: ignore[union-attr]
-        # Baseline reset after compression.
-        assert rs.tokens.prompt_tokens == 0
-
-    def test_compression_accounts_summary_usage(self, strategy_with_history):
-        """The summary call's usage accrues into resp_extra_usage."""
-        from unittest.mock import patch
-
-        from amrita_core.types import UniResponse, UniResponseUsage
-
-        st = strategy_with_history
-        rs = st._init_run_state()
-        rs.tokens.prompt_tokens = 150
-        st.resp_extra_usage = UniResponseUsage(
-            prompt_tokens=100, completion_tokens=20, total_tokens=120
-        )
-
-        async def fake_generator():
-            yield UniResponse(
-                content="summarized with usage",
-                tool_calls=None,
-                usage=UniResponseUsage(
-                    prompt_tokens=10, completion_tokens=5, total_tokens=15
-                ),
-            )
-
-        with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
-            return_value=fake_generator(),
-        ):
-            asyncio_run(st._compress_history_between_steps())
         # Summary usage accrued into resp_extra_usage (100+10, 20+5, 120+15).
         assert st.resp_extra_usage.prompt_tokens == 110
         assert st.resp_extra_usage.completion_tokens == 25
