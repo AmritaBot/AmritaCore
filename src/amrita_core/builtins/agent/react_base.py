@@ -1124,6 +1124,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                         func_response,
                         tc.id,
                         original_exception=exc,
+                        response_msg=response_msg,
                     )
                 else:
                     # _run_tool_calls_concurrently already called _append_reasoning.
@@ -1148,6 +1149,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     func_response,
                     tc.id,
                     original_exception=exc,
+                    response_msg=response_msg,
                 )
             else:
                 self.reasoning_pc = 0
@@ -1200,6 +1202,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         error_content: str,
         tool_call_id: str,
         original_exception: BaseException | None = None,
+        response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
     ):
         """Handle appending error messages to context (strategy-specific).
 
@@ -1209,6 +1212,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             tool_call_id: ID of the failed tool call.
             original_exception: The original exception, or ``None`` when the error
                 was captured as a string during concurrent execution.
+            response_msg: The provider response, used to carry ``reasoning_content``
+                back on the fabricated assistant message (thinking-mode round-trip).
         """
         ...
 

@@ -815,6 +815,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         error_content: str,
         tool_call_id: str,
         original_exception: BaseException | None = None,
+        response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
     ):
         """ReAct strategy: append error as an assistant+tool message pair.
 
@@ -822,13 +823,21 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         OpenAI API requirement that every ToolResult must follow an assistant
         message containing the corresponding tool_call.
 
+        When the provider returned ``reasoning_content`` (thinking mode), it is
+        carried back on the fabricated assistant message exactly like the
+        success path, so thinking-mode providers (DeepSeek even in OpenAI mode,
+        Anthropic with extended thinking) keep receiving their reasoning back.
+
         Args:
             function_name: Name of the failed function
             error_content: Formatted error message to append
             tool_call_id: ID of the tool call
             original_exception: The original exception, or ``None`` when the
                 error was captured as a string during concurrent execution.
+            response_msg: The provider response whose ``reasoning_content`` is
+                carried back on the assistant message, or ``None``.
         """
+        reasoning = response_msg.reasoning_content if response_msg else None
         self.ctx.message.append(
             Message(
                 role="assistant",
@@ -842,6 +851,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                         ),
                     )
                 ],
+                reasoning_content=reasoning,
             )
         )
         self.ctx.message.append(

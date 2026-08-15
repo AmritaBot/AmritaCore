@@ -509,6 +509,69 @@ class TestStrategyStepLifecycle:
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
         assert assistant_msgs[-1].reasoning_content is None
 
+    def test_exec_one_error_append_carries_reasoning_content(self, strategy):
+        """A raising tool must still round-trip ``reasoning_content``.
+
+        Regression: the error branch (``_handle_error_append``) dropped the
+        provider reasoning, unlike the success path — thinking-mode providers
+        (DeepSeek even in OpenAI mode, Anthropic extended thinking) reject the
+        next request with HTTP 400 "must be passed back". MCP-wrapped tools
+        never hit this path (they return error strings, not exceptions), so
+        only non-MCP/builtin tools were affected.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        tool_call = ToolCall(
+            id="t1",
+            function={"name": "search", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
+        )
+        response_msg = UniResponse(
+            content=None,
+            tool_calls=[tool_call],
+            reasoning_content="thinking about the search",
+        )
+        with patch.object(
+            strategy,
+            "call_tool",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            should_continue = asyncio_run(strategy._execute_tool_loop(response_msg))
+        assert should_continue is True
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        assistant_msgs = [m for m in msgs if m.role == "assistant"]
+        assert assistant_msgs, "expected an assistant tool-call message"
+        assert assistant_msgs[-1].reasoning_content == "thinking about the search"
+        tool_msgs = [m for m in msgs if getattr(m, "role", None) == "tool"]
+        assert any(
+            "ERR: Tool search execution failed" in getattr(m, "content", "")
+            for m in tool_msgs
+        )
+
+    def test_exec_one_error_append_without_reasoning(self, strategy):
+        """No reasoning_content → error-path assistant message omits it."""
+        from unittest.mock import AsyncMock, patch
+
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        tool_call = ToolCall(
+            id="t1",
+            function={"name": "search", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
+        )
+        response_msg = UniResponse(content=None, tool_calls=[tool_call])
+        with patch.object(
+            strategy,
+            "call_tool",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            asyncio_run(strategy._execute_tool_loop(response_msg))
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        assistant_msgs = [m for m in msgs if m.role == "assistant"]
+        assert assistant_msgs[-1].reasoning_content is None
+
     # Pre-execution cancellation (tool returns "Cancelled: ..." on stall)
 
     def test_should_cancel_tool_call_on_repeating_window(self, strategy):
