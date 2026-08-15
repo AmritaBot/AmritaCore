@@ -32,11 +32,11 @@
 
 ## 内置策略
 
-| 策略                       | 类别          | 备注                                                                   |
-| -------------------------- | ------------- | ---------------------------------------------------------------------- |
-| `ReActAgentStrategy`       | `agent-mixed` | **默认**；Step 驱动循环（见 [Agent 策略](concepts/agent-strategy.md)） |
-| `HybridReActAgentStrategy` | `agent-mixed` | MoE XML 风格结果；**已弃用，v0.14.0 移除**                             |
-| `NoActionAgentStrategy`    | `workflow`    | 跳过工具调用                                                           |
+| 策略                       | 类别          | 备注                                                                                                         |
+| -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
+| `ReActAgentStrategy`       | `agent-mixed` | **默认策略类**；step 循环工作流激活后以节点驱动 Step 循环运行（见 [Agent 策略](concepts/agent-strategy.md)） |
+| `HybridReActAgentStrategy` | `agent-mixed` | MoE XML 风格结果；**已弃用，v0.14.0 移除**                                                                   |
+| `NoActionAgentStrategy`    | `workflow`    | 跳过工具调用                                                                                                 |
 
 ## 内置事件钩子
 
@@ -56,6 +56,10 @@
 
 | 工作流                                                       | 管线                        |
 | ------------------------------------------------------------ | --------------------------- |
-| `STEP_REACT_BLOCK` / `SIMPLE_STEP_REACT` / `STEP_REACT_ONLY` | Step 驱动 ReAct（默认系列） |
+| `SIMPLE_CHAT`                                                | 纯对话，无 agent（默认）    |
 | `REACT_BLOCK` / `SIMPLE_REACT` / `REACT_ONLY`                | 传统 ReAct 循环             |
-| `SIMPLE_CHAT`                                                | 纯对话，无 agent            |
+| `STEP_REACT_BLOCK` / `SIMPLE_STEP_REACT` / `STEP_REACT_ONLY` | Step 驱动 ReAct（显式启用） |
+
+> `workflow=None`（`ChatObject` 默认）解析为**简单对话**管线。Step 驱动系列
+> 只在显式传入时运行——例如 `get_chatobject(..., workflow=SIMPLE_STEP_REACT)`
+> 或 `workflow=_step_workflow_rendered`（见 [Step 循环](advanced/step-loop.md)）。

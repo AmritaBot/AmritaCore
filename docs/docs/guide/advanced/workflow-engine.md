@@ -2,8 +2,10 @@
 
 ## The Pipeline
 
-Every `ChatObject` runs a pre-compiled workflow. The default (step-driven)
-pipeline:
+Every `ChatObject` runs a pre-compiled workflow. The **default** pipeline is
+the simple chat one (one LLM call, no decomposition); the step-driven variant
+is opted into by passing `workflow=_step_workflow_rendered` (or
+`SIMPLE_STEP_REACT`). Both share the same outer shell:
 
 ```mermaid
 flowchart LR
@@ -16,7 +18,8 @@ flowchart LR
     G --> H["COMMIT_MEMORY"]
 ```
 
-The **strategy block** is what changes by mode:
+The **strategy block** is what changes by mode. Simple chat skips it entirely;
+the step-driven loop runs:
 
 ```mermaid
 flowchart LR
@@ -50,7 +53,10 @@ what makes the same nodes reusable across pipelines.
 | `SIMPLE_CHAT`           | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                         |
 
 `ChatObject(workflow=...)` accepts any rendered graph; `workflow` and
-`archived_nodes` are mutually exclusive.
+`archived_nodes` are mutually exclusive. The default `workflow=None` resolves
+to the simple chat pipeline — pass `_step_workflow_rendered` (from
+`amrita_core.chatmanager`) for the step-driven loop, or use `SIMPLE_STEP_REACT`
+for the full pipeline in one object.
 
 ## The Loop Conditions
 

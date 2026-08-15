@@ -59,6 +59,10 @@ async with chat.begin():
 | `function_call`   | —                    | A tool starts (`is_done=False`) or finishes (`is_done=True`) |
 | `reasoning_chunk` | `cot_chunk`          | Thinking-mode reasoning streamed                             |
 
+> `step` metadata only exists while the **step-loop workflow** is active
+> (`get_chatobject(..., workflow=_step_workflow_rendered)`); the default
+> simple-chat workflow never emits it.
+
 ## 3. Callback-Based Consumption
 
 Prefer push over pull? Register a callback instead of reading the generator:

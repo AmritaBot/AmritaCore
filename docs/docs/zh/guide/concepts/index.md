@@ -9,7 +9,7 @@
 flowchart TB
     subgraph c1["ChatObject — 对话的基本单位（生命周期管理器）"]
         subgraph c2["工作流（AmritaSense 指令序列）"]
-            subgraph c3["策略（默认 Step 驱动 ReAct）"]
+            subgraph c3["策略（Step 驱动 ReAct，经工作流显式启用）"]
                 s1["decompose → Step 循环 → summarize"]
             end
             w1["LOAD_STATE → 渲染 → 策略循环 → 完成"]
@@ -17,6 +17,9 @@ flowchart TB
         o1["SuspendObjectStream（双向） · 事件（matcher）"]
     end
 ```
+
+> 默认工作流是**简单对话**（一次 LLM 调用）。Step 驱动 ReAct 循环需显式
+> 传入 step 循环工作流启用——见 [ChatObject](chat-object.md)。
 
 ## 概念
 

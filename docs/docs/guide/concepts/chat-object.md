@@ -42,21 +42,30 @@ flowchart LR
 
 ## Workflow Selection
 
-You can swap the execution pipeline entirely:
+`ChatObject` runs a pre-compiled workflow. The **default** (used when
+`workflow=None`) is the simple chat pipeline (`_workflow_rendered`) — one LLM
+call, one answer, no decomposition. For the built-in **step-driven ReAct
+loop** (decompose → Step → summarize, `update_step` plan revision), pass the
+step-loop workflow explicitly:
 
 ```python
 from amrita_core.chatmanager import _step_workflow_rendered
-from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
+from amrita_core.builtins.workflows import SIMPLE_STEP_REACT, SIMPLE_CHAT
 
-# Default: step-driven ReAct (used when workflow=None)
+# Default: simple chat, one call (used when workflow=None)
 chat = ChatObject(train=..., user_input=..., session_id="s1")
+
+# Explicit: the step-driven ReAct loop (decompose → Step → summarize)
+chat = ChatObject(..., workflow=_step_workflow_rendered)
 
 # Explicit: built-in pre-composed pipelines
 chat = ChatObject(..., workflow=SIMPLE_CHAT)  # no agent, plain chat
-chat = ChatObject(..., workflow=SIMPLE_REACT)  # legacy ReAct loop
+chat = ChatObject(..., workflow=SIMPLE_STEP_REACT)  # full step-loop pipeline
 ```
 
-> `workflow` and `archived_nodes` are mutually exclusive.
+> `workflow` and `archived_nodes` are mutually exclusive. The step-loop
+> workflow is what enables the `step` metadata events (`decompose` / `intro` /
+> `leave`) and the `update_step` tool — see [The Step Loop](../advanced/step-loop.md).
 
 ## Why "Lifecycle Manager" Matters
 

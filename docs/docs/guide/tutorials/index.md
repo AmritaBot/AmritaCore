@@ -12,13 +12,13 @@ internals required.
 
 ## Tutorial Path
 
-| #   | Tutorial                                  | What you will build                                         |
-| --- | ----------------------------------------- | ----------------------------------------------------------- |
-| 1   | [Create Your First Agent](chat-object.md) | A minimal chat agent with `create_agent()` and `ChatObject` |
-| 2   | [Add Tools to Your Agent](tools.md)       | Register callable tools with `@simple_tool` and `@on_tools` |
-| 3   | [Streaming and Callbacks](streaming.md)   | Stream responses, read metadata, use callbacks              |
-| 4   | [Events and Hooks](event-hooks.md)        | Intercept the pipeline with lifecycle events                |
-| 5   | [Memory and Sessions](memory.md)          | Persist conversation history with `session_id`              |
+| #   | Tutorial                                  | What you will build                                                                   |
+| --- | ----------------------------------------- | ------------------------------------------------------------------------------------- |
+| 1   | [Create Your First Agent](chat-object.md) | A minimal chat agent with `create_agent()`; switch to the explicit Step-loop workflow |
+| 2   | [Add Tools to Your Agent](tools.md)       | Register callable tools with `@simple_tool` and `@on_tools`                           |
+| 3   | [Streaming and Callbacks](streaming.md)   | Stream responses, read metadata, use callbacks                                        |
+| 4   | [Events and Hooks](event-hooks.md)        | Intercept the pipeline with lifecycle events                                          |
+| 5   | [Memory and Sessions](memory.md)          | Persist conversation history with `session_id`                                        |
 
 Each tutorial takes about 5–10 minutes. Already comfortable? Jump to
 [Concepts](../concepts/index.md) to understand the internals, or

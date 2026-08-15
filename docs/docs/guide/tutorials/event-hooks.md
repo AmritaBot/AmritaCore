@@ -72,6 +72,10 @@ async def on_step_intro(event):
 | `agent.tool_call`      | `arguments`, `cancel`              | Before a regular tool executes |
 | `agent.tool_return`    | `result`, `skip_append`            | After a regular tool returns   |
 
+> The `agent.step_*` events require the **step-loop workflow**
+> (`get_chatobject(..., workflow=_step_workflow_rendered)`); the default
+> simple-chat workflow does not raise them.
+
 Handlers can **mutate the event** and the lifecycle hook reads the values back;
 they can also raise `StepAbortError` to abort the current operation
 (cancel a tool call, end the Step early, skip appending a result).

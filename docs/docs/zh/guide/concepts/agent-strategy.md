@@ -31,8 +31,8 @@
 
 ## 内置 Step 驱动 ReAct 策略
 
-`ReActAgentStrategy`（类别 `agent-mixed`）是默认策略。其执行是**节点驱动**
-的：LLM 决定是否把任务分解为语义 DAG；框架按拓扑序走 DAG，每个**Step**
+`ReActAgentStrategy`（类别 `agent-mixed`）是默认策略类。其执行是**节点驱动**
+的：LLM 决定是否把任务分解为语义 DAG；框架按拓扑序走 DAG，每个 **Step**
 对应一个节点。
 
 ```
@@ -45,6 +45,12 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 - **摘要** —— 每个 Step 以主谓短语摘要结束（可被事件覆盖）
 - **生命周期事件** —— `step_intro/leave/iteration`、`tool_call/return`
 - **update_step 工具** —— agent 可中途修订计划
+
+> **工作流需显式启用。** 策略类默认是 `ReActAgentStrategy`，但 Step 循环
+> 只在 **step 循环工作流** 激活时才运行。`ChatObject` 默认是简单对话工作流
+> （一次 LLM 调用、不分解）；传入 `workflow=_step_workflow_rendered`
+> （或 `SIMPLE_STEP_REACT`）即可启用上面的循环。见
+> [ChatObject](chat-object.md) 与 [进阶 → Step 循环](../advanced/step-loop.md)。
 
 完整细节：[进阶 → Step 循环](../advanced/step-loop.md)。
 

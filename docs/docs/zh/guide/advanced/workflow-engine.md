@@ -2,7 +2,9 @@
 
 ## 管线
 
-每个 `ChatObject` 运行预编译工作流。默认（Step 驱动）管线：
+每个 `ChatObject` 运行预编译工作流。**默认**管线是简单对话（一次 LLM
+调用、不分解）；Step 驱动变体通过显式传入 `workflow=_step_workflow_rendered`
+（或 `SIMPLE_STEP_REACT`）启用。两者共享同一外壳：
 
 ```mermaid
 flowchart LR
@@ -15,7 +17,7 @@ flowchart LR
     G --> H["COMMIT_MEMORY"]
 ```
 
-**策略块**按模式变化：
+**策略块**按模式变化。简单对话完全跳过它；Step 驱动循环运行：
 
 ```mermaid
 flowchart LR
@@ -48,7 +50,9 @@ STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAV
 | `SIMPLE_CHAT`          | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                         |
 
 `ChatObject(workflow=...)` 接受任意渲染图；`workflow` 与 `archived_nodes`
-互斥。
+互斥。默认 `workflow=None` 解析为简单对话管线——需要 Step 驱动循环时传
+`_step_workflow_rendered`（来自 `amrita_core.chatmanager`），或用
+`SIMPLE_STEP_REACT` 一次拿到完整管线。
 
 ## 循环条件
 
