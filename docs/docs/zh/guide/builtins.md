@@ -27,8 +27,9 @@
 
 ## 内置适配器
 
-见[模型适配器](extensions-integration/adapters.md)——OpenAI 兼容
-（OpenAI/DeepSeek/Azure）与 Anthropic。
+见[模型适配器](extensions-integration/adapters.md)——OpenAI 兼容适配器
+（通过 `base_url`/`model` 服务 OpenAI、DeepSeek、Azure 及任意 OpenAI 兼容
+端点）与 Anthropic 适配器（`protocol="anthropic"`）。
 
 ## 内置策略
 
@@ -54,12 +55,15 @@
 
 `amrita_core.builtins.workflows` 中的预组合管线（见[工作流引擎](advanced/workflow-engine.md)）：
 
-| 工作流                                                       | 管线                        |
-| ------------------------------------------------------------ | --------------------------- |
-| `SIMPLE_CHAT`                                                | 纯对话，无 agent（默认）    |
-| `REACT_BLOCK` / `SIMPLE_REACT` / `REACT_ONLY`                | 传统 ReAct 循环             |
-| `STEP_REACT_BLOCK` / `SIMPLE_STEP_REACT` / `STEP_REACT_ONLY` | Step 驱动 ReAct（显式启用） |
+| 工作流                                                       | 管线                                         |
+| ------------------------------------------------------------ | -------------------------------------------- |
+| `SIMPLE_CHAT`                                                | 纯对话，无 agent（默认）                     |
+| `REACT_BLOCK` / `SIMPLE_REACT` / `REACT_ONLY`                | 传统 ReAct 循环                              |
+| `STEP_REACT_BLOCK` / `SIMPLE_STEP_REACT` / `STEP_REACT_ONLY` | Step 驱动 ReAct（显式启用）                  |
+| `CHATOBJECT_STEP_REACT`                                      | 内部归档 step 循环（ChatObject runner 使用） |
 
 > `workflow=None`（`ChatObject` 默认）解析为**简单对话**管线。Step 驱动系列
 > 只在显式传入时运行——例如 `get_chatobject(..., workflow=SIMPLE_STEP_REACT)`
 > 或 `workflow=_step_workflow_rendered`（见 [Step 循环](advanced/step-loop.md)）。
+> `CHATOBJECT_STEP_REACT` 通常由框架替你选择——只在自行组合自定义管线需要
+> 归档块变体时才手动传入。

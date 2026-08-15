@@ -5,14 +5,18 @@ Pushes a peer message *before* the agent starts; the first Step boundary
 second message while the agent is running — it is picked up at the next
 Step boundary (or dropped when the run finishes).
 
-Usage: API_KEY=... python demo/peer_push_demo.py
+Talks to any OpenAI-compatible endpoint: ``API_BASE_URL``/``API_MODEL``
+select the provider (DeepSeek is just the default example), while the
+adapter (protocol) stays the framework default.
+
+Usage: API_KEY=... API_BASE_URL=... API_MODEL=... python demo/peer_push_demo.py
 """
 
 import asyncio
 import os
 
-BASE_URL = "https://api.deepseek.com"
-MODEL = "deepseek-v4-flash"
+BASE_URL = os.environ.get("API_BASE_URL", "https://api.deepseek.com")
+MODEL = os.environ.get("API_MODEL", "deepseek-v4-flash")
 
 
 def build_config():

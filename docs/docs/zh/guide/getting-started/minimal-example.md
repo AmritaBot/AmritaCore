@@ -44,8 +44,8 @@ if __name__ == "__main__":
 
 - 使用匹配的 `base_url` + `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` 环境变量时，
   `api_key` 可省略。
-- DeepSeek 等 OpenAI 兼容供应商：只改 `base_url` 和 `model` 即可。
-- Anthropic？用 `protocol="anthropic"`——见[适配器](../extensions-integration/adapters.md)。
+- DeepSeek 等 OpenAI 兼容供应商：只改 `base_url` 和 `model` 即可——适配器（协议）不变。
+- Anthropic 走不同协议：在 `ModelPreset` 上设 `protocol="anthropic"`——见[适配器](../extensions-integration/adapters.md)。
 
 ## 下一步
 

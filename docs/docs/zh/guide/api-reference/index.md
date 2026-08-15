@@ -89,6 +89,17 @@ agent = create_agent(
 
 **返回**：[AgentRuntime](classes/AgentRuntime.md) - 配置好的 agent 运行时实例
 
+**使用说明**：
+
+- 函数自动创建临时预设；持久化预设请用 [PresetManager](classes/PresetManager.md)
+- 返回的 agent 可通过 `get_chatobject()` 复用多次交互
+- `create_agent()` **没有 `protocol` 参数**——它总是构造默认协议
+  （`"__main__"`，即 OpenAI 兼容适配器）的预设。供应商由
+  `base_url` + `model` 决定；DeepSeek、Azure 或任意 OpenAI 兼容端点都走
+  同一适配器。要使用 Anthropic 线上格式，请构造 `protocol="anthropic"`
+  的 `ModelPreset` 并直接传给 `AgentRuntime`——见
+  [模型适配器](../extensions-integration/adapters.md)
+
 ## Step 循环类型（内置 ReAct）
 
 - [AgentRunState](classes/AgentRunState.md)：语义级 step 运行状态（计划、停滞窗口、token）

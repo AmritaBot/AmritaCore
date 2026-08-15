@@ -10,8 +10,14 @@ and finish with what step 1 gave.
 
 Scenario D2 (control): all tools succeed, so no revision is expected.
 
+Talks to any OpenAI-compatible endpoint: ``API_BASE_URL``/``API_MODEL``
+select the provider (DeepSeek is just the default example), while the
+adapter (protocol) stays the framework default.
+
 Usage:
-    export API_KEY=sk-...   # DeepSeek key
+    export API_KEY=sk-...        # provider API key
+    export API_BASE_URL=...      # optional, defaults below
+    export API_MODEL=...         # optional, defaults below
     python demo/step_update_demo.py [D1|D2]
 """
 
@@ -28,8 +34,8 @@ from amrita_core.tools.models import (
     FunctionPropertySchema,
 )
 
-BASE_URL = "https://api.deepseek.com"
-MODEL = "deepseek-chat"
+BASE_URL = os.environ.get("API_BASE_URL", "https://api.deepseek.com")
+MODEL = os.environ.get("API_MODEL", "deepseek-chat")
 
 
 def make_tools(fail_db: bool) -> None:
