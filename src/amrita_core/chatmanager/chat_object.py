@@ -65,6 +65,10 @@ from amrita_core.contexts import (
     StrategyPayload,
     WorkingState,
 )
+from amrita_core.enums import (
+    BuiltinName,
+    SuspendEnum,
+)
 from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
 from amrita_core.libchat import RESPONSE_TYPE
 from amrita_core.types import (
@@ -80,10 +84,6 @@ from amrita_core.utils import get_current_datetime_timestamp
 
 from .chat_libs import ChatManager, chat_manager
 from .chat_obj_meta import ChatObjectMeta
-from .enums import (
-    BuiltinName,
-    SuspendEnum,
-)
 from .memory_limiter import MemoryLimiter
 
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
@@ -713,11 +713,6 @@ async def _pre_runner(chat_obj: ChatObject):
         chat_obj,
         ab.preset,
         *chat_obj._hook_args,
-        state=StateContext(
-            session_id=chat_obj._di_session.session_id,
-            memory=mem_ctx.memory,
-            ability=ab.ability,
-        ),
         slot=ab.slot,
         exception_ignored=chat_obj._raised_exc,
         **chat_obj._hook_kwargs,
@@ -826,11 +821,6 @@ async def _post_runner(chat_obj: ChatObject):
         chat_obj,
         ab.preset,
         *chat_obj._hook_args,
-        state=StateContext(
-            session_id=chat_obj._di_session.session_id,
-            memory=mem_ctx.memory,
-            ability=ab.ability,
-        ),
         slot=ab.slot,
         exception_ignored=chat_obj._raised_exc,
         **chat_obj._hook_kwargs,

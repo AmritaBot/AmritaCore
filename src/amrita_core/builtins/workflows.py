@@ -6,7 +6,6 @@ from amrita_sense.instructions.native import (
 from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT
 from amrita_sense.instructions.workfl_ctrl import NOP
 
-from amrita_core.chatmanager.enums import BuiltinName
 from amrita_core.components.llm import JINJA2_RENDER, LLM_COMPLETION
 from amrita_core.components.process import BUILD_MESSAGE, COMMIT_MEMORY, LOAD_STATE
 from amrita_core.components.react import (
@@ -18,6 +17,7 @@ from amrita_core.components.react import (
     STRATEGY_INIT,
     task_cond,
 )
+from amrita_core.enums import BuiltinName
 
 REACT_BLOCK = (
     STRATEGY_INIT

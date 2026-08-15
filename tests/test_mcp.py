@@ -130,12 +130,8 @@ class TestMCPClient:
             mock_client.call_tool.side_effect = delayed_call
 
             results_task = asyncio.gather(
-                asyncio.create_task(
-                    mcp_client.simple_call("tool_a", {"x": 1})
-                ),
-                asyncio.create_task(
-                    mcp_client.simple_call("tool_b", {"y": 2})
-                ),
+                asyncio.create_task(mcp_client.simple_call("tool_a", {"x": 1})),
+                asyncio.create_task(mcp_client.simple_call("tool_b", {"y": 2})),
             )
             # Wait until both coroutines reached call_tool (i.e. _active_calls
             # is 2), then let them finish.

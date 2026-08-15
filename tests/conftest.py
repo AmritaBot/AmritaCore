@@ -10,8 +10,10 @@ sys.path.insert(0, str(project_root))
 
 def pytest_configure(config):
     from amrita_core import _env
+    from amrita_core.config import AmritaConfig, set_config
 
     _env.TEST_MODE.value = True
+    set_config(AmritaConfig())
 
 
 def pytest_collection_modifyitems(items: list[pytest.Item]):

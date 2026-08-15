@@ -235,6 +235,7 @@ class TestCallTool:
         state = StateContext(session_id="s1", ability=AbilityContext(tools=tm))
         co = MagicMock()
         co.state = state
+        co._di_ability.ability = state.ability
         co.io_stream = MagicMock()
         wrap = SendMessageWrap(
             train=Message(role="system", content="sys"),
@@ -264,6 +265,7 @@ class TestCallTool:
         state = StateContext(session_id="s1", ability=AbilityContext(tools=tm))
         co = MagicMock()
         co.state = state
+        co._di_ability.ability = state.ability
         co.io_stream = MagicMock()
         wrap = SendMessageWrap(
             train=Message(role="system", content="sys"),
@@ -293,6 +295,7 @@ class TestCallTool:
         state = StateContext(session_id="s1", ability=AbilityContext(tools=tm))
         co = MagicMock()
         co.state = state
+        co._di_ability.ability = state.ability
         co.io_stream = MagicMock()
         wrap = SendMessageWrap(
             train=Message(role="system", content="sys"),

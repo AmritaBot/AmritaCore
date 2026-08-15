@@ -72,10 +72,12 @@ def mock_chat_object(mock_config):
     chat_obj.io_stream = MagicMock()
     chat_obj.io_stream.yield_response = AsyncMock()
     chat_obj.io_stream.set_queue_done = AsyncMock()
+    ability_ctx = AbilityContext(tools=ToolsManager())
     chat_obj.state = StateContext(
         session_id="test-session",
-        ability=AbilityContext(tools=ToolsManager()),
+        ability=ability_ctx,
     )
+    chat_obj._di_ability.ability = ability_ctx
     train_msg = Message(role="system", content="Test system message")
     chat_obj.train = train_msg
 
@@ -255,10 +257,12 @@ def test_strategy_context_with_complex_user_input(create_send_message_wrap):
     mock_chat_obj.preset = "default-preset"
     mock_chat_obj.config = AmritaConfig()
     mock_chat_obj.train = train_msg
+    ability_ctx = AbilityContext(tools=ToolsManager())
     mock_chat_obj.state = StateContext(
         session_id="test-session",
-        ability=AbilityContext(tools=ToolsManager()),
+        ability=ability_ctx,
     )
+    mock_chat_obj._di_ability.ability = ability_ctx
 
     ctx = StrategyContext(
         user_input=user_content,

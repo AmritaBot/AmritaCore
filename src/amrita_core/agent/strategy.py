@@ -10,6 +10,7 @@ from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.contents import MessageMetadataPayloadSystem, MessageWithMetadata
+from amrita_core.tools.manager import MultiToolsManager
 from amrita_core.tools.models import ToolContext
 from amrita_core.types import Message, ToolCall
 
@@ -18,7 +19,6 @@ if TYPE_CHECKING:
 
     from amrita_core.chatmanager import ChatObject
     from amrita_core.config import AmritaConfig
-    from amrita_core.tools.manager import MultiToolsManager
     from amrita_core.types.preset import ModelPreset
     from amrita_core.usage import SessionUsageProxy
 
@@ -97,11 +97,12 @@ class _StrategyBase(ABC):
         self.ctx = ctx
         # ctx.chat_object may be None in new-style DI workflows
         self.chat_object = ctx.chat_object  # pyright: ignore[reportAttributeAccessIssue]
-        # tools_manager: prefer ctx field, fallback to chat_object
+        # tools_manager: prefer ctx field, fallback to chat_object DI components
         if ctx.tools_manager is not None:
             self.tools_manager = ctx.tools_manager
         elif ctx.chat_object is not None:
-            self.tools_manager = ctx.chat_object.state.ability.tools
+            ability = ctx.chat_object._di_ability.ability
+            self.tools_manager = ability.tools if ability is not None else MultiToolsManager()
 
     async def single_execute(
         self,
