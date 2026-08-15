@@ -139,6 +139,10 @@ class AgentRunState(BaseModel):
       current Step (stall detection).
     - ``stall_injected``: True once the "give up" prompt was injected in the
       current Step (injected only once, then the Step ends immediately).
+    - ``tool_error_hints``: number of hard ERROR tool results seen in the
+      current Step.  Drives the failure -> revise plan guidance (first
+      failure suggests retry-once-then-revise; later failures order an
+      immediate revision).
     - ``last_summary``: subject-predicate summary of the previous Step.
     - ``tokens``: real API token accounting (compression trigger).
     - ``exec_finished``: True once the strategy finished calling tools,
@@ -154,6 +158,7 @@ class AgentRunState(BaseModel):
     plan_revision: int = 0
     step_tool_signatures: list[str] = Field(default_factory=list)
     stall_injected: bool = False
+    tool_error_hints: int = 0
     last_summary: StepSummary | None = None
     tokens: TokenBudget = TokenBudget()
     exec_finished: bool = False
@@ -173,6 +178,7 @@ class AgentRunState(BaseModel):
         # Fresh per-Step window for stall detection and give-up injection.
         self.step_tool_signatures = []
         self.stall_injected = False
+        self.tool_error_hints = 0
         self.exec_finished = False
         self.step_started_ts = time.time()
 

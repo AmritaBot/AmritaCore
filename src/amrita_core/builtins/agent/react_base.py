@@ -170,6 +170,11 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         #  Initialize reasoning enhancement state
         self._predicted_tools = []
         self._run_state = None
+        # The plan-revision built-in (update_step) is exposed only when the
+        # native step loop activates (intro_step), never in the legacy loop.
+        self._step_tools_injected = False
+        # Last plan snapshot injected into the context (change detection).
+        self._last_plan_snapshot: str | None = None
         # Peer (reverse-stream) input: lazily opened on first Step boundary;
         # closed once (idempotent) when the agent run finishes.
         self._peer_input_gen: AsyncGenerator[Any, None] | None = None
@@ -220,9 +225,30 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         Args:
             phase: the reasoning phase being entered.
         """
+        # Only the native step workflow calls intro_step — the legacy loop
+        # never does — so this is the reliable point to expose the
+        # plan-revision built-in (idempotent).
+        self._ensure_step_tools()
         await self._drain_peer_input()
         rs = self._init_run_state()
         rs.begin_step(phase)
+
+    def _ensure_step_tools(self) -> None:
+        """Expose the ``update_step`` built-in once (idempotent).
+
+        Called from ``intro_step``, which only the native step loop reaches;
+        legacy runs therefore keep the original tool list.  The model needs
+        to *see* the tool (plus the plan status injected at decomposition)
+        before it can autonomously revise the plan mid-run.
+        """
+        if self._step_tools_injected:
+            return
+        self._step_tools_injected = True
+        if UPDATE_STEP_TOOL not in self.tools:
+            self.tools.append(UPDATE_STEP_TOOL)
+            logger.info(
+                "Step loop active: exposed 'update_step' built-in to the model."
+            )
 
     async def _drain_peer_input(self) -> None:
         """Drain pending peer messages at a Step boundary (non-blocking).
@@ -952,7 +978,22 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     except json.JSONDecodeError:
                         args = {}
                     await self._handle_update_step(args)
-                    return (tc, "<STEP_PLAN_UPDATED>", None)
+                    # Echo the revised plan back so the model can confirm the
+                    # change without waiting for the next Step intro.
+                    rs = self._init_run_state()
+                    plan_desc = (
+                        ", ".join(n.id for n in (rs.plan or []))
+                        if rs.plan
+                        else "(none)"
+                    )
+                    return (
+                        tc,
+                        (
+                            "<STEP_PLAN_UPDATED> revised plan: "
+                            f"{plan_desc}; done: {rs.completed_step_ids}"
+                        ),
+                        None,
+                    )
                 if fn == STOP_TOOL.function.name:
                     args: dict[str, Any] = json.loads(tc.function.arguments)
                     self.agent_last_step = "Stopped"

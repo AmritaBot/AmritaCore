@@ -231,6 +231,50 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             sig = tool_call.function.name
         rs.record_tool_call(sig)
 
+    def _inject_plan_status(self) -> None:
+        """Inject the current plan snapshot into the context (plan mode only).
+
+        Called at every Step intro so the model always sees the *current*
+        plan — including revisions made by ``update_step`` mid-run.  The
+        snapshot is appended only when it changed (plain text, no DSML
+        tags), keeping the context lean and pairing intact: a ``user``
+        message at a Step boundary never splits a tool-call/result pair.
+
+        The note tells the model the plan is only a hint: revise it ONLY
+        when the plan turns out to be wrong (a step is redundant, missing,
+        or the task changed) — not for its own sake.  Normal step progress
+        is handled automatically by the framework (``leave_step`` marks the
+        node done), so ``mark_done`` is never needed from the model side.
+        """
+        rs = self._init_run_state()
+        if rs.simple_mode or not rs.plan:
+            return
+        done = set(rs.completed_step_ids)
+        lines = []
+        for node in rs.plan:
+            state = "done" if node.id in done else "pending"
+            if node.id == rs.current_step_id:
+                state = "current"
+            lines.append(f"- {node.id} [{state}]: {node.description}")
+        snapshot = "[Plan status]\n" + "\n".join(lines)
+        if snapshot == self._last_plan_snapshot:
+            return
+        self._last_plan_snapshot = snapshot
+        note = (
+            "\nThis plan is only a hint for structuring your work. "
+            "The framework advances it automatically as you complete steps. "
+            "Call update_step ONLY when the plan turns out to be wrong: a "
+            "step is redundant, missing, the task changed, or a step cannot "
+            "be completed because its tool keeps failing (persistent ERROR "
+            "results). Never revise for its own sake. When a tool fails, "
+            "retry at most once; if it keeps failing, revise the plan "
+            "(remove_step the broken step or replan) and answer with what "
+            "you have. Use remove_step / add_step / replan to fix it; do "
+            "NOT use mark_done (the framework marks steps done for you)."
+        )
+        self.ctx.message.append(Message(role="user", content=snapshot + note))
+        logger.debug(f"Plan status injected into context ({len(lines)} nodes).")
+
     def _detect_step_stall(self) -> bool:
         """True when the last N tool signatures within this Step are identical."""
         rs = self._init_run_state()
@@ -509,6 +553,9 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         Pending peer messages are drained first so the incoming Step sees
         them as the latest context (see ``_drain_peer_input``).
         """
+        # The native step loop always enters through intro_step — expose the
+        # plan-revision built-in exactly here (idempotent).
+        self._ensure_step_tools()
         await self._drain_peer_input()
         rs = self._init_run_state()
         if rs.step_index == 0 and rs.plan is None and not rs.simple_mode:
@@ -527,6 +574,9 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 rs.begin_node(node)
         # Refresh the Step's prompt-token window from the ledger proxy.
         rs.tokens.refresh_window(self.usage, rs.step_started_ts)
+        # Keep the model aware of the current plan (idempotent snapshot) so
+        # it can autonomously revise the plan via update_step mid-run.
+        self._inject_plan_status()
 
         # Lifecycle hook: matchers may redirect the phase name
         # (override_phase) before the Step starts.
@@ -669,6 +719,50 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 content=func_response,
                 tool_call_id=tool_call.id,
             )
+        )
+        # Deterministic failure guidance: a hard ERROR result is an objective
+        # plan failure — teach the model to revise instead of retrying forever.
+        self._maybe_inject_tool_failure_hint(tool_call, func_response)
+
+    def _maybe_inject_tool_failure_hint(
+        self, tool_call: ToolCall, func_response: str
+    ) -> None:
+        """Append a one-shot failure -> revise hint after a hard ERROR result.
+
+        Runs right after the ToolResult was appended, so the tool-call/result
+        pairing stays intact (a ``user`` message after a closed pair never
+        splits it).  Only fires when the result starts with ``ERROR`` (an
+        objective tool failure) and only for regular tools — built-in
+        flow-control tools (STOP/REASONING) never reach this point.
+
+        First failure: retry at most once, then revise via ``update_step``.
+        Any further failure in the same Step: stop retrying, revise now.
+        Parallel tool calling is left untouched — this only appends a context
+        message, it never disables or alters concurrent execution.
+        """
+        if not func_response.startswith("ERROR"):
+            return
+        rs = self._init_run_state()
+        rs.tool_error_hints += 1
+        if rs.tool_error_hints == 1:
+            note = (
+                "\n[Framework note] The tool returned a hard error. "
+                "Retry it at most once. If it fails again, call update_step "
+                "(action: remove_step or replan) to drop the broken step, "
+                "then answer with the information you already have. "
+                "Do not keep retrying a failing tool."
+            )
+        else:
+            note = (
+                "\n[Framework note] The tool failed again. Do not retry it. "
+                "Call update_step now (action: remove_step or replan) to "
+                "revise the plan, then answer with what you have."
+            )
+        self.ctx.message.append(Message(role="user", content=note))
+        logger.debug(
+            "Tool failure hint injected (count=%s) after ERROR result from %s.",
+            rs.tool_error_hints,
+            tool_call.function.name,
         )
 
     @override
