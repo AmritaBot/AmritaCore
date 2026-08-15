@@ -572,6 +572,149 @@ class TestStrategyStepLifecycle:
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
         assert assistant_msgs[-1].reasoning_content is None
 
+    def test_append_tool_result_carries_reasoning_signature(self, strategy):
+        """Anthropic extended thinking: the signature must round-trip too.
+
+        Like ``reasoning_content``, the provider's ``reasoning_signature`` is
+        carried back verbatim on the fabricated assistant message — Anthropic
+        rejects requests whose assistant messages drop it.
+        """
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        tool_call = ToolCall(
+            id="t1",
+            function={"name": "search", "arguments": '{"q": "x"}'},  # pyright: ignore[reportArgumentType]
+        )
+        response_msg = UniResponse(
+            content=None,
+            tool_calls=[tool_call],
+            reasoning_content="thinking about the search",
+            reasoning_signature="sig-abc123",
+        )
+        asyncio_run(
+            strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+        )
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        assistant_msgs = [m for m in msgs if m.role == "assistant"]
+        assert assistant_msgs[-1].reasoning_content == "thinking about the search"
+        assert assistant_msgs[-1].reasoning_signature == "sig-abc123"
+
+    def test_exec_one_error_append_carries_reasoning_signature(self, strategy):
+        """A raising tool must round-trip the signature and keep args verbatim.
+
+        The error branch fabricates the assistant message exactly like the
+        success path: original ``tool_call`` (arguments kept, not replaced
+        with "{}") plus ``reasoning_content`` / ``reasoning_signature``. The
+        failure is marked only by the ``ERR:``-prefixed ToolResult.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        tool_call = ToolCall(
+            id="t1",
+            function={"name": "search", "arguments": '{"q": "x"}'},  # pyright: ignore[reportArgumentType]
+        )
+        response_msg = UniResponse(
+            content=None,
+            tool_calls=[tool_call],
+            reasoning_content="thinking about the search",
+            reasoning_signature="sig-abc123",
+        )
+        with patch.object(
+            strategy,
+            "call_tool",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            should_continue = asyncio_run(strategy._execute_tool_loop(response_msg))
+        assert should_continue is True
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        assistant_msgs = [m for m in msgs if m.role == "assistant"]
+        assert assistant_msgs, "expected an assistant tool-call message"
+        assert assistant_msgs[-1].reasoning_content == "thinking about the search"
+        assert assistant_msgs[-1].reasoning_signature == "sig-abc123"
+        # Original tool call kept verbatim (arguments round-trip, not "{}").
+        assert assistant_msgs[-1].tool_calls[0].function.arguments == '{"q": "x"}'
+        tool_msgs = [m for m in msgs if getattr(m, "role", None) == "tool"]
+        assert any(
+            "ERR: Tool search execution failed" in getattr(m, "content", "")
+            for m in tool_msgs
+        )
+
+    # Concurrent results must NOT be split: ONE assistant message with all
+    # tool_calls (verbatim fields), then ALL ToolResults in input order.
+
+    def test_concurrent_tool_calls_not_split(self, strategy):
+        """Concurrent tool calls stay together: one assistant message, all
+        results appended after it — success and failure alike.
+
+        The fabricated assistant message carries every tool_call plus the
+        provider's fields verbatim (extra fields included), followed by one
+        ToolResult per call; the failure is marked only by its ``ERR:``
+        ToolResult content.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        calls = [
+            ToolCall(
+                id="t1",
+                function={"name": "search", "arguments": '{"q": "a"}'},  # pyright: ignore[reportArgumentType]
+            ),
+            ToolCall(
+                id="t2",
+                function={"name": "wiki", "arguments": '{"q": "b"}'},  # pyright: ignore[reportArgumentType]
+            ),
+            ToolCall(
+                id="t3",
+                function={"name": "calc", "arguments": '{"expr": "1+1"}'},  # pyright: ignore[reportArgumentType]
+            ),
+        ]
+        response_msg = UniResponse(
+            content=None,
+            tool_calls=calls,
+            reasoning_content="thinking about the search",
+            reasoning_signature="sig-abc123",
+            provider_extra="keep-me",  # extra field must round-trip verbatim
+        )
+
+        async def fake_call(tc):
+            if tc.id == "t3":
+                raise RuntimeError("boom")
+            return f"result-{tc.id}"
+
+        with patch.object(
+            strategy,
+            "call_tool",
+            new=AsyncMock(side_effect=fake_call),
+        ):
+            should_continue = asyncio_run(strategy._execute_tool_loop(response_msg))
+        assert should_continue is True
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        # Exactly ONE assistant tool-call message for all three calls.
+        assistant_msgs = [m for m in msgs if m.role == "assistant" and m.tool_calls]
+        assert len(assistant_msgs) == 1
+        assert [tc.id for tc in assistant_msgs[0].tool_calls] == ["t1", "t2", "t3"]
+        # Verbatim fields (reasoning + extra) carried on the assistant message.
+        assert assistant_msgs[0].reasoning_content == "thinking about the search"
+        assert assistant_msgs[0].reasoning_signature == "sig-abc123"
+        assert assistant_msgs[0].provider_extra == "keep-me"
+        # ALL ToolResults follow, in input order; ERR only in tool content.
+        tool_msgs = [m for m in msgs if getattr(m, "role", None) == "tool"]
+        assert [getattr(m, "tool_call_id", None) for m in tool_msgs] == [
+            "t1",
+            "t2",
+            "t3",
+        ]
+        contents = [getattr(m, "content", "") for m in tool_msgs]
+        assert contents[0] == "result-t1"
+        assert contents[1] == "result-t2"
+        assert any("ERR: Tool calc execution failed" in c for c in contents)
+
     # Pre-execution cancellation (tool returns "Cancelled: ..." on stall)
 
     def test_should_cancel_tool_call_on_repeating_window(self, strategy):
