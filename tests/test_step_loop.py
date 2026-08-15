@@ -674,12 +674,14 @@ class TestStrategyStepLifecycle:
                 function={"name": "calc", "arguments": '{"expr": "1+1"}'},  # pyright: ignore[reportArgumentType]
             ),
         ]
-        response_msg = UniResponse(
-            content=None,
-            tool_calls=calls,
-            reasoning_content="thinking about the search",
-            reasoning_signature="sig-abc123",
-            provider_extra="keep-me",  # extra field must round-trip verbatim
+        response_msg = UniResponse.model_validate(
+            {
+                "content": None,
+                "tool_calls": calls,
+                "reasoning_content": "thinking about the search",
+                "reasoning_signature": "sig-abc123",
+                "provider_extra": "keep-me",  # extra field must round-trip verbatim
+            }
         )
 
         async def fake_call(tc):
