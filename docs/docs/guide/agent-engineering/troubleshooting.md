@@ -48,7 +48,9 @@ the tool-result append dropped `reasoning_content`.
 
 **Fix**: both are fixed in v0.13 — the filter (`thinking_config.content_mode`)
 shallow-copies messages (`model_copy(deep=False)`) instead of mutating, and
-every assistant message append carries `response_msg.reasoning_content` back.
+every assistant message append carries the response's thinking fields back
+verbatim (`reasoning_content`, `reasoning_signature` and any provider extra
+— `Message` allows extra, so nothing is hard-coded).
 If you write a custom strategy, keep both rules: **never strip reasoning in
 place; always pass it back** — safe for every provider, mandatory for the ones
 above.
@@ -60,9 +62,12 @@ above.
 **Root cause**: every assistant message with `tool_calls` must be followed by
 matching `ToolResult` messages.
 
-**Fix**: the built-in strategies append **one assistant message per tool_call**
-with its `ToolResult` — never batch multiple calls into one assistant message
-unless you pair them all. Custom strategies: follow the same pairing rule (see
+**Fix**: the built-in strategies put **all tool_calls of one response into a
+single assistant message**, followed by **all** their `ToolResult`s (in call
+order — fully paired). One response is never split into multiple assistant
+messages: the reasoning text (`reasoning_content`) appears exactly once, and
+splitting would repeat it across messages — undefined behavior.
+Custom strategies: follow the same pairing rule (see
 [Agent Strategy](../concepts/agent-strategy.md)). Any context injection that
 splits a tool-call/result pair (e.g. plan-status notes) breaks the contract —
 AmritaCore injects those at Step boundaries only, never mid-pair.

@@ -410,6 +410,36 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """
         return
 
+    def _assistant_fields_from_response(
+        self,
+        response_msg: UniResponse[None, list[ToolCall] | None] | None,
+    ) -> dict[str, Any]:
+        """Extract assistant-message fields from the provider response verbatim.
+
+        ``Message`` allows extra fields, so every field (``reasoning_content``,
+        ``reasoning_signature`` and any provider-specific extra) is carried
+        over as-is — nothing is hard-coded here.  ``role``/``content``/
+        ``tool_calls``/``usage``/``metadata`` are excluded because the caller
+        supplies them explicitly (the executed ``tool_calls``, the provider's
+        ``content`` and the fixed ``assistant`` role).
+        """
+        if response_msg is None:
+            return {}
+        return response_msg.model_dump(
+            exclude={"role", "content", "tool_calls", "usage", "metadata"},
+            exclude_none=True,
+        )
+
+    def _maybe_inject_tool_failure_hint(
+        self, tool_call: ToolCall, func_response: str
+    ) -> None:
+        """Optionally append failure guidance after a hard ``ERROR`` result.
+
+        Base implementation is a no-op; the built-in ReAct strategy appends
+        a one-shot revise hint when the result starts with ``ERROR``.
+        """
+        return
+
     def _detect_step_stall(self) -> bool:
         """Check whether the current Step is stalled (duplicate tool calls).
 
@@ -1106,8 +1136,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             tuple[ToolCall, str, BaseException | None]
         ] = await self._run_tool_calls_concurrently(tool_calls)
 
-        #  Append results sequentially
+        #  Collect results, then append ONE assistant message with every
+        #  tool_call followed by all ToolResults (never split per call).
         result_msg_list: list[ToolResult] = []
+        collected: list[tuple[ToolCall, str, BaseException | None]] = []
         should_continue = True  # default: keep looping (old `ret` semantics)
         for tc, func_response, exc in concurrent_results:
             function_name = tc.function.name
@@ -1120,43 +1152,27 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     # concurrent runner); surface the error, don't swallow.
                     self.reasoning_pc = 0
                     await self._handle_error_append(
-                        function_name,
+                        tc,
                         func_response,
-                        tc.id,
                         original_exception=exc,
                         response_msg=response_msg,
                     )
                 else:
                     # _run_tool_calls_concurrently already called _append_reasoning.
                     should_continue = True
+                # The pair was appended above (error) or by the runner
+                # (success) — never re-appended via the collected batch.
                 continue
 
             if is_stop:
                 if not func_response:
                     # Reflection failed — correction already injected, continue.
                     continue
-                await self._build_stop_response_and_append(
-                    json.loads(tc.function.arguments),
-                    response_msg,
-                    function_name,
-                    tc.id,
-                    func_response,
-                )
-            elif func_response.startswith("ERR:"):
-                self.reasoning_pc = 0
-                await self._handle_error_append(
-                    function_name,
-                    func_response,
-                    tc.id,
-                    original_exception=exc,
-                    response_msg=response_msg,
-                )
+                # The STOP runner already reset reasoning_pc.
             else:
                 self.reasoning_pc = 0
-                await self._append_tool_result_to_context(
-                    tc, func_response, response_msg
-                )
 
+            collected.append((tc, func_response, exc))
             logger.debug(f"Function {function_name} returned: {func_response}")
             result_msg_list.append(
                 ToolResult(
@@ -1170,6 +1186,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
             prompt = self._check_and_handle_loop_reasoning()
             if prompt is not None:
+                # Flush the collected results before stopping early.
+                await self._append_tool_results_batch(response_msg, collected)
+                collected.clear()
                 await self._handle_loop_reasoning_cleanup(prompt)
                 await self.io_stream.yield_response(
                     MessageWithMetadata(
@@ -1186,6 +1205,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 should_continue = False
                 break
 
+        await self._append_tool_results_batch(response_msg, collected)
+
         #  Notify once with the complete result list.
         if result_msg_list:
             await self._notify_tool_calls(
@@ -1196,24 +1217,59 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         return should_continue
 
+    async def _append_tool_results_batch(
+        self,
+        response_msg: UniResponse[None, list[ToolCall] | None],
+        results: list[tuple[ToolCall, str, BaseException | None]],
+    ) -> None:
+        """Append ONE assistant message with all tool_calls, then all results.
+
+        Concurrent tool calls are never split: the fabricated assistant
+        message carries every executed ``tool_call`` plus the provider's
+        original fields verbatim (``Message`` allows extra, so nothing is
+        hard-coded here), followed by one ``ToolResult`` per call in input
+        order — success, ``ERR:`` and stop responses alike.
+        """
+        if not results:
+            return
+        msg_list = self.ctx.message
+        msg_list.append(
+            Message(
+                role="assistant",
+                content=response_msg.content if response_msg else None,
+                tool_calls=[tc for tc, _, _ in results],
+                **self._assistant_fields_from_response(response_msg),
+            )
+        )
+        for tc, func_response, _exc in results:
+            msg_list.append(
+                ToolResult(
+                    role="tool",
+                    name=tc.function.name,
+                    content=func_response,
+                    tool_call_id=tc.id,
+                )
+            )
+            self._maybe_inject_tool_failure_hint(tc, func_response)
+
     async def _handle_error_append(
         self,
-        function_name: str,
+        tool_call: ToolCall,
         error_content: str,
-        tool_call_id: str,
         original_exception: BaseException | None = None,
         response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
     ):
         """Handle appending error messages to context (strategy-specific).
 
         Args:
-            function_name: Name of the failed function.
+            tool_call: The failed tool call, kept verbatim on the fabricated
+                assistant message so the round-trip stays faithful.
             error_content: Formatted error message to append.
-            tool_call_id: ID of the failed tool call.
             original_exception: The original exception, or ``None`` when the error
                 was captured as a string during concurrent execution.
             response_msg: The provider response, used to carry ``reasoning_content``
-                back on the fabricated assistant message (thinking-mode round-trip).
+                and ``reasoning_signature`` back on the fabricated assistant
+                message (thinking-mode round-trip).
         """
         ...
 

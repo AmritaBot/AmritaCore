@@ -695,21 +695,19 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         "insufficient tool messages following tool_calls message" API error when the
         model returns multiple tool_calls in one response.
 
-        When the provider returned ``reasoning_content`` (thinking mode,
-        e.g. DeepSeek), it is carried back verbatim on the assistant message —
-        providers require the reasoning to be passed back on subsequent
-        requests, otherwise the API rejects the payload with HTTP 400.
+        The fabricated assistant message mirrors the provider's response
+        verbatim: every field (``reasoning_content``, ``reasoning_signature``
+        and any extra — ``Message`` allows extra) is carried over as-is via
+        :meth:`_assistant_fields_from_response`, never hard-coded.
         """
         self._record_tool_signature(tool_call)
         msg_list = self.ctx.message
-        # Carry the provider's reasoning_content back (thinking round-trip).
-        reasoning = response_msg.reasoning_content if response_msg else None
         msg_list.append(
             Message(
                 role="assistant",
-                content=None,
+                content=response_msg.content if response_msg else None,
                 tool_calls=[tool_call],
-                reasoning_content=reasoning,
+                **self._assistant_fields_from_response(response_msg),
             )
         )
         msg_list.append(
@@ -724,6 +722,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         # plan failure — teach the model to revise instead of retrying forever.
         self._maybe_inject_tool_failure_hint(tool_call, func_response)
 
+    @override
     def _maybe_inject_tool_failure_hint(
         self, tool_call: ToolCall, func_response: str
     ) -> None:
@@ -779,14 +778,15 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         Only a single ToolCall is included in the assistant message to avoid the
         "insufficient tool messages following tool_calls message" API error.
 
-        The provider's ``reasoning_content`` (thinking mode) is carried back
-        on the assistant message for the thinking round-trip requirement.
+        The fabricated assistant message mirrors the provider's response
+        verbatim: every field (``reasoning_content``, ``reasoning_signature``
+        and any extra — ``Message`` allows extra) is carried over as-is via
+        :meth:`_assistant_fields_from_response`, never hard-coded.
         """
-        reasoning = response_msg.reasoning_content if response_msg else None
         self.ctx.message.append(
             Message(
                 role="assistant",
-                content=None,
+                content=response_msg.content if response_msg else None,
                 tool_calls=[
                     ToolCall(
                         id=function_call_id,
@@ -796,7 +796,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                         ),
                     )
                 ],
-                reasoning_content=reasoning,
+                **self._assistant_fields_from_response(response_msg),
             )
         )
         self.ctx.message.append(
@@ -811,55 +811,42 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
     @override
     async def _handle_error_append(
         self,
-        function_name: str,
+        tool_call: ToolCall,
         error_content: str,
-        tool_call_id: str,
         original_exception: BaseException | None = None,
         response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
     ):
         """ReAct strategy: append error as an assistant+tool message pair.
 
-        An assistant message with a single ToolCall is prepended to satisfy the
-        OpenAI API requirement that every ToolResult must follow an assistant
-        message containing the corresponding tool_call.
-
-        When the provider returned ``reasoning_content`` (thinking mode), it is
-        carried back on the fabricated assistant message exactly like the
-        success path, so thinking-mode providers (DeepSeek even in OpenAI mode,
-        Anthropic with extended thinking) keep receiving their reasoning back.
+        The fabricated assistant message mirrors the provider's response
+        verbatim: the original ``tool_call`` plus every field (``reasoning_content``,
+        ``reasoning_signature`` and any extra — ``Message`` allows extra)
+        carried over as-is via :meth:`_assistant_fields_from_response`, never
+        hard-coded — the failure is marked only by the ``ERR:``-prefixed
+        ``ToolResult`` content.
 
         Args:
-            function_name: Name of the failed function
-            error_content: Formatted error message to append
-            tool_call_id: ID of the tool call
+            tool_call: The failed tool call, kept verbatim for the round-trip.
+            error_content: Formatted error message to append.
             original_exception: The original exception, or ``None`` when the
                 error was captured as a string during concurrent execution.
-            response_msg: The provider response whose ``reasoning_content`` is
-                carried back on the assistant message, or ``None``.
+            response_msg: The provider response whose assistant-message fields
+                are carried back verbatim, or ``None``.
         """
-        reasoning = response_msg.reasoning_content if response_msg else None
         self.ctx.message.append(
             Message(
                 role="assistant",
-                content=None,
-                tool_calls=[
-                    ToolCall(
-                        id=tool_call_id,
-                        function=Function(
-                            name=function_name,
-                            arguments="{}",
-                        ),
-                    )
-                ],
-                reasoning_content=reasoning,
+                content=response_msg.content if response_msg else None,
+                tool_calls=[tool_call],
+                **self._assistant_fields_from_response(response_msg),
             )
         )
         self.ctx.message.append(
             ToolResult(
                 role="tool",
-                name=function_name,
+                name=tool_call.function.name,
                 content=error_content,
-                tool_call_id=tool_call_id,
+                tool_call_id=tool_call.id,
             )
         )
 

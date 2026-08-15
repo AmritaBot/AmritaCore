@@ -41,7 +41,9 @@ passed back"，非偶发——assistant 一旦产出推理，后续每次请求�
 
 **修复**：v0.13 均已修复——过滤器（`thinking_config.content_mode`）
 浅拷贝消息（`model_copy(deep=False)`）而非原地修改；每个 assistant 消息
-追加都带回 `response_msg.reasoning_content`。编写自定义策略时请遵守
+追加都**原样带回** `response_msg` 的思考字段（`reasoning_content`、
+`reasoning_signature` 及任何供应商 extra——`Message` 允许 extra，全量
+传递，不硬编码）。编写自定义策略时请遵守
 两条规则：**绝不在原地剥离 reasoning；始终原样回传**——对所有供应商
 都安全，对上述供应商则是必须。
 
@@ -52,8 +54,10 @@ passed back"，非偶发——assistant 一旦产出推理，后续每次请求�
 **根因**：每个带 `tool_calls` 的 assistant 消息必须紧跟匹配的
 `ToolResult` 消息。
 
-**修复**：内置策略为每个 tool_call 追加**一条 assistant 消息**及其
-`ToolResult`——绝不把多个调用塞进一条 assistant 消息，除非全部配对。
+**修复**：内置策略把**一次响应里的所有 tool_call 放进一条 assistant
+消息**，后面紧跟**全部** `ToolResult`（按调用顺序，全部配对）。绝不把
+同一响应拆成多条 assistant——思考正文（`reasoning_content`）只出现一次，
+强拆会让它在多条消息里重复出现，产生未定义行为。
 自定义策略遵循同样的配对规则（见 [Agent 策略](../concepts/agent-strategy.md)）。
 任何拆散 tool-call/result 配对的上下文注入（如计划状态注记）都会破坏契约
 ——AmritaCore 只在 Step 边界注入，绝不插在配对中间。
