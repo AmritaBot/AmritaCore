@@ -1,23 +1,33 @@
 # Model Adapters
 
 Adapters normalize provider-specific APIs into one interface
-(`ModelAdapter` in `amrita_core.base.adapter`). `create_agent()` picks the
-adapter from your `protocol` argument.
+(`ModelAdapter` in `amrita_core.base.adapter`).
+
+> **Adapter + Provider**: the connection is decided jointly by the **adapter**
+> (which _protocol_ — the wire format — is spoken) and the **provider** (which
+> _endpoint and model_ — `base_url` + `model` — is reached). An adapter is not
+> vendor-specific: the same OpenAI-compatible adapter serves OpenAI, DeepSeek,
+> Azure, or any local server; only `base_url`/`model` change.
 
 ## Built-in Adapters
 
 ### OpenAIAdapter
 
-**Protocols**: `"openai"`, `"deepseek"`, `"azure"`, or any OpenAI-compatible
-endpoint.
+Serves any OpenAI-compatible endpoint. Registered protocols: `"openai"`,
+`"__main__"` (the default `ModelPreset` protocol).
 
 ```python
 agent = create_agent(
-    base_url="https://api.deepseek.com",  # OpenAI-compatible
-    api_key=os.environ["DEEPSEEK_API_KEY"],
+    base_url="https://api.deepseek.com",  # any OpenAI-compatible endpoint
+    api_key=os.environ["API_KEY"],
     model="deepseek-chat",
 )
 ```
+
+`create_agent()` always builds a preset with the default protocol
+(`"__main__"` → OpenAIAdapter), so an OpenAI-compatible endpoint works with
+zero protocol configuration — DeepSeek, Azure and friends are not separate
+protocols, just different `base_url`/`model` values.
 
 **Provider-specific request tracing**: the adapter reads request ids from
 `x-request-id` (OpenAI), `x-ds-trace-id` / `eo-log-uuid` (DeepSeek) — the id
@@ -26,14 +36,29 @@ logs.
 
 ### AnthropicAdapter
 
-**Protocols**: `"anthropic"`, `"claude"`.
+Registered protocols: `"anthropic"`, `"claude"`.
+
+`create_agent()` has no `protocol` parameter — to select a non-default
+adapter, build a `ModelPreset` with the desired `protocol` and pass it to
+`AgentRuntime`:
 
 ```python
-agent = create_agent(
+from amrita_core.agent.functions import AgentRuntime
+from amrita_core.config import AmritaConfig
+from amrita_core.types import Message, ModelConfig, ModelPreset
+
+preset = ModelPreset(
+    name="anthropic-default",
     protocol="anthropic",
     base_url="https://api.anthropic.com",
     api_key=os.environ["ANTHROPIC_API_KEY"],
     model="claude-sonnet-4-5",
+    config=ModelConfig(),
+)
+agent = AgentRuntime(
+    config=AmritaConfig(),
+    preset=preset,
+    train=Message(content="You are a helpful assistant.", role="system"),
 )
 ```
 
@@ -83,11 +108,22 @@ class MyAdapter(ModelAdapter):
 Then use it — no explicit registration call needed:
 
 ```python
-agent = create_agent(
+from amrita_core.agent.functions import AgentRuntime
+from amrita_core.config import AmritaConfig
+from amrita_core.types import Message, ModelConfig, ModelPreset
+
+preset = ModelPreset(
+    name="my-provider-default",
     protocol="my-provider",
     base_url="https://my-provider.example.com",
     api_key=...,
     model="my-model",
+    config=ModelConfig(),
+)
+agent = AgentRuntime(
+    config=AmritaConfig(),
+    preset=preset,
+    train=Message(content="You are a helpful assistant.", role="system"),
 )
 ```
 

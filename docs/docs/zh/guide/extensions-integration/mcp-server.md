@@ -5,11 +5,33 @@ AmritaCore 内嵌 **Model Context Protocol 客户端**（`MCPClient` /
 
 ## 服务器脚本格式
 
-服务器脚本是 `str | Path`，支持：
+服务器脚本是 `str | Path`。远程服务器使用 **extra+transport** 语法
+`EXTRA+PROTOCOL://[user:pwd@]host[:port]/path`,其中 `EXTRA` 选择传输类型,
+`PROTOCOL` 是 `http` 或 `https`:
 
-- **文件路径** —— `"path/to/server.py"`（stdio 传输）
-- **URL** —— `"https://mcp.example.com/sse"`、`"sse://..."`、
-  `"stream+http(s)://..."`、`"stdio://..."`
+| 格式                                    | 传输             | 说明                                                         |
+| --------------------------------------- | ---------------- | ------------------------------------------------------------ |
+| `streamable+http(s)://host[:port]/path` | Streamable HTTP  | 当前 MCP HTTP 标准(推荐)                                     |
+| `sse+http(s)://host[:port]/path`        | HTTP + SSE(旧版) | `user:pwd@` 变成 Basic Auth;单独的 `user@` 变成 bearer token |
+| `sse://host[:port]/path`                | HTTP + SSE       | `sse+http://...` 的简写                                      |
+| `stdio://["cmd","arg1",...]`            | 本地子进程       | JSON 数组:第一个元素是命令,其余是参数                        |
+| `"path/to/server.py"`                   | 本地子进程       | 纯文件路径(stdio)                                            |
+| `http(s)://...`                         | 自动检测         | 透传给 fastmcp,由它自动检测传输类型                          |
+
+示例:
+
+```python
+"path/to/filesystem-server.py",               # stdio(文件路径)
+'stdio://["uvx","mcp-server-git"]',          # stdio(命令)
+"streamable+http://mcp.example.com/mcp",      # Streamable HTTP
+"sse+http://mcp.example.com/sse",             # HTTP + SSE(旧版)
+"sse://mcp.example.com/sse",                  # sse+http 简写
+"sse+https://user:pwd@mcp.example.com/sse",   # 带 Basic Auth 的 SSE
+```
+
+> **注意:** 传输关键字是 `streamable` 而不是 `stream`。像 `stream+http://...`
+> 这样的 URL 不是可识别的 extra,会被透传给 fastmcp,而它无法解析——请改用
+> `streamable+http(s)://`。
 
 ## 标准用法：配置 + 加载
 
@@ -24,8 +46,8 @@ config = AmritaConfig(
     function_config=FunctionConfig(
         agent_mcp_client_enable=True,
         agent_mcp_server_scripts=[
-            "path/to/filesystem-server.py",  # stdio
-            "https://mcp.example.com/sse",  # HTTP/SSE
+            "path/to/filesystem-server.py",        # stdio
+            "streamable+http://mcp.example.com/mcp",  # Streamable HTTP
         ],
     )
 )
@@ -51,7 +73,7 @@ await manager.initialize_this("path/to/server.py")
 await manager.initialize_scripts_all(
     [
         "path/to/server-a.py",
-        "https://mcp.example.com/sse",
+        "sse+http://mcp.example.com/sse",
     ]
 )
 
@@ -83,6 +105,10 @@ result = await client.simple_call("list_files", {"path": "/tmp"})
 
 `connection_ttl` 控制空闲关闭：`ttl` 秒未使用后连接关闭，下次调用自动重连。
 `-1` 保持常开。
+**默认并发安全。** 每个服务器保持一条所有工具共享的常驻连接。`simple_call`
+在底层 fastmcp `Client`(带引用计数的可重入上下文管理器)上用 `async with`
+包裹调用——因此并行调用(如 agent 的工具 runner)绝不会互相拆掉连接。连接
+只在最后一个活跃调用退出后才被回收,再由 TTL 任务释放。
 
 ## 下一步
 

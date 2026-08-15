@@ -3,6 +3,29 @@
 内置 `ReActAgentStrategy` 以**节点驱动 Step 循环**运行：LLM 决定计划，框架
 走完它，一切可观测、可中断。
 
+## 启用 Step 循环
+
+Step 循环是**显式启用**的——默认的 `ChatObject` 工作流是简单对话（一次
+LLM 调用、不分解）。传入 step 循环工作流即可启用：
+
+```python
+from amrita_core.chatmanager import _step_workflow_rendered
+
+chat = agent.get_chatobject("规划并执行迁移", workflow=_step_workflow_rendered)
+```
+
+或使用完整预组合管线：
+
+```python
+from amrita_core.builtins.workflows import SIMPLE_STEP_REACT
+
+chat = agent.get_chatobject("规划并执行迁移", workflow=SIMPLE_STEP_REACT)
+```
+
+> `Agent.get_chatobject(user_input, **kwargs)` 会把 `workflow`（及任何其他
+> `ChatObject` 选项）直接透传。`update_step` 工具与 `step_*` 元数据事件
+> 只在 step 循环工作流激活时存在。
+
 ## Step 解剖
 
 ```mermaid

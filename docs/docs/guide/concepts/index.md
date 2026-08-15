@@ -10,7 +10,7 @@ the [Tutorials](../tutorials/index.md).
 flowchart TB
     subgraph c1["ChatObject — the unit of a dialogue (lifecycle manager)"]
         subgraph c2["Workflow (AmritaSense instruction sequence)"]
-            subgraph c3["Strategy (step-driven ReAct by default)"]
+            subgraph c3["Strategy (step-driven ReAct, opt-in via workflow)"]
                 s1["decompose → Step loop → summarize"]
             end
             w1["LOAD_STATE → render → strategy loop → completion"]
@@ -18,6 +18,10 @@ flowchart TB
         o1["SuspendObjectStream (bidirectional) · Events (matchers)"]
     end
 ```
+
+> The default workflow is **simple chat** (one LLM call). The step-driven
+> ReAct loop is enabled by passing the step-loop workflow explicitly — see
+> [ChatObject](chat-object.md).
 
 ## Concepts
 

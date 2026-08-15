@@ -81,8 +81,9 @@ if __name__ == "__main__":
 - **`session_id`**: scopes memory. Two `ChatObject` instances with the same
   `session_id` share history; different ids are isolated.
 - **Streaming**: `get_response_generator()` yields every chunk; the workflow
-  also emits structured `MessageWithMetadata` objects (step boundaries, tool
-  calls) — see [Streaming & Metadata](../tutorials/streaming.md).
+  also emits structured `MessageWithMetadata` objects (tool calls; `step`
+  boundaries once the Step-loop workflow is active) — see
+  [Streaming & Metadata](../tutorials/streaming.md).
 
 ## Next
 

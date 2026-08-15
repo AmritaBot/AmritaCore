@@ -19,7 +19,7 @@ You are a professional context summarizer, strictly following user instructions 
 </RULE>
 
 <FORMATTING>
-User input → Direct summary output
+User input -> Direct summary output
 </FORMATTING>"""
 
 # train,memory,chatobj(ChatObject),config will be given to Jinja2

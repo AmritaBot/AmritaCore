@@ -61,4 +61,5 @@ usage.
 
 ## Next
 
-[The Step Loop](step-loop.md) — the built-in step-driven ReAct loop.
+[The Step Loop](step-loop.md) — the built-in step-driven ReAct loop (opt-in:
+pass `workflow=_step_workflow_rendered`).

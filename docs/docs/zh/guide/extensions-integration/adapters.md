@@ -1,21 +1,31 @@
 # 模型适配器
 
 适配器把供应商专属 API 规范化为统一接口（`amrita_core.base.adapter` 中的
-`ModelAdapter`）。`create_agent()` 根据你的 `protocol` 参数选择适配器。
+`ModelAdapter`）。
+
+> **适配器 + 供应商**：连接由**适配器**（说哪种*协议*、即线上格式）与**供应商**
+> （连到哪个*端点和模型*、即 `base_url` + `model`）共同决定。适配器并非厂商
+> 特化：同一个 OpenAI 兼容适配器同时服务 OpenAI、DeepSeek、Azure 或任意
+> 本地服务——只需改 `base_url`/`model`。
 
 ## 内置适配器
 
 ### OpenAIAdapter
 
-**协议**：`"openai"`、`"deepseek"`、`"azure"` 或任意 OpenAI 兼容端点。
+服务任意 OpenAI 兼容端点。注册协议：`"openai"`、`"__main__"`（`ModelPreset`
+的默认协议）。
 
 ```python
 agent = create_agent(
-    base_url="https://api.deepseek.com",  # OpenAI 兼容
-    api_key=os.environ["DEEPSEEK_API_KEY"],
+    base_url="https://api.deepseek.com",  # 任意 OpenAI 兼容端点
+    api_key=os.environ["API_KEY"],
     model="deepseek-chat",
 )
 ```
+
+`create_agent()` 总是构造默认协议（`"__main__"` → OpenAIAdapter）的 preset，
+所以 OpenAI 兼容端点零协议配置即可使用——DeepSeek、Azure 等**不是**独立
+协议，只是不同的 `base_url`/`model` 取值。
 
 **供应商专属请求追踪**：适配器从 `x-request-id`（OpenAI）、
 `x-ds-trace-id` / `eo-log-uuid`（DeepSeek）读取请求 id——空响应警告会带上
@@ -23,14 +33,28 @@ agent = create_agent(
 
 ### AnthropicAdapter
 
-**协议**：`"anthropic"`、`"claude"`。
+注册协议：`"anthropic"`、`"claude"`。
+
+`create_agent()` **没有** `protocol` 参数——要选择非默认适配器，需构造带
+目标 `protocol` 的 `ModelPreset` 并传给 `AgentRuntime`：
 
 ```python
-agent = create_agent(
+from amrita_core.agent.functions import AgentRuntime
+from amrita_core.config import AmritaConfig
+from amrita_core.types import Message, ModelConfig, ModelPreset
+
+preset = ModelPreset(
+    name="anthropic-default",
     protocol="anthropic",
     base_url="https://api.anthropic.com",
     api_key=os.environ["ANTHROPIC_API_KEY"],
     model="claude-sonnet-4-5",
+    config=ModelConfig(),
+)
+agent = AgentRuntime(
+    config=AmritaConfig(),
+    preset=preset,
+    train=Message(content="You are a helpful assistant.", role="system"),
 )
 ```
 
@@ -78,11 +102,22 @@ class MyAdapter(ModelAdapter):
 然后直接使用——无需显式注册调用：
 
 ```python
-agent = create_agent(
+from amrita_core.agent.functions import AgentRuntime
+from amrita_core.config import AmritaConfig
+from amrita_core.types import Message, ModelConfig, ModelPreset
+
+preset = ModelPreset(
+    name="my-provider-default",
     protocol="my-provider",
     base_url="https://my-provider.example.com",
     api_key=...,
     model="my-model",
+    config=ModelConfig(),
+)
+agent = AgentRuntime(
+    config=AmritaConfig(),
+    preset=preset,
+    train=Message(content="You are a helpful assistant.", role="system"),
 )
 ```
 

@@ -15,6 +15,7 @@ from amrita_core.base.adapter import (
     ModelAdapter,
 )
 from amrita_core.preset import PresetManager
+from amrita_core.usage import SessionUsageProxy
 from amrita_core.utils import _did_you_mean_hint
 
 from .config import AmritaConfig, get_config
@@ -131,7 +132,7 @@ def _normalize_message_content(msg: Message) -> None:
 
 
 def _register_assistant_tool_calls(msg: Message, tool_pairs: dict[str, str]) -> None:
-    """Register tool_call_id → function_name pairs from an assistant message.
+    """Register tool_call_id -> function_name pairs from an assistant message.
 
     Raises ValueError if the message is assistant with no content and no tool_calls.
     """
@@ -326,6 +327,7 @@ async def tools_caller(
     preset: ModelPreset | None = None,
     tool_choice: ToolChoice | None = None,
     config: AmritaConfig | None = None,
+    usage: SessionUsageProxy | None = None,
 ) -> UniResponse[None, list[ToolCall] | None]:
     """Call tools using the specified model preset.
 
@@ -335,6 +337,8 @@ async def tools_caller(
         preset: Model preset to use (uses default if not provided)
         tool_choice: How to select tools (uses default if not provided)
         config: Configuration to use (uses default if not provided)
+        usage: Optional run-scoped usage proxy; when given, the response's
+            provider usage is recorded before returning.
 
     Returns:
         Response containing tool calls or None
@@ -348,17 +352,25 @@ async def tools_caller(
 
     preset = preset or PresetManager().get_default_preset()
     _validate_msg_list(messages, thinking_config=preset.thinking_config)
-    return await _call_with_reflection(
+    resp = await _call_with_reflection(
         preset,
         _call_tools,
         config,
     )
+    if usage is not None and resp.usage is not None:
+        usage.record(
+            resp.usage,
+            model=resp.metadata.model,
+            request_id=resp.metadata.original_request_id,
+        )
+    return resp
 
 
 async def call_completion(
     messages: CONTENT_LIST_TYPE,
     preset: ModelPreset | None = None,
     config: AmritaConfig | None = None,
+    usage: SessionUsageProxy | None = None,
     **kwargs,
 ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
     """Get chat response from the model.
@@ -367,6 +379,8 @@ async def call_completion(
         messages: List of messages to send to the model
         preset: Model preset to use (uses default if not provided)
         config: Configuration to use (uses default if not provided)
+        usage: Optional run-scoped usage proxy; the trailing ``UniResponse``
+            (by convention the last yielded value) is recorded when given.
 
     Yields:
         Individual response parts as strings or UniResponse objects
@@ -399,6 +413,13 @@ async def call_completion(
                     is_thinking = False
                     continue
         if not is_thinking:
+            if isinstance(resp, UniResponse) and usage is not None:
+                if resp.usage is not None:
+                    usage.record(
+                        resp.usage,
+                        model=resp.metadata.model,
+                        request_id=resp.metadata.original_request_id,
+                    )
             yield resp
 
 

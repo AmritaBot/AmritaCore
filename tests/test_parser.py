@@ -55,7 +55,7 @@ class TestExtraProtocol:
 
 
 class TestShorthand:
-    """Tests for shorthand schemes (e.g. sse:// → sse+http://)."""
+    """Tests for shorthand schemes (e.g. sse:// -> sse+http://)."""
 
     def test_sse_shorthand_basic(self):
         t = resolve_transport("sse://127.0.0.1:9178/sse")

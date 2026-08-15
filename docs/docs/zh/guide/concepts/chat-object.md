@@ -40,21 +40,29 @@ flowchart LR
 
 ## 工作流选择
 
-你可以整体替换执行管线：
+`ChatObject` 运行一条预编译的工作流。**默认**（`workflow=None` 时）是
+简单对话管线（`_workflow_rendered`）——一次 LLM 调用、一个回答、不分解。
+要运行内置的 **Step 驱动 ReAct 循环**（decompose → Step → summarize、
+`update_step` 计划修订），请**显式传入** step 循环工作流：
 
 ```python
 from amrita_core.chatmanager import _step_workflow_rendered
-from amrita_core.builtins.workflows import SIMPLE_REACT, SIMPLE_CHAT
+from amrita_core.builtins.workflows import SIMPLE_STEP_REACT, SIMPLE_CHAT
 
-# 默认：Step 驱动 ReAct（workflow=None 时使用）
+# 默认：简单对话，一次调用（workflow=None 时使用）
 chat = ChatObject(train=..., user_input=..., session_id="s1")
+
+# 显式：Step 驱动 ReAct 循环（decompose → Step → summarize）
+chat = ChatObject(..., workflow=_step_workflow_rendered)
 
 # 显式：内置预组合管线
 chat = ChatObject(..., workflow=SIMPLE_CHAT)  # 无 agent，纯对话
-chat = ChatObject(..., workflow=SIMPLE_REACT)  # 传统 ReAct 循环
+chat = ChatObject(..., workflow=SIMPLE_STEP_REACT)  # 完整 Step 循环管线
 ```
 
-> `workflow` 与 `archived_nodes` 互斥。
+> `workflow` 与 `archived_nodes` 互斥。Step 循环工作流正是开启 `step`
+> 元数据事件（`decompose` / `intro` / `leave`）与 `update_step` 工具的
+> 开关——见 [进阶 → Step 循环](../advanced/step-loop.md)。
 
 ## 为什么"生命周期管理器"重要
 

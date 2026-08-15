@@ -69,6 +69,10 @@ async def on_step_intro(event):
 | `agent.tool_call`      | `arguments`、`cancel`              | 常规工具执行前        |
 | `agent.tool_return`    | `result`、`skip_append`            | 常规工具返回后        |
 
+> `agent.step_*` 事件要求 **step 循环工作流**
+> （`get_chatobject(..., workflow=_step_workflow_rendered)`）；默认的
+> 简单对话工作流不会触发它们。
+
 handler 可以**修改事件**，生命周期钩子读回修改后的值；也可以抛
 `StepAbortError` 中止当前操作（取消工具调用、提前结束 Step、跳过追加结果）。
 

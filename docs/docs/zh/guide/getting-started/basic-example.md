@@ -79,8 +79,8 @@ if __name__ == "__main__":
 - **`session_id`**：记忆的作用域键。两个 `ChatObject` 用同一 `session_id`
   则共享历史；不同 id 完全隔离。
 - **流式**：`get_response_generator()` 产出每个 chunk；工作流还会发出结构化
-  `MessageWithMetadata` 对象（Step 边界、工具调用）——见
-  [流式与元数据](../tutorials/streaming.md)。
+  `MessageWithMetadata` 对象（工具调用；Step 循环工作流激活后才有 `step`
+  边界）——见 [流式与元数据](../tutorials/streaming.md)。
 
 ## 下一步
 

@@ -10,6 +10,7 @@ from typing_extensions import Self
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.contents import MessageMetadataPayloadSystem, MessageWithMetadata
+from amrita_core.tools.manager import MultiToolsManager
 from amrita_core.tools.models import ToolContext
 from amrita_core.types import Message, ToolCall
 
@@ -18,9 +19,8 @@ if TYPE_CHECKING:
 
     from amrita_core.chatmanager import ChatObject
     from amrita_core.config import AmritaConfig
-    from amrita_core.tools.manager import MultiToolsManager
     from amrita_core.types.preset import ModelPreset
-    from amrita_core.types.response import UniResponseUsage
+    from amrita_core.usage import SessionUsageProxy
 
 
 class NoExceptionHandler(Exception):
@@ -76,31 +76,20 @@ class _StrategyBase(ABC):
         return self.chat_object.stream_id
 
     @property
-    def resp_extra_usage(self) -> UniResponseUsage:
-        """Extra usage accumulator, resolved from StrategyContext or chat_object.
+    def usage(self) -> SessionUsageProxy | None:
+        """Run-scoped usage proxy, resolved from StrategyContext or chat_object.
 
-        Raises:
-            RuntimeError: If neither source provides ``resp_extra_usage``.
+        Returns ``None`` when no ledger is bound (e.g. standalone unit runs);
+        callers pass it to libchat as an optional accounting handle.
+
+        Records workflow-internal usage (strategy tool rounds plus auxiliary
+        calls); the final completion's usage lives on ``resp.response.usage``.
         """
-        if self.ctx.resp_extra_usage is not None:
-            return self.ctx.resp_extra_usage
+        if self.ctx.usage is not None:
+            return self.ctx.usage
         if self.chat_object is not None:
-            return self.chat_object._di_resp.extra_usage
-        raise RuntimeError(
-            "resp_extra_usage is not available in StrategyContext or chat_object"
-        )
-
-    @resp_extra_usage.setter
-    def resp_extra_usage(self, value: UniResponseUsage) -> None:
-        if self.ctx.resp_extra_usage is not None:
-            self.ctx.resp_extra_usage = value
-        elif self.chat_object is not None:
-            self.chat_object._di_resp.extra_usage = value
-        else:
-            raise RuntimeError(
-                "Cannot set resp_extra_usage: neither StrategyContext nor "
-                "chat_object provide a backing storage"
-            )
+            return self.chat_object._di_resp.usage
+        return None
 
     # _bind — populate runtime references from StrategyContext
 
@@ -108,11 +97,12 @@ class _StrategyBase(ABC):
         self.ctx = ctx
         # ctx.chat_object may be None in new-style DI workflows
         self.chat_object = ctx.chat_object  # pyright: ignore[reportAttributeAccessIssue]
-        # tools_manager: prefer ctx field, fallback to chat_object
+        # tools_manager: prefer ctx field, fallback to chat_object DI components
         if ctx.tools_manager is not None:
             self.tools_manager = ctx.tools_manager
         elif ctx.chat_object is not None:
-            self.tools_manager = ctx.chat_object.state.ability.tools
+            ability = ctx.chat_object._di_ability.ability
+            self.tools_manager = ability.tools if ability is not None else MultiToolsManager()
 
     async def single_execute(
         self,

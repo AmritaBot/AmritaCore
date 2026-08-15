@@ -5,11 +5,33 @@ AmritaCore embeds a **Model Context Protocol client** (`MCPClient` /
 
 ## Server Script Formats
 
-A server script is `str | Path`, supporting:
+A server script is `str | Path`. Remote servers use the **extra+transport**
+syntax `EXTRA+PROTOCOL://[user:pwd@]host[:port]/path`, where `EXTRA` selects
+the transport and `PROTOCOL` is `http` or `https`:
 
-- **File paths** — `"path/to/server.py"` (stdio transport)
-- **URLs** — `"https://mcp.example.com/sse"`, `"sse://..."`,
-  `"stream+http(s)://..."`, `"stdio://..."`
+| Format                                  | Transport           | Notes                                                                 |
+| --------------------------------------- | ------------------- | --------------------------------------------------------------------- |
+| `streamable+http(s)://host[:port]/path` | Streamable HTTP     | The current MCP HTTP standard (recommended)                           |
+| `sse+http(s)://host[:port]/path`        | HTTP + SSE (legacy) | `user:pwd@` becomes Basic Auth; a bare `user@` becomes a bearer token |
+| `sse://host[:port]/path`                | HTTP + SSE          | Shorthand for `sse+http://...`                                        |
+| `stdio://["cmd","arg1",...]`            | Local subprocess    | JSON array: first element is the command, the rest are arguments      |
+| `"path/to/server.py"`                   | Local subprocess    | Plain file path (stdio)                                               |
+| `http(s)://...`                         | Auto-detected       | Passed through to fastmcp, which detects the transport                |
+
+Examples:
+
+```python
+"path/to/filesystem-server.py",               # stdio (file path)
+'stdio://["uvx","mcp-server-git"]',          # stdio (command)
+"streamable+http://mcp.example.com/mcp",      # Streamable HTTP
+"sse+http://mcp.example.com/sse",             # HTTP + SSE (legacy)
+"sse://mcp.example.com/sse",                  # shorthand for sse+http
+"sse+https://user:pwd@mcp.example.com/sse",   # SSE with Basic Auth
+```
+
+> **Note:** the transport keyword is `streamable`, not `stream`. A URL like
+> `stream+http://...` is not a recognized extra and is passed through to
+> fastmcp, which cannot parse it — use `streamable+http(s)://` instead.
 
 ## Standard Usage: Configure, Then Load
 
@@ -24,8 +46,8 @@ config = AmritaConfig(
     function_config=FunctionConfig(
         agent_mcp_client_enable=True,
         agent_mcp_server_scripts=[
-            "path/to/filesystem-server.py",  # stdio
-            "https://mcp.example.com/sse",  # HTTP/SSE
+            "path/to/filesystem-server.py",        # stdio
+            "streamable+http://mcp.example.com/mcp",  # Streamable HTTP
         ],
     )
 )
@@ -52,7 +74,7 @@ await manager.initialize_this("path/to/server.py")
 await manager.initialize_scripts_all(
     [
         "path/to/server-a.py",
-        "https://mcp.example.com/sse",
+        "sse+http://mcp.example.com/sse",
     ]
 )
 
@@ -88,6 +110,13 @@ result = await client.simple_call("list_files", {"path": "/tmp"})
 
 `connection_ttl` controls idle-close: after `ttl` seconds of no use the
 connection is closed; the next call reconnects. `-1` keeps it open.
+
+**Concurrency-safe by default.** Each server keeps one resident connection
+that all tools share. `simple_call` runs the call inside `async with` on the
+underlying fastmcp `Client` — a reentrant context manager with reference
+counting — so parallel calls (e.g. the agent's tool runner) never tear the
+connection down under each other. The connection is reclaimed only after the
+last active call exits, then released by the TTL task.
 
 ## Tool Name Collisions
 

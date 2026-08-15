@@ -1,4 +1,9 @@
-"""Real-API smoke test for HybridReActAgentStrategy (thinking mode)."""
+"""Real-API smoke test for HybridReActAgentStrategy (thinking mode).
+
+Talks to any OpenAI-compatible endpoint using ``$API_KEY``.  The provider
+is decided by ``API_BASE_URL``/``API_MODEL`` (DeepSeek is just the default
+example); the adapter (protocol) is the framework default.
+"""
 
 import asyncio
 import os
@@ -13,8 +18,8 @@ from amrita_core.tools.models import (
     FunctionPropertySchema,
 )
 
-BASE_URL = "https://api.deepseek.com"
-MODEL = "deepseek-v4-flash"
+BASE_URL = os.environ.get("API_BASE_URL", "https://api.deepseek.com")
+MODEL = os.environ.get("API_MODEL", "deepseek-v4-flash")
 
 SEARCH_DEFINITION = FunctionDefinitionSchema(
     name="web_search",

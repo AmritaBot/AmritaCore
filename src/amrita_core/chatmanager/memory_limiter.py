@@ -25,6 +25,7 @@ from amrita_core.types import (
 from amrita_core.types import (
     MemoryModel as Memory,
 )
+from amrita_core.usage import SessionUsageProxy
 
 
 class MemoryLimiter:
@@ -37,10 +38,12 @@ class MemoryLimiter:
 
     config: AmritaConfig  # Configuration object
     usage: UniResponseUsage | None = None  # Token usage, initially None
+    recorded_via_gateway: bool = False  # True when the provider usage was recorded
     _train: Message[str]  # Training data (system prompts)
     _dropped_messages: list[Message[str] | ToolResult]  # List of removed messages
     _copied_messages: Memory  # Original message copies (for rollback on exceptions)
     _abstract_instruction = ABSTRACT_INSTRUCTION
+    _usage: SessionUsageProxy | None = None  # Run-scoped ledger proxy, if any
 
     def __init__(
         self,
@@ -48,12 +51,17 @@ class MemoryLimiter:
         train: dict[str, str] | Message[str],
         config: AmritaConfig | None = None,
         abstract_instruction: str | None = None,
+        usage: SessionUsageProxy | None = None,
     ) -> None:
         """Initialize context processor
 
         Args:
             memory: Memory model to process
             train: Training data (system prompts)
+            config: Optional configuration (uses default if not provided)
+            abstract_instruction: Optional custom abstract instruction
+            usage: Optional run-scoped usage proxy; the summary call's
+                provider usage is recorded through it when given.
         """
         self.memory: Memory = memory
         self.config = config or get_config()
@@ -61,6 +69,7 @@ class MemoryLimiter:
             train if isinstance(train, Message) else Message[str].model_validate(train)
         )
         self._abstract_instruction = abstract_instruction or ABSTRACT_INSTRUCTION
+        self._usage = usage
 
     async def __aenter__(self) -> Self:
         """Async context manager entry, initialize processing state
@@ -160,11 +169,16 @@ class MemoryLimiter:
                 ),
             ]
             logger.debug("Performing context summarization...")
-            response = await get_last_response(call_completion(msg_list))
-            usage = get_tokens(
-                msg_list, response
-            )  # Well, this is just a rough calculation.
-            self.usage = usage
+            response = await get_last_response(
+                call_completion(msg_list, usage=self._usage)
+            )
+            if response.usage is not None:
+                # Provider-reported usage (already recorded via the proxy).
+                self.usage = response.usage
+                self.recorded_via_gateway = True
+            else:
+                # Fallback: local tokenizer estimate, recorded by the caller.
+                self.usage = get_tokens(msg_list, response)
             logger.debug(f"Context summary received: {response.content}")
             self.memory.abstract = response.content
             logger.debug("Context summarization completed")

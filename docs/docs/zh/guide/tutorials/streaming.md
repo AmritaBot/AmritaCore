@@ -58,6 +58,10 @@ async with chat.begin():
 | `function_call`   | —                    | 工具开始（`is_done=False`）或结束（`is_done=True`） |
 | `reasoning_chunk` | `cot_chunk`          | thinking 模式推理流式输出                           |
 
+> `step` 元数据只在 **step 循环工作流** 激活时存在
+> （`get_chatobject(..., workflow=_step_workflow_rendered)`）；默认的
+> 简单对话工作流从不发出它。
+
 ## 3. 基于回调的消费
 
 喜欢推而不是拉？注册回调代替读取生成器：

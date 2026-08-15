@@ -9,16 +9,12 @@ from amrita_core.types.memory import MemoryModel
 
 
 class LegacyBackend(AbilityBackend, MemoryBackend):
-    ctx: StateContext
     glb: ClassVar[AbilityContext] = AbilityContext()
 
     def __init__(self, ctx: StateContext | None = None):
-        if ctx:
-            self.ctx = ctx
-
-    def _init_ctx(self, session_id: str):
-        if not hasattr(self, "ctx"):
-            self.ctx = StateContext(session_id, ability=self.glb)
+        # Backward-compatible seed: keep accepting a (deprecated) StateContext,
+        # but the backend itself no longer stores state through it.
+        self._memory: MemoryModel = ctx.memory if ctx else MemoryModel()
 
     async def load_ability_all(self, session_id: str) -> AbilityContext:
         """Load ability context from global container"""
@@ -37,10 +33,8 @@ class LegacyBackend(AbilityBackend, MemoryBackend):
 
     async def commit_memory(self, session_id: str, memory: MemoryModel) -> None:
         """Commit memory to global container"""
-        self._init_ctx(session_id)
-        self.ctx.memory = memory
+        self._memory = memory
 
     async def load_memory(self, session_id: str) -> MemoryModel:
         """Load memory from global container"""
-        self._init_ctx(session_id)
-        return self.ctx.memory
+        return self._memory

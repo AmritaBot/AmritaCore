@@ -8,7 +8,7 @@ The ModelPreset class defines the preset configuration for AI models.
 - `name` (str): Identifier name for current preset, defaults to "default"
 - `base_url` (str): Base address of API service (uses OpenAI default if empty)
 - `api_key` (str): Key required to access API
-- `protocol` (str): Protocol adapter type, defaults to "**main**"
+- `protocol` (str): Protocol adapter type, defaults to `"__main__"` (OpenAI-compatible adapter)
 - `config` ([ModelConfig](ModelConfig.md)): Model configuration object
 - `thinking_config` ([ThinkingConfig](ThinkingConfig.md) | None): Thinking/reasoning configuration for models that support it (e.g., OpenAI o1, Anthropic extended thinking)
 - `rate` (float | None): Token cost rate for the model, used for cost estimation

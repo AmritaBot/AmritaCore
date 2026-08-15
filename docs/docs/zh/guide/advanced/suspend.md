@@ -57,4 +57,4 @@ async def interactive(chat):
 
 ## 下一步
 
-[Step 循环](step-loop.md)——内置 Step 驱动 ReAct 循环。
+[Step 循环](step-loop.md)——内置 Step 驱动 ReAct 循环（显式启用：传 `workflow=_step_workflow_rendered`）。

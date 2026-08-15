@@ -1,14 +1,18 @@
 """Real-API smoke test for the native step-loop built-in ReAct strategy.
 
-Runs against DeepSeek (OpenAI-compatible) using ``$API_KEY`` from the
-environment.  Three scenarios:
+Talks to any OpenAI-compatible endpoint using ``$API_KEY`` from the
+environment.  The adapter (protocol) is chosen by the framework's default
+(OpenAI-compatible); the provider is decided by ``API_BASE_URL`` and
+``API_MODEL`` — DeepSeek is just one example.  Three scenarios:
 
-- A: simple QA  → verify simple-mode bare run (no decomposition)
-- B: multi-tool → verify decomposition → execute iterations → subject-predicate
-- C: stall      → verify "give up" prompt injection and immediate Step end
+- A: simple QA  -> verify simple-mode bare run (no decomposition)
+- B: multi-tool -> verify decomposition -> execute iterations -> subject-predicate
+- C: stall      -> verify "give up" prompt injection and immediate Step end
 
 Usage:
-    export API_KEY=sk-...   # DeepSeek key
+    export API_KEY=sk-...        # provider API key
+    export API_BASE_URL=...      # optional, defaults below
+    export API_MODEL=...         # optional, defaults below
     python demo/step_loop_demo.py [A|B|C]
 """
 
@@ -25,8 +29,8 @@ from amrita_core.tools.models import (
     FunctionPropertySchema,
 )
 
-BASE_URL = "https://api.deepseek.com"
-MODEL = "deepseek-chat"
+BASE_URL = os.environ.get("API_BASE_URL", "https://api.deepseek.com")
+MODEL = os.environ.get("API_MODEL", "deepseek-chat")
 
 SEARCH_DEFINITION = FunctionDefinitionSchema(
     name="web_search",

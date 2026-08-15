@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from amrita_sense.logging import logger
@@ -36,7 +37,6 @@ from amrita_core.types import (
     ToolResult,
     UniResponse,
 )
-from amrita_core.utils import gather_usage
 
 if TYPE_CHECKING:
     from amrita_core.builtins.agent.state import Phase
@@ -136,8 +136,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 content=(
                     "# Task Decomposition Decision\n"
                     "Decide whether this task needs multi-step execution.\n"
-                    "- Simple QA or simple tasks → do NOT decompose (needs_decomposition=false)\n"
-                    "- Complex tasks → decompose into a DAG of sub-steps:\n"
+                    "- Simple QA or simple tasks -> do NOT decompose (needs_decomposition=false)\n"
+                    "- Complex tasks -> decompose into a DAG of sub-steps:\n"
                     '  [{"id": "short-semantic-name", "description": "what this step does", "depends_on": []}, ...]\n'
                     '  id 必须是简短语义化名称(如 "search-web", "read-docs", "write-summary"),不要用 step-1/step-2。\n'
                     'Output strictly as JSON: {"needs_decomposition": bool, "dag": [...], "reason": "..."}\n'
@@ -168,15 +168,10 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         ]
         try:
             resp = await get_last_response(
-                call_completion(prompt, preset=self.preset, config=self.config)
+                call_completion(
+                    prompt, preset=self.preset, config=self.config, usage=self.usage
+                )
             )
-            # Account for the auxiliary LLM call (real API usage).
-            if resp.usage is not None:
-                if self.resp_extra_usage is not None:
-                    self.resp_extra_usage = gather_usage(
-                        self.resp_extra_usage, resp.usage
-                    )
-                rs.tokens.update(resp.usage)
             # Empty response (some providers return '' when thinking is
             # engaged) — degrade immediately instead of parsing garbage.
             if not (resp.content or "").strip():
@@ -235,6 +230,50 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         except Exception:
             sig = tool_call.function.name
         rs.record_tool_call(sig)
+
+    def _inject_plan_status(self) -> None:
+        """Inject the current plan snapshot into the context (plan mode only).
+
+        Called at every Step intro so the model always sees the *current*
+        plan — including revisions made by ``update_step`` mid-run.  The
+        snapshot is appended only when it changed (plain text, no DSML
+        tags), keeping the context lean and pairing intact: a ``user``
+        message at a Step boundary never splits a tool-call/result pair.
+
+        The note tells the model the plan is only a hint: revise it ONLY
+        when the plan turns out to be wrong (a step is redundant, missing,
+        or the task changed) — not for its own sake.  Normal step progress
+        is handled automatically by the framework (``leave_step`` marks the
+        node done), so ``mark_done`` is never needed from the model side.
+        """
+        rs = self._init_run_state()
+        if rs.simple_mode or not rs.plan:
+            return
+        done = set(rs.completed_step_ids)
+        lines = []
+        for node in rs.plan:
+            state = "done" if node.id in done else "pending"
+            if node.id == rs.current_step_id:
+                state = "current"
+            lines.append(f"- {node.id} [{state}]: {node.description}")
+        snapshot = "[Plan status]\n" + "\n".join(lines)
+        if snapshot == self._last_plan_snapshot:
+            return
+        self._last_plan_snapshot = snapshot
+        note = (
+            "\nThis plan is only a hint for structuring your work. "
+            "The framework advances it automatically as you complete steps. "
+            "Call update_step ONLY when the plan turns out to be wrong: a "
+            "step is redundant, missing, the task changed, or a step cannot "
+            "be completed because its tool keeps failing (persistent ERROR "
+            "results). Never revise for its own sake. When a tool fails, "
+            "retry at most once; if it keeps failing, revise the plan "
+            "(remove_step the broken step or replan) and answer with what "
+            "you have. Use remove_step / add_step / replan to fix it; do "
+            "NOT use mark_done (the framework marks steps done for you)."
+        )
+        self.ctx.message.append(Message(role="user", content=snapshot + note))
+        logger.debug(f"Plan status injected into context ({len(lines)} nodes).")
 
     def _detect_step_stall(self) -> bool:
         """True when the last N tool signatures within this Step are identical."""
@@ -378,15 +417,10 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         ]
         try:
             resp = await get_last_response(
-                call_completion(prompt, preset=self.preset, config=self.config)
+                call_completion(
+                    prompt, preset=self.preset, config=self.config, usage=self.usage
+                )
             )
-            # Account for the auxiliary LLM call (real API usage).
-            if resp.usage is not None:
-                if self.resp_extra_usage is not None:
-                    self.resp_extra_usage = gather_usage(
-                        self.resp_extra_usage, resp.usage
-                    )
-                rs.tokens.update(resp.usage)
             # Empty response (some providers return '' when thinking is
             # engaged) — degrade immediately instead of parsing garbage.
             if not (resp.content or "").strip():
@@ -415,6 +449,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         well-formed.  The token baseline is reset after compression.
         """
         rs = self._init_run_state()
+        # Refresh the current Step's prompt window before threshold checks.
+        rs.tokens.refresh_window(self.usage, rs.step_started_ts)
         threshold = self.config.llm.memory_abstract_threshold
         if threshold is None or rs.tokens.prompt_tokens <= threshold:
             return
@@ -430,6 +466,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         index = int(len(history) * proportion)
         if index <= 0:
             rs.tokens.reset()
+            rs.step_started_ts = time.time()
             return
         # Walk the boundary forward past tool pairs so the kept context is
         # well-formed (every assistant(tool_calls) keeps its ToolResults).
@@ -448,6 +485,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 idx += 1
         if idx <= 0:
             rs.tokens.reset()
+            rs.step_started_ts = time.time()
             return
         dropped = history[:idx]
         kept = history[idx:]
@@ -468,21 +506,17 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         ]
         try:
             resp = await get_last_response(
-                call_completion(prompt, preset=self.preset, config=self.config)
+                call_completion(
+                    prompt, preset=self.preset, config=self.config, usage=self.usage
+                )
             )
-            # Account for the auxiliary LLM call (real API usage).
-            if resp.usage is not None:
-                if self.resp_extra_usage is not None:
-                    self.resp_extra_usage = gather_usage(
-                        self.resp_extra_usage, resp.usage
-                    )
-                rs.tokens.update(resp.usage)
             summary = (resp.content or "").strip()
             if not summary:
                 raise ValueError("empty compression response")
         except Exception as e:
             logger.warning(f"History compression failed, keeping history: {e!s}")
             rs.tokens.reset()
+            rs.step_started_ts = time.time()
             return
         # Replace the folded history with a single summary message.
         msg_wrap.memory = [
@@ -519,6 +553,9 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         Pending peer messages are drained first so the incoming Step sees
         them as the latest context (see ``_drain_peer_input``).
         """
+        # The native step loop always enters through intro_step — expose the
+        # plan-revision built-in exactly here (idempotent).
+        self._ensure_step_tools()
         await self._drain_peer_input()
         rs = self._init_run_state()
         if rs.step_index == 0 and rs.plan is None and not rs.simple_mode:
@@ -535,6 +572,11 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 rs.begin_step("verify")
             else:
                 rs.begin_node(node)
+        # Refresh the Step's prompt-token window from the ledger proxy.
+        rs.tokens.refresh_window(self.usage, rs.step_started_ts)
+        # Keep the model aware of the current plan (idempotent snapshot) so
+        # it can autonomously revise the plan via update_step mid-run.
+        self._inject_plan_status()
 
         # Lifecycle hook: matchers may redirect the phase name
         # (override_phase) before the Step starts.
@@ -634,8 +676,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 ),
             ),
         )
-        # Compression happens between Steps (pairing closed here); auxiliary
-        # call tokens are accounted inline via gather_usage → resp_extra_usage.
+        # Compression happens between Steps (pairing closed here); the
+        # auxiliary call usage is accounted via the ledger proxy.
         await self._compress_history_between_steps()
 
     @override
@@ -677,6 +719,50 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 content=func_response,
                 tool_call_id=tool_call.id,
             )
+        )
+        # Deterministic failure guidance: a hard ERROR result is an objective
+        # plan failure — teach the model to revise instead of retrying forever.
+        self._maybe_inject_tool_failure_hint(tool_call, func_response)
+
+    def _maybe_inject_tool_failure_hint(
+        self, tool_call: ToolCall, func_response: str
+    ) -> None:
+        """Append a one-shot failure -> revise hint after a hard ERROR result.
+
+        Runs right after the ToolResult was appended, so the tool-call/result
+        pairing stays intact (a ``user`` message after a closed pair never
+        splits it).  Only fires when the result starts with ``ERROR`` (an
+        objective tool failure) and only for regular tools — built-in
+        flow-control tools (STOP/REASONING) never reach this point.
+
+        First failure: retry at most once, then revise via ``update_step``.
+        Any further failure in the same Step: stop retrying, revise now.
+        Parallel tool calling is left untouched — this only appends a context
+        message, it never disables or alters concurrent execution.
+        """
+        if not func_response.startswith("ERROR"):
+            return
+        rs = self._init_run_state()
+        rs.tool_error_hints += 1
+        if rs.tool_error_hints == 1:
+            note = (
+                "\n[Framework note] The tool returned a hard error. "
+                "Retry it at most once. If it fails again, call update_step "
+                "(action: remove_step or replan) to drop the broken step, "
+                "then answer with the information you already have. "
+                "Do not keep retrying a failing tool."
+            )
+        else:
+            note = (
+                "\n[Framework note] The tool failed again. Do not retry it. "
+                "Call update_step now (action: remove_step or replan) to "
+                "revise the plan, then answer with what you have."
+            )
+        self.ctx.message.append(Message(role="user", content=note))
+        logger.debug(
+            "Tool failure hint injected (count=%s) after ERROR result from %s.",
+            rs.tool_error_hints,
+            tool_call.function.name,
         )
 
     @override
@@ -729,6 +815,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         error_content: str,
         tool_call_id: str,
         original_exception: BaseException | None = None,
+        response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
     ):
         """ReAct strategy: append error as an assistant+tool message pair.
 
@@ -736,13 +823,21 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         OpenAI API requirement that every ToolResult must follow an assistant
         message containing the corresponding tool_call.
 
+        When the provider returned ``reasoning_content`` (thinking mode), it is
+        carried back on the fabricated assistant message exactly like the
+        success path, so thinking-mode providers (DeepSeek even in OpenAI mode,
+        Anthropic with extended thinking) keep receiving their reasoning back.
+
         Args:
             function_name: Name of the failed function
             error_content: Formatted error message to append
             tool_call_id: ID of the tool call
             original_exception: The original exception, or ``None`` when the
                 error was captured as a string during concurrent execution.
+            response_msg: The provider response whose ``reasoning_content`` is
+                carried back on the assistant message, or ``None``.
         """
+        reasoning = response_msg.reasoning_content if response_msg else None
         self.ctx.message.append(
             Message(
                 role="assistant",
@@ -756,6 +851,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                         ),
                     )
                 ],
+                reasoning_content=reasoning,
             )
         )
         self.ctx.message.append(
@@ -829,6 +925,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 else "auto"
             ),
             preset=self.preset,
+            usage=self.usage,
         )
 
         # Use template method for common execution flow

@@ -10,6 +10,7 @@ from typing_extensions import deprecated
 
 if TYPE_CHECKING:
     from amrita_core.builtins.agent.state import AgentRunState
+    from amrita_core.usage import SessionUsageProxy
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import (
@@ -92,6 +93,7 @@ class StrategyPayload:
 @dataclass
 class RespState:
     response: UniResponse | None = None
+    usage: SessionUsageProxy | None = None
     extra_usage: UniResponseUsage[int] = field(
         default_factory=lambda: UniResponseUsage(
             prompt_tokens=0, completion_tokens=0, total_tokens=0

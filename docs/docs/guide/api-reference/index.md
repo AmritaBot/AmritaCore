@@ -103,6 +103,7 @@ agent = create_agent(
 
 - The function automatically creates a temporary preset; use [PresetManager](classes/PresetManager.md) for persistent presets
 - The returned agent can be reused for multiple interactions via `get_chatobject()`
+- `create_agent()` has **no `protocol` parameter** — it always builds a preset with the default protocol (`"__main__"`, the OpenAI-compatible adapter). The provider is chosen by `base_url` + `model`; DeepSeek, Azure or any OpenAI-compatible endpoint works through the same adapter. To use the Anthropic wire format, construct a `ModelPreset` with `protocol="anthropic"` and pass it to `AgentRuntime` directly — see [Model Adapters](../extensions-integration/adapters.md)
 
 ## Configuration
 

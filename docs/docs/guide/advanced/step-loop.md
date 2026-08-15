@@ -4,6 +4,30 @@ The built-in `ReActAgentStrategy` runs as a **node-driven Step loop**: the LLM
 decides the plan, the framework walks it, and everything is observable and
 interruptible.
 
+## Enabling the Step Loop
+
+The Step loop is **opt-in** — the default `ChatObject` workflow is simple chat
+(one LLM call, no decomposition). Enable it by passing the step-loop workflow
+explicitly:
+
+```python
+from amrita_core.chatmanager import _step_workflow_rendered
+
+chat = agent.get_chatobject("Plan and run the migration", workflow=_step_workflow_rendered)
+```
+
+or use the full pre-composed pipeline:
+
+```python
+from amrita_core.builtins.workflows import SIMPLE_STEP_REACT
+
+chat = agent.get_chatobject("Plan and run the migration", workflow=SIMPLE_STEP_REACT)
+```
+
+> `Agent.get_chatobject(user_input, **kwargs)` forwards `workflow` (and any
+> other `ChatObject` option) straight through. The `update_step` tool and the
+> `step_*` metadata events only exist while the step-loop workflow is active.
+
 ## Anatomy of a Step
 
 ```mermaid

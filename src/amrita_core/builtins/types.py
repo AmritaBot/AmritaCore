@@ -177,7 +177,7 @@ class AgentStepDecomposeMetadata(MessageMetadataPayload):
     """Ids of the DAG nodes (``[]`` in simple mode)."""
 
     descriptions: dict[str, str]
-    """Node id → description map for the DAG (``{}`` in simple mode)."""
+    """Node id -> description map for the DAG (``{}`` in simple mode)."""
 
     reason: str
     """LLM-provided rationale for the decision."""

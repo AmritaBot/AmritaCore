@@ -44,8 +44,8 @@ if __name__ == "__main__":
 ## Notes
 
 - `api_key` can be omitted if you use `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` env vars with the matching `base_url`.
-- For DeepSeek or other OpenAI-compatible providers, just change `base_url` and `model`.
-- Anthropic? Use `protocol="anthropic"` — see [Adapters](../extensions-integration/adapters.md).
+- For DeepSeek or other OpenAI-compatible providers, just change `base_url` and `model` — the adapter (protocol) stays the same.
+- Anthropic speaks a different protocol: set `protocol="anthropic"` on a `ModelPreset` — see [Adapters](../extensions-integration/adapters.md).
 
 ## Next
 

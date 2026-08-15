@@ -1,3 +1,4 @@
+import asyncio
 import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -51,10 +52,12 @@ class TestMCPClient:
         # Test simple call
         with (
             patch.object(mcp_client, "_connect"),
-            patch.object(mcp_client, "_close") as mock_close,
+            patch.object(mcp_client, "close") as mock_close,
         ):
             # Mock mcp_client instance
             mock_client = AsyncMock()
+            # Do NOT suppress exceptions propagating out of `async with`.
+            mock_client.__aexit__.return_value = None
             mock_result = MagicMock()
             mock_result.content = []
             mock_client.call_tool.return_value = mock_result
@@ -67,6 +70,7 @@ class TestMCPClient:
             mock_client.call_tool.assert_called_once_with(
                 "test_tool", {"param": "value"}
             )
+            # The connection is deferred to a TTL task, not torn down now.
             mock_close.assert_called_once()
 
     @pytest.mark.asyncio
@@ -74,9 +78,11 @@ class TestMCPClient:
         """Test simple_call when exception occurs"""
         with (
             patch.object(mcp_client, "_connect"),
-            patch.object(mcp_client, "_close"),
+            patch.object(mcp_client, "close"),
         ):
             mock_client = AsyncMock()
+            # Do NOT suppress exceptions propagating out of `async with`.
+            mock_client.__aexit__.return_value = None
             mock_client.call_tool.side_effect = Exception("Test error")
             mcp_client.mcp_client = mock_client
 
@@ -86,6 +92,97 @@ class TestMCPClient:
             error_data = json.loads(result)
             assert error_data["success"] is False
             assert "Test error" in error_data["error"]
+
+    @pytest.mark.asyncio
+    async def test_simple_call_concurrent(self, mcp_client):
+        """Concurrent simple_calls share one connection without premature close.
+
+        Regression test: previously the `finally` block called `_close()` on
+        every call, so the first caller to finish tore down the connection
+        while siblings were still mid-call.
+        """
+        with (
+            patch.object(mcp_client, "_connect"),
+            patch.object(mcp_client, "close") as mock_close,
+        ):
+            mock_client = AsyncMock()
+            # Do NOT suppress exceptions propagating out of `async with`.
+            mock_client.__aexit__.return_value = None
+            mock_result = MagicMock()
+            mock_result.content = []
+            mcp_client.mcp_client = mock_client
+
+            # Barrier: force BOTH calls to be in flight on the shared
+            # connection before either one returns, otherwise the refcount can
+            # never exceed one and the race is not actually exercised.
+            started_count = 0
+            both_started = asyncio.Event()
+            release = asyncio.Event()
+
+            async def delayed_call(tool_name, data):
+                nonlocal started_count
+                started_count += 1
+                if started_count == 2:
+                    both_started.set()
+                await release.wait()
+                return mock_result
+
+            mock_client.call_tool.side_effect = delayed_call
+
+            results_task = asyncio.gather(
+                asyncio.create_task(mcp_client.simple_call("tool_a", {"x": 1})),
+                asyncio.create_task(mcp_client.simple_call("tool_b", {"y": 2})),
+            )
+            # Wait until both coroutines reached call_tool (i.e. _active_calls
+            # is 2), then let them finish.
+            await both_started.wait()
+            release.set()
+            results = await results_task
+
+            assert results == ["", ""]
+            # Both calls used the SAME shared connection.
+            assert mock_client.call_tool.await_count == 2
+            # No immediate teardown while a sibling was in flight: the TTL
+            # waiter is scheduled once, after the last active call exits.
+            assert mock_close.call_count == 1
+            assert mcp_client._active_calls == 0
+
+    @pytest.mark.asyncio
+    async def test_simple_call_ttl_minus_one_keeps_resident(self, mcp_client):
+        """With connection_ttl == -1 the connection stays resident after a call."""
+        mcp_client._close_ttl = -1
+        with (
+            patch.object(mcp_client, "_connect"),
+            patch.object(mcp_client, "close") as mock_close,
+            patch.object(mcp_client, "close_no_wait") as mock_close_no_wait,
+        ):
+            mock_client = AsyncMock()
+            # Do NOT suppress exceptions propagating out of `async with`.
+            mock_client.__aexit__.return_value = None
+            mock_result = MagicMock()
+            mock_result.content = []
+            mock_client.call_tool.return_value = mock_result
+            mcp_client.mcp_client = mock_client
+
+            await mcp_client.simple_call("test_tool", {"param": "value"})
+
+            # Resident pool: neither TTL close nor immediate close is triggered.
+            mock_close.assert_not_called()
+            mock_close_no_wait.assert_not_called()
+            assert mcp_client.mcp_client is mock_client
+
+    @pytest.mark.asyncio
+    async def test_close_noop_while_calls_in_flight(self, mcp_client):
+        """_close must not tear down a connection with active calls."""
+        mock_client = AsyncMock()
+        mcp_client.mcp_client = mock_client
+        mcp_client._active_calls = 2
+
+        await mcp_client._close()
+
+        # Connection survives: it is still referenced by in-flight calls.
+        assert mcp_client.mcp_client is mock_client
+        mock_client.__aexit__.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_connect_already_connected_suppress(self, mcp_client):

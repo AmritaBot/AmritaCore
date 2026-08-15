@@ -33,9 +33,10 @@ fields, falling back to `chat_object`:
 
 ## The Built-in Step-Driven ReAct Strategy
 
-`ReActAgentStrategy` (category `agent-mixed`) is the default. Its execution is
-**node-driven**: the LLM decides whether to decompose the task into a semantic
-DAG; the framework walks the DAG in topological order, one **Step** per node.
+`ReActAgentStrategy` (category `agent-mixed`) is the default strategy class.
+Its execution is **node-driven**: the LLM decides whether to decompose the task
+into a semantic DAG; the framework walks the DAG in topological order, one
+**Step** per node.
 
 ```
 intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
@@ -47,6 +48,13 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 - **summarize** — each Step ends with a subject-predicate summary (event-overridable)
 - **lifecycle events** — `step_intro/leave/iteration`, `tool_call/return`
 - **update_step tool** — the agent can revise the plan mid-run
+
+> **Opt-in workflow.** The strategy class is the default, but the Step loop
+> only runs when the **step-loop workflow** is active. `ChatObject` defaults
+> to the simple chat workflow (one LLM call, no decomposition); pass
+> `workflow=_step_workflow_rendered` (or `SIMPLE_STEP_REACT`) to enable the
+> loop above. See [ChatObject](chat-object.md) and
+> [Advanced → Step Loop](../advanced/step-loop.md).
 
 Full details: [Advanced → Step Loop](../advanced/step-loop.md).
 
