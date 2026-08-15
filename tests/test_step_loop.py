@@ -643,6 +643,51 @@ class TestStrategyStepLifecycle:
             for m in tool_msgs
         )
 
+    def test_reasoning_error_appended_once(self, strategy):
+        """A failed REASONING call appends exactly one assistant+tool pair.
+
+        The error branch surfaces via ``_handle_error_append`` and then
+        ``continue``s — the failed call never enters the collected batch,
+        so the batch helper cannot append it a second time.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from amrita_core.builtins.tools import REASONING_TOOL
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        tool_call = ToolCall(
+            id="r1",
+            function={
+                "name": REASONING_TOOL.function.name,
+                "arguments": "{}",
+            },  # pyright: ignore[reportArgumentType]
+        )
+        response_msg = UniResponse(
+            content=None,
+            tool_calls=[tool_call],
+            reasoning_content="thinking",
+            reasoning_signature="sig-r1",
+        )
+        with patch.object(
+            strategy,
+            "_generate_reasoning_content",
+            new=AsyncMock(side_effect=RuntimeError("boom")),
+        ):
+            should_continue = asyncio_run(strategy._execute_tool_loop(response_msg))
+        assert should_continue is True
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        # Exactly one assistant message and one tool message — never twice.
+        assistant_msgs = [m for m in msgs if m.role == "assistant" and m.tool_calls]
+        tool_msgs = [m for m in msgs if getattr(m, "role", None) == "tool"]
+        assert len(assistant_msgs) == 1
+        assert len(tool_msgs) == 1
+        # Verbatim reasoning fields on the fabricated assistant message.
+        assert assistant_msgs[0].reasoning_content == "thinking"
+        assert assistant_msgs[0].reasoning_signature == "sig-r1"
+        # The failure is marked only by the ERR: ToolResult content.
+        assert "ERR: Tool think_and_reason execution failed" in tool_msgs[0].content
+
     # Concurrent results must NOT be split: ONE assistant message with all
     # tool_calls (verbatim fields), then ALL ToolResults in input order.
 

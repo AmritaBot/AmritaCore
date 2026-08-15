@@ -1160,6 +1160,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 else:
                     # _run_tool_calls_concurrently already called _append_reasoning.
                     should_continue = True
+                # The pair was appended above (error) or by the runner
+                # (success) — never re-appended via the collected batch.
                 continue
 
             if is_stop:
