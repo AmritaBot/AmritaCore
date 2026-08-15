@@ -1023,7 +1023,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                             self.ctx.message.append(
                                 Message(role="user", content=correction_msg)
                             )
-                            # Empty result → caller skips stop response.
+                            # Empty result -> caller skips stop response.
                             return (tc, "", None)
 
                     result = self._build_stop_response(args)

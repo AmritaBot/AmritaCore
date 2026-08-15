@@ -32,7 +32,7 @@ def _make_streamable_transport(
     return StreamableHttpTransport(url=url)
 
 
-# Registry: extra → factory(url, username, password)
+# Registry: extra -> factory(url, username, password)
 TRANSPORT_REGISTRY: dict[
     str, Callable[[str, str | None, str | None], SSETransport | StreamableHttpTransport]
 ] = {
@@ -40,7 +40,7 @@ TRANSPORT_REGISTRY: dict[
     "streamable": _make_streamable_transport,
 }
 
-# Shorthand: scheme → (extra, protocol), e.g. sse://host → sse+http://host
+# Shorthand: scheme -> (extra, protocol), e.g. sse://host -> sse+http://host
 SHORTHAND_SCHEMES: dict[str, tuple[str, str]] = {
     "sse": ("sse", "http"),
 }
@@ -100,7 +100,7 @@ def resolve_transport(server_script: str) -> ResolvedTransport:
         command, *args = cmd_list
         return StdioTransport(command=command, args=args)
 
-    #  Shorthand: sse://... → sse+http://...
+    #  Shorthand: sse://... -> sse+http://...
     if m := _SHORTHAND_RE.match(script):
         shorthand = m.group("shorthand")
         if shorthand in SHORTHAND_SCHEMES and "+" not in script.split("://")[0]:

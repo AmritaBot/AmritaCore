@@ -106,11 +106,11 @@ class ChatObject:
 
     **Anti-responsibilities (do NOT add methods for these):**
 
-    * Strategy execution logic → lives in ``agent/strategy.py`` and
+    * Strategy execution logic -> lives in ``agent/strategy.py`` and
       ``builtins/agent.py``; ChatObject only provides DI resources via
       ``StrategyContext`` fields.
-    * Tool dispatch / LLM call protocol → lives in ``libchat.py`` and adapters.
-    * Message formatting / templates → lives in Jinja2 templates and content
+    * Tool dispatch / LLM call protocol -> lives in ``libchat.py`` and adapters.
+    * Message formatting / templates -> lives in Jinja2 templates and content
       types.
 
     **Extension rule:** when you need a new capability, add a typed DI

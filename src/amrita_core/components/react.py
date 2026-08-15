@@ -218,8 +218,8 @@ def SINGLE_STRATEGY_CALL(fallback_on_fail: bool = True) -> NodeType[bool]:
         * REACT_COUNTER — must pass the guard first.
 
     Downstream:
-        * Returns `True` → loop back to `REACT_COUNTER`.
-        * Returns `False` → upstream decides whether to terminate.
+        * Returns `True` -> loop back to `REACT_COUNTER`.
+        * Returns `False` -> upstream decides whether to terminate.
 
     Suspend Point:
         `SuspendEnum.SINGLE_TOOL` — intercepted during tool execution.

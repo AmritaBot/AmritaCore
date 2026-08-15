@@ -132,7 +132,7 @@ def _normalize_message_content(msg: Message) -> None:
 
 
 def _register_assistant_tool_calls(msg: Message, tool_pairs: dict[str, str]) -> None:
-    """Register tool_call_id → function_name pairs from an assistant message.
+    """Register tool_call_id -> function_name pairs from an assistant message.
 
     Raises ValueError if the message is assistant with no content and no tool_calls.
     """

@@ -134,7 +134,7 @@ STRUCTURED_REASONING_TEMPLATE = Template("""# Structured Reasoning Instructions
 ## Task
 Analyze the user input and produce a structured, step-by-step internal reasoning.
 Decompose the problem into at most {{ depth }} sub-problems, and walk through each one
-using the four reasoning phases: **analyze → plan → execute → verify**.
+using the four reasoning phases: **analyze -> plan -> execute -> verify**.
 
 ## Message Role Clarification
 - The actual user input is located in the **conversation's `user` message**.

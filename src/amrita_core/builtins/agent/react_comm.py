@@ -136,8 +136,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 content=(
                     "# Task Decomposition Decision\n"
                     "Decide whether this task needs multi-step execution.\n"
-                    "- Simple QA or simple tasks → do NOT decompose (needs_decomposition=false)\n"
-                    "- Complex tasks → decompose into a DAG of sub-steps:\n"
+                    "- Simple QA or simple tasks -> do NOT decompose (needs_decomposition=false)\n"
+                    "- Complex tasks -> decompose into a DAG of sub-steps:\n"
                     '  [{"id": "short-semantic-name", "description": "what this step does", "depends_on": []}, ...]\n'
                     '  id 必须是简短语义化名称(如 "search-web", "read-docs", "write-summary"),不要用 step-1/step-2。\n'
                     'Output strictly as JSON: {"needs_decomposition": bool, "dag": [...], "reason": "..."}\n'

@@ -3,7 +3,7 @@
 Covers:
 - ``AgentRunState`` semantics (begin_step, stall detection, DAG readiness).
 - Step lifecycle hooks (intro_step / leave_step) on ReActAgentStrategy.
-- Stall detection → give-up prompt injection (once per Step).
+- Stall detection -> give-up prompt injection (once per Step).
 - ``_summarize_step`` degradation path.
 - ``_handle_update_step`` plan revisions.
 - ``STEP_REACT_BLOCK`` / ``STEP_BODY`` NATIVE rendering.
@@ -56,13 +56,13 @@ class TestAgentRunState:
         rs = AgentRunState()
         rs.begin_step("execute")
         trigger = 3
-        # 0 recorded → no stall possible.
+        # 0 recorded -> no stall possible.
         assert rs.would_stall("search(1)", trigger) is False
         rs.record_tool_call("search(1)")
-        # 1 recorded → still below trigger-1 window.
+        # 1 recorded -> still below trigger-1 window.
         assert rs.would_stall("search(1)", trigger) is False
         rs.record_tool_call("search(1)")
-        # 2 recorded (= trigger-1) and all identical → recording a 3rd
+        # 2 recorded (= trigger-1) and all identical -> recording a 3rd
         # identical signature would trip the detector.
         assert rs.would_stall("search(1)", trigger) is True
         # A different signature does not trip it.
@@ -71,14 +71,14 @@ class TestAgentRunState:
         assert rs.would_stall("search(1)", 1) is False
 
     def test_would_stall_interleaved_not_cancelled(self):
-        """read → edit → read pattern must NOT be cancelled."""
+        """read -> edit -> read pattern must NOT be cancelled."""
         rs = AgentRunState()
         rs.begin_step("execute")
         rs.record_tool_call("read(a)")
         rs.record_tool_call("edit(a)")
         # Only the last trigger-1 entries matter: ["edit(a)"] ≠ "read(a)".
         assert rs.would_stall("read(a)", 3) is False
-        # But read → read → read is.
+        # But read -> read -> read is.
         rs2 = AgentRunState()
         rs2.begin_step("execute")
         rs2.record_tool_call("read(a)")
@@ -148,7 +148,7 @@ class TestNativeWorkflowRender:
         assert len(rendered) > 0
 
     def test_native_loop_executes_once(self):
-        """Minimal NATIVE_DO smoke test: condition False → body runs once."""
+        """Minimal NATIVE_DO smoke test: condition False -> body runs once."""
         from amrita_sense.instructions.native import NATIVE_DO
         from amrita_sense.node import Node
         from amrita_sense.runtime.workflow import WorkflowInterpreter
@@ -425,7 +425,7 @@ class TestStrategyStepLifecycle:
         rs = strategy.run_state
         assert rs.stall_injected is False
 
-        # One round below the trigger threshold (trigger=2) → no injection.
+        # One round below the trigger threshold (trigger=2) -> no injection.
         strategy._record_tool_signature(
             ToolCall(
                 id="t0",
@@ -436,7 +436,7 @@ class TestStrategyStepLifecycle:
         assert rs.stall_injected is False
         assert rs.exec_finished is False
 
-        # Second identical signature crosses the trigger → give-up injected
+        # Second identical signature crosses the trigger -> give-up injected
         # and the loop termination flags are set.
         strategy._record_tool_signature(
             ToolCall(
@@ -493,7 +493,7 @@ class TestStrategyStepLifecycle:
         assert assistant_msgs[-1].reasoning_content == "thinking about the search"
 
     def test_append_tool_result_without_reasoning(self, strategy):
-        """No reasoning_content → assistant message simply omits it."""
+        """No reasoning_content -> assistant message simply omits it."""
         from amrita_core.types import ToolCall, UniResponse
 
         asyncio_run(strategy.intro_step("execute"))
@@ -551,7 +551,7 @@ class TestStrategyStepLifecycle:
         )
 
     def test_exec_one_error_append_without_reasoning(self, strategy):
-        """No reasoning_content → error-path assistant message omits it."""
+        """No reasoning_content -> error-path assistant message omits it."""
         from unittest.mock import AsyncMock, patch
 
         from amrita_core.types import ToolCall, UniResponse
@@ -589,7 +589,7 @@ class TestStrategyStepLifecycle:
         c1 = make_call(1)
         strategy._record_tool_signature(c1)
         assert strategy._should_cancel_tool_call(c1) is False
-        # Second identical call: stall window formed → cancel.
+        # Second identical call: stall window formed -> cancel.
         c2 = make_call(2)
         strategy._record_tool_signature(c2)
         assert strategy._should_cancel_tool_call(c2) is True
@@ -929,7 +929,7 @@ class TestStepLifecycleEvents:
             matcher._dead_at = datetime_now()
 
     def test_exec_one_skips_append_on_skip_flag(self, strategy):
-        """skip_append=True → nothing is written back to the context."""
+        """skip_append=True -> nothing is written back to the context."""
         from unittest.mock import AsyncMock, patch
 
         from amrita_sense.hook.matcher import Matcher
@@ -965,7 +965,7 @@ class TestStepLifecycleEvents:
             matcher._dead_at = datetime_now()
 
 
-# Peer input (reverse stream): send_to_producer → drained at Step boundary
+# Peer input (reverse stream): send_to_producer -> drained at Step boundary
 
 
 class TestPeerInputDrain:
@@ -1059,7 +1059,7 @@ def asyncio_run(coro):
 
 class TestTokenBudget:
     def test_exhausted_without_budget(self):
-        """No budget configured → never exhausted."""
+        """No budget configured -> never exhausted."""
         budget = TokenBudget()
         budget.update(
             type(
@@ -1107,7 +1107,7 @@ class TestBetweenStepCompression:
         from amrita_core.types import ToolCall, ToolResult
 
         wrap = strategy.ctx.message
-        # Old history that will be folded: user → assistant(tool_calls) → tool.
+        # Old history that will be folded: user -> assistant(tool_calls) -> tool.
         wrap.memory = [
             Message(role="user", content="old turn 1"),
             Message(
@@ -1140,7 +1140,7 @@ class TestBetweenStepCompression:
         return strategy.ctx.usage
 
     def test_noop_below_threshold(self, strategy_with_history):
-        """Below the threshold → no LLM call, history untouched."""
+        """Below the threshold -> no LLM call, history untouched."""
         from unittest.mock import patch
 
         from amrita_core.types import UniResponseUsage
@@ -1167,7 +1167,7 @@ class TestBetweenStepCompression:
         UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_noop_when_threshold_none(self, strategy_with_history):
-        """memory_abstract_threshold=None (default) → never compresses."""
+        """memory_abstract_threshold=None (default) -> never compresses."""
         from unittest.mock import patch
 
         from amrita_core.types import UniResponseUsage
@@ -1197,7 +1197,7 @@ class TestBetweenStepCompression:
         UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_compresses_history_and_resets_baseline(self, strategy_with_history):
-        """Above threshold → LLM summary replaces the folded prefix.
+        """Above threshold -> LLM summary replaces the folded prefix.
 
         The prompt window is driven by the ledger proxy: the Step's usage is
         recorded via the proxy and ``refresh_window`` picks it up before the
@@ -1230,7 +1230,7 @@ class TestBetweenStepCompression:
         ):
             asyncio_run(st._compress_history_between_steps())
         memory = st.ctx.message.memory
-        # user + assistant(tool_calls) + ToolResult folded → summary + tail.
+        # user + assistant(tool_calls) + ToolResult folded -> summary + tail.
         assert len(memory) == 2
         assert "[Summary of previous steps]" in memory[0].content
         assert memory[1].content == "old turn 2"
@@ -1337,7 +1337,7 @@ class TestBetweenStepCompression:
         UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_empty_summary_keeps_history(self, strategy_with_history):
-        """LLM returns empty → history untouched, baseline reset (no retry loop)."""
+        """LLM returns empty -> history untouched, baseline reset (no retry loop)."""
         from unittest.mock import patch
 
         from amrita_core.types import UniResponse

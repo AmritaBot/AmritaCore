@@ -5,9 +5,9 @@ environment.  The adapter (protocol) is chosen by the framework's default
 (OpenAI-compatible); the provider is decided by ``API_BASE_URL`` and
 ``API_MODEL`` — DeepSeek is just one example.  Three scenarios:
 
-- A: simple QA  → verify simple-mode bare run (no decomposition)
-- B: multi-tool → verify decomposition → execute iterations → subject-predicate
-- C: stall      → verify "give up" prompt injection and immediate Step end
+- A: simple QA  -> verify simple-mode bare run (no decomposition)
+- B: multi-tool -> verify decomposition -> execute iterations -> subject-predicate
+- C: stall      -> verify "give up" prompt injection and immediate Step end
 
 Usage:
     export API_KEY=sk-...        # provider API key

@@ -43,6 +43,7 @@ class MCPClient:
     _close_waiter: asyncio.Future | None = None
     _close_ttl: int
     _connect_lock: aiologic.Lock
+    _active_calls: int = 0  # In-flight simple_call counter
 
     def __init__(
         self,
@@ -64,6 +65,7 @@ class MCPClient:
             raise ValueError("connection_ttl must be greater than or equals to -1")
         self._close_ttl = connection_ttl
         self._connect_lock = aiologic.Lock()
+        self._active_calls = 0
 
     async def __aenter__(self) -> Self:
         self._close_waiter = None
@@ -87,11 +89,19 @@ class MCPClient:
 
     async def simple_call(self, tool_name: str, data: dict[str, Any]) -> str:
         """Call MCP tool
+
+        The underlying fastmcp ``Client`` is a reentrant context manager with
+        reference counting, so ``async with`` lets concurrent calls (e.g. the
+        agent's parallel tool runner) share one connection safely. The
+        connection is not torn down on every call: a TTL task reclaims it only
+        after the last active call exits, forming a lightweight resident
+        connection pool.
+
         Args:
             tool_name (str): tool name
             data (dict[str, Any]): tool parameters
         """
-
+        self._active_calls += 1
         try:
             # Always cancel pending close-waiter first to prevent the TTL task
             # from closing the connection while call_tool is in progress.
@@ -99,18 +109,27 @@ class MCPClient:
             if self.mcp_client is None:
                 await self._connect()
             assert self.mcp_client is not None
-            response: CallToolResult = await self.mcp_client.call_tool(tool_name, data)
-            ct: list[TextContent] = [
-                i for i in response.content if isinstance(i, TextContent)
-            ]
-            return "".join([f"{i.text}\n\n" for i in ct])
+            async with self.mcp_client:
+                response: CallToolResult = await self.mcp_client.call_tool(
+                    tool_name, data
+                )
+                ct: list[TextContent] = [
+                    i for i in response.content if isinstance(i, TextContent)
+                ]
+                return "".join([f"{i.text}\n\n" for i in ct])
         except Exception as e:
             logger.opt(raw=True, exception=e, colors=True).error(
                 f"Failed to call tool:{tool_name}, because {e}."
             )
             return json.dumps({"success": False, "error": str(e)})
         finally:
-            await self._close()
+            self._active_calls -= 1
+            if self._active_calls <= 0:
+                self._active_calls = 0
+                if self._close_ttl != -1:
+                    # Defer the close: the TTL task reclaims the connection
+                    # only after the last concurrent call has exited.
+                    self.close()
 
     async def _connect(self, update_tools: bool = False):
         """Connect to MCP Server (idempotent, safe for concurrent calls)
@@ -179,9 +198,9 @@ class MCPClient:
         await self._close()
 
     async def _close(self) -> None:
-        """Close connection"""
+        """Close connection (no-op while calls are still in flight)."""
         async with self._connect_lock:
-            if self.mcp_client:
+            if self.mcp_client and self._active_calls <= 0:
                 # Swap out the client reference BEFORE calling __aexit__ to fix a race condition:
                 client = self.mcp_client
                 self.mcp_client = None
