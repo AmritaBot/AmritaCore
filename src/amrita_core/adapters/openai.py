@@ -291,6 +291,11 @@ class OpenAIAdapter(ModelAdapter):
             ),
             content=None,
             reasoning_content=getattr(msg, "reasoning_content", None),
+            usage=(
+                UniResponseUsage.model_validate(completion.usage, from_attributes=True)
+                if completion.usage
+                else None
+            ),
             metadata=metadata,
         )
 

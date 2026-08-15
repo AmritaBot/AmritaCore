@@ -9,11 +9,16 @@ workflow nodes only need to read/write this state via DI.
 
 from __future__ import annotations
 
+import time
 from graphlib import TopologicalSorter
+from typing import TYPE_CHECKING
 
 from pydantic import Field
 
 from amrita_core.types.base import BaseModel
+
+if TYPE_CHECKING:
+    from amrita_core.usage import SessionUsageProxy
 
 
 class DAGNode(BaseModel):
@@ -80,6 +85,24 @@ class TokenBudget(BaseModel):
                 continue
             setattr(self, attr, getattr(self, attr) + value)
 
+    def refresh_window(
+        self, usage: SessionUsageProxy | None, since_ts: float | None
+    ) -> None:
+        """Set this Step's prompt window from the ledger proxy (non-cumulative).
+
+        The budget compares prompt tokens recorded since ``since_ts``, so a
+        single ``record`` per Step boundary replaces the old per-call
+        ``update`` accumulation.
+        """
+        if usage is None or since_ts is None:
+            self.prompt_tokens = 0
+            self.completion_tokens = 0
+            self.total_tokens = 0
+            return
+        self.prompt_tokens = usage.prompt_since(since_ts)
+        self.completion_tokens = 0
+        self.total_tokens = 0
+
     def reset(self) -> None:
         """Reset the accumulated counts to zero, keeping the budget.
 
@@ -136,6 +159,8 @@ class AgentRunState(BaseModel):
     exec_finished: bool = False
     """True once the strategy finished tool calling (no more tools to call),
     which ends the execute-phase iteration loop."""
+    step_started_ts: float | None = None
+    """Wall-clock start of the current Step; the token-budget window anchor."""
 
     def begin_step(self, phase: Phase) -> None:
         """Enter a new Step: advance the counter and reset per-Step state.
@@ -149,6 +174,7 @@ class AgentRunState(BaseModel):
         self.step_tool_signatures = []
         self.stall_injected = False
         self.exec_finished = False
+        self.step_started_ts = time.time()
 
     def begin_node(self, node: DAGNode) -> None:
         """Enter a DAG node as the current Step.

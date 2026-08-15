@@ -44,7 +44,6 @@ from amrita_core.types import (
     ToolResult,
     UniResponse,
 )
-from amrita_core.utils import gather_usage
 
 from ..consts import (
     BUILTIN_TOOLS_NAME,
@@ -514,6 +513,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 reasoning_trigger_msg,
                 preset=self.preset,
                 config=self.config,
+                usage=self.usage,
             ),
             yield_to=self.io_stream,
             yield_to_wrapper=_yield_wrapper,
@@ -545,12 +545,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                             ),
                         )
                     )
-
-        # Account for the reasoning LLM call: resp_extra_usage (framework)
-        # and run_state.tokens (drives between-Step compression).
-        self.resp_extra_usage = gather_usage(self.resp_extra_usage, ct.usage)
-        rs = self._init_run_state()
-        rs.tokens.update(ct.usage)
         return ct
 
     def _should_use_structured_reasoning(self) -> bool:
@@ -681,6 +675,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 [REFLECTION_TOOL],
                 tool_choice=self._resolve_tool_choice(REFLECTION_TOOL),
                 preset=self.preset,
+                usage=self.usage,
             )
             if not tool_response.tool_calls:
                 break
@@ -766,6 +761,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             [REASONING_TOOL, *tools_ctx],
             tool_choice=self._resolve_tool_choice(REASONING_TOOL),
             preset=self.preset,
+            usage=self.usage,
         )
         if not tool_response.tool_calls:
             logger.warning(

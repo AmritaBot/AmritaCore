@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from amrita_core.config import AmritaConfig
     from amrita_core.tools.manager import MultiToolsManager
     from amrita_core.types.preset import ModelPreset
-    from amrita_core.types.response import UniResponseUsage
+    from amrita_core.usage import SessionUsageProxy
 
 
 class NoExceptionHandler(Exception):
@@ -76,31 +76,20 @@ class _StrategyBase(ABC):
         return self.chat_object.stream_id
 
     @property
-    def resp_extra_usage(self) -> UniResponseUsage:
-        """Extra usage accumulator, resolved from StrategyContext or chat_object.
+    def usage(self) -> SessionUsageProxy | None:
+        """Run-scoped usage proxy, resolved from StrategyContext or chat_object.
 
-        Raises:
-            RuntimeError: If neither source provides ``resp_extra_usage``.
+        Returns ``None`` when no ledger is bound (e.g. standalone unit runs);
+        callers pass it to libchat as an optional accounting handle.
+
+        Records workflow-internal usage (strategy tool rounds plus auxiliary
+        calls); the final completion's usage lives on ``resp.response.usage``.
         """
-        if self.ctx.resp_extra_usage is not None:
-            return self.ctx.resp_extra_usage
+        if self.ctx.usage is not None:
+            return self.ctx.usage
         if self.chat_object is not None:
-            return self.chat_object._di_resp.extra_usage
-        raise RuntimeError(
-            "resp_extra_usage is not available in StrategyContext or chat_object"
-        )
-
-    @resp_extra_usage.setter
-    def resp_extra_usage(self, value: UniResponseUsage) -> None:
-        if self.ctx.resp_extra_usage is not None:
-            self.ctx.resp_extra_usage = value
-        elif self.chat_object is not None:
-            self.chat_object._di_resp.extra_usage = value
-        else:
-            raise RuntimeError(
-                "Cannot set resp_extra_usage: neither StrategyContext nor "
-                "chat_object provide a backing storage"
-            )
+            return self.chat_object._di_resp.usage
+        return None
 
     # _bind — populate runtime references from StrategyContext
 

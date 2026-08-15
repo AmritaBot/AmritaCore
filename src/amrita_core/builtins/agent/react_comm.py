@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import time
 from typing import TYPE_CHECKING, Any, Literal
 
 from amrita_sense.logging import logger
@@ -36,7 +37,6 @@ from amrita_core.types import (
     ToolResult,
     UniResponse,
 )
-from amrita_core.utils import gather_usage
 
 if TYPE_CHECKING:
     from amrita_core.builtins.agent.state import Phase
@@ -168,15 +168,10 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         ]
         try:
             resp = await get_last_response(
-                call_completion(prompt, preset=self.preset, config=self.config)
+                call_completion(
+                    prompt, preset=self.preset, config=self.config, usage=self.usage
+                )
             )
-            # Account for the auxiliary LLM call (real API usage).
-            if resp.usage is not None:
-                if self.resp_extra_usage is not None:
-                    self.resp_extra_usage = gather_usage(
-                        self.resp_extra_usage, resp.usage
-                    )
-                rs.tokens.update(resp.usage)
             # Empty response (some providers return '' when thinking is
             # engaged) — degrade immediately instead of parsing garbage.
             if not (resp.content or "").strip():
@@ -378,15 +373,10 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         ]
         try:
             resp = await get_last_response(
-                call_completion(prompt, preset=self.preset, config=self.config)
+                call_completion(
+                    prompt, preset=self.preset, config=self.config, usage=self.usage
+                )
             )
-            # Account for the auxiliary LLM call (real API usage).
-            if resp.usage is not None:
-                if self.resp_extra_usage is not None:
-                    self.resp_extra_usage = gather_usage(
-                        self.resp_extra_usage, resp.usage
-                    )
-                rs.tokens.update(resp.usage)
             # Empty response (some providers return '' when thinking is
             # engaged) — degrade immediately instead of parsing garbage.
             if not (resp.content or "").strip():
@@ -415,6 +405,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         well-formed.  The token baseline is reset after compression.
         """
         rs = self._init_run_state()
+        # Refresh the current Step's prompt window before threshold checks.
+        rs.tokens.refresh_window(self.usage, rs.step_started_ts)
         threshold = self.config.llm.memory_abstract_threshold
         if threshold is None or rs.tokens.prompt_tokens <= threshold:
             return
@@ -430,6 +422,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         index = int(len(history) * proportion)
         if index <= 0:
             rs.tokens.reset()
+            rs.step_started_ts = time.time()
             return
         # Walk the boundary forward past tool pairs so the kept context is
         # well-formed (every assistant(tool_calls) keeps its ToolResults).
@@ -448,6 +441,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 idx += 1
         if idx <= 0:
             rs.tokens.reset()
+            rs.step_started_ts = time.time()
             return
         dropped = history[:idx]
         kept = history[idx:]
@@ -468,21 +462,17 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         ]
         try:
             resp = await get_last_response(
-                call_completion(prompt, preset=self.preset, config=self.config)
+                call_completion(
+                    prompt, preset=self.preset, config=self.config, usage=self.usage
+                )
             )
-            # Account for the auxiliary LLM call (real API usage).
-            if resp.usage is not None:
-                if self.resp_extra_usage is not None:
-                    self.resp_extra_usage = gather_usage(
-                        self.resp_extra_usage, resp.usage
-                    )
-                rs.tokens.update(resp.usage)
             summary = (resp.content or "").strip()
             if not summary:
                 raise ValueError("empty compression response")
         except Exception as e:
             logger.warning(f"History compression failed, keeping history: {e!s}")
             rs.tokens.reset()
+            rs.step_started_ts = time.time()
             return
         # Replace the folded history with a single summary message.
         msg_wrap.memory = [
@@ -535,6 +525,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 rs.begin_step("verify")
             else:
                 rs.begin_node(node)
+        # Refresh the Step's prompt-token window from the ledger proxy.
+        rs.tokens.refresh_window(self.usage, rs.step_started_ts)
 
         # Lifecycle hook: matchers may redirect the phase name
         # (override_phase) before the Step starts.
@@ -634,8 +626,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 ),
             ),
         )
-        # Compression happens between Steps (pairing closed here); auxiliary
-        # call tokens are accounted inline via gather_usage → resp_extra_usage.
+        # Compression happens between Steps (pairing closed here); the
+        # auxiliary call usage is accounted via the ledger proxy.
         await self._compress_history_between_steps()
 
     @override
@@ -829,6 +821,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 else "auto"
             ),
             preset=self.preset,
+            usage=self.usage,
         )
 
         # Use template method for common execution flow

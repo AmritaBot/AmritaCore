@@ -335,6 +335,7 @@ class HybridReActAgentStrategy(BaseReActAgentStrategy):
                 else "auto"
             ),
             preset=self.preset,
+            usage=self.usage,
         )
 
         # Use template method for common execution flow.

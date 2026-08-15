@@ -75,7 +75,8 @@ from amrita_core.types import (
     UniResponseUsage,
 )
 from amrita_core.types.memory import MemoryModel
-from amrita_core.utils import gather_usage, get_current_datetime_timestamp
+from amrita_core.usage import UsageRegistry, UsageSnapshot
+from amrita_core.utils import get_current_datetime_timestamp
 
 from .chat_libs import ChatManager, chat_manager
 from .chat_obj_meta import ChatObjectMeta
@@ -149,6 +150,7 @@ class ChatObject:
     # ChatObject temp storage
     _chatman: ChatManager
     _state: StateContext | None  # Backref for external consumers
+    usage_snapshot: UsageSnapshot | None  # Run usage kept after the run ends
 
     # DI context references — component nodes read/write these via extra_args type injection
     _di_ability: AbilityState
@@ -187,6 +189,7 @@ class ChatObject:
         "io_stream",
         "last_call",
         "now_calling",
+        "usage_snapshot",
     )
 
     def __init__(
@@ -317,6 +320,7 @@ class ChatObject:
                 prompt_tokens=0, completion_tokens=0, total_tokens=0
             )
         )
+        self.usage_snapshot = None
         self._di_loop = AgentLoopState()
         self._di_agent = StrategyPayload(strategy=_strategy)
         self._di_opt = _bke_opt
@@ -598,6 +602,7 @@ class ChatObject:
         await self.io_stream._wait_for_continue(SuspendEnum.ENTRY_POINT)
         if not self._is_running and not self._is_done:
             self._di_session.stream_id = uuid4().hex
+            self._di_resp.usage = UsageRegistry.register(self.stream_id)
             logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
 
             try:
@@ -610,6 +615,11 @@ class ChatObject:
             finally:
                 self._is_running = False
                 self._is_done = True
+                # Keep run usage on the object, then release the registry entry.
+                if self._di_resp.usage is not None:
+                    self.usage_snapshot = self._di_resp.usage.snapshot()
+                    self._di_resp.extra_usage = self._di_resp.usage.extra_total
+                UsageRegistry.unregister(self.stream_id)
                 try:
                     await self.io_stream.set_queue_done()  # Write a EOF to the queue
                 except TimeoutError:
@@ -664,12 +674,15 @@ async def _limiting_memory(chat_obj: ChatObject):
     if not ab.config.llm.enable_memory_abstract:
         return
     assert mem_ctx.memory is not None, "Memory must be loaded before limiting"
-    async with MemoryLimiter(mem_ctx.memory, input_ctx.train, config=ab.config) as lim:
+    async with MemoryLimiter(
+        mem_ctx.memory, input_ctx.train, config=ab.config, usage=resp.usage
+    ) as lim:
         await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY)
         await lim.run_enforce()
 
         if abs_usage := lim.usage:
-            resp.extra_usage = gather_usage(resp.extra_usage, abs_usage)
+            if not lim.recorded_via_gateway and resp.usage is not None:
+                resp.usage.record(abs_usage)
         mem_ctx.memory = lim.memory
     logger.debug("Memory limitation application completed")
 
@@ -745,7 +758,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
                 io_stream=intp.object_io,
                 train_content=input_ctx.train.content,
                 stream_id=chat_obj._di_session.stream_id,
-                resp_extra_usage=chat_obj._di_resp.extra_usage,
+                usage=chat_obj._di_resp.usage,
             )
             chat_obj._di_loop.stg_ctx = ctx
             return intp.jump_to(
@@ -773,7 +786,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
         io_stream=intp.object_io,
         train_content=input_ctx.train.content,
         stream_id=chat_obj._di_session.stream_id,
-        resp_extra_usage=chat_obj._di_resp.extra_usage,
+        usage=chat_obj._di_resp.usage,
     )
     st = agent.strategy(ctx)
     try:

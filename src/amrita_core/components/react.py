@@ -74,7 +74,7 @@ async def STRATEGY_INIT(
         io_stream=intp.object_io,
         train_content=input_ctx.train.content,
         stream_id=session.stream_id,
-        resp_extra_usage=resp.extra_usage,
+        usage=resp.usage,
     )
 
 
@@ -436,6 +436,8 @@ async def iter_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
         return False
     if rs.stall_injected:
         return False
+    if rs.step_started_ts is not None:
+        rs.tokens.refresh_window(loop.strategy.usage, rs.step_started_ts)
     if rs.tokens.exhausted:
         return False
     if rs.exec_finished:

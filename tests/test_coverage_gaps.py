@@ -513,22 +513,24 @@ class TestRespStateExtraUsage:
 
 
 class TestLimitingMemoryNode:
-    """Test that the _limiting_memory workflow node correctly collects
-    MemoryLimiter.usage into RespState.extra_usage."""
+    """Test that the _limiting_memory workflow node collects
+    MemoryLimiter.usage into the run's usage ledger."""
 
     @pytest.mark.asyncio
     async def test_collects_limiter_usage_when_abstract_enabled(self):
         from unittest.mock import AsyncMock, MagicMock, patch
 
         from amrita_core.chatmanager.chat_object import _limiting_memory
+        from amrita_core.usage import UsageRegistry
 
-        # Build a minimal ChatObject mock
+        # Build a minimal ChatObject mock with a registered run ledger.
         chat_obj = MagicMock()
         chat_obj._di_memory = MemoryContext(
             memory=MemoryModel(messages=[Message(role="user", content="hello")])
         )
         chat_obj._di_input = _simple_ip()
         chat_obj._di_resp = RespState()
+        chat_obj._di_resp.usage = UsageRegistry.register("limiter-test-stream")
         chat_obj._di_ability = AbilityState(
             config=AmritaConfig(),
             slot=BackendSlots(LegacyBackend(), LegacyBackend()),
@@ -545,6 +547,7 @@ class TestLimitingMemoryNode:
         class _FakeLimiter:
             usage = limiter_usage
             memory = chat_obj._di_memory.memory  # preserve original memory
+            recorded_via_gateway = False  # fake bypasses the gateway
 
             async def __aenter__(self):
                 return self
@@ -561,10 +564,12 @@ class TestLimitingMemoryNode:
         ):
             await _limiting_memory.func(chat_obj=chat_obj)  # type: ignore[arg-type]
 
-        # Verify usage was collected from MemoryLimiter.usage into extra_usage
-        assert chat_obj._di_resp.extra_usage.prompt_tokens == 30
-        assert chat_obj._di_resp.extra_usage.completion_tokens == 15
-        assert chat_obj._di_resp.extra_usage.total_tokens == 45
+        # Verify usage was collected into the run's usage ledger
+        total = chat_obj._di_resp.usage.extra_total
+        assert total.prompt_tokens == 30
+        assert total.completion_tokens == 15
+        assert total.total_tokens == 45
+        UsageRegistry.unregister("limiter-test-stream")
 
     @pytest.mark.asyncio
     async def test_skips_when_abstract_disabled(self):

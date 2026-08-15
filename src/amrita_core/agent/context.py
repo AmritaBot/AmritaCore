@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from amrita_core.config import AmritaConfig
     from amrita_core.tools.manager import MultiToolsManager
     from amrita_core.types.preset import ModelPreset
-    from amrita_core.types.response import UniResponseUsage
+    from amrita_core.usage import SessionUsageProxy
 
 
 def build_strategy_context(
@@ -26,7 +26,7 @@ def build_strategy_context(
     io_stream: SuspendObjectStream | None = None,
     train_content: str | None = None,
     stream_id: str | None = None,
-    resp_extra_usage: UniResponseUsage | None = None,
+    usage: SessionUsageProxy | None = None,
 ) -> StrategyContext:
     """Build a ``StrategyContext`` with both legacy and DI resource fields.
 
@@ -44,7 +44,7 @@ def build_strategy_context(
         io_stream=io_stream,
         train_content=train_content,
         stream_id=stream_id,
-        resp_extra_usage=resp_extra_usage,
+        usage=usage,
     )
 
 
@@ -72,7 +72,7 @@ class StrategyContext:
     io_stream: SuspendObjectStream | None = None
     train_content: str | None = None
     stream_id: str | None = None
-    resp_extra_usage: UniResponseUsage | None = None
+    usage: SessionUsageProxy | None = None
 
     # Properties / accessors
 

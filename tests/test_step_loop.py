@@ -21,7 +21,7 @@ from amrita_core.builtins.agent.state import (
 )
 from amrita_core.builtins.workflows import STEP_BODY, STEP_REACT_BLOCK
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig
-from amrita_core.types import Message, SendMessageWrap
+from amrita_core.types import Function, Message, SendMessageWrap
 
 # AgentRunState
 
@@ -1053,10 +1053,10 @@ class TestBetweenStepCompression:
                 tool_calls=[
                     ToolCall(
                         id="t1",
-                        function={  # pyright: ignore[reportArgumentType]
-                            "name": "search",
-                            "arguments": '{"q": "old"}',
-                        },
+                        function=Function(
+                            name="search",
+                            arguments='{"q": "old"}',
+                        ),
                     )
                 ],
             ),
@@ -1068,13 +1068,27 @@ class TestBetweenStepCompression:
         strategy.config.llm.memory_abstract_threshold = 100
         return strategy
 
+    @staticmethod
+    def _bind_ledger(strategy, stream_id="compress-test"):
+        """Register a real run ledger and return its proxy for the strategy."""
+        from amrita_core.usage import UsageRegistry
+
+        strategy.ctx.usage = UsageRegistry.register(stream_id)
+        return strategy.ctx.usage
+
     def test_noop_below_threshold(self, strategy_with_history):
         """Below the threshold → no LLM call, history untouched."""
         from unittest.mock import patch
 
+        from amrita_core.types import UniResponseUsage
+
         st = strategy_with_history
         rs = st._init_run_state()
-        rs.tokens.prompt_tokens = 50
+        proxy = self._bind_ledger(st)
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(prompt_tokens=50, completion_tokens=0, total_tokens=50)
+        )
 
         async def fake_generator():
             raise AssertionError("LLM must not be called below threshold")
@@ -1085,15 +1099,26 @@ class TestBetweenStepCompression:
         ):
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4  # untouched
+        from amrita_core.usage import UsageRegistry
+
+        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_noop_when_threshold_none(self, strategy_with_history):
         """memory_abstract_threshold=None (default) → never compresses."""
         from unittest.mock import patch
 
+        from amrita_core.types import UniResponseUsage
+
         st = strategy_with_history
         st.config.llm.memory_abstract_threshold = None
         rs = st._init_run_state()
-        rs.tokens.prompt_tokens = 10**6
+        proxy = self._bind_ledger(st)
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(
+                prompt_tokens=10**6, completion_tokens=0, total_tokens=10**6
+            )
+        )
 
         async def fake_generator():
             raise AssertionError("LLM must not be called without threshold")
@@ -1104,12 +1129,16 @@ class TestBetweenStepCompression:
         ):
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4
+        from amrita_core.usage import UsageRegistry
+
+        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_compresses_history_and_resets_baseline(self, strategy_with_history):
         """Above threshold → LLM summary replaces the folded prefix.
 
-        Also covers token accounting: the summary call's usage accrues into
-        ``resp_extra_usage`` before the baseline reset.
+        The prompt window is driven by the ledger proxy: the Step's usage is
+        recorded via the proxy and ``refresh_window`` picks it up before the
+        threshold check.
         """
         from unittest.mock import patch
 
@@ -1117,10 +1146,10 @@ class TestBetweenStepCompression:
 
         st = strategy_with_history
         rs = st._init_run_state()
-        rs.tokens.prompt_tokens = 150
-        # Known baseline for resp_extra_usage so the accrual is verifiable.
-        st.resp_extra_usage = UniResponseUsage(
-            prompt_tokens=100, completion_tokens=20, total_tokens=120
+        proxy = self._bind_ledger(st)
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(prompt_tokens=150, completion_tokens=0, total_tokens=150)
         )
 
         async def fake_generator():
@@ -1140,25 +1169,29 @@ class TestBetweenStepCompression:
         memory = st.ctx.message.memory
         # user + assistant(tool_calls) + ToolResult folded → summary + tail.
         assert len(memory) == 2
-        assert "[Summary of previous steps]" in memory[0].content  # type: ignore[union-attr]
-        assert memory[1].content == "old turn 2"  # type: ignore[union-attr]
-        # Summary usage accrued into resp_extra_usage (100+10, 20+5, 120+15).
-        assert st.resp_extra_usage.prompt_tokens == 110
-        assert st.resp_extra_usage.completion_tokens == 25
-        assert st.resp_extra_usage.total_tokens == 135
-        # Baseline reset after compression.
+        assert "[Summary of previous steps]" in memory[0].content
+        assert memory[1].content == "old turn 2"
+        # The summary LLM call usage is recorded by libchat's gateway layer;
+        # the baseline prompt window is reset after compression.
         assert rs.tokens.prompt_tokens == 0
+        from amrita_core.usage import UsageRegistry
+
+        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_budget_survives_baseline_reset(self, strategy_with_history):
         """reset() keeps the configured budget — exhausted stays live."""
         from unittest.mock import patch
 
-        from amrita_core.types import UniResponse
+        from amrita_core.types import UniResponse, UniResponseUsage
 
         st = strategy_with_history
         st.config.function_config.agent_step_token_budget = 200
         rs = st._init_run_state()
-        rs.tokens.prompt_tokens = 150
+        proxy = self._bind_ledger(st, "compress-budget")
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(prompt_tokens=150, completion_tokens=0, total_tokens=150)
+        )
 
         async def fake_generator():
             yield UniResponse(
@@ -1177,12 +1210,20 @@ class TestBetweenStepCompression:
         # The next Step can still hit the budget.
         rs.tokens.prompt_tokens = 200
         assert rs.tokens.exhausted is True
+        from amrita_core.usage import UsageRegistry
+
+        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_fold_keeps_tool_pairing_intact(self, strategy_with_history):
         """The kept tail must stay well-formed: no dangling tool message."""
         from unittest.mock import patch
 
-        from amrita_core.types import ToolCall, ToolResult, UniResponse
+        from amrita_core.types import (
+            ToolCall,
+            ToolResult,
+            UniResponse,
+            UniResponseUsage,
+        )
 
         st = strategy_with_history
         wrap = st.ctx.message
@@ -1195,10 +1236,7 @@ class TestBetweenStepCompression:
                 tool_calls=[
                     ToolCall(
                         id="t2",
-                        function={  # pyright: ignore[reportArgumentType]
-                            "name": "read",
-                            "arguments": "{}",
-                        },
+                        function=Function(name="read", arguments="{}"),
                     )
                 ],
             ),
@@ -1207,7 +1245,11 @@ class TestBetweenStepCompression:
             ),
         ]
         rs = st._init_run_state()
-        rs.tokens.prompt_tokens = 200
+        proxy = self._bind_ledger(st, "compress-pair")
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(prompt_tokens=200, completion_tokens=0, total_tokens=200)
+        )
 
         async def fake_generator():
             yield UniResponse(
@@ -1227,6 +1269,9 @@ class TestBetweenStepCompression:
         assert memory[0].role == "user"
         assert memory[1].tool_calls is not None
         assert memory[2].role == "tool"
+        from amrita_core.usage import UsageRegistry
+
+        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_empty_summary_keeps_history(self, strategy_with_history):
         """LLM returns empty → history untouched, baseline reset (no retry loop)."""
