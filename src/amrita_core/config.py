@@ -51,7 +51,7 @@ class FunctionConfig(BaseModel):
         default=-1,
         ge=-1,
         description="Per-Step prompt-token budget for the built-in step loop. "
-        "Set -1 (or any non-positive value) to disable (no budget limit). "
+        "Set -1 (or 0) to disable (no budget limit). "
         "When the Step's accumulated prompt tokens reach this budget, the "
         "iteration loop stops (``TokenBudget.exhausted``).",
     )
@@ -214,7 +214,7 @@ class LLMConfig(BaseModel):
         default=-1,
         ge=-1,
         description="Prompt-token threshold that triggers between-Step history "
-        "compression. Set -1 (or any non-positive value) to disable (never "
+        "compression. Set -1 (or 0) to disable (never "
         "compress). When the real API prompt-token count exceeds this value "
         "at a Step boundary, completed-Step history is summarized into the "
         "context.",
