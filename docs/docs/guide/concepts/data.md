@@ -38,10 +38,10 @@ the matching instance. Key contexts (all owned by `ChatObject`):
 
 ## Two Deep-Dives
 
-| Page                            | Covers                                                                           |
-| ------------------------------- | -------------------------------------------------------------------------------- |
-| [Data Backend](data-backend.md) | The `AbilityBackend` / `MemoryBackend` interfaces and how to write your own      |
-| [Memory Model](data-memory.md)  | `MemoryModel`, the load/commit lifecycle, and the legacy `StateContext` accessor |
+| Page                            | Covers                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| [Data Backend](data-backend.md) | The `AbilityBackend` / `MemoryBackend` interfaces and how to write your own          |
+| [Memory Model](data-memory.md)  | `MemoryModel`, the load/commit lifecycle, and the deprecated `StateContext` accessor |
 
 ## Next
 

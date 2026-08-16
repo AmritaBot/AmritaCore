@@ -45,11 +45,11 @@ class AbilityContext:
 
 @dataclass
 @deprecated(
-    "This context includes too much roles. Will be removed in 0.13.x",
+    "This context includes too much roles. Deprecated since v0.10.0 will be removed in v0.14.0",
     category=DeprecationWarning,
 )
 class StateContext:
-    """State Context for ChatObject running, maybe you can also use it in other places(?)"""
+    """(!!!Deprecated!!!, no test forks coverage, use other classes instead.) State Context for ChatObject running."""
 
     session_id: str = field(default_factory=lambda: uuid4().hex)
     memory: MemoryModel = field(default_factory=MemoryModel)

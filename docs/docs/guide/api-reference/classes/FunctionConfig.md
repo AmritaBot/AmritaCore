@@ -7,8 +7,8 @@ The FunctionConfig class defines functional behavior configuration for the Agent
 - `use_minimal_context` (bool): Default `False`. Whether to use minimal context, i.e. system prompt + user's last message. Disabling this option uses all context from the message list, which may consume a large amount of Tokens during Agent workflow execution; enabling it may effectively reduce token usage
 - `no_tokenizer` (bool): Default `False`. Disable built-in tokenizer when response is not returning a token count
 - `tokenizer_used` (str): Default `"simple"`. Tokenizer to use
-- `agent_tool_call_limit` (int): Default `10`. Tool call limit when calling tools
-- `agent_step_token_budget` (int | None): Default `None`. Per-Step prompt-token budget for the built-in step loop (`None` = unlimited). When the Step's accumulated prompt tokens reach this budget, the iteration loop stops
+- `agent_tool_call_limit` (int): Default `10`. Tool call limit when calling tools (must be `>= 1`)
+- `agent_step_token_budget` (int): Default `-1`. Per-Step prompt-token budget for the built-in step loop (`<= 0` = disabled, i.e. unlimited). When the Step's accumulated prompt tokens reach this budget, the iteration loop stops
 - `agent_middle_message` (bool): Default `True`. Whether to allow Agent to send intermediate messages to users during tool calling
 - `agent_mcp_client_enable` (bool): Default `False`. Whether to enable MCP client
 - `agent_mcp_server_scripts` (list[str]): Default `[]`. List of MCP server scripts

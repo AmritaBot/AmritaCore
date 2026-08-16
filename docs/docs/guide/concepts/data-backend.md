@@ -40,8 +40,10 @@ The default implementation keeps everything **in-process**:
 
 - Ability lives in a **global** container (`glb`) — the same tools and presets
   for every session
-- Memory lives in a per-session `StateContext` — history survives only as long
-  as the process, and only for ids this process has seen
+- Memory lives in a per-session `StateContext` (deprecated, removed in
+  **v0.14.0** — see [StateContext](data-memory.md#statecontext-legacy-accessor))
+  — history survives only as long as the process, and only for ids this
+  process has seen
 
 ```python
 from amrita_core.builtins.backends import LegacyBackend

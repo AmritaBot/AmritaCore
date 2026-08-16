@@ -2,7 +2,7 @@ name: Publish to PyPI on Release
 
 on:
   release:
-    types: [created]  # 当有新Release创建时触发
+    types: [created]  # Triggered when a new release is created
 
 jobs:
   release:

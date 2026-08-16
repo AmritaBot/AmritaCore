@@ -136,10 +136,26 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 content=(
                     "# Task Decomposition Decision\n"
                     "Decide whether this task needs multi-step execution.\n"
-                    "- Simple QA or simple tasks -> do NOT decompose (needs_decomposition=false)\n"
-                    "- Complex tasks -> decompose into a DAG of sub-steps:\n"
-                    '  [{"id": "short-semantic-name", "description": "what this step does", "depends_on": []}, ...]\n'
-                    '  id 必须是简短语义化名称(如 "search-web", "read-docs", "write-summary"),不要用 step-1/step-2。\n'
+                    "\n"
+                    "## Use SIMPLE mode (needs_decomposition=false) when:\n"
+                    "SIMPLE mode is still ReAct — the normal tool loop runs;\n"
+                    "it just is not step-driven (no DAG decomposition).\n"
+                    "Most requests, including routine questions and simple\n"
+                    "tasks, belong here.\n"
+                    "- Chitchat, greetings, or casual conversation\n"
+                    "- A direct question answerable from the conversation context\n"
+                    "- A single tool call suffices (lookup, calculation, format conversion)\n"
+                    "- Summarizing or rephrasing content already available\n"
+                    "- The user asks for a direct answer without further work\n"
+                    "\n"
+                    "## Use STEP mode (needs_decomposition=true, DAG) ONLY when:\n"
+                    "- Multiple dependent steps are required\n"
+                    "- Information must be gathered first, then used to produce the result\n"
+                    "- Research or multi-source synthesis\n"
+                    "\n"
+                    "## Rules\n"
+                    "- NEVER create a single-node DAG; if one step covers the task, use simple mode.\n"
+                    '- DAG node ids are short semantic names ("search-web", "read-docs", "write-summary"), never step-1/step-2.\n'
                     'Output strictly as JSON: {"needs_decomposition": bool, "dag": [...], "reason": "..."}\n'
                     "\n"
                     "## Examples\n"
@@ -452,7 +468,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         # Refresh the current Step's prompt window before threshold checks.
         rs.tokens.refresh_window(self.usage, rs.step_started_ts)
         threshold = self.config.llm.memory_abstract_threshold
-        if threshold is None or rs.tokens.prompt_tokens <= threshold:
+        if threshold <= 0 or rs.tokens.prompt_tokens <= threshold:
             return
         logger.info(
             f"Prompt tokens {rs.tokens.prompt_tokens} > threshold {threshold}; "

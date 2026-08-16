@@ -13,7 +13,9 @@ explicitly:
 ```python
 from amrita_core.chatmanager import _step_workflow_rendered
 
-chat = agent.get_chatobject("Plan and run the migration", workflow=_step_workflow_rendered)
+chat = agent.get_chatobject(
+    "Plan and run the migration", workflow=_step_workflow_rendered
+)
 ```
 
 or use the full pre-composed pipeline:

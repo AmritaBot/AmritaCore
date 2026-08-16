@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "0.13.4"
+version = "0.13.5"
 description = "High performance, flexible, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
@@ -81,6 +81,24 @@ ignore = [
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
+
+[tool.coverage.run]
+source = ["src/"]
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "nocov",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if (typing\\.)?TYPE_CHECKING:",
+    "^\\.\\.\\.\\s*(#|$)",
+]
 
 [tool.uv.workspace]
 members = ["."]

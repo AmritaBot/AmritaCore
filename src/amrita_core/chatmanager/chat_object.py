@@ -28,7 +28,7 @@ from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
 from pytz import utc
-from typing_extensions import Self
+from typing_extensions import Self, deprecated
 
 from amrita_core.agent.context import build_strategy_context
 from amrita_core.agent.strategy import (
@@ -266,8 +266,10 @@ class ChatObject:
         if not context and not session_id:
             raise ValueError("Either context or session_id must be provided")
         if session_id:
-            if context:
-                raise ValueError("Both context and session_id cannot be provided")
+            if context:  # nocov
+                raise ValueError(  # nocov
+                    "Both context and session_id cannot be provided"  # nocov
+                )  # nocov
             self._s_id = session_id
         if workflow and archived_nodes:
             raise ValueError("Cannot provide both workflow and archived_nodes")
@@ -325,11 +327,11 @@ class ChatObject:
         self._di_agent = StrategyPayload(strategy=_strategy)
         self._di_opt = _bke_opt
         self._state = None
-        if context:
-            self._state = context
-            self._di_memory.memory = context.memory
-            self._di_ability.ability = context.ability
-            self._di_session.session_id = context.session_id
+        if context:  # nocov
+            self._state = context  # nocov
+            self._di_memory.memory = context.memory  # nocov
+            self._di_ability.ability = context.ability  # nocov
+            self._di_session.session_id = context.session_id  # nocov
 
         # Workflow system
         wkfl = None
@@ -413,23 +415,36 @@ class ChatObject:
         self._di_agent.strategy = val
 
     @property
-    def state(self) -> StateContext:
+    @deprecated(
+        "This property is deprecated and will be removed in v0.14.0. "
+        "Use session_id / data / config etc. directly instead.",
+        category=DeprecationWarning,
+    )
+    def state(self) -> StateContext:  # nocov
         """Backward-compatible accessor. Returns the StateContext if one was
-        provided, otherwise synthesises one from the DI components."""
-        if self._state is not None:
-            return self._state
-        return StateContext(
-            session_id=self._di_session.session_id,
-            memory=self._di_memory.memory or MemoryModel(),
-            ability=self._di_ability.ability or AbilityContext(),
-        )
+        provided, otherwise synthesises one from the DI components.
+
+        Hint: The best practice of acquiring the full state
+            is to use the `.dump_interpreter()` method of workflow interpreter."""  # nocov
+        if self._state is not None:  # nocov
+            return self._state  # nocov
+        return StateContext(  # nocov
+            session_id=self._di_session.session_id,  # nocov
+            memory=self._di_memory.memory or MemoryModel(),  # nocov
+            ability=self._di_ability.ability or AbilityContext(),  # nocov
+        )  # nocov
 
     @state.setter
-    def state(self, val: StateContext) -> None:
-        self._state = val
-        self._di_memory.memory = val.memory
-        self._di_ability.ability = val.ability
-        self._di_session.session_id = val.session_id
+    @deprecated(
+        "This property is deprecated and will be removed in v0.14.0. "
+        "Use session_id / data setters directly instead.",
+        category=DeprecationWarning,
+    )
+    def state(self, val: StateContext) -> None:  # nocov
+        self._state = val  # nocov
+        self._di_memory.memory = val.memory  # nocov
+        self._di_ability.ability = val.ability  # nocov
+        self._di_session.session_id = val.session_id  # nocov
 
     @property
     def user_input(self) -> USER_INPUT:

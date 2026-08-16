@@ -1249,8 +1249,35 @@ def asyncio_run(coro):
 
 class TestTokenBudget:
     def test_exhausted_without_budget(self):
-        """No budget configured -> never exhausted."""
+        """Budget disabled (-1, the default) -> never exhausted."""
         budget = TokenBudget()
+        assert budget.budget == -1  # disabled by default
+        budget.update(
+            type(
+                "U",
+                (),
+                {"prompt_tokens": 10**9, "completion_tokens": 0, "total_tokens": 0},
+            )()
+        )
+        assert budget.exhausted is False
+
+    def test_exhausted_disabled_explicitly(self):
+        """An explicit -1 budget keeps exhausted False forever."""
+        budget = TokenBudget(budget=-1)
+        budget.update(
+            type(
+                "U",
+                (),
+                {"prompt_tokens": 10**9, "completion_tokens": 0, "total_tokens": 0},
+            )()
+        )
+        assert budget.exhausted is False
+        budget.reset()
+        assert budget.exhausted is False
+
+    def test_exhausted_zero_budget_disabled(self):
+        """A zero budget is treated as disabled (never exhausted)."""
+        budget = TokenBudget(budget=0)
         budget.update(
             type(
                 "U",
@@ -1356,14 +1383,74 @@ class TestBetweenStepCompression:
 
         UsageRegistry.unregister(st.ctx.usage.stream_id)
 
-    def test_noop_when_threshold_none(self, strategy_with_history):
-        """memory_abstract_threshold=None (default) -> never compresses."""
+    def test_noop_when_threshold_disabled(self, strategy_with_history):
+        """memory_abstract_threshold=-1 (disabled) -> never compresses."""
         from unittest.mock import patch
 
         from amrita_core.types import UniResponseUsage
 
         st = strategy_with_history
-        st.config.llm.memory_abstract_threshold = None
+        st.config.llm.memory_abstract_threshold = -1
+        rs = st._init_run_state()
+        proxy = self._bind_ledger(st)
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(
+                prompt_tokens=10**6, completion_tokens=0, total_tokens=10**6
+            )
+        )
+
+        async def fake_generator():
+            raise AssertionError("LLM must not be called with threshold disabled")
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert len(st.ctx.message.memory) == 4  # untouched
+        from amrita_core.usage import UsageRegistry
+
+        UsageRegistry.unregister(st.ctx.usage.stream_id)
+
+    def test_noop_when_threshold_zero(self, strategy_with_history):
+        """memory_abstract_threshold=0 is treated as disabled too."""
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponseUsage
+
+        st = strategy_with_history
+        st.config.llm.memory_abstract_threshold = 0
+        rs = st._init_run_state()
+        proxy = self._bind_ledger(st)
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(
+                prompt_tokens=10**6, completion_tokens=0, total_tokens=10**6
+            )
+        )
+
+        async def fake_generator():
+            raise AssertionError("LLM must not be called with threshold 0")
+
+        with patch(
+            "amrita_core.builtins.agent.react_comm.call_completion",
+            return_value=fake_generator(),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert len(st.ctx.message.memory) == 4  # untouched
+        from amrita_core.usage import UsageRegistry
+
+        UsageRegistry.unregister(st.ctx.usage.stream_id)
+
+    def test_noop_when_threshold_very_large(self, strategy_with_history):
+        """An extremely large threshold behaves like compression disabled."""
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponseUsage
+
+        st = strategy_with_history
+        st.config.llm.memory_abstract_threshold = 10**9
         rs = st._init_run_state()
         proxy = self._bind_ledger(st)
         rs.step_started_ts = 1000.0

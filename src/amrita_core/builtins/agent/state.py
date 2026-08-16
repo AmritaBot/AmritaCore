@@ -55,8 +55,8 @@ class TokenBudget(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
-    budget: int | None = None
-    """Per-run prompt-token budget (``None`` = unlimited).
+    budget: int = -1
+    """Per-run prompt-token budget (``<= 0`` = disabled / unlimited).
 
     Injected from ``config.function_config.agent_step_token_budget`` by the
     strategy when the run state is created; ``exhausted`` compares the
@@ -67,11 +67,11 @@ class TokenBudget(BaseModel):
     def exhausted(self) -> bool:
         """Whether the accumulated prompt tokens reached the budget.
 
-        ``False`` when no budget is configured (unlimited).  The workflow
+        ``False`` when the budget is disabled (``<= 0``).  The workflow
         iteration conditions consult this to stop the loop before burning
         more tokens.
         """
-        if self.budget is None:
+        if self.budget <= 0:
             return False
         return self.prompt_tokens >= self.budget
 

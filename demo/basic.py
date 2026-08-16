@@ -99,7 +99,7 @@ async def minimal_example():
     )
 
     # Get a chat object and get the full response (non‑streaming)
-    chat = agent.get_chatobject("你好，你能做什么？")
+    chat = agent.get_chatobject("Hello, what can you do?")
 
     async with chat.begin():
         response = await chat.full_response()

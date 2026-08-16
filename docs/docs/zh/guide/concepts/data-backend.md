@@ -38,8 +38,9 @@ class MemoryBackend:  # 抽象
 默认实现把一切保存在**进程内**：
 
 - Ability 在**全局**容器（`glb`）——所有会话共享同一批工具与 preset
-- Memory 在按会话的 `StateContext`——历史只存活于进程生命周期，且仅限本进程
-  见过的 id
+- Memory 在按会话的 `StateContext`（已弃用，**v0.14.0** 移除——见
+  [StateContext](data-memory.md#statecontext遗留访问器)）——历史只存活于进程
+  生命周期，且仅限本进程见过的 id
 
 ```python
 from amrita_core.builtins.backends import LegacyBackend
