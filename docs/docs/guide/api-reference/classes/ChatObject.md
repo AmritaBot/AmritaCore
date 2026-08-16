@@ -13,6 +13,8 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 
 - `slot` ([BackendSlots](BackendSlots.md)): Backend slots providing memory and ability backends (delegates to `_di_ability.slot`)
 - `state` ([StateContext](StateContext.md)): Runtime state context containing memory, ability, and session ID.
+  > **Deprecated**: scheduled for removal in **v0.14.0**. Using this property emits a `DeprecationWarning`. Use `session_id`, `data`, `config` and the DI contexts (`_di_session`, `_di_memory`, `_di_ability`) instead.
+  >
   > **v0.12.0**: This is now a **compatibility property** — if a `StateContext` was set via the setter, it is returned directly; otherwise a new context is synthesised from DI components (`_di_session`, `_di_memory`, `_di_ability`).
 
 ### Timing
@@ -53,7 +55,7 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 
 - `train` (dict[str, str] | [Message](Message.md)[str]): Training/prompt data for the AI (system prompt)
 - `user_input` (str | Sequence[Content] | None): The user's input message
-- `context` ([StateContext](StateContext.md) | None, optional): Pre-built state context. If provided, `session_id` must NOT be provided (mutually exclusive). When both are None, ChatObject requires `session_id` to create a new StateContext at runtime (default: None)
+- `context` ([StateContext](StateContext.md) | None, optional): Pre-built state context. **Deprecated** — scheduled for removal in **v0.14.0**. If provided, `session_id` must NOT be provided (mutually exclusive). When both are None, ChatObject requires `session_id` to create a new StateContext at runtime. Pass `session_id` and set `data` afterwards instead (default: None)
 - `session_id` (str | None, optional): Unique identifier for the session. If provided, `context` must NOT be provided (mutually exclusive). The session ID is used by the Backend to load/save memory and ability state (default: None)
 - `preset` ([ModelPreset](ModelPreset.md) | None, optional): Model preset for the chat (default: None, resolved at runtime)
 - `backend` ([BackendSlots](BackendSlots.md) | None, optional): Backend slots providing memory and ability backends. If None, a `LegacyBackend` is used for both slots (default: None)

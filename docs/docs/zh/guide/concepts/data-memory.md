@@ -51,9 +51,17 @@ chat._di_memory.memory  # MemoryModel | None——LOAD_STATE 之后被设置
 
 ## `StateContext`（遗留访问器）
 
+> **已弃用**：计划在 **v0.14.0** 移除。使用 `StateContext` 或 `chat.state`
+> 属性会触发 `DeprecationWarning`。
+
 `StateContext`（session_id + memory + ability）仍作为向后兼容访问器存在：
 `chat.state` 从 DI 上下文合成一个，`LegacyBackend` 用它作进程内存储。
-新代码应直接使用 DI 上下文（`_di_memory`、`_di_ability`、`_di_session`）。
+
+**迁移**：新代码应直接使用 DI 上下文：
+
+- `chat._di_session.session_id` 替代 `chat.state.session_id`
+- `chat.data`（`MemoryModel`）替代 `chat.state.memory`
+- `chat._di_ability.ability` 替代 `chat.state.ability`
 
 ## 下一步
 

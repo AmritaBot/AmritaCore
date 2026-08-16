@@ -11,7 +11,7 @@ flowchart TD
     CO["ChatObject"] --> WF["_workflow / _interpreter — AmritaSense 指令序列"]
     CO --> IO["io_stream — SuspendObjectStream（双向）"]
     CO --> DI["_di_* 上下文 — 与工作流节点共享的类型化 DI 状态"]
-    CO --> ST["state — StateContext（向后兼容访问器）"]
+    CO --> ST["state — StateContext（已弃用访问器）"]
     DI --> S1["_di_session — SessionMetadata"]
     DI --> S2["_di_memory — MemoryContext"]
     DI --> S3["_di_ability — AbilityState"]

@@ -60,11 +60,18 @@ additionally compresses history between Steps
 
 ## `StateContext` (Legacy Accessor)
 
+> **Deprecated**: scheduled for removal in **v0.14.0**. Using `StateContext` or
+> the `chat.state` property emits a `DeprecationWarning`.
+
 `StateContext` (session_id + memory + ability) still exists as a
 backward-compatible accessor: `chat.state` synthesizes one from the DI
-contexts, and `LegacyBackend` uses it as its in-process storage. New code
-should use the DI contexts (`_di_memory`, `_di_ability`, `_di_session`)
-directly.
+contexts, and `LegacyBackend` uses it as its in-process storage.
+
+**Migration**: new code should use the DI contexts directly:
+
+- `chat._di_session.session_id` instead of `chat.state.session_id`
+- `chat.data` (a `MemoryModel`) instead of `chat.state.memory`
+- `chat._di_ability.ability` instead of `chat.state.ability`
 
 ## Next
 

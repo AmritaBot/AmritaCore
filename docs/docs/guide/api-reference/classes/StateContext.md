@@ -1,5 +1,7 @@
 # StateContext
 
+> **Deprecated**: scheduled for removal in **v0.14.0**. Using this class emits a `DeprecationWarning`. Use the DI contexts directly (`_di_session`, `_di_memory`, `_di_ability`) or the `session_id` / `data` / `config` properties on `ChatObject` instead.
+
 A dataclass that holds the full runtime state for a `ChatObject` session.
 
 ## Description
@@ -26,6 +28,17 @@ print(state.session_id)  # e.g., "a1b2c3d4e5f6..."
 state = StateContext(session_id="my_session")
 print(state.session_id)  # "my_session"
 ```
+
+> **Migration**: instead of creating a `StateContext` and passing it to
+> `ChatObject(context=...)`, pass `session_id` directly and set `data`
+> afterwards:
+>
+> ```python
+> from amrita_core.chatmanager import ChatObject
+>
+> chat = ChatObject(user_input="...", session_id="my_session")
+> chat.data = MemoryModel(messages=[...])  # instead of state.memory
+> ```
 
 ## Notes
 

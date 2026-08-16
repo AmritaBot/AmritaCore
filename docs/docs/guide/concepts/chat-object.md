@@ -12,7 +12,7 @@ flowchart TD
     CO["ChatObject"] --> WF["_workflow / _interpreter"]
     CO --> IO["io_stream — SuspendObjectStream (bidirectional)"]
     CO --> DI["_di_* contexts — typed DI state shared with workflow nodes"]
-    CO --> ST["state — StateContext (backward-compat accessor)"]
+    CO --> ST["state — StateContext (deprecated accessor)"]
     DI --> S1["_di_session — SessionMetadata"]
     DI --> S2["_di_memory — MemoryContext"]
     DI --> S3["_di_ability — AbilityState"]

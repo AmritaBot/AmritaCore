@@ -13,6 +13,9 @@ ChatObject 类是与 AI 对话的主要接口。它通过 `io_stream` 属性使�
 
 - `slot` ([BackendSlots](BackendSlots.md))：提供记忆和能力后端的后端槽位
 - `state` ([StateContext](StateContext.md))：运行时状态上下文
+  > **已弃用**：计划在 **v0.14.0** 移除。使用本属性会触发 `DeprecationWarning`。
+  > 请改用 `session_id`、`data`、`config` 及 DI 上下文（`_di_session`、`_di_memory`、
+  > `_di_ability`）。
 
 ### 时间
 

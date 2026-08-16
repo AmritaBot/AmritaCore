@@ -29,8 +29,8 @@ config.cookie.enable_cookie = True
 ## 上下文中的敏感数据
 
 - 策略持有 `chat_object` 作为生命周期句柄——不要记录它
-- `StateContext`（遗留访问器）暴露会话 id / 记忆 / ability——序列化时视为
-  敏感
+- `StateContext`（已弃用访问器，**v0.14.0** 移除）暴露会话 id / 记忆 /
+  ability——序列化时视为敏感
 
 ## 模板安全
 
