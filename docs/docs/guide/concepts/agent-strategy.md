@@ -42,7 +42,10 @@ into a semantic DAG; the framework walks the DAG in topological order, one
 intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 ```
 
-- **decompose** — LLM returns `{needs_decomposition, dag, reason}` (or simple mode)
+- **decompose** — LLM returns `{needs_decomposition, dag, reason}`.
+  **SIMPLE mode (`needs_decomposition=false`) is still ReAct** — the normal
+  tool loop runs; it is just not step-driven (no DAG decomposition). Routine
+  questions and simple tasks are assigned to this mode by default.
 - **Step** — one DAG node; may span multiple tool rounds
 - **stall detection** — repeated identical signatures → give-up prompt + cancel
 - **summarize** — each Step ends with a subject-predicate summary (event-overridable)

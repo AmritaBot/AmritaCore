@@ -39,7 +39,9 @@
 intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 ```
 
-- **decompose** —— LLM 返回 `{needs_decomposition, dag, reason}`（或 simple 模式）
+- **decompose** —— LLM 返回 `{needs_decomposition, dag, reason}`。
+  **SIMPLE 模式（`needs_decomposition=false`）也是 ReAct**——普通工具循环照常
+  运行，只是非步骤驱动（不分解 DAG）；常规提问与简单任务默认分配到此模式。
 - **Step** —— 一个 DAG 节点；可跨多轮工具调用
 - **停滞检测** —— 重复相同签名 → give-up prompt + 取消
 - **摘要** —— 每个 Step 以主谓短语摘要结束（可被事件覆盖）
