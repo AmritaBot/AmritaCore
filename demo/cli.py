@@ -159,7 +159,7 @@ async def main():
             if not continue_flag:
                 break
 
-            # 更新session_id和context
+            # Update session_id and context
             session_id = result_session_id
             context = result_context
 
