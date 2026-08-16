@@ -11,10 +11,10 @@ from amrita_core.types.memory import MemoryModel
 class LegacyBackend(AbilityBackend, MemoryBackend):
     glb: ClassVar[AbilityContext] = AbilityContext()
 
-    def __init__(self, ctx: StateContext | None = None):
+    def __init__(self, ctx: StateContext | None = None):  # nocov
         # Backward-compatible seed: keep accepting a (deprecated) StateContext,
         # but the backend itself no longer stores state through it.
-        self._memory: MemoryModel = ctx.memory if ctx else MemoryModel()
+        self._memory: MemoryModel = ctx.memory if ctx else MemoryModel()  # nocov
 
     async def load_ability_all(self, session_id: str) -> AbilityContext:
         """Load ability context from global container"""

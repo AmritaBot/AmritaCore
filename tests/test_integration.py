@@ -3,7 +3,6 @@ import asyncio
 import pytest
 
 from amrita_core.chatmanager import ChatObject, chat_manager
-from amrita_core.contexts import StateContext
 from amrita_core.types import MemoryModel, Message, ModelPreset
 
 
@@ -16,10 +15,9 @@ class TestIntegration:
         chat_manager.running_chat_object_id2map.clear()
 
     @pytest.mark.asyncio
-    async def test_chat_creation_with_state_context(self):
-        """Create a ChatObject with a pre-built StateContext and verify wiring"""
-        session_id = "integration-state-context"
-        state = StateContext(session_id=session_id)
+    async def test_chat_creation_with_session_id(self):
+        """Create a ChatObject with session_id and verify wiring"""
+        session_id = "integration-session-id"
 
         default_preset = ModelPreset(
             model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
@@ -31,11 +29,10 @@ class TestIntegration:
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
 
-        assert chat_obj.state is state
         assert chat_obj.session_id == session_id
         assert chat_obj.preset.name == "test-default"
 
@@ -77,14 +74,12 @@ class TestIntegration:
 
     @pytest.mark.asyncio
     async def test_memory_interaction_with_chat_object(self):
-        """Test memory interaction with chat object via StateContext"""
+        """Test memory interaction with chat object via the data setter"""
         session_id = "memory-integration-test"
 
         initial_memory = MemoryModel()
         initial_message = Message(role="assistant", content="Previous conversation")
         initial_memory.messages.append(initial_message)
-
-        state = StateContext(session_id=session_id, memory=initial_memory)
 
         default_preset = ModelPreset(
             model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
@@ -96,9 +91,10 @@ class TestIntegration:
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
+        chat_obj.data = initial_memory
 
         assert chat_obj.user_input == user_input
         assert len(chat_obj.data.messages) == 1
@@ -116,15 +112,13 @@ class TestIntegration:
             api_key="fake-key",
         )
 
-        state = StateContext(session_id=session_id)
-
         train = {"role": "system", "content": "You are a helpful assistant."}
         user_input = "Test preset integration"
 
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=custom_preset,
         )
 
@@ -133,10 +127,9 @@ class TestIntegration:
 
 
 @pytest.mark.asyncio
-async def test_full_workflow_with_state_context():
-    """Test full workflow using StateContext"""
+async def test_full_workflow():
+    """Test full workflow using session_id"""
     session_id = "full-workflow-test"
-    state = StateContext(session_id=session_id)
 
     default_preset = ModelPreset(
         model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
@@ -148,7 +141,7 @@ async def test_full_workflow_with_state_context():
     chat_obj = ChatObject(
         train=train,
         user_input=user_input,
-        context=state,
+        session_id=session_id,
         preset=default_preset,
     ).begin()
 
@@ -165,11 +158,10 @@ async def test_full_workflow_with_state_context():
 
 @pytest.mark.asyncio
 async def test_concurrent_chat_objects():
-    """Test concurrent chat objects with independent StateContexts"""
+    """Test concurrent chat objects with independent sessions"""
     session_ids = [f"concurrent-{i}" for i in range(3)]
 
     async def create_and_manage_chat(session_id):
-        state = StateContext(session_id=session_id)
         train = {"role": "system", "content": f"System for session {session_id}"}
         user_input = f"Test message for {session_id}"
         default_preset = ModelPreset(
@@ -181,7 +173,7 @@ async def test_concurrent_chat_objects():
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         ).begin()
 

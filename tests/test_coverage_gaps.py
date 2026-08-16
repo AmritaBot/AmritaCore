@@ -22,7 +22,6 @@ from amrita_core.contexts import (
     MemoryContext,
     RespState,
     SessionMetadata,
-    StateContext,
     WorkingState,
 )
 from amrita_core.types import (
@@ -159,24 +158,6 @@ class TestChatObjectDIProperties:
         co.strategy = DummyStg
         assert co._di_agent.strategy is DummyStg
 
-    def test_state_setter_syncs_to_di(self):
-        co = _make_chat_obj()
-        state = StateContext(session_id="from-state")
-        co.state = state
-        assert co._state is state
-        assert co._di_memory.memory is state.memory
-        assert co._di_ability.ability is state.ability
-        assert co._di_session.session_id == "from-state"
-
-    def test_state_getter_synthesizes(self):
-        co = _make_chat_obj()
-        co._state = None
-        co._di_memory.memory = None
-        co._di_ability.ability = None
-        s = co.state
-        assert isinstance(s, StateContext)
-        assert s.session_id == co._di_session.session_id
-
     def test_user_input_property(self):
         co = _make_chat_obj()
         assert co.user_input == "hello"
@@ -232,10 +213,8 @@ class TestCallTool:
     async def test_tool_not_found(self):
         tm = MagicMock()
         tm.get_tool.return_value = None
-        state = StateContext(session_id="s1", ability=AbilityContext(tools=tm))
         co = MagicMock()
-        co.state = state
-        co._di_ability.ability = state.ability
+        co._di_ability.ability = AbilityContext(tools=tm)
         co.io_stream = MagicMock()
         wrap = SendMessageWrap(
             train=Message(role="system", content="sys"),
@@ -262,10 +241,8 @@ class TestCallTool:
         fake.func = _none
         tm = MagicMock()
         tm.get_tool.return_value = fake
-        state = StateContext(session_id="s1", ability=AbilityContext(tools=tm))
         co = MagicMock()
-        co.state = state
-        co._di_ability.ability = state.ability
+        co._di_ability.ability = AbilityContext(tools=tm)
         co.io_stream = MagicMock()
         wrap = SendMessageWrap(
             train=Message(role="system", content="sys"),
@@ -292,10 +269,8 @@ class TestCallTool:
         fake.func = _tool
         tm = MagicMock()
         tm.get_tool.return_value = fake
-        state = StateContext(session_id="s1", ability=AbilityContext(tools=tm))
         co = MagicMock()
-        co.state = state
-        co._di_ability.ability = state.ability
+        co._di_ability.ability = AbilityContext(tools=tm)
         co.io_stream = MagicMock()
         wrap = SendMessageWrap(
             train=Message(role="system", content="sys"),

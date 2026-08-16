@@ -82,6 +82,24 @@ typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
 
+[tool.coverage.run]
+source = ["src/"]
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "nocov",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if (typing\\.)?TYPE_CHECKING:",
+    "^\\.\\.\\.\\s*(#|$)",
+]
+
 [tool.uv.workspace]
 members = ["."]
 

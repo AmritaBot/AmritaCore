@@ -151,7 +151,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                     "\n"
                     "## Rules\n"
                     "- NEVER create a single-node DAG; if one step covers the task, use simple mode.\n"
-                    "- DAG node ids are short semantic names (\"search-web\", \"read-docs\", \"write-summary\"), never step-1/step-2.\n"
+                    '- DAG node ids are short semantic names ("search-web", "read-docs", "write-summary"), never step-1/step-2.\n'
                     'Output strictly as JSON: {"needs_decomposition": bool, "dag": [...], "reason": "..."}\n'
                     "\n"
                     "## Examples\n"

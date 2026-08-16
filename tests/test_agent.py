@@ -35,7 +35,7 @@ from amrita_core.builtins.tools import (
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, set_config
 from amrita_core.contents import MessageWithMetadata
-from amrita_core.contexts import AbilityContext, StateContext
+from amrita_core.contexts import AbilityContext
 from amrita_core.tools.manager import ToolsManager
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import (
@@ -73,10 +73,6 @@ def mock_chat_object(mock_config):
     chat_obj.io_stream.yield_response = AsyncMock()
     chat_obj.io_stream.set_queue_done = AsyncMock()
     ability_ctx = AbilityContext(tools=ToolsManager())
-    chat_obj.state = StateContext(
-        session_id="test-session",
-        ability=ability_ctx,
-    )
     chat_obj._di_ability.ability = ability_ctx
     train_msg = Message(role="system", content="Test system message")
     chat_obj.train = train_msg
@@ -258,10 +254,6 @@ def test_strategy_context_with_complex_user_input(create_send_message_wrap):
     mock_chat_obj.config = AmritaConfig()
     mock_chat_obj.train = train_msg
     ability_ctx = AbilityContext(tools=ToolsManager())
-    mock_chat_obj.state = StateContext(
-        session_id="test-session",
-        ability=ability_ctx,
-    )
     mock_chat_obj._di_ability.ability = ability_ctx
 
     ctx = StrategyContext(
@@ -497,10 +489,6 @@ async def test_hybrid_react_agent_strategy_sanitize_text():
     mock_chat_obj.preset = "default"
     mock_chat_obj.config = AmritaConfig()
     mock_chat_obj.train = train_msg
-    mock_chat_obj.state = StateContext(
-        session_id="test",
-        ability=AbilityContext(tools=ToolsManager()),
-    )
 
     ctx = StrategyContext(
         user_input=user_content,

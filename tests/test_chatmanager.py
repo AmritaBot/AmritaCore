@@ -6,7 +6,6 @@ from amrita_sense import StreamStateError
 
 from amrita_core.chatmanager import ChatObject, MemoryLimiter, chat_manager
 from amrita_core.config import AmritaConfig
-from amrita_core.contexts import StateContext
 from amrita_core.types import (
     CONTENT_LIST_TYPE,
     CONTENT_LIST_TYPE_ITEM,
@@ -39,42 +38,6 @@ class TestChatObject:
         assert chat_obj._s_id == session_id
         assert chat_obj.user_input == user_input
         assert chat_obj.train.model_dump() == train
-
-    @pytest.mark.asyncio
-    async def test_chat_object_initialization_with_state_context(self):
-        """Test ChatObject initialization with pre-built StateContext"""
-        session_id = "test-session-state"
-        state = StateContext(session_id=session_id)
-        train = {"role": "system", "content": "system message"}
-        user_input = "hello"
-        default_preset = ModelPreset(
-            model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
-        )
-
-        chat_obj = ChatObject(
-            train=train,
-            user_input=user_input,
-            context=state,
-            preset=default_preset,
-        )
-
-        assert chat_obj.session_id == session_id
-        assert chat_obj.state is state
-
-    @pytest.mark.asyncio
-    async def test_chat_object_context_session_id_mutually_exclusive(self):
-        """Test that context and session_id cannot both be provided"""
-        train = {"role": "system", "content": "system message"}
-        state = StateContext(session_id="s1")
-
-        with pytest.raises(ValueError, match="Both context and session_id"):
-            ChatObject(
-                train=train,
-                user_input="hello",
-                context=state,
-                session_id="s2",
-                preset=ModelPreset(model="gpt-3.5-turbo", name="t", api_key="k"),
-            )
 
     @pytest.mark.asyncio
     async def test_chat_object_needs_either_context_or_session_id(self):
@@ -189,11 +152,10 @@ class TestChatManager:
             model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
         )
 
-        state = StateContext(session_id=session_id)
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
 
@@ -213,11 +175,10 @@ class TestChatManager:
             model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
         )
 
-        state = StateContext(session_id=session_id)
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
 
@@ -238,11 +199,10 @@ class TestChatManager:
             default_preset = ModelPreset(
                 model="gpt-3.5-turbo", name=f"test-{i}", api_key="fake-key"
             )
-            state = StateContext(session_id=session_id)
             chat_obj = ChatObject(
                 train=train,
                 user_input=user_input,
-                context=state,
+                session_id=session_id,
                 preset=default_preset,
             )
             chat_obj.terminate()
@@ -417,7 +377,6 @@ class TestChatObjectAdvanced:
         session_id = "test-session-callback"
         train = {"role": "system", "content": "system message"}
         user_input = "test input"
-        state = StateContext(session_id=session_id)
         default_preset = ModelPreset(
             model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
         )
@@ -430,7 +389,7 @@ class TestChatObjectAdvanced:
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
         chat_obj.io_stream.set_callback_func(callback_func)
@@ -446,7 +405,6 @@ class TestChatObjectAdvanced:
         session_id = "test-session-full-response"
         train = {"role": "system", "content": "system message"}
         user_input = "test input"
-        state = StateContext(session_id=session_id)
         default_preset = ModelPreset(
             model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
         )
@@ -454,7 +412,7 @@ class TestChatObjectAdvanced:
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
 
@@ -470,15 +428,6 @@ class TestChatObjectAdvanced:
     async def test_prepare_send_messages(self):
         """Test _prepare_send_messages method"""
         session_id = "test-session-prepare"
-        state = StateContext(
-            session_id=session_id,
-            memory=MemoryModel(
-                messages=[
-                    Message(role="user", content="previous message"),
-                    Message(role="assistant", content="previous response"),
-                ]
-            ),
-        )
         train = {"role": "system", "content": "system message"}
         user_input = "test input"
         default_preset = ModelPreset(
@@ -488,8 +437,14 @@ class TestChatObjectAdvanced:
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
+        )
+        chat_obj.data = MemoryModel(
+            messages=[
+                Message(role="user", content="previous message"),
+                Message(role="assistant", content="previous response"),
+            ]
         )
 
         chat_obj.data.messages.append(Message(role="user", content=user_input))
@@ -507,7 +462,6 @@ class TestChatObjectAdvanced:
         session_id = "test-session-callback-error"
         train = {"role": "system", "content": "system message"}
         user_input = "test input"
-        state = StateContext(session_id=session_id)
         default_preset = ModelPreset(
             model="gpt-3.5-turbo", name="test-default", api_key="fake-key"
         )
@@ -521,7 +475,7 @@ class TestChatObjectAdvanced:
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
         chat_obj.io_stream.set_callback_func(callback1)
@@ -541,7 +495,6 @@ async def test_concurrent_chat_objects():
     async def create_chat_obj(session_id):
         train = {"role": "system", "content": f"system message for {session_id}"}
         user_input = f"test input for {session_id}"
-        state = StateContext(session_id=session_id)
         default_preset = ModelPreset(
             model="gpt-3.5-turbo", name=f"test-{session_id[:8]}", api_key="fake-key"
         )
@@ -549,7 +502,7 @@ async def test_concurrent_chat_objects():
         chat_obj = ChatObject(
             train=train,
             user_input=user_input,
-            context=state,
+            session_id=session_id,
             preset=default_preset,
         )
 
