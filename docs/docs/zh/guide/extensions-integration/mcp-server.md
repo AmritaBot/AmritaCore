@@ -21,12 +21,12 @@ AmritaCore 内嵌 **Model Context Protocol 客户端**（`MCPClient` /
 示例:
 
 ```python
-"path/to/filesystem-server.py",               # stdio(文件路径)
-'stdio://["uvx","mcp-server-git"]',          # stdio(命令)
-"streamable+http://mcp.example.com/mcp",      # Streamable HTTP
-"sse+http://mcp.example.com/sse",             # HTTP + SSE(旧版)
-"sse://mcp.example.com/sse",                  # sse+http 简写
-"sse+https://user:pwd@mcp.example.com/sse",   # 带 Basic Auth 的 SSE
+("path/to/filesystem-server.py",)  # stdio(文件路径)
+('stdio://["uvx","mcp-server-git"]',)  # stdio(命令)
+("streamable+http://mcp.example.com/mcp",)  # Streamable HTTP
+("sse+http://mcp.example.com/sse",)  # HTTP + SSE(旧版)
+("sse://mcp.example.com/sse",)  # sse+http 简写
+("sse+https://user:pwd@mcp.example.com/sse",)  # 带 Basic Auth 的 SSE
 ```
 
 > **注意:** 传输关键字是 `streamable` 而不是 `stream`。像 `stream+http://...`
@@ -46,7 +46,7 @@ config = AmritaConfig(
     function_config=FunctionConfig(
         agent_mcp_client_enable=True,
         agent_mcp_server_scripts=[
-            "path/to/filesystem-server.py",        # stdio
+            "path/to/filesystem-server.py",  # stdio
             "streamable+http://mcp.example.com/mcp",  # Streamable HTTP
         ],
     )

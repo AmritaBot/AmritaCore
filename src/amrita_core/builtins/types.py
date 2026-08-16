@@ -199,5 +199,9 @@ class AgentStepCompressMetadata(MessageMetadataPayload):
     prompt_tokens: int
     """Real API prompt-token count that triggered the compression."""
 
-    threshold: int | None
-    """Configured ``memory_abstract_threshold`` (``None`` = never)."""
+    threshold: int
+    """Configured ``memory_abstract_threshold`` (``<= 0`` = disabled).
+
+    Only set when the threshold is positive: a disabled threshold never
+    triggers compression, so no metadata is emitted.
+    """

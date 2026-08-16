@@ -102,7 +102,9 @@ class _StrategyBase(ABC):
             self.tools_manager = ctx.tools_manager
         elif ctx.chat_object is not None:
             ability = ctx.chat_object._di_ability.ability
-            self.tools_manager = ability.tools if ability is not None else MultiToolsManager()
+            self.tools_manager = (
+                ability.tools if ability is not None else MultiToolsManager()
+            )
 
     async def single_execute(
         self,

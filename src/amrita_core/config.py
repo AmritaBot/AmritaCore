@@ -42,14 +42,18 @@ class FunctionConfig(BaseModel):
     )
     tokenizer_used: str = Field(default="simple", description="Tokenizer to use.")
     agent_tool_call_limit: int = Field(
-        default=10, description="Tool call limit in calling tools."
+        default=10,
+        ge=1,
+        description="Tool call limit in calling tools.",
     )
 
-    agent_step_token_budget: int | None = Field(
-        default=None,
-        description="Per-Step prompt-token budget for the built-in step loop "
-        "(None = unlimited). When the Step's accumulated prompt tokens reach "
-        "this budget, the iteration loop stops (``TokenBudget.exhausted``).",
+    agent_step_token_budget: int = Field(
+        default=-1,
+        ge=-1,
+        description="Per-Step prompt-token budget for the built-in step loop. "
+        "Set -1 (or any non-positive value) to disable (no budget limit). "
+        "When the Step's accumulated prompt tokens reach this budget, the "
+        "iteration loop stops (``TokenBudget.exhausted``).",
     )
 
     agent_middle_message: bool = Field(
@@ -140,6 +144,7 @@ class BuiltinAgentConfig(BaseModel):
     )
     loop_reasoning_trigger: int = Field(
         default=5,
+        ge=1,
         description="How many times to repeat reasoning before giving up",
     )
     react_config: ReactConfig = Field(
@@ -156,10 +161,13 @@ class LLMConfig(BaseModel):
         description="Whether to force at least one tool to be used per call",
     )
     memory_length_limit: int = Field(
-        default=50, description="Maximum number of messages in memory context"
+        default=50,
+        ge=1,
+        description="Maximum number of messages in memory context",
     )
     max_tokens: int = Field(
         default=1000,
+        ge=1,
         description="Maximum number of tokens generated in a single response",
     )
     tokens_count_mode: Literal["word", "bpe", "char"] = Field(
@@ -170,31 +178,46 @@ class LLMConfig(BaseModel):
         default=True, description="Whether to enable context length limits"
     )
     session_tokens_windows: int = Field(
-        default=5000, description="Session tokens window size"
+        default=5000,
+        ge=1,
+        description="Session tokens window size",
     )
     llm_timeout: int = Field(
-        default=60, description="API request timeout duration (seconds)"
+        default=60,
+        ge=1,
+        description="API request timeout duration (seconds)",
     )
     auto_retry: bool = Field(
         default=True, description="Automatically retry on request failure"
     )
-    max_retries: int = Field(default=3, description="Maximum number of retries")
+    max_retries: int = Field(
+        default=3,
+        ge=0,
+        description="Maximum number of retries",
+    )
     max_fallbacks: int = Field(
-        default=5, description="Maximum number of preset fallbacks"
+        default=5,
+        ge=1,
+        description="Maximum number of preset fallbacks",
     )
     enable_memory_abstract: bool = Field(
         default=True,
         description="Whether to enable context memory summarization (will delete context and insert a summary into system instruction)",
     )
     memory_abstract_proportion: float = Field(
-        default=50e-2, description="Context summarization proportion (0.5=50%)"
+        default=50e-2,
+        gt=0,
+        le=1,
+        description="Context summarization proportion (0.5=50%)",
     )
-    memory_abstract_threshold: int | None = Field(
-        default=None,
+    memory_abstract_threshold: int = Field(
+        default=-1,
+        ge=-1,
         description="Prompt-token threshold that triggers between-Step history "
-        "compression (None = never). When the real API prompt-token count "
-        "exceeds this value at a Step boundary, completed-Step history is "
-        "summarized into the context.",
+        "compression. Set -1 (or any non-positive value) to disable (never "
+        "compress). When the real API prompt-token count exceeds this value "
+        "at a Step boundary, completed-Step history is summarized into the "
+        "context.",
     )
     enable_multi_modal: bool = Field(
         default=True,

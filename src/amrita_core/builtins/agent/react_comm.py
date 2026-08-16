@@ -452,7 +452,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         # Refresh the current Step's prompt window before threshold checks.
         rs.tokens.refresh_window(self.usage, rs.step_started_ts)
         threshold = self.config.llm.memory_abstract_threshold
-        if threshold is None or rs.tokens.prompt_tokens <= threshold:
+        if threshold <= 0 or rs.tokens.prompt_tokens <= threshold:
             return
         logger.info(
             f"Prompt tokens {rs.tokens.prompt_tokens} > threshold {threshold}; "

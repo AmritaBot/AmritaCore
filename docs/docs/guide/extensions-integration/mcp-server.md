@@ -21,12 +21,12 @@ the transport and `PROTOCOL` is `http` or `https`:
 Examples:
 
 ```python
-"path/to/filesystem-server.py",               # stdio (file path)
-'stdio://["uvx","mcp-server-git"]',          # stdio (command)
-"streamable+http://mcp.example.com/mcp",      # Streamable HTTP
-"sse+http://mcp.example.com/sse",             # HTTP + SSE (legacy)
-"sse://mcp.example.com/sse",                  # shorthand for sse+http
-"sse+https://user:pwd@mcp.example.com/sse",   # SSE with Basic Auth
+("path/to/filesystem-server.py",)  # stdio (file path)
+('stdio://["uvx","mcp-server-git"]',)  # stdio (command)
+("streamable+http://mcp.example.com/mcp",)  # Streamable HTTP
+("sse+http://mcp.example.com/sse",)  # HTTP + SSE (legacy)
+("sse://mcp.example.com/sse",)  # shorthand for sse+http
+("sse+https://user:pwd@mcp.example.com/sse",)  # SSE with Basic Auth
 ```
 
 > **Note:** the transport keyword is `streamable`, not `stream`. A URL like
@@ -46,7 +46,7 @@ config = AmritaConfig(
     function_config=FunctionConfig(
         agent_mcp_client_enable=True,
         agent_mcp_server_scripts=[
-            "path/to/filesystem-server.py",        # stdio
+            "path/to/filesystem-server.py",  # stdio
             "streamable+http://mcp.example.com/mcp",  # Streamable HTTP
         ],
     )

@@ -31,15 +31,15 @@ agent = create_agent(..., config=config)  # or per-agent
 
 ## Key Settings for Agent Behavior
 
-| Setting                                   | Default   | Effect                                                      |
-| ----------------------------------------- | --------- | ----------------------------------------------------------- |
-| `function_config.agent_tool_call_limit`   | `10`      | Hard cap on tool rounds per run                             |
-| `function_config.agent_step_token_budget` | `None`    | Per-Step prompt-token budget (stops the iteration loop)     |
-| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                              |
-| `builtin.agent_thought_mode`              | —         | `"reasoning"` / `"reasoning-required"` (explicit reasoning) |
-| `builtin.loop_reasoning_trigger`          | —         | Stall detection: N identical tool signatures → give up      |
-| `llm.enable_memory_abstract`              | `True`    | Auto-summarize long history                                 |
-| `llm.memory_abstract_threshold`           | `None`    | Prompt-token threshold for between-Step history compression |
+| Setting                                   | Default   | Effect                                                                  |
+| ----------------------------------------- | --------- | ----------------------------------------------------------------------- |
+| `function_config.agent_tool_call_limit`   | `10`      | Hard cap on tool rounds per run                                         |
+| `function_config.agent_step_token_budget` | `-1`      | Per-Step prompt-token budget (`<= 0` = disabled/unlimited)              |
+| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                                          |
+| `builtin.agent_thought_mode`              | —         | `"reasoning"` / `"reasoning-required"` (explicit reasoning)             |
+| `builtin.loop_reasoning_trigger`          | —         | Stall detection: N identical tool signatures → give up                  |
+| `llm.enable_memory_abstract`              | `True`    | Auto-summarize long history                                             |
+| `llm.memory_abstract_threshold`           | `-1`      | Prompt-token threshold for between-Step compression (`<= 0` = disabled) |
 
 ## Presets
 
