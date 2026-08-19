@@ -26,4 +26,4 @@ manager.set_default_preset("my-preset-name")
 
 ### `get_default_preset() -> ModelPreset`
 
-获取默认预设。
+获取默认预设。若未通过 `set_default_preset()` 设置，则直接引发 `RuntimeError`（快速失败），需先调用 `set_default_preset()`。

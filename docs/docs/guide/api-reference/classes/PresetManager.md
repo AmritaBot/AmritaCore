@@ -6,7 +6,7 @@ The PresetManager class provides a singleton-based management system for AI mode
 
 **PresetManager is the recommended way to manage model presets in AmritaCore.** Instead of manually creating and handling `ModelPreset` instances, you should use PresetManager to centralize preset management, ensuring consistency and reducing configuration errors.
 
-When no preset is explicitly selected, the system will **automatically fallback to a default preset**. This fallback mechanism ensures your application continues to work even if preset selection fails or is not specified.
+When no default preset has been set via `set_default_preset()`, calling `get_default_preset()` **fails fast** by raising a `RuntimeError`. This explicit behavior surfaces misconfiguration early instead of silently picking an arbitrary preset.
 
 ## Properties
 
@@ -49,7 +49,7 @@ manager.set_default_preset("my-preset-name")
 
 ### `get_default_preset() -> ModelPreset`
 
-Returns the default preset. If no default has been set, it will automatically select a random preset from available presets.
+Returns the default preset set via `set_default_preset()`. If no default has been set, it **fails fast** by raising a `RuntimeError` — call `set_default_preset()` first.
 
 **Returns:**
 
@@ -198,11 +198,11 @@ manager.add_preset(
     )
 )
 
-# Set a default preset (optional, but recommended)
+# Set a default preset (required before get_default_preset())
 manager.set_default_preset("fast")
 
 # Use presets in your application
-# If you don't specify a preset, get_default_preset() will auto-fallback
+# get_default_preset() raises RuntimeError if no default was set
 preset = manager.get_default_preset()  # Returns "fast" preset
 ```
 
@@ -210,7 +210,7 @@ preset = manager.get_default_preset()  # Returns "fast" preset
 
 1. **Centralized Management**: All presets are stored and managed in one place
 2. **Singleton Pattern**: Ensures consistent preset state across your application
-3. **Automatic Fallback**: If no preset is selected, a default is automatically chosen
+3. **Fail-fast**: Calling `get_default_preset()` without setting a default raises `RuntimeError` immediately, surfacing misconfiguration early
 4. **Validation**: Prevents duplicate preset names and validates configurations
 5. **Testing**: Built-in testing capability to verify preset functionality
 6. **Type Safety**: Full type hints for better IDE support and error prevention

@@ -9,7 +9,7 @@ MultiPresetManager stores presets in a name-keyed dict and supports default-pres
 ## Methods
 
 - `set_default_preset(preset: ModelPreset | str) -> None`: Set the default preset (auto-adds if not registered)
-- `get_default_preset() -> ModelPreset`: Get the default preset; falls back to a random preset with a warning if none set
+- `get_default_preset() -> ModelPreset`: Get the default preset; raises `RuntimeError` if none set (fail-fast)
 - `get_preset(name: str) -> ModelPreset`: Get a preset by name; raises `ValueError` if not found
 - `add_preset(preset: ModelPreset) -> None`: Add a preset; raises `ValueError` if the name already exists
 - `get_all_presets() -> list[ModelPreset]`: List all presets

@@ -9,7 +9,7 @@ MultiPresetManager 将预设存储在按名称索引的字典中，支持默认�
 ## 方法
 
 - `set_default_preset(preset: ModelPreset | str) -> None`：设置默认预设（未注册则自动添加）
-- `get_default_preset() -> ModelPreset`：获取默认预设；未设置则随机返回一个并发出警告
+- `get_default_preset() -> ModelPreset`：获取默认预设；未设置则引发 `RuntimeError`（快速失败）
 - `get_preset(name: str) -> ModelPreset`：按名称获取预设；未找到则引发 `ValueError`
 - `add_preset(preset: ModelPreset) -> None`：添加预设；名称已存在则引发 `ValueError`
 - `get_all_presets() -> list[ModelPreset]`：列出所有预设
