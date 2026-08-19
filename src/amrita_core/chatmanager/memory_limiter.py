@@ -19,6 +19,7 @@ from amrita_core.types import (
     CT_MAP,
     Content,
     Message,
+    ModelPreset,
     ToolResult,
     UniResponseUsage,
 )
@@ -44,6 +45,7 @@ class MemoryLimiter:
     _copied_messages: Memory  # Original message copies (for rollback on exceptions)
     _abstract_instruction = ABSTRACT_INSTRUCTION
     _usage: SessionUsageProxy | None = None  # Run-scoped ledger proxy, if any
+    _preset: ModelPreset | None = None  # Preset used for the summary call, if any
 
     def __init__(
         self,
@@ -52,6 +54,7 @@ class MemoryLimiter:
         config: AmritaConfig | None = None,
         abstract_instruction: str | None = None,
         usage: SessionUsageProxy | None = None,
+        preset: ModelPreset | None = None,
     ) -> None:
         """Initialize context processor
 
@@ -62,6 +65,8 @@ class MemoryLimiter:
             abstract_instruction: Optional custom abstract instruction
             usage: Optional run-scoped usage proxy; the summary call's
                 provider usage is recorded through it when given.
+            preset: Model preset to use for the summary call; when omitted,
+                falls back to the global default (if set).
         """
         self.memory: Memory = memory
         self.config = config or get_config()
@@ -70,6 +75,7 @@ class MemoryLimiter:
         )
         self._abstract_instruction = abstract_instruction or ABSTRACT_INSTRUCTION
         self._usage = usage
+        self._preset = preset
 
     async def __aenter__(self) -> Self:
         """Async context manager entry, initialize processing state
@@ -170,7 +176,7 @@ class MemoryLimiter:
             ]
             logger.debug("Performing context summarization...")
             response = await get_last_response(
-                call_completion(msg_list, usage=self._usage)
+                call_completion(msg_list, usage=self._usage, preset=self._preset)
             )
             if response.usage is not None:
                 # Provider-reported usage (already recorded via the proxy).
