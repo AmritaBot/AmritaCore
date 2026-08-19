@@ -181,10 +181,10 @@ agent = create_agent(
 
 ## Events & Hooks
 
-| Class                                               | Description                                                    |
-| --------------------------------------------------- | -------------------------------------------------------------- |
-| [CompletionEvent](classes/CompletionEvent.md)       | Fired after model completion (event type `COMPLETION`)         |
-| [PreCompletionEvent](classes/PreCompletionEvent.md) | Fired before strategy run and completion (`BEFORE_COMPLETION`) |
+| Class                                               | Description                                                                                                                                              |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [CompletionEvent](classes/CompletionEvent.md)       | Fired after model completion (event type `COMPLETION`)                                                                                                   |
+| [PreCompletionEvent](classes/PreCompletionEvent.md) | Fired before strategy run and completion (`BEFORE_COMPLETION`)                                                                                           |
 | [FallbackContext](classes/FallbackContext.md)       | Base context for preset fallback events (`PRESET_FALLBACK`); subclasses: `CompletionFallbackContext`, `ToolsFallbackContext`, `EmbeddingFallbackContext` |
 
 ## Presets & Tokenizers

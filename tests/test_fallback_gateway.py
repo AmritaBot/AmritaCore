@@ -83,6 +83,7 @@ class TestCompletionFallback:
 
         matcher.handle()(switch_preset)
         try:
+
             async def ok_stream():
                 yield "Hello"
                 yield UniResponse(content="Hello", tool_calls=[], usage=None)
@@ -121,7 +122,9 @@ class TestCompletionFallback:
                     pass
 
     @pytest.mark.asyncio
-    async def test_exhausted_attempts_raise_fallback_failed(self, config, preset_a, preset_b):
+    async def test_exhausted_attempts_raise_fallback_failed(
+        self, config, preset_a, preset_b
+    ):
         """Swapping presets but never succeeding exhausts max_fallbacks."""
         matcher = Matcher("PRESET_FALLBACK", priority=1)
 
@@ -215,9 +218,7 @@ class TestEmbeddingFallback:
                 "amrita_core.libchat._call_with_reflection",
                 side_effect=[RuntimeError("boom"), ok_result],
             ) as mock_call:
-                result = await call_embedding(
-                    ["hello world"], preset_a, config
-                )
+                result = await call_embedding(["hello world"], preset_a, config)
 
             assert result == ok_result
             assert mock_call.call_count == 2
@@ -267,9 +268,7 @@ class TestFallbackEventTypes:
         assert ctx_embedding.context == ["text"]
 
     def test_fail_raises_fallback_failed(self, config, preset_a):
-        ctx = CompletionFallbackContext(
-            preset_a, RuntimeError("x"), config, [], 1
-        )
+        ctx = CompletionFallbackContext(preset_a, RuntimeError("x"), config, [], 1)
         with pytest.raises(FallbackFailed):
             ctx.fail("no fallback")
 
