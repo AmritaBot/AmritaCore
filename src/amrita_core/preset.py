@@ -1,8 +1,7 @@
-import random
 import time
 import typing
 
-from amrita_sense.logging import debug_log, logger
+from amrita_sense.logging import debug_log
 from typing_extensions import Self
 
 from amrita_core.base.adapter import AdapterManager
@@ -65,8 +64,9 @@ class MultiPresetManager:
         Get the default preset.
         """
         if self._default_preset is None:
-            logger.warning("No default preset set, fall back to a random preset")
-            self._default_preset = random.choice(list(self._presets.values()))
+            raise RuntimeError(
+                "Default preset not set, use set_default_preset() first."
+            )
         return self._default_preset
 
     def get_preset(self, name: str) -> ModelPreset:

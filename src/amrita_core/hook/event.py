@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
 from typing import TYPE_CHECKING, Any
@@ -8,11 +9,17 @@ from amrita_sense.hook.event import BaseEvent
 from typing_extensions import Never, override
 
 from amrita_core.hook.exception import FallbackFailed
-from amrita_core.types import USER_INPUT, ModelPreset, SendMessageWrap
+from amrita_core.types import (
+    CONTENT_LIST_TYPE,
+    USER_INPUT,
+    ModelPreset,
+    SendMessageWrap,
+)
 
 if TYPE_CHECKING:
     from amrita_core.chatmanager import ChatObject
     from amrita_core.config import AmritaConfig
+    from amrita_core.tools.models import ToolFunctionSchema
 
 
 class EventTypeEnum(str, Enum):
@@ -35,10 +42,17 @@ class EventTypeEnum(str, Enum):
 
 @dataclass
 class FallbackContext(BaseEvent[EventTypeEnum]):
+    """Base event for all preset-fallback events.
+
+    Every fallback event shares the ``PRESET_FALLBACK`` event type; concrete
+    subclasses distinguish the failing gateway call (completion / tools /
+    embedding) so matchers can react differently to each kind.
+    """
+
     preset: ModelPreset
     exc_info: BaseException
     config: "AmritaConfig"
-    context: SendMessageWrap
+    context: SendMessageWrap | CONTENT_LIST_TYPE | Sequence[str]
     term: int
 
     def __post_init__(self):
@@ -54,6 +68,35 @@ class FallbackContext(BaseEvent[EventTypeEnum]):
     def fail(self, reason: Any | None = None) -> Never:  # pragma: no cover
         """Mark the event as failed"""
         raise FallbackFailed(reason)
+
+
+@dataclass
+class CompletionFallbackContext(FallbackContext):
+    """Fallback event fired when ``call_completion`` fails.
+
+    ``context`` carries the message list passed to ``call_completion``
+    (may be raw/unvalidated depending on caller configuration).
+    """
+
+
+@dataclass
+class ToolsFallbackContext(FallbackContext):
+    """Fallback event fired when ``tools_caller`` fails.
+
+    ``context`` carries the message list passed to ``tools_caller``
+    (may be raw/unvalidated depending on caller configuration);
+    ``tools`` carries the tool schemas of the failed call.
+    """
+
+    tools: list[ToolFunctionSchema] | None = None
+
+
+@dataclass
+class EmbeddingFallbackContext(FallbackContext):
+    """Fallback event fired when ``call_embedding`` fails.
+
+    ``context`` carries the input text sequence (``Sequence[str]``).
+    """
 
 
 @dataclass
@@ -135,8 +178,11 @@ class PreCompletionEvent(Event):
 __all__ = [
     "BaseEvent",  # For backward compatibility
     "CompletionEvent",
+    "CompletionFallbackContext",
+    "EmbeddingFallbackContext",
     "Event",
     "EventTypeEnum",
     "FallbackContext",
     "PreCompletionEvent",
+    "ToolsFallbackContext",
 ]

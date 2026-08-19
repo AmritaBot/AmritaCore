@@ -1,6 +1,17 @@
 # FallbackContext
 
-The `FallbackContext` class represents the context for preset fallback events when an LLM request fails.
+The `FallbackContext` class is the **base class** for all preset-fallback events fired by the `libchat` gateway layer (`call_completion`, `tools_caller`, `call_embedding`) when a request fails. It represents the context of a preset fallback event and carries the information needed to switch to an alternative preset.
+
+Every fallback event shares the `PRESET_FALLBACK` event type; concrete subclasses distinguish the failing gateway call so matchers can react differently to each kind.
+
+## Class Hierarchy
+
+```text
+FallbackContext (base)
+├── CompletionFallbackContext  # call_completion fails
+├── ToolsFallbackContext       # tools_caller fails
+└── EmbeddingFallbackContext   # call_embedding fails
+```
 
 ## Constructor
 
@@ -9,7 +20,7 @@ FallbackContext(
     preset: ModelPreset,
     exc_info: BaseException,
     config: AmritaConfig,
-    context: SendMessageWrap,
+    context: SendMessageWrap | CONTENT_LIST_TYPE | Sequence[str],
     term: int
 )
 ```
@@ -24,7 +35,7 @@ FallbackContext(
 ### exc_info
 
 - **Type**: `BaseException`
-- **Description**: The exception that caused the LLM request to fail.
+- **Description**: The exception that caused the request to fail.
 
 ### config
 
@@ -33,13 +44,32 @@ FallbackContext(
 
 ### context
 
-- **Type**: [`SendMessageWrap`](./SendMessageWrap.md)
-- **Description**: The message context that was being sent when the failure occurred.
+- **Type**: `SendMessageWrap | CONTENT_LIST_TYPE | Sequence[str]`
+- **Description**: The payload of the failed call. The concrete type depends on the subclass:
+  - `CompletionFallbackContext`: validated message list (`CONTENT_LIST_TYPE`)
+  - `ToolsFallbackContext`: validated message list (`CONTENT_LIST_TYPE`)
+  - `EmbeddingFallbackContext`: input text sequence (`Sequence[str]`)
 
 ### term
 
 - **Type**: `int`
-- **Description**: The current retry attempt number (starting from 1).
+- **Description**: The current fallback attempt number (starting from 1).
+
+## Subclasses
+
+### CompletionFallbackContext
+
+Fired when `call_completion` fails. `context` carries the validated message list (`CONTENT_LIST_TYPE`).
+
+### ToolsFallbackContext
+
+Fired when `tools_caller` fails. In addition to `context`, it exposes:
+
+- `tools` (`list[ToolFunctionSchema] | None`): the tool schemas of the failed call.
+
+### EmbeddingFallbackContext
+
+Fired when `call_embedding` fails. `context` carries the input text sequence (`Sequence[str]`).
 
 ## Methods
 
@@ -66,7 +96,7 @@ Get the event type enum value.
 ## Example Usage
 
 ```python
-from amrita_core.hook.event import FallbackContext
+from amrita_core.hook.event import CompletionFallbackContext, FallbackContext
 from amrita_core.hook.on import on_preset_fallback
 
 
@@ -79,4 +109,11 @@ async def handle_fallback(event: FallbackContext):
     else:
         # Fail on subsequent retries
         event.fail("No more fallback options")
+
+
+@on_preset_fallback().handle()
+async def handle_tools_fallback(event: ToolsFallbackContext):
+    # Differentiate between fallback kinds
+    print(f"Tool call failed: {event.tools}")
+    event.preset = get_fallback_preset()
 ```

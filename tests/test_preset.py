@@ -143,18 +143,17 @@ class TestMultiPresetManager:
         result = manager.get_default_preset()
         assert result == preset
 
-    def test_get_default_preset_random_choice(self):
-        """Test getting default preset chooses randomly when none set"""
+    def test_get_default_preset_fail_fast(self):
+        """Test getting default preset raises RuntimeError when none set"""
         manager = MultiPresetManager()
-        preset1 = create_test_preset("random1")
-        preset2 = create_test_preset("random2")
+        preset1 = create_test_preset("failfast1")
+        preset2 = create_test_preset("failfast2")
         manager.add_preset(preset1)
         manager.add_preset(preset2)
 
-        # Should pick one of the existing presets
-        result = manager.get_default_preset()
-        assert result in [preset1, preset2]
-        assert manager._default_preset == result
+        # Should fail fast instead of falling back to a random preset
+        with pytest.raises(RuntimeError, match="Default preset not set"):
+            manager.get_default_preset()
 
 
 class TestPresetManagerSingleton:

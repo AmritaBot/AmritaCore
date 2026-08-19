@@ -57,7 +57,14 @@ from .builtins.backends import LegacyBackend
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
 from .config import AmritaConfig, get_config, set_config
 from .contexts import AbilityContext, StateContext
-from .hook.event import CompletionEvent, EventTypeEnum, PreCompletionEvent
+from .hook.event import (
+    CompletionEvent,
+    CompletionFallbackContext,
+    EmbeddingFallbackContext,
+    EventTypeEnum,
+    PreCompletionEvent,
+    ToolsFallbackContext,
+)
 from .hook.on import on_completion, on_event, on_precompletion
 from .libchat import (
     call_completion,
@@ -126,6 +133,8 @@ __all__ = [
     "ChatObject",
     "ChatObjectMeta",
     "CompletionEvent",
+    "CompletionFallbackContext",
+    "EmbeddingFallbackContext",
     "EventTypeEnum",
     "Function",
     "FunctionDefinitionSchema",
@@ -148,6 +157,7 @@ __all__ = [
     "ToolData",
     "ToolFunctionSchema",
     "ToolResult",
+    "ToolsFallbackContext",
     "ToolsManager",
     "UniResponse",
     "UniResponseUsage",
