@@ -690,7 +690,11 @@ async def _limiting_memory(chat_obj: ChatObject):
         return
     assert mem_ctx.memory is not None, "Memory must be loaded before limiting"
     async with MemoryLimiter(
-        mem_ctx.memory, input_ctx.train, config=ab.config, usage=resp.usage
+        mem_ctx.memory,
+        input_ctx.train,
+        config=ab.config,
+        preset=ab.preset,
+        usage=resp.usage,
     ) as lim:
         await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY)
         await lim.run_enforce()
