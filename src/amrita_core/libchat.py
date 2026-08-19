@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import typing
-from collections.abc import AsyncGenerator, Callable, Generator, Sequence
+from collections.abc import AsyncGenerator, Awaitable, Callable, Generator, Sequence
 from io import StringIO
 
-from amrita_sense.logging import debug_log
+from amrita_sense.hook.matcher import MatcherFactory
+from amrita_sense.logging import debug_log, logger
 from amrita_sense.streaming import SuspendObjectStream
 from pydantic import ValidationError
 
@@ -14,6 +15,13 @@ from amrita_core.base.adapter import (
     MessageContent,
     ModelAdapter,
 )
+from amrita_core.hook.event import (
+    CompletionFallbackContext,
+    EmbeddingFallbackContext,
+    FallbackContext,
+    ToolsFallbackContext,
+)
+from amrita_core.hook.exception import FallbackFailed
 from amrita_core.preset import PresetManager
 from amrita_core.usage import SessionUsageProxy
 from amrita_core.utils import _did_you_mean_hint
@@ -321,6 +329,71 @@ async def _call_with_reflection(
     return await call_func(adapter)
 
 
+async def _fire_fallback(
+    preset: ModelPreset,
+    exc: BaseException,
+    config: AmritaConfig,
+    term: int,
+    ctx_factory: Callable[[ModelPreset, BaseException, int], FallbackContext],
+) -> ModelPreset:
+    """Fire a ``PRESET_FALLBACK`` event and resolve the replacement preset.
+
+    Matchers registered via ``@on_preset_fallback()`` may swap ``ctx.preset``
+    to retry with an alternative preset.  When no matcher replaces it (or no
+    matcher is registered at all), ``FallbackFailed`` is raised.
+
+    Args:
+        preset: The preset that just failed.
+        exc: The exception that caused the failure.
+        config: Config providing ``llm.max_fallbacks`` / ``llm.max_retries``.
+        term: Current attempt number (starting from 1).
+        ctx_factory: Builds the concrete ``FallbackContext`` subclass for the
+            failing gateway call (completion / tools / embedding).
+
+    Returns:
+        The replacement preset chosen by the matcher.
+    """
+    ctx = ctx_factory(preset, exc, term)
+    await MatcherFactory.trigger_event(
+        ctx, ctx.config, exception_ignored=(FallbackFailed,)
+    )
+    if ctx.preset is preset:
+        ctx.fail("No preset fallback available, exiting!")
+    return ctx.preset
+
+
+async def _with_preset_fallback(
+    preset: ModelPreset,
+    config: AmritaConfig,
+    ctx_factory: Callable[[ModelPreset, BaseException, int], FallbackContext],
+    attempt: Callable[[ModelPreset], Awaitable[T]],
+) -> T:
+    """Run an adapter call wrapped in the gateway preset-fallback loop.
+
+    Args:
+        preset: Initial preset to try.
+        config: Config providing ``llm.max_fallbacks``.
+        ctx_factory: Builds the concrete ``FallbackContext`` subclass.
+        attempt: Coroutine performing one call with the given preset.
+
+    Returns:
+        The result of the first successful attempt.
+
+    Raises:
+        FallbackFailed: When no preset fallback is available or every attempt
+            fails.
+    """
+    for i in range(1, config.llm.max_fallbacks + 1):
+        try:
+            return await attempt(preset)
+        except Exception as e:  # noqa: PERF203 -- fallback loop must retry on failure
+            logger.warning(
+                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_retries})..."
+            )
+            preset = await _fire_fallback(preset, e, config, i, ctx_factory)
+    raise FallbackFailed("Max preset fallbacks retries exceeded.")
+
+
 async def tools_caller(
     messages: CONTENT_LIST_TYPE,
     tools: list[ToolFunctionSchema],
@@ -344,26 +417,33 @@ async def tools_caller(
         Response containing tool calls or None
     """
     config = config or get_config()
-
-    async def _call_tools(
-        adapter: ModelAdapter,
-    ):
-        return await adapter.call_tools(messages, tools, tool_choice)
-
     preset = preset or PresetManager().get_default_preset()
-    _validate_msg_list(messages, thinking_config=preset.thinking_config)
-    resp = await _call_with_reflection(
+
+    async def _attempt(
+        current_preset: ModelPreset,
+    ) -> UniResponse[None, list[ToolCall] | None]:
+        _validate_msg_list(messages, thinking_config=current_preset.thinking_config)
+
+        async def _call_tools(
+            adapter: ModelAdapter,
+        ):
+            return await adapter.call_tools(messages, tools, tool_choice)
+
+        resp = await _call_with_reflection(current_preset, _call_tools, config)
+        if usage is not None and resp.usage is not None:
+            usage.record(
+                resp.usage,
+                model=resp.metadata.model,
+                request_id=resp.metadata.original_request_id,
+            )
+        return resp
+
+    return await _with_preset_fallback(
         preset,
-        _call_tools,
         config,
+        lambda p, e, i: ToolsFallbackContext(p, e, config, messages, i, tools=tools),
+        _attempt,
     )
-    if usage is not None and resp.usage is not None:
-        usage.record(
-            resp.usage,
-            model=resp.metadata.model,
-            request_id=resp.metadata.original_request_id,
-        )
-    return resp
 
 
 async def call_completion(
@@ -387,40 +467,72 @@ async def call_completion(
     """
     preset = preset or PresetManager().get_default_preset()
     config = config or get_config()
-    messages = _validate_msg_list(messages, thinking_config=preset.thinking_config)
 
-    async def _call_api(
-        adapter: ModelAdapter,
-    ) -> Callable[
-        [], AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any]
-    ]:
-        if "text-gen" != adapter.get_type() and "text-gen" not in adapter.get_type():
-            raise ValueError(
-                f"Model adapter {adapter.get_type()} does not support text-gen"
+    async def _attempt(
+        current_preset: ModelPreset,
+    ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
+        validated = _validate_msg_list(
+            messages, thinking_config=current_preset.thinking_config
+        )
+
+        async def _call_api(
+            adapter: ModelAdapter,
+        ) -> Callable[
+            [],
+            AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any],
+        ]:
+            if (
+                "text-gen" != adapter.get_type()
+                and "text-gen" not in adapter.get_type()
+            ):
+                raise ValueError(
+                    f"Model adapter {adapter.get_type()} does not support text-gen"
+                )
+            return lambda: adapter.call_api(
+                [(i.model_dump()) for i in validated], **kwargs
             )
-        return lambda: adapter.call_api([(i.model_dump()) for i in messages], **kwargs)
 
-    # Call adapter to get chat response
-    response = await _call_with_reflection(preset, _call_api, config)
-    is_thinking = False
-    async for resp in response():
-        if preset.config.cot_model:
-            if isinstance(resp, str):
-                if "<think>" in resp:
-                    is_thinking = True
-                    continue
-                elif "</think>" in resp:
-                    is_thinking = False
-                    continue
-        if not is_thinking:
-            if isinstance(resp, UniResponse) and usage is not None:
-                if resp.usage is not None:
-                    usage.record(
-                        resp.usage,
-                        model=resp.metadata.model,
-                        request_id=resp.metadata.original_request_id,
-                    )
-            yield resp
+        # Call adapter to get chat response
+        response = await _call_with_reflection(current_preset, _call_api, config)
+        is_thinking = False
+        async for resp in response():
+            if current_preset.config.cot_model:
+                if isinstance(resp, str):
+                    if "<think>" in resp:
+                        is_thinking = True
+                        continue
+                    elif "</think>" in resp:
+                        is_thinking = False
+                        continue
+            if not is_thinking:
+                if isinstance(resp, UniResponse) and usage is not None:
+                    if resp.usage is not None:
+                        usage.record(
+                            resp.usage,
+                            model=resp.metadata.model,
+                            request_id=resp.metadata.original_request_id,
+                        )
+                yield resp
+
+    for i in range(1, config.llm.max_fallbacks + 1):
+        try:
+            async for chunk in _attempt(preset):
+                yield chunk
+            return
+        except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
+            logger.warning(
+                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_retries})..."
+            )
+            preset = await _fire_fallback(
+                preset,
+                e,
+                config,
+                i,
+                lambda p, exc, term: CompletionFallbackContext(
+                    p, exc, config, messages, term
+                ),
+            )
+    raise FallbackFailed("Max preset fallbacks retries exceeded.")
 
 
 async def get_last_response(
@@ -463,17 +575,27 @@ async def call_embedding(
     if isinstance(text, str):
         raise TypeError("Text must be a sequence of strings, not a single string.")
 
-    async def _call_embed(
-        adapter: ModelAdapter,
+    async def _attempt(
+        current_preset: ModelPreset,
     ) -> Sequence[EmbeddingChunk]:
-        if "embed" != adapter.get_type() and "embed" not in adapter.get_type():
-            raise ValueError(
-                f"Model adapter {adapter.get_type()} does not support embedding"
-            )
-        return await adapter.call_embed(text, **kwargs)
+        async def _call_embed(
+            adapter: ModelAdapter,
+        ) -> Sequence[EmbeddingChunk]:
+            if "embed" != adapter.get_type() and "embed" not in adapter.get_type():
+                raise ValueError(
+                    f"Model adapter {adapter.get_type()} does not support embedding"
+                )
+            return await adapter.call_embed(text, **kwargs)
 
-    return await _call_with_reflection(
+        return await _call_with_reflection(
+            current_preset,
+            _call_embed,
+            config,
+        )
+
+    return await _with_preset_fallback(
         preset,
-        _call_embed,
         config,
+        lambda p, e, i: EmbeddingFallbackContext(p, e, config, text, i),
+        _attempt,
     )

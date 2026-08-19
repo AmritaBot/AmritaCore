@@ -129,7 +129,7 @@ Comprehensive event-driven architecture with multiple hook points:
 
 - **PreCompletionEvent**: Modify messages before sending to LLM
 - **CompletionEvent**: Process responses after receiving from LLM
-- **FallbackContext**: Handle LLM request failures with automatic retry logic
+- **FallbackContext**: Handle LLM request failures with automatic retry logic (subclasses: `CompletionFallbackContext`, `ToolsFallbackContext`, `EmbeddingFallbackContext`)
 - **Custom Events**: Extensible event system for custom integrations
 
 ### Tool System

@@ -11,7 +11,6 @@ graph LR
 import asyncio
 
 from amrita_sense import Node, WorkflowInterpreter
-from amrita_sense.hook.matcher import MatcherFactory
 from amrita_sense.logging import debug_log, logger
 
 from amrita_core.base.adapter import MessageContent
@@ -23,8 +22,6 @@ from amrita_core.contexts import (
     WorkingState,
 )
 from amrita_core.enums import SuspendEnum
-from amrita_core.hook.event import FallbackContext
-from amrita_core.hook.exception import FallbackFailed
 from amrita_core.libchat import call_completion
 from amrita_core.types.message import Message
 from amrita_core.types.response import UniResponse
@@ -88,22 +85,18 @@ async def LLM_COMPLETION(
     intp: WorkflowInterpreter,
     resp: RespState,
 ):
-    """Call the LLM completion API with preset fallback and retry logic.
+    """Call the LLM completion API and stream chunks to the client.
 
     ```mermaid
     flowchart TD
-        A[Current Preset] --> B[call_completion stream]
-        B -->|success| C[resp.response = UniResponse]
-        B -->|exception| D[Fire FallbackContext hook]
-        D --> E{New preset available?}
-        E -->|yes| F[Switch preset & retry]
-        F --> A
-        E -->|no| G[FallbackFailed]
+        A[call_completion gateway] --> B[stream chunks]
+        B -->|UniResponse| C[resp.response = UniResponse]
+        B -->|text chunk| D[yield to client]
     ```
 
-    Streams chunks via `WorkflowInterpreter.object_io`. On failure, fires the
-    `FallbackContext` event hook to try alternate presets, up to
-    `max_fallbacks` times.
+    Preset fallback is handled inside the ``call_completion`` gateway (it
+    fires ``CompletionFallbackContext`` on failure), so this node only consumes
+    the stream and forwards the final ``UniResponse``.
 
     Context Dependencies:
         * AbilityState — provides config and current preset.
@@ -123,41 +116,21 @@ async def LLM_COMPLETION(
     """
     logger.debug("Calling chat model..")
     response: UniResponse[str, None] | None = None
-    used_preset: set[str] = set()
     assert wok.context_wrap is not None, (
         "Context wrap is not set, please run `BUILD_MESSAGE` before commit"
     )
     assert ability.preset is not None, (
         "Preset is not set, please run `LOAD_STATE` before calling LLM"
     )
-    for i in range(1, ability.config.llm.max_fallbacks + 1):
-        try:
-            used_preset.add(ability.preset.name)
-            async for chunk in call_completion(
-                wok.context_wrap.unwrap(),
-                config=ability.config,
-                preset=ability.preset,
-            ):
-                if isinstance(chunk, UniResponse):
-                    response = chunk
-                elif isinstance(chunk, MessageContent | str):
-                    await intp.object_io.yield_response(chunk)
-            break
-        except Exception as e:
-            logger.warning(
-                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{ability.config.llm.max_retries})..."
-            )
-            ctx = FallbackContext(
-                ability.preset, e, ability.config, wok.context_wrap, i
-            )
-            await MatcherFactory.trigger_event(
-                ctx, ctx.config, exception_ignored=(FallbackFailed,)
-            )
-            if ctx.preset is ability.preset:
-                ctx.fail("No preset fallback available, exiting!")
-            ability.preset = ctx.preset
-    else:
-        raise FallbackFailed("Max preset fallbacks retries exceeded.")
+    async for chunk in call_completion(
+        wok.context_wrap.unwrap(),
+        config=ability.config,
+        preset=ability.preset,
+    ):
+        if isinstance(chunk, UniResponse):
+            response = chunk
+        elif isinstance(chunk, MessageContent | str):
+            await intp.object_io.yield_response(chunk)
     if response is None:
         raise RuntimeError("No final response from chat adapter.")
     resp.response = response

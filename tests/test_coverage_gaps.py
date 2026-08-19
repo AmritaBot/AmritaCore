@@ -98,6 +98,7 @@ def _make_ability_context() -> AbilityContext:
         pm.add_preset(ModelPreset(model="gpt-3.5", name="cov-gap-default", api_key="k"))
     except ValueError:
         pass  # already registered from previous test
+    pm.set_default_preset("cov-gap-default")
     return AbilityContext(presets=pm)
 
 

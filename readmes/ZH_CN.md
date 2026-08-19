@@ -129,7 +129,7 @@ AmritaCore 通过协议适配器支持多个LLM提供商：
 
 - **PreCompletionEvent**: 在向LLM发送前修改消息
 - **CompletionEvent**: 在从LLM接收后处理响应
-- **FallbackContext**: 处理LLM请求失败，具有自动重试逻辑
+- **FallbackContext**: 处理LLM请求失败，具有自动重试逻辑（子类：`CompletionFallbackContext`、`ToolsFallbackContext`、`EmbeddingFallbackContext`）
 - **自定义事件**: 用于自定义集成的可扩展事件系统
 
 ### 工具系统
