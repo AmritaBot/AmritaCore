@@ -388,7 +388,7 @@ async def _with_preset_fallback(
             return await attempt(preset)
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry on failure
             logger.warning(
-                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_retries})..."
+                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_fallbacks})..."
             )
             preset = await _fire_fallback(preset, e, config, i, ctx_factory)
     raise FallbackFailed("Max preset fallbacks retries exceeded.")
@@ -521,7 +521,7 @@ async def call_completion(
             return
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
             logger.warning(
-                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_retries})..."
+                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_fallbacks})..."
             )
             preset = await _fire_fallback(
                 preset,

@@ -74,7 +74,8 @@ class FallbackContext(BaseEvent[EventTypeEnum]):
 class CompletionFallbackContext(FallbackContext):
     """Fallback event fired when ``call_completion`` fails.
 
-    ``context`` carries the validated message list (``CONTENT_LIST_TYPE``).
+    ``context`` carries the message list passed to ``call_completion``
+    (may be raw/unvalidated depending on caller configuration).
     """
 
 
@@ -82,7 +83,8 @@ class CompletionFallbackContext(FallbackContext):
 class ToolsFallbackContext(FallbackContext):
     """Fallback event fired when ``tools_caller`` fails.
 
-    ``context`` carries the validated message list (``CONTENT_LIST_TYPE``);
+    ``context`` carries the message list passed to ``tools_caller``
+    (may be raw/unvalidated depending on caller configuration);
     ``tools`` carries the tool schemas of the failed call.
     """
 
