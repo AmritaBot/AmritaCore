@@ -41,7 +41,7 @@ dev = [
 ]
 
 [project.optional-dependencies]
-anthropic = ["anthropic>=0.116.0,<0.122.0"]
+anthropic = ["anthropic>=0.116.0,<1.1.0"]
 jieba = ["jieba>=0.42.1"]
 all = ["amrita_core[anthropic,jieba]"]
 
