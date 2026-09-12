@@ -26,6 +26,7 @@ dependencies = [
 
 [tool.uv]
 package = true
+constraint-dependencies = ["anthropic<1.0"]
 
 [dependency-groups]
 dev = [
@@ -33,7 +34,7 @@ dev = [
     "pytest>=8.4.1",
     "py-spy>=0.4.1",
     "pyright>=1.1.407",
-    "anthropic>=0.84.0",
+    "anthropic>=0.84.0,<1.0",
     "pytest-asyncio>=1.3.0",
     "jieba>=0.42.1",
     "pytest-cov>=7.0.0",
