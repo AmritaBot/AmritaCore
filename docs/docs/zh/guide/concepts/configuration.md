@@ -39,6 +39,8 @@ agent = create_agent(..., config=config)  # 或按 agent
 | `builtin.agent_thought_mode`              | —         | `"reasoning"` / `"reasoning-required"`（显式推理）          |
 | `builtin.loop_reasoning_trigger`          | —         | 停滞检测：N 个相同工具签名 → 放弃                           |
 | `llm.enable_memory_abstract`              | `True`    | 长历史自动摘要                                              |
+| `llm.session_tokens_windows`              | `65536`   | 会话 token 窗口（64k）；与消息条数上限共同决定何时压缩      |
+| `llm.memory_length_limit`                 | `200`     | 记忆上下文最大消息数；需与窗口同步调整，否则条数先触发压缩  |
 | `llm.memory_abstract_threshold`           | `-1`      | 触发 Step 边界历史压缩的 prompt-token 阈值（`<= 0` = 禁用） |
 
 ## Preset

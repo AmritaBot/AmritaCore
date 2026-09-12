@@ -161,9 +161,14 @@ class LLMConfig(BaseModel):
         description="Whether to force at least one tool to be used per call",
     )
     memory_length_limit: int = Field(
-        default=50,
+        default=200,
         ge=1,
-        description="Maximum number of messages in memory context",
+        description="Maximum number of messages in memory context. "
+        "Should be scaled together with session_tokens_windows: a typical "
+        "agent turn costs roughly 300 tokens per message, so a 64k window "
+        "pairs with about 200 messages (e.g. 256k context -> ~800 messages). "
+        "Raising only the token window without raising this limit will make "
+        "the message-count cap trigger first and hurt prompt cache hit rate.",
     )
     max_tokens: int = Field(
         default=1000,
@@ -178,9 +183,12 @@ class LLMConfig(BaseModel):
         default=True, description="Whether to enable context length limits"
     )
     session_tokens_windows: int = Field(
-        default=5000,
+        default=65536,
         ge=1,
-        description="Session tokens window size",
+        description="Session tokens window size (default 64k). Note that this "
+        "value only bounds the token dimension: memory_length_limit must be "
+        "raised accordingly, otherwise the message-count cap will trigger "
+        "compression far earlier than the token window.",
     )
     llm_timeout: int = Field(
         default=60,
