@@ -64,6 +64,13 @@ When the prompt exceeds the threshold, older turns are summarized before the
 request is sent. (The built-in step strategy additionally performs between-Step
 compression — see [Step Loop](../advanced/step-loop.md).)
 
+Compression actually has two triggers: `llm.session_tokens_windows` (default
+64k) and `llm.memory_length_limit` (default 200) — whichever is reached first
+fires. Raising only the token window without relaxing the message cap makes the
+cap fire first, trimming long sessions too often and lowering prompt cache hit
+rate. Rule of thumb: ~300 tokens per message, so a 256k context pairs with
+~800 messages.
+
 ## 4. What Just Happened
 
 - `session_id` is a **unique identifier** for a conversation — naming only

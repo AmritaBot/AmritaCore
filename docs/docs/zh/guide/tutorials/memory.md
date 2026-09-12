@@ -59,6 +59,12 @@ await minimal_init(config)
 当 prompt 超过阈值，较旧轮次会在请求发出前被摘要。（内置 step 策略还会
 执行 Step 间压缩——见 [Step 循环](../advanced/step-loop.md)。）
 
+压缩其实有两条触发线：`llm.session_tokens_windows`（默认 64k）与
+`llm.memory_length_limit`（默认 200），任意一条先到都会触发。只调大 token
+窗口而不同步放宽消息条数，条数会先一步触发，长会话被频繁裁剪、提示词缓存
+命中率随之下降。经验换算：一条消息约 300 tokens，256k 上下文约对应 800 条
+消息。
+
 ## 4. 刚才发生了什么
 
 - `session_id` 是一次对话的**唯一标识符**——只负责命名

@@ -98,6 +98,12 @@ logs: `Empty decomposition response (request_id=..., thinking_content=True)`.
 
 - `function_config.agent_tool_call_limit` — hard cap per run
 - `llm.memory_abstract_threshold` — enable summarization for long sessions
+- Session-level compression triggers — `llm.session_tokens_windows`
+  (default 64k) and `llm.memory_length_limit` (default 200): context is
+  compacted as soon as either one is reached. Raising only the token window
+  without relaxing the message cap makes the message limit fire first,
+  trimming context too often and lowering prompt cache hit rate. Rule of
+  thumb: ~300 tokens per message, so a 256k context pairs with ~800 messages
 - `function_config.agent_step_token_budget` — per-Step prompt-token budget;
   when exhausted, `iter_cond` stops the Step (`TokenBudget.exhausted`)
 - Between-Step compression — the step loop compresses history when prompt

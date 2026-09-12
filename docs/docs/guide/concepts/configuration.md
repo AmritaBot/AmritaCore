@@ -31,15 +31,17 @@ agent = create_agent(..., config=config)  # or per-agent
 
 ## Key Settings for Agent Behavior
 
-| Setting                                   | Default   | Effect                                                                  |
-| ----------------------------------------- | --------- | ----------------------------------------------------------------------- |
-| `function_config.agent_tool_call_limit`   | `10`      | Hard cap on tool rounds per run                                         |
-| `function_config.agent_step_token_budget` | `-1`      | Per-Step prompt-token budget (`<= 0` = disabled/unlimited)              |
-| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                                          |
-| `builtin.agent_thought_mode`              | —         | `"reasoning"` / `"reasoning-required"` (explicit reasoning)             |
-| `builtin.loop_reasoning_trigger`          | —         | Stall detection: N identical tool signatures → give up                  |
-| `llm.enable_memory_abstract`              | `True`    | Auto-summarize long history                                             |
-| `llm.memory_abstract_threshold`           | `-1`      | Prompt-token threshold for between-Step compression (`<= 0` = disabled) |
+| Setting                                   | Default   | Effect                                                                     |
+| ----------------------------------------- | --------- | -------------------------------------------------------------------------- |
+| `function_config.agent_tool_call_limit`   | `10`      | Hard cap on tool rounds per run                                            |
+| `function_config.agent_step_token_budget` | `-1`      | Per-Step prompt-token budget (`<= 0` = disabled/unlimited)                 |
+| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                                             |
+| `builtin.agent_thought_mode`              | —         | `"reasoning"` / `"reasoning-required"` (explicit reasoning)                |
+| `builtin.loop_reasoning_trigger`          | —         | Stall detection: N identical tool signatures → give up                     |
+| `llm.enable_memory_abstract`              | `True`    | Auto-summarize long history                                                |
+| `llm.session_tokens_windows`              | `65536`   | Session token window (64k); with the message cap decides when to compact   |
+| `llm.memory_length_limit`                 | `200`     | Max messages in memory context; scale it with the window or it fires first |
+| `llm.memory_abstract_threshold`           | `-1`      | Prompt-token threshold for between-Step compression (`<= 0` = disabled)    |
 
 ## Presets
 
