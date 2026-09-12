@@ -11,6 +11,9 @@ resolution-markers = [
     "python_full_version < '3.11' and sys_platform != 'win32'",
 ]
 
+[manifest]
+constraints = [{ name = "anthropic", specifier = "<1.0" }]
+
 [[package]]
 name = "aiofile"
 version = "3.9.0"
@@ -294,7 +297,7 @@ provides-extras = ["anthropic", "jieba", "all"]
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "anthropic", specifier = ">=0.84.0" },
+    { name = "anthropic", specifier = ">=0.84.0,<1.0" },
     { name = "jieba", specifier = ">=0.42.1" },
     { name = "py-spy", specifier = ">=0.4.1" },
     { name = "pyright", specifier = ">=1.1.407" },
