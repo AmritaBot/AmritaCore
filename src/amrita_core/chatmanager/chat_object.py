@@ -862,7 +862,7 @@ async def _post_runner(chat_obj: ChatObject):
 # pre-compile workflows — component nodes + retained local nodes
 _single_call = SINGLE_STRATEGY_CALL(fallback_on_fail=False)
 _workflow: NodeCompose = (
-    LOAD_STATE
+    LOAD_STATE.as_compose()
     >> JINJA2_RENDER
     >> _limiting_memory
     >> BUILD_MESSAGE
@@ -883,7 +883,7 @@ _workflow_rendered = _workflow.render()
 
 # Native step-loop variant: same outer shell, NATIVE_DO step loop inside.
 _step_workflow: NodeCompose = (
-    LOAD_STATE
+    LOAD_STATE.as_compose()
     >> JINJA2_RENDER
     >> _limiting_memory
     >> BUILD_MESSAGE
