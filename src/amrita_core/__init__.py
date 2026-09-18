@@ -108,8 +108,8 @@ async def load_amrita():
         await mcp.ClientManager().initialize_scripts_all(clients)
 
 
-async def minimal_init(config: AmritaConfig = AmritaConfig()) -> None:
-    set_config(config)
+async def minimal_init(config: AmritaConfig | None = None) -> None:
+    set_config(config if config is not None else AmritaConfig())
     await load_amrita()
 
 
