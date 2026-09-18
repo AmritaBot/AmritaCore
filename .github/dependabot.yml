@@ -9,3 +9,7 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+  - package-ecosystem: "npm" # Documentation site (VitePress, mermaid, ...)
+    directory: "/docs"
+    schedule:
+      interval: "weekly"
