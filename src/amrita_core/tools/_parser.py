@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 from collections.abc import Callable
+from typing import Any
 
-import httpx
 from fastmcp.client.transports import (
     SSETransport,
     StdioTransport,
@@ -16,11 +17,32 @@ from fastmcp.client.transports import (
 #  Transport factories
 
 
+def _httpx_module() -> Any:
+    """Return the ``httpx`` flavour fastmcp's HTTP transports are built on.
+
+    fastmcp 3.x drives its transports with ``httpx``; fastmcp 4.x moved to
+    ``httpx2`` and hands the ``auth`` object straight to the new client, so a
+    mismatched flavour is only rejected once the connection is opened.
+    """
+    transports_module = sys.modules.get(SSETransport.__module__)
+    httpx2 = (
+        getattr(transports_module, "httpx2", None)
+        if transports_module is not None
+        else None
+    )
+    if httpx2 is not None:
+        return httpx2
+
+    import httpx
+
+    return httpx
+
+
 def _make_sse_transport(
     url: str, username: str | None, password: str | None
 ) -> SSETransport:
     if username and password:
-        return SSETransport(url=url, auth=httpx.BasicAuth(username, password))
+        return SSETransport(url=url, auth=_httpx_module().BasicAuth(username, password))
     if username:
         return SSETransport(url=url, auth=username)
     return SSETransport(url=url)
