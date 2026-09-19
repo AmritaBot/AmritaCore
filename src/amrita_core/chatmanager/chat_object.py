@@ -19,7 +19,6 @@ from amrita_sense import (
     NodeComposeRendered,
     WorkflowInterpreter,
 )
-from amrita_sense._unsafe import __flags__
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
 from amrita_sense.instructions import GOTO
 from amrita_sense.instructions.native import NATIVE_DO
@@ -30,6 +29,7 @@ from jinja2 import Template
 from pytz import utc
 from typing_extensions import Self, deprecated
 
+from amrita_core._compat import exc_ignored_disabled
 from amrita_core.agent.context import build_strategy_context
 from amrita_core.agent.strategy import (
     AgentStrategy,
@@ -254,9 +254,7 @@ class ChatObject:
         self._is_running = False
         self.now_calling = None
         self.end_at = None
-        self._raised_exc = (
-            exception_ignored if not __flags__.DISABLE_EXC_IGNORED else ()
-        )
+        self._raised_exc = exception_ignored if not exc_ignored_disabled() else ()
         self.last_call = datetime.now(utc)
 
         # initialize iostream
@@ -336,7 +334,7 @@ class ChatObject:
         # Workflow system
         wkfl = None
         if archived_nodes is not None:
-            wkfl = NodeCompose(*_workflow._graph) >> archived_nodes
+            wkfl = NodeCompose(*_workflow) >> archived_nodes
         elif workflow is not None:
             wkfl = workflow
         self._workflow = (

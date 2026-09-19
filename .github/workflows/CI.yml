@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       matrix:
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
       fail-fast: false
     steps:
       - name: Checkout code
@@ -44,6 +44,11 @@ jobs:
           PYTHON_BIN="$(uv run python -c 'import sys; print(sys.executable)')"
           echo "PYTHON_BIN=$PYTHON_BIN" >> $GITHUB_ENV
 
+      - name: Lint with ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
       - name: Run Pyright
         uses: jakebailey/pyright-action@v2
         with:
@@ -51,8 +56,8 @@ jobs:
           pylance-version: latest-release
       - name: Run Unit Tests with JUnit XML output
         run:
-          uv run pytest tests/ --cov=src/amrita_core --cov-report=term-missing
-          --cov-report=xml --junitxml=test-results.xml -v
+          uv run pytest tests/ --cov=src/amrita_core --cov-fail-under=78
+          --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml -v
 
       - name: Publish Test Report
         uses: dorny/test-reporter@v1
@@ -71,11 +76,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Check for formatting errors
-        uses: astral-sh/ruff-action@v3
-        with:
-          args: check . --exit-non-zero-on-fix
 
       - name: Verify all matrix jobs succeeded
         run: |

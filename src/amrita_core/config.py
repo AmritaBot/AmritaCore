@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import random
+import secrets
 import string
 from typing import Literal
 
@@ -16,7 +16,7 @@ def random_alnum_string(length: int) -> str:
 
     chars: LiteralString = string.ascii_letters + string.digits
 
-    return "".join(random.choice(chars) for _ in range(length))
+    return "".join(secrets.choice(chars) for _ in range(length))
 
 
 class CookieConfig(BaseModel):

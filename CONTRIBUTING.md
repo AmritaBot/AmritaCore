@@ -116,6 +116,21 @@ bash scripts/run_test.sh
 - Use meaningful variable and function names
 - Use ruff for code formatting
 
+### Type Checking
+
+`pyright` runs project-wide in `standard` mode (see `[tool.pyright]` in
+`pyproject.toml`). `strict` mode is the long-term goal, but the codebase is not
+there yet, so adoption is **incremental and per-file** rather than a one-shot
+switch:
+
+- Do not flip the global mode to `strict` — that would surface every pre-existing
+  diagnostic at once and block unrelated work.
+- When you touch a module, consider opting that single file in by adding
+  `# pyright: strict` as its first line, then fix the diagnostics it reports.
+- A module that is already opted in must stay clean; do not remove the marker to
+  silence errors.
+- Run `./scripts/typecheck.sh` before submitting a PR.
+
 ### Available Development Scripts
 
 The project provides several helper scripts in the `scripts/` directory:
