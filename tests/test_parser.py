@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-import httpx
+import sys
+
 import pytest
 from fastmcp.client.transports import (
     SSETransport,
@@ -15,6 +16,16 @@ from amrita_core.tools._parser import (
     TRANSPORT_REGISTRY,
     resolve_transport,
 )
+
+
+def _fastmcp_httpx():
+    """The httpx flavour fastmcp's HTTP transports are built on.
+
+    fastmcp 3.x uses ``httpx``, fastmcp 4.x moved to ``httpx2``; the ``auth``
+    object attached to a transport has to come from the matching flavour.
+    """
+    module = sys.modules[SSETransport.__module__]
+    return getattr(module, "httpx2", None) or getattr(module, "httpx")
 
 
 class TestExtraProtocol:
@@ -39,7 +50,7 @@ class TestExtraProtocol:
     def test_sse_plus_http_with_basic_auth(self):
         t = resolve_transport("sse+http://admin:secret@host:8080/sse")
         assert isinstance(t, SSETransport)
-        assert isinstance(t.auth, httpx.BasicAuth)
+        assert isinstance(t.auth, _fastmcp_httpx().BasicAuth)
 
     def test_sse_plus_http_with_user_only(self):
         t = resolve_transport("sse+http://token@host/sse")
@@ -64,7 +75,7 @@ class TestShorthand:
     def test_sse_shorthand_with_auth(self):
         t = resolve_transport("sse://user:pwd@host/sse")
         assert isinstance(t, SSETransport)
-        assert isinstance(t.auth, httpx.BasicAuth)
+        assert isinstance(t.auth, _fastmcp_httpx().BasicAuth)
 
     def test_sse_shorthand_no_port(self):
         t = resolve_transport("sse://example.com/sse")

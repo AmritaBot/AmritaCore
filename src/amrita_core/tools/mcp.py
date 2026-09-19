@@ -160,7 +160,7 @@ class MCPClient:
         """Refresh the cached tool list from the connected MCP server."""
         assert self.mcp_client is not None, "Cannot refresh tools: not connected"
         self.tools = [
-            MCPToolSchema.model_validate(i.model_dump())
+            MCPToolSchema.model_validate(i.model_dump(by_alias=True))
             for i in await self.mcp_client.list_tools()
         ]
         logger.info(f"Available tools: {[tool.name for tool in self.tools]}")

@@ -283,3 +283,46 @@ class TestClientManager:
 
         manager = ClientManager()
         assert isinstance(manager, MultiClientManager)
+
+
+class TestToolModelCompat:
+    """Tool models must round-trip across MCP SDK v1 and v2.
+
+    fastmcp 4.x moved to MCP SDK v2, which renamed ``Tool`` fields to
+    snake_case (``input_schema``) and kept the camelCase spellings as aliases.
+    Dumping without ``by_alias`` therefore drops ``inputSchema`` and breaks
+    tool registration.
+    """
+
+    @pytest.mark.asyncio
+    @patch("amrita_core.tools.mcp.Client")
+    async def test_refresh_tools_from_sdk_tool_model(self, mock_client_class):
+        from mcp.types import Tool
+
+        # Build via model_validate: mcp 1.x names the field ``inputSchema``
+        # while mcp 2.x renamed it to ``input_schema`` and kept the camelCase
+        # spelling as an alias, so no single keyword spelling type-checks on
+        # both SDK lines.
+        tool = Tool.model_validate(
+            {
+                "name": "echo",
+                "description": "Echo the given text",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
+                },
+            }
+        )
+        mock_client_instance = AsyncMock()
+        mock_client_instance.list_tools.return_value = [tool]
+        mock_client_class.return_value = mock_client_instance
+
+        client = MCPClient(server_script="test_script")
+        await client._connect(update_tools=True)
+
+        assert [t.name for t in client.get_original_tools()] == ["echo"]
+        assert [t.function.name for t in client.get_tools()] == ["echo"]
+        params = client.get_tools()[0].function.parameters
+        assert params.required == ["text"]
+        assert params.properties["text"].type == "string"
