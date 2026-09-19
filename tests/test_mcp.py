@@ -299,14 +299,20 @@ class TestToolModelCompat:
     async def test_refresh_tools_from_sdk_tool_model(self, mock_client_class):
         from mcp.types import Tool
 
-        tool = Tool(
-            name="echo",
-            description="Echo the given text",
-            inputSchema={
-                "type": "object",
-                "properties": {"text": {"type": "string"}},
-                "required": ["text"],
-            },
+        # Build via model_validate: mcp 1.x names the field ``inputSchema``
+        # while mcp 2.x renamed it to ``input_schema`` and kept the camelCase
+        # spelling as an alias, so no single keyword spelling type-checks on
+        # both SDK lines.
+        tool = Tool.model_validate(
+            {
+                "name": "echo",
+                "description": "Echo the given text",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
+                },
+            }
         )
         mock_client_instance = AsyncMock()
         mock_client_instance.list_tools.return_value = [tool]
