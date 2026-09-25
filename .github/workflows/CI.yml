@@ -25,10 +25,10 @@ jobs:
       fail-fast: false
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
@@ -50,7 +50,7 @@ jobs:
           uv run ruff format --check .
 
       - name: Run Pyright
-        uses: jakebailey/pyright-action@v2
+        uses: jakebailey/pyright-action@6cabc0f01c4994be48fd45cd9dbacdd6e1ee6e5e # v2
         with:
           python-path: ${{ env.PYTHON_BIN }}
           pylance-version: latest-release
@@ -60,7 +60,7 @@ jobs:
           --cov-report=term-missing --cov-report=xml --junitxml=test-results.xml -v
 
       - name: Publish Test Report
-        uses: dorny/test-reporter@v1
+        uses: dorny/test-reporter@3eeb9fc888e82e8be2fb356bbeec2750231672bc # v1
         if: success() || failure()
         with:
           name: Python Unit Tests
@@ -75,7 +75,7 @@ jobs:
     if: always()
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Verify all matrix jobs succeeded
         run: |
