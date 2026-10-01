@@ -21,17 +21,17 @@ Workflow nodes receive state via **type-matched injection** — each node
 declares parameters like `loop: AgentLoopState` and the interpreter injects
 the matching instance. Key contexts (all owned by `ChatObject`):
 
-| Context              | Carries                           |
-| -------------------- | --------------------------------- |
-| `SessionMetadata`    | session/stream ids, timestamps    |
-| `MemoryContext`      | runtime memory                    |
-| `AbilityState`       | config, preset, backend slots     |
-| `GeneralInput`       | user input, train, template       |
-| `WorkingState`       | the `SendMessageWrap`             |
+| Context              | Carries                                                 |
+| -------------------- | ------------------------------------------------------- |
+| `SessionMetadata`    | session/stream ids, timestamps                          |
+| `MemoryContext`      | runtime memory                                          |
+| `AbilityState`       | config, preset, backend slots                           |
+| `GeneralInput`       | user input, train, template                             |
+| `WorkingState`       | the `SendMessageWrap`                                   |
 | `RespState`          | response + usage (the run's `SessionUsageProxy` ledger) |
-| `AgentLoopState`     | strategy, call count, `run_state` |
-| `StrategyPayload`    | the strategy factory              |
-| `DatabackendOptions` | backend fetch/commit skip flags   |
+| `AgentLoopState`     | strategy, call count, `run_state`                       |
+| `StrategyPayload`    | the strategy factory                                    |
+| `DatabackendOptions` | backend fetch/commit skip flags                         |
 
 > In AmritaSense terms this is the standard dependency-injection mechanism —
 > see [sense.amritabot.com](https://sense.amritabot.com) for the general rules.
@@ -53,10 +53,10 @@ and [BillingRecord](../api-reference/classes/BillingRecord.md).
 
 ## Two Deep-Dives
 
-| Page                            | Covers                                                                        |
-| ------------------------------- | ----------------------------------------------------------------------------- |
+| Page                            | Covers                                                                                          |
+| ------------------------------- | ----------------------------------------------------------------------------------------------- |
 | [Data Backend](data-backend.md) | The `AbilityBackend` / `MemoryBackend` / `BillingBackend` interfaces, and how to write your own |
-| [Memory Model](data-memory.md)  | `MemoryModel`, the load/commit lifecycle, and history compaction              |
+| [Memory Model](data-memory.md)  | `MemoryModel`, the load/commit lifecycle, and history compaction                                |
 
 ## Next
 

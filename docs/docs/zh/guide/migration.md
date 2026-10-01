@@ -5,26 +5,29 @@ AmritaCore 1.0 移除了本地分词器，并把上下文管理改为以模型�
 
 ## 一览表
 
-| 移除 / 改名                            | 替代                                                            |
-| -------------------------------------- | --------------------------------------------------------------- |
-| `amrita_core.tokenizer` 模块           | provider 上报的 usage（`MemoryModel.usage`）                    |
-| `TokenizerManager`、`BaseTokenizer`    | （无——分词是 provider 的职责）                                  |
-| `get_tokens()`、`hybrid_token_count()` | provider 响应中的 `UniResponseUsage`                            |
-| `FunctionConfig.no_tokenizer`          | （无）                                                          |
-| `FunctionConfig.tokenizer_used`        | （无）                                                          |
-| `LLMConfig.tokens_count_mode`          | （无）                                                          |
-| `LLMConfig.enable_tokens_limit`        | （无）                                                          |
-| 请求中的 `config.llm.max_tokens`       | `resolve_max_output(preset, config)`                            |
-| `LLMConfig.enable_memory_abstract`     | `LLMConfig.enable_compaction`                                   |
-| `LLMConfig.memory_abstract_proportion` | `LLMConfig.compaction_trigger_ratio`                            |
-| `LLMConfig.memory_abstract_threshold`  | `LLMConfig.compaction_trigger_ratio`（+ `memory_length_limit`） |
-| `chatmanager.MemoryLimiter`            | `ContextCompactor` + `NORMALIZE_MESSAGES`                       |
-| `UsageRegistry` 系列                   | `SessionUsageProxy`                                             |
-| `ChatObject(context=...)`              | `ChatObject(session_id=...)`（现在必填）                        |
-| `chat.state` / `StateContext`          | `chat.session_id`、`chat.data`、DI 上下文                       |
-| `LegacyBackend(ctx=...)`               | `LegacyBackend()`                                               |
-| `HybridReActAgentStrategy`             | `ReActAgentStrategy`                                            |
-| `BuiltinName`                          | （无）                                                          || 工具参数不做校验                        | `function_config.validate_tool_arguments`（默认 `True`）    |
+| 移除 / 改名                                                       | 替代                                                            |
+| ----------------------------------------------------------------- | --------------------------------------------------------------- |
+| `amrita_core.tokenizer` 模块                                      | provider 上报的 usage（`MemoryModel.usage`）                    |
+| `TokenizerManager`、`BaseTokenizer`                               | （无——分词是 provider 的职责）                                  |
+| `get_tokens()`、`hybrid_token_count()`                            | provider 响应中的 `UniResponseUsage`                            |
+| `FunctionConfig.no_tokenizer`                                     | （无）                                                          |
+| `FunctionConfig.tokenizer_used`                                   | （无）                                                          |
+| `LLMConfig.tokens_count_mode`                                     | （无）                                                          |
+| `LLMConfig.enable_tokens_limit`                                   | （无）                                                          |
+| 请求中的 `config.llm.max_tokens`                                  | `resolve_max_output(preset, config)`                            |
+| `LLMConfig.enable_memory_abstract`                                | `LLMConfig.enable_compaction`                                   |
+| `LLMConfig.memory_abstract_proportion`                            | `LLMConfig.compaction_trigger_ratio`                            |
+| `LLMConfig.memory_abstract_threshold`                             | `LLMConfig.compaction_trigger_ratio`（+ `memory_length_limit`） |
+| `chatmanager.MemoryLimiter`                                       | `ContextCompactor` + `NORMALIZE_MESSAGES`                       |
+| `UsageRegistry` 系列                                              | `SessionUsageProxy`                                             |
+| `ChatObject(context=...)`                                         | `ChatObject(session_id=...)`（现在必填）                        |
+| `chat.state` / `StateContext`                                     | `chat.session_id`、`chat.data`、DI 上下文                       |
+| `LegacyBackend(ctx=...)`                                          | `LegacyBackend()`                                               |
+| `HybridReActAgentStrategy`                                        | `ReActAgentStrategy`                                            |
+| `BuiltinName`                                                     | （无）                                                          |
+| 工具参数不做校验                                                  | `function_config.validate_tool_arguments`（默认 `True`）        |
+| `SuspendEnum.MEMORY_APPEND`、`.FINALIZE`、`.CALL_SINGLE_STRATEGY` | （无——从未发出过）                                              |
+
 ## 1. 分词器已移除
 
 AmritaCore 不再附带分词器，`jieba` 也不再是可选依赖。token 统计改为使用
@@ -137,9 +140,7 @@ preset = ModelPreset(
     model="deepseek-chat",
     name="deepseek",
     api_key="sk-...",
-    rate=RateConfig(
-        per=1_000_000, input=Decimal("0.27"), output=Decimal("1.10")
-    ),
+    rate=RateConfig(per=1_000_000, input=Decimal("0.27"), output=Decimal("1.10")),
 )
 ```
 
@@ -258,6 +259,24 @@ async def lookup(args: dict) -> str:
 MCP 工具也不再丢失约束：`minimum`、`maximum`、`pattern`、`minLength`、
 `maxLength`、`multipleOf`、`exclusiveMinimum`、`exclusiveMaximum`、`const`、
 `default` 与 `additionalProperties` 现在都会从服务器的 JSON Schema 带过来。
+
+## 9. 三个未使用的 `SuspendEnum` 值已移除
+
+`SuspendEnum.MEMORY_APPEND`、`SuspendEnum.FINALIZE` 与
+`SuspendEnum.CALL_SINGLE_STRATEGY` 虽已声明，但从未挂接到任何节点，因此从未有
+东西发出过它们。现在已删除。
+
+实际影响只涉及**等待**它们的代码：
+
+```python
+# 之前——会永久阻塞，因为没有任何东西发出过这个标签
+await chat.io_stream.wait_to_suspend(SuspendEnum.FINALIZE.value)
+```
+
+如果需要在运行结束时挂钩，请用 `COMPLETION` 事件
+（[事件系统](concepts/event.md)）或 `COMMIT_MEMORY` 标签，后者挂接在真实节点
+上。注意 `MEMORY_APPEND` 从来不是 `APPEND_RESPONSE` 上的标签——该节点携带的是
+`SuspendEnum.MEMORY`，与 `COMPACT` 相同。
 
 ## 下一步
 

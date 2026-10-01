@@ -71,7 +71,7 @@ every parameter after `preset` is keyword-only.
 - `backend_options` ([DatabackendOptions](DatabackendOptions.md) | None, optional): Options controlling backend fetch and commit behavior. Allows selectively skipping memory fetch, tools fetch, MCP fetch, presets fetch, ability extra settings, memory commit and billing commit (default: None)
 - `workflow` (NodeComposeRendered | None, optional): Pre-rendered workflow to execute instead of the default pipeline. When provided, the ChatObject uses this external workflow graph rather than building the built-in one. **Cannot be used together with `archived_nodes`** — if both are provided, a `ValueError` is raised. Supported pre-composed workflows are available in `amrita_core.builtins.workflows` (e.g. `SIMPLE_REACT`, `REACT_ONLY`, `SIMPLE_CHAT`). (default: None)
 
-### Core Methods
+## Core Methods
 
 - `begin()`: Start the chat object task (returns Self)
 - `terminate()`: Terminate task execution
@@ -81,9 +81,9 @@ every parameter after `preset` is keyword-only.
 - `is_done()`: Check if the task has completed
 - `get_snapshot()`: Get a snapshot of the chat object as `ChatObjectMeta`
 
-### Suspend & Resume Methods
+## Suspend & Resume Methods
 
-#### `io_stream.wait_to_suspend(*tags: str, timeout: float | None = None)`
+### `io_stream.wait_to_suspend(*tags: str, timeout: float | None = None)`
 
 Call this method from an external independent task to pause `ChatObject` execution when it reaches the next suspend point.
 
@@ -119,7 +119,7 @@ await chat.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
 await chat.io_stream.wait_to_suspend("custom_tag", timeout=2.0)
 ```
 
-#### `io_stream.resume()`
+### `io_stream.resume()`
 
 Resumes the suspended execution flow. Continues execution until the next suspend point or completes the current operation.
 
@@ -133,7 +133,7 @@ async def controller(chat_obj):
     chat_obj.io_stream.resume()  # Resume execution
 ```
 
-#### `io_stream._wait_for_continue(tag: str | None = None)`
+### `io_stream._wait_for_continue(tag: str | None = None)`
 
 Manual suspend point, typically used inside custom functions to enable fine-grained flow control with external controllers.
 

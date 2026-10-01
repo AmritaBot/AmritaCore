@@ -107,13 +107,13 @@ agent = create_agent(
 
 ## Configuration
 
-| Class                                       | Description                                                             |
-| ------------------------------------------- | ----------------------------------------------------------------------- |
-| [AmritaConfig](classes/AmritaConfig.md)     | Central configuration object (function_config / llm / cookie / builtin) |
-| [FunctionConfig](classes/FunctionConfig.md) | Functional behavior: context, tool call limit, argument validation, MCP client |
-| [LLMConfig](classes/LLMConfig.md)           | LLM behavior: token limits, retries, fallbacks, history compaction      |
-| [BuiltinAgentConfig](classes/BuiltinAgentConfig.md) | Built-in agent strategy: tool-calling mode, thought mode, stall detection |
-| [ReactConfig](classes/ReactConfig.md)       | ReAct reasoning enhancements: structured reasoning, reflection, tool prediction |
+| Class                                               | Description                                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [AmritaConfig](classes/AmritaConfig.md)             | Central configuration object (function_config / llm / cookie / builtin)         |
+| [FunctionConfig](classes/FunctionConfig.md)         | Functional behavior: context, tool call limit, argument validation, MCP client  |
+| [LLMConfig](classes/LLMConfig.md)                   | LLM behavior: token limits, retries, fallbacks, history compaction              |
+| [BuiltinAgentConfig](classes/BuiltinAgentConfig.md) | Built-in agent strategy: tool-calling mode, thought mode, stall detection       |
+| [ReactConfig](classes/ReactConfig.md)               | ReAct reasoning enhancements: structured reasoning, reflection, tool prediction |
 
 ## Chat Management
 
@@ -126,14 +126,14 @@ agent = create_agent(
 
 ## Types
 
-| Class                                           | Description                                             |
-| ----------------------------------------------- | ------------------------------------------------------- |
-| [Message](classes/Message.md)                   | A single message in the conversation                    |
-| [SendMessageWrap](classes/SendMessageWrap.md)   | Iterable wrapper for the message list sent to the model |
-| [MemoryModel](classes/MemoryModel.md)           | Stores conversation history                             |
-| [ModelPreset](classes/ModelPreset.md)           | Complete configuration for a specific model             |
-| [ThinkingConfig](classes/ThinkingConfig.md)     | Thinking/reasoning configuration                        |
-| [EmbeddingChunk](classes/EmbeddingChunk.md)     | Embedding vector returned by the embedding adapter      |
+| Class                                         | Description                                             |
+| --------------------------------------------- | ------------------------------------------------------- |
+| [Message](classes/Message.md)                 | A single message in the conversation                    |
+| [SendMessageWrap](classes/SendMessageWrap.md) | Iterable wrapper for the message list sent to the model |
+| [MemoryModel](classes/MemoryModel.md)         | Stores conversation history                             |
+| [ModelPreset](classes/ModelPreset.md)         | Complete configuration for a specific model             |
+| [ThinkingConfig](classes/ThinkingConfig.md)   | Thinking/reasoning configuration                        |
+| [EmbeddingChunk](classes/EmbeddingChunk.md)   | Embedding vector returned by the embedding adapter      |
 
 ## Tools
 
@@ -152,14 +152,14 @@ The schema layer behind those models lives in `amrita_core.tools.schema`. It has
 two orthogonal directions — projection turns Python into a schema, compilation
 turns a schema back into the validator that checks a call:
 
-| Function                                              | Direction   | Purpose                                              |
-| ----------------------------------------------------- | ----------- | ---------------------------------------------------- |
-| `function_definition_from_pydantic(model, ...)`        | Projection  | A whole tool definition from one Pydantic model      |
-| `function_definition_from_signature(func, ...)`        | Projection  | A definition from a callable's signature             |
-| `python_type_to_property_schema(t, ns, desc)`          | Projection  | One Python type to one property schema               |
-| `pydantic_model_to_property_schema(model, ns, desc)`   | Projection  | One Pydantic model to an object property schema      |
-| `compile_parameters_model(params)`                     | Compilation | A parameter schema to the Pydantic validator         |
-| `validate_arguments(params, args)`                     | Compilation | Validate a call and return the arguments to use      |
+| Function                                             | Direction   | Purpose                                         |
+| ---------------------------------------------------- | ----------- | ----------------------------------------------- |
+| `function_definition_from_pydantic(model, ...)`      | Projection  | A whole tool definition from one Pydantic model |
+| `function_definition_from_signature(func, ...)`      | Projection  | A definition from a callable's signature        |
+| `python_type_to_property_schema(t, ns, desc)`        | Projection  | One Python type to one property schema          |
+| `pydantic_model_to_property_schema(model, ns, desc)` | Projection  | One Pydantic model to an object property schema |
+| `compile_parameters_model(params)`                   | Compilation | A parameter schema to the Pydantic validator    |
+| `validate_arguments(params, args)`                   | Compilation | Validate a call and return the arguments to use |
 
 See [Tool System (concepts)](../concepts/tool.md#schemas-and-validation).
 
@@ -179,9 +179,9 @@ See [Tool System (concepts)](../concepts/tool.md#schemas-and-validation).
 
 ## History Compaction
 
-| Class                                               | Description                                                       |
-| --------------------------------------------------- | ----------------------------------------------------------------- |
-| [ContextCompactor](classes/ContextCompactor.md)     | Compaction policy: trigger, summarize and fold for one model      |
+| Class                                                   | Description                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| [ContextCompactor](classes/ContextCompactor.md)         | Compaction policy: trigger, summarize and fold for one model      |
 | [ContextOverflowError](classes/ContextOverflowError.md) | Raised when a provider rejects a request for exceeding its window |
 
 ## Agent Strategies

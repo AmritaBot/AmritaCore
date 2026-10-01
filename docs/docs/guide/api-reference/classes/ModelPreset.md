@@ -28,8 +28,12 @@ Two module-level helpers resolve a preset field against the global config, so ca
 ```python
 from amrita_core.types.preset import resolve_max_context, resolve_max_output
 
-window = resolve_max_context(preset, config)  # preset.max_context or config.llm.session_tokens_windows
-budget = resolve_max_output(preset, config)  # preset.max_output or config.llm.max_tokens
+window = resolve_max_context(
+    preset, config
+)  # preset.max_context or config.llm.session_tokens_windows
+budget = resolve_max_output(
+    preset, config
+)  # preset.max_output or config.llm.max_tokens
 ```
 
 The model adapters use `resolve_max_output` for the `max_tokens` request parameter, and `ContextCompactor` uses `resolve_max_context` for the compaction threshold.

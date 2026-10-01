@@ -224,14 +224,14 @@ chat = agent.get_chatobject(
 
 `backend_options=DatabackendOptions(...)` 跳过加载/提交周期的部分环节：
 
-| 标志                         | 跳过                                   |
-| ---------------------------- | -------------------------------------- |
-| `skip_memory_fetch`          | `load_memory`——以空 `MemoryModel` 开始 |
-| `skip_tools_fetch`           | `load_tools`                           |
-| `skip_mcp_fetch`             | `load_mcp_clients`                     |
-| `skip_presets_fetch`         | `load_presets`                         |
-| `skip_ability_extra_setting` | 整个 `load_ability_all`                |
-| `skip_memory_commit`         | 结束时的 `commit_memory`               |
+| 标志                         | 跳过                                                                |
+| ---------------------------- | ------------------------------------------------------------------- |
+| `skip_memory_fetch`          | `load_memory`——以空 `MemoryModel` 开始                              |
+| `skip_tools_fetch`           | `load_tools`                                                        |
+| `skip_mcp_fetch`             | `load_mcp_clients`                                                  |
+| `skip_presets_fetch`         | `load_presets`                                                      |
+| `skip_ability_extra_setting` | 整个 `load_ability_all`                                             |
+| `skip_memory_commit`         | 结束时的 `commit_memory`                                            |
 | `skip_billing_commit`        | 仅跳过 `slot.billing.commit_billing`——`memory.billing` 仍会收到记录 |
 
 ```python

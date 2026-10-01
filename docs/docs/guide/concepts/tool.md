@@ -34,9 +34,9 @@ lives on the enclosing `FunctionParametersSchema`.
 `amrita_core.tools.schema` treats that schema as an intermediate
 representation with two orthogonal directions:
 
-| Direction   | Entry points                                                             | Purpose                    |
-| ----------- | ------------------------------------------------------------------------ | -------------------------- |
-| Projection  | `function_definition_from_pydantic`, `function_definition_from_signature` | Python types to a schema   |
+| Direction   | Entry points                                                              | Purpose                      |
+| ----------- | ------------------------------------------------------------------------- | ---------------------------- |
+| Projection  | `function_definition_from_pydantic`, `function_definition_from_signature` | Python types to a schema     |
 | Compilation | `compile_parameters_model`                                                | A schema back to a validator |
 
 The schema is what the **model** reads; the compiled Pydantic model is what
@@ -100,7 +100,7 @@ flowchart LR
 - **Inline-handled tools** — `REASONING_TOOL` (`think_and_reason`),
   `UPDATE_STEP_TOOL` and `STOP_TOOL` (`agent_stop`) are dispatched inside
   `_exec_one` and therefore **bypass** the `agent.tool_call` /
-  `agent.tool_return` events. `PROCESS_MESSAGE` (`processing_message`) is *not*
+  `agent.tool_return` events. `PROCESS_MESSAGE` (`processing_message`) is _not_
   one of them: it is a regular `custom_run` tool, gated by
   `function_config.agent_middle_message`, so it does go through the events.
   `REFLECTION_TOOL` is only ever used internally by the reflection pass. See

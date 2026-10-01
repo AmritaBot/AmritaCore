@@ -31,19 +31,19 @@ agent = create_agent(..., config=config)  # 或按 agent
 
 ## 影响 Agent 行为的关键设置
 
-| 设置                                      | 默认      | 效果                                                                 |
-| ----------------------------------------- | --------- | -------------------------------------------------------------------- |
-| `function_config.agent_tool_call_limit`   | `10`      | 每次运行的硬性工具轮次上限                                           |
-| `function_config.agent_step_token_budget` | `-1`      | 每 Step prompt-token 预算（`<= 0` = 禁用/不限）                      |
-| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                                       |
+| 设置                                      | 默认      | 效果                                                                       |
+| ----------------------------------------- | --------- | -------------------------------------------------------------------------- |
+| `function_config.agent_tool_call_limit`   | `10`      | 每次运行的硬性工具轮次上限                                                 |
+| `function_config.agent_step_token_budget` | `-1`      | 每 Step prompt-token 预算（`<= 0` = 禁用/不限）                            |
+| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                                             |
 | `builtin.agent_thought_mode`              | `"chat"`  | `"reasoning"` / `"chat"` / `"reasoning-required"` / `"reasoning-optional"` |
-| `builtin.loop_reasoning_trigger`          | `5`       | 停滞检测：N 个相同工具签名 → 放弃                                    |
-| `llm.enable_compaction`                   | `True`    | 将长历史折叠为摘要，而不是反复重发                                   |
-| `llm.compaction_trigger_ratio`            | `0.9`     | 触发压缩时占注意力窗口的比例                                         |
-| `preset.max_context`                      | `None`    | 按模型的输入预算；未设置时回退到 `llm.session_tokens_windows`（64k） |
-| `preset.max_output`                       | `None`    | 按模型的响应预留；未设置时回退到 `llm.max_tokens`（1000）            |
-| `llm.memory_length_limit`                 | `200`     | 消息条数兜底，即使不上报 usage 也会触发（`0` = 关闭）                |
-| `llm.enable_overflow_recovery`            | `True`    | provider 因请求过大拒绝时，压缩并重试一次                            |
+| `builtin.loop_reasoning_trigger`          | `5`       | 停滞检测：N 个相同工具签名 → 放弃                                          |
+| `llm.enable_compaction`                   | `True`    | 将长历史折叠为摘要，而不是反复重发                                         |
+| `llm.compaction_trigger_ratio`            | `0.9`     | 触发压缩时占注意力窗口的比例                                               |
+| `preset.max_context`                      | `None`    | 按模型的输入预算；未设置时回退到 `llm.session_tokens_windows`（64k）       |
+| `preset.max_output`                       | `None`    | 按模型的响应预留；未设置时回退到 `llm.max_tokens`（1000）                  |
+| `llm.memory_length_limit`                 | `200`     | 消息条数兜底，即使不上报 usage 也会触发（`0` = 关闭）                      |
+| `llm.enable_overflow_recovery`            | `True`    | provider 因请求过大拒绝时，压缩并重试一次                                  |
 
 ## Preset
 

@@ -17,7 +17,7 @@
 - `self.chat_object` —— 生命周期管理器句柄
 - `self.tools_manager` —— 工具管理器
 - 便捷属性：`self.preset`、`self.config`、`self.io_stream`、
-  `self.train_content`、`self.stream_id`、`self.resp_extra_usage`
+  `self.train_content`、`self.stream_id`、`self.usage`
 
 > `StrategyLikedObject.__call__` 被覆写时必须先调 `super().__call__(ctx)`。
 > `AgentStrategy` 在 `__init__` 里绑定。

@@ -8,10 +8,10 @@ The compaction policy object: where the trigger sits relative to a model's atten
 
 Two things consume it:
 
-| Call site                            | When it runs                              |
-| ------------------------------------ | ----------------------------------------- |
-| `COMPACT` node                       | Between turns, before the request is built |
-| `ReActAgentStrategy` between Steps   | At a Step boundary inside the agent loop   |
+| Call site                          | When it runs                               |
+| ---------------------------------- | ------------------------------------------ |
+| `COMPACT` node                     | Between turns, before the request is built |
+| `ReActAgentStrategy` between Steps | At a Step boundary inside the agent loop   |
 
 The summary is stored on [`MemoryModel.abstract`](MemoryModel.md) and rendered back into the system instruction by the train template. Nothing is injected into the message list, so provider message-ordering rules stay untouched.
 
@@ -85,8 +85,10 @@ This is what makes folding safe at a Step boundary: the cut never lands mid tool
 ```python
 @dataclass
 class CompactionResult:
-    messages: CONTENT_LIST_TYPE  # history that survives, starting at a clean turn boundary
-    summary: str                 # the summary that replaces the folded prefix
+    messages: (
+        CONTENT_LIST_TYPE  # history that survives, starting at a clean turn boundary
+    )
+    summary: str  # the summary that replaces the folded prefix
 ```
 
 ## Related

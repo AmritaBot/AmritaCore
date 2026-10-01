@@ -22,14 +22,14 @@
 策略从不穿过 `ChatObject` 拿资源——`_StrategyBase` 暴露**便捷属性**，
 从 `StrategyContext` DI 字段解析，回退到 `chat_object`：
 
-| 属性                    | 解析自                 | 回退                               |
-| ----------------------- | ---------------------- | ---------------------------------- |
-| `self.preset`           | `ctx.preset`           | `chat_object.preset`               |
-| `self.config`           | `ctx.config`           | `chat_object.config`               |
-| `self.io_stream`        | `ctx.io_stream`        | `chat_object.io_stream`            |
-| `self.train_content`    | `ctx.train_content`    | `chat_object.train.content`        |
-| `self.stream_id`        | `ctx.stream_id`        | `chat_object.stream_id`            |
-| `self.usage`            | `ctx.usage`            | `chat_object._di_resp.usage`，否则 `None` |
+| 属性                 | 解析自              | 回退                                      |
+| -------------------- | ------------------- | ----------------------------------------- |
+| `self.preset`        | `ctx.preset`        | `chat_object.preset`                      |
+| `self.config`        | `ctx.config`        | `chat_object.config`                      |
+| `self.io_stream`     | `ctx.io_stream`     | `chat_object.io_stream`                   |
+| `self.train_content` | `ctx.train_content` | `chat_object.train.content`               |
+| `self.stream_id`     | `ctx.stream_id`     | `chat_object.stream_id`                   |
+| `self.usage`         | `ctx.usage`         | `chat_object._di_resp.usage`，否则 `None` |
 
 > `self.usage` 是运行级作用域的 `SessionUsageProxy` 账本。它覆盖工作流内部用量
 > （策略工具轮次加上辅助调用）；最终补全的用量位于 `resp.response.usage`。

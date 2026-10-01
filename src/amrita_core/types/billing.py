@@ -26,7 +26,9 @@ class RateConfig(BaseModel):
     """
 
     per: int = Field(default=1000, gt=0, description="Token bundle the prices refer to")
-    input: Decimal = Field(default=Decimal("0"), description="Price per `per` input tokens")
+    input: Decimal = Field(
+        default=Decimal("0"), description="Price per `per` input tokens"
+    )
     output: Decimal = Field(
         default=Decimal("0"), description="Price per `per` output tokens"
     )
@@ -42,7 +44,9 @@ class BillingRecord(BaseModel):
     stays self-describing after presets or prices change.
     """
 
-    model: str | None = Field(default=None, description="Model name used for the request")
+    model: str | None = Field(
+        default=None, description="Model name used for the request"
+    )
     preset_name: str | None = Field(
         default=None, description="Preset name the request was issued with"
     )

@@ -34,7 +34,14 @@ memory = MemoryModel()
 memory.messages.append(Message(content="你好", role="user"))
 memory.messages.append(Message(content="你好呀", role="assistant"))
 
-assert memory.is_dirty("messages")  # True
-memory.clean()
-assert not memory.is_dirty()  # True
+# 检查脏状态
+assert memory.is_dirty("messages")  # True：messages 被修改过
+print("Dirty vars:", memory.get_dirty_vars())  # {'messages'}
+
+memory.clean()  # 重置跟踪
+assert not memory.is_dirty()  # True：无待处理变更
 ```
+
+## 描述
+
+MemoryModel 类继承自 DirtyAwareBaseModel，用于存储对话历史、时间戳与摘要信息，是管理对话上下文的重要组件。脏标记机制让后端能够高效检测哪些字段发生了变化，从而只持久化被修改的部分。

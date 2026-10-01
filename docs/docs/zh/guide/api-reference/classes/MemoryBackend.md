@@ -2,11 +2,19 @@
 
 为提供记忆（对话历史）持久化的后端定义的抽象基类。
 
+## 描述
+
+`MemoryBackend` 定义了加载与提交对话记忆的接口。子类必须同时实现这两个方法。
+
 ## 方法
 
 ### `load_memory(session_id: str) -> MemoryModel`
 
 加载给定会话的对话记忆。
+
+**参数**：
+
+- `session_id` (str)：会话标识符
 
 **返回**：[MemoryModel](MemoryModel.md) - 对话记忆
 

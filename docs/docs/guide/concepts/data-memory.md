@@ -12,13 +12,13 @@ memory = MemoryModel()  # empty history
 memory.messages  # list[Message | ToolResult]
 ```
 
-| Field      | Holds                                                                                  |
-| ---------- | -------------------------------------------------------------------------------------- |
-| `messages` | The conversation: `Message` entries (user / assistant) and `ToolResult` entries paired with their tool calls |
-| `abstract` | The summary produced by compaction. Rendered into the system instruction by the train template |
+| Field      | Holds                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `messages` | The conversation: `Message` entries (user / assistant) and `ToolResult` entries paired with their tool calls        |
+| `abstract` | The summary produced by compaction. Rendered into the system instruction by the train template                      |
 | `usage`    | The usage the provider reported for the most recent request. Drives the compaction trigger; cleared after each fold |
-| `billing`  | Per-request `BillingRecord` entries accumulated for this session — the default persistence path for cost data |
-| `time`     | Timestamp                                                                              |
+| `billing`  | Per-request `BillingRecord` entries accumulated for this session — the default persistence path for cost data       |
+| `time`     | Timestamp                                                                                                           |
 
 Being a Pydantic model, it serializes with `model_dump()` and validates with
 `model_validate()` — exactly what a file/DB backend needs
@@ -61,11 +61,11 @@ Workflow nodes and strategies access it via type-matched injection
 Three separate mechanisms run before a request is built. They are deliberately
 independent — each can be enabled alone, and they solve different problems:
 
-| Mechanism            | Solves                                       | Runs when                             |
-| -------------------- | -------------------------------------------- | ------------------------------------- |
-| Content normalization | History carries blocks the model cannot read | `llm.enable_multi_modal` is **off**   |
-| History compaction   | History is too long                          | A trigger threshold is reached        |
-| Overflow recovery    | The provider already rejected the request    | A `ContextOverflowError` is raised    |
+| Mechanism             | Solves                                       | Runs when                           |
+| --------------------- | -------------------------------------------- | ----------------------------------- |
+| Content normalization | History carries blocks the model cannot read | `llm.enable_multi_modal` is **off** |
+| History compaction    | History is too long                          | A trigger threshold is reached      |
+| Overflow recovery     | The provider already rejected the request    | A `ContextOverflowError` is raised  |
 
 The default pipeline order is
 `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT >> JINJA2_RENDER >> BUILD_MESSAGE`
@@ -124,7 +124,7 @@ step strategy additionally performs.
 Sometimes the estimate is simply wrong — the provider rejects the request
 outright. `libchat` detects this and raises
 [`ContextOverflowError`](../api-reference/classes/ContextOverflowError.md)
-*before* the preset-fallback loop, so an oversized request never burns through
+_before_ the preset-fallback loop, so an oversized request never burns through
 the fallback chain.
 
 With `LLMConfig.enable_overflow_recovery` (default `True`), `LLM_COMPLETION`

@@ -2,6 +2,10 @@
 
 `BackendSlots` 数据类持有 `ChatObject` 在运行时用于数据 I/O 的两个后端引用。
 
+## 描述
+
+`BackendSlots` 是一个简单的数据类，把 [AbilityBackend](AbilityBackend.md) 与 [MemoryBackend](MemoryBackend.md) 打包在一起，以便作为单个参数传给 `ChatObject` 或 `AgentRuntime`。
+
 ## 字段
 
 - `ability` ([AbilityBackend](AbilityBackend.md))：负责加载工具、MCP 客户端和预设的后端

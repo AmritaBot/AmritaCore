@@ -72,7 +72,7 @@ three steps in order:
 Because step 1 happens **before** step 2, a memory backend that persists the
 whole `MemoryModel` — the `FileMemoryBackend` below, for instance — already
 stores the billing history. `BillingBackend` exists only for consumers that need
-the records to *also* reach somewhere else: a cost database, a metrics pipeline,
+the records to _also_ reach somewhere else: a cost database, a metrics pipeline,
 a quota enforcer.
 
 ```mermaid
@@ -84,7 +84,7 @@ flowchart LR
 ```
 
 > **Consequence**: leaving `billing` out of a hand-built `BackendSlots` is safe —
-the records still survive through memory. You lose only the external mirror.
+> the records still survive through memory. You lose only the external mirror.
 
 ## The Built-in `LegacyBackend`
 
@@ -173,7 +173,7 @@ my_backend = BackendSlots(
 
 ### Adding an External Billing Sink
 
-Only needed when the records must reach a store *other than* the one your
+Only needed when the records must reach a store _other than_ the one your
 memory backend writes to:
 
 ```python
@@ -231,14 +231,14 @@ and saves it via `commit_memory` at the end — your files now survive restarts.
 
 `backend_options=DatabackendOptions(...)` skips parts of the load/commit cycle:
 
-| Flag                         | Skips                                             |
-| ---------------------------- | ------------------------------------------------- |
-| `skip_memory_fetch`          | `load_memory` — start with an empty `MemoryModel` |
-| `skip_tools_fetch`           | `load_tools`                                      |
-| `skip_mcp_fetch`             | `load_mcp_clients`                                |
-| `skip_presets_fetch`         | `load_presets`                                    |
-| `skip_ability_extra_setting` | the whole `load_ability_all`                      |
-| `skip_memory_commit`         | `commit_memory` at the end                        |
+| Flag                         | Skips                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------- |
+| `skip_memory_fetch`          | `load_memory` — start with an empty `MemoryModel`                                |
+| `skip_tools_fetch`           | `load_tools`                                                                     |
+| `skip_mcp_fetch`             | `load_mcp_clients`                                                               |
+| `skip_presets_fetch`         | `load_presets`                                                                   |
+| `skip_ability_extra_setting` | the whole `load_ability_all`                                                     |
+| `skip_memory_commit`         | `commit_memory` at the end                                                       |
 | `skip_billing_commit`        | `slot.billing.commit_billing` only — `memory.billing` still receives the records |
 
 ```python

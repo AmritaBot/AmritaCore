@@ -171,7 +171,9 @@ class TestCompilation:
 
     def test_enum_and_const_are_enforced(self):
         params = _params(
-            mode=FunctionPropertySchema(type="string", description="m", enum=["a", "b"]),
+            mode=FunctionPropertySchema(
+                type="string", description="m", enum=["a", "b"]
+            ),
             kind=FunctionPropertySchema(type="integer", description="k", const=1),
         )
         params.required = ["mode", "kind"]
@@ -186,9 +188,7 @@ class TestCompilation:
 
     def test_mixed_enum_falls_back_to_membership_check(self):
         params = _params(
-            value=FunctionPropertySchema(
-                type="string", description="v", enum=["a", 1]
-            )
+            value=FunctionPropertySchema(type="string", description="v", enum=["a", 1])
         )
         params.required = ["value"]
         assert validate_arguments(params, {"value": "a"}) == {"value": "a"}

@@ -278,9 +278,7 @@ def python_type_to_property_schema(
                 main_type = non_none_types[0]
                 if main_type is Any or main_type is object:
                     raise ValueError("Optional type cannot contain Any or object")
-                return python_type_to_property_schema(
-                    main_type, globalns, description
-                )
+                return python_type_to_property_schema(main_type, globalns, description)
             raise ValueError(
                 f"Union types with multiple non-None types are not supported: {python_type}"
             )
@@ -555,9 +553,7 @@ def _build_validator(params: FunctionParametersSchema) -> type[BaseModel]:
             fields[name] = (annotation, ...)
         else:
             fields[name] = (annotation | None, prop.default)
-    return create_model(
-        "ToolArguments", __config__=ConfigDict(extra="allow"), **fields
-    )
+    return create_model("ToolArguments", __config__=ConfigDict(extra="allow"), **fields)
 
 
 @cache

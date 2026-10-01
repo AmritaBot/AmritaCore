@@ -23,14 +23,14 @@ Strategies never reach through `ChatObject` for resources — `_StrategyBase`
 exposes **convenience properties** that resolve from `StrategyContext` DI
 fields, falling back to `chat_object`:
 
-| Property                | Resolves from          | Fallback                           |
-| ----------------------- | ---------------------- | ---------------------------------- |
-| `self.preset`           | `ctx.preset`           | `chat_object.preset`               |
-| `self.config`           | `ctx.config`           | `chat_object.config`               |
-| `self.io_stream`        | `ctx.io_stream`        | `chat_object.io_stream`            |
-| `self.train_content`    | `ctx.train_content`    | `chat_object.train.content`        |
-| `self.stream_id`        | `ctx.stream_id`        | `chat_object.stream_id`            |
-| `self.usage`            | `ctx.usage`            | `chat_object._di_resp.usage`, else `None` |
+| Property             | Resolves from       | Fallback                                  |
+| -------------------- | ------------------- | ----------------------------------------- |
+| `self.preset`        | `ctx.preset`        | `chat_object.preset`                      |
+| `self.config`        | `ctx.config`        | `chat_object.config`                      |
+| `self.io_stream`     | `ctx.io_stream`     | `chat_object.io_stream`                   |
+| `self.train_content` | `ctx.train_content` | `chat_object.train.content`               |
+| `self.stream_id`     | `ctx.stream_id`     | `chat_object.stream_id`                   |
+| `self.usage`         | `ctx.usage`         | `chat_object._di_resp.usage`, else `None` |
 
 > `self.usage` is the run-scoped `SessionUsageProxy` ledger. It covers
 > workflow-internal usage (strategy tool rounds plus auxiliary calls); the

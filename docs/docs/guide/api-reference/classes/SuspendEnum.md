@@ -70,12 +70,6 @@
 - **Description**: Triggered after receiving the model response but before processing it
 - **Usage**: Great for response validation, content filtering, or implementing custom response handling logic
 
-### `MEMORY_APPEND`
-
-- **Value**: `"Component::memory_append"`
-- **Description**: Triggered when appending the LLM response to the context message wrap
-- **Usage**: Exposed by the `APPEND_RESPONSE` component node. Occurs after LLM completion to add the model's response as an assistant message.
-
 ### `APPLY_CONTEXT`
 
 - **Value**: `"Component::apply_context"`
@@ -87,12 +81,6 @@
 - **Value**: `"ChatObject::commit_memory"`
 - **Description**: Triggered after the execution pipeline completes, when memory is being committed back to the backend
 - **Usage**: Occurs at the very end of the workflow to persist conversation state. Useful for monitoring persistence or implementing custom memory commit logic
-
-### `FINALIZE`
-
-- **Value**: `"ChatObject::finalize"`
-- **Description**: Triggered at the end of the ChatObject execution pipeline
-- **Usage**: Useful for cleanup, logging final state, or post-processing
 
 ### `ADVANCE_COUNTER`
 
@@ -117,9 +105,6 @@ what `ReActAgentStrategy.intro_step` / `leave_step` hook into (see
 - **Value**: `"ChatObject::step_leave"`
 - **Description**: Leaving a Step boundary
 - **Usage**: Where the completed Step is summarized and between-Step compression is evaluated
-
-> `SuspendEnum.CALL_SINGLE_STRATEGY` is defined but not attached to any node —
-the strategy block is no longer reached through a suspend tag.
 
 ## Usage Example
 

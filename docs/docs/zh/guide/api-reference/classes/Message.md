@@ -15,7 +15,12 @@ Message 类表示对话中的单条消息。
 ```python
 from amrita_core.types import Message
 
+# 创建不同类型的消息
 system_msg = Message(content="你是一个乐于助人的助手。", role="system")
 user_msg = Message(content="你好，最近怎么样？", role="user")
 assistant_msg = Message(content="我很好，谢谢！", role="assistant")
 ```
+
+## 描述
+
+Message 类继承自 BaseModel，并使用泛型来表示对话中的消息。它包含 role、content 以及可选的工具调用信息。

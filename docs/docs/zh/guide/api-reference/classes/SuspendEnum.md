@@ -70,12 +70,6 @@
 - **描述**：收到模型回复之后、处理之前触发
 - **用途**：适合回复校验、内容过滤，或实现自定义的回复处理逻辑
 
-### `MEMORY_APPEND`
-
-- **值**：`"Component::memory_append"`
-- **描述**：把 LLM 回复追加到上下文消息包装时触发
-- **用途**：由 `APPEND_RESPONSE` 组件节点暴露。发生在 LLM 完成之后，用于把模型回复作为助手消息加入。
-
 ### `APPLY_CONTEXT`
 
 - **值**：`"Component::apply_context"`
@@ -87,12 +81,6 @@
 - **值**：`"ChatObject::commit_memory"`
 - **描述**：执行流水线完成后、记忆提交回后端时触发
 - **用途**：发生在工作流最末端，用于持久化会话状态。适合监控持久化过程或实现自定义记忆提交逻辑
-
-### `FINALIZE`
-
-- **值**：`"ChatObject::finalize"`
-- **描述**：ChatObject 执行流水线结束时触发
-- **用途**：适合清理、记录最终状态或后处理
 
 ### `ADVANCE_COUNTER`
 
@@ -115,8 +103,6 @@
 - **值**：`"ChatObject::step_leave"`
 - **描述**：离开 Step 边界
 - **用途**：已完成 Step 在此汇总，并在此评估 Step 之间的压缩
-
-> `SuspendEnum.CALL_SINGLE_STRATEGY` 已定义但未挂接到任何节点——策略块不再通过挂起标签进入。
 
 ## 使用示例
 
@@ -170,4 +156,3 @@ async def main():
 
 - [挂起与恢复机制](../../advanced/suspend.md)
 - [ChatObject 类](ChatObject.md)
-

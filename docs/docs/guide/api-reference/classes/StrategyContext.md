@@ -4,7 +4,7 @@ The StrategyContext class provides the execution context for agent strategies.
 
 This dataclass contains all the necessary information that an agent strategy needs to execute its workflow, including the user input, message context, and DI (Dependency Injection) resource fields.
 
-> **v0.12.6**: DI resource fields (`preset`, `config`, `tools_manager`, `io_stream`, `train_content`, `stream_id`, `resp_extra_usage`) are now available directly on `StrategyContext`. Strategies should prefer these fields over reaching through `chat_object`. `chat_object` remains the core lifecycle-manager handle for the conversation — it is not deprecated.
+> **v0.12.6**: DI resource fields (`preset`, `config`, `tools_manager`, `io_stream`, `train_content`, `stream_id`, `usage`) are now available directly on `StrategyContext`. Strategies should prefer these fields over reaching through `chat_object`. `chat_object` remains the core lifecycle-manager handle for the conversation — it is not deprecated.
 
 ## Properties
 
@@ -21,11 +21,16 @@ This dataclass contains all the necessary information that an agent strategy nee
 - `io_stream` (SuspendObjectStream \| None): Streaming I/O interface for yielding responses (default: `None`)
 - `train_content` (str \| None): System/training prompt content string (default: `None`)
 - `stream_id` (str \| None): Unique stream identifier (default: `None`)
-- `resp_extra_usage` (`UniResponseUsage` \| None): Accumulator for response usage statistics (default: `None`)
+- `usage` (`SessionUsageProxy` \| None): Run-scoped usage ledger (default: `None`)
 
 ### Core Reference Field
 
 - `chat_object` ([ChatObject](ChatObject.md) \| None): The **core lifecycle-manager handle** for the current conversation — ChatObject is the basic unit of a dialogue. Resources can be reached through it when not injected directly. (default: `None` in new-style DI workflows)
+
+### `message`
+
+A property alias for `original_context`, with a type-checking setter (assigning
+anything other than a `SendMessageWrap` raises `TypeError`).
 
 ## Constructor Parameters
 
@@ -38,7 +43,7 @@ This dataclass contains all the necessary information that an agent strategy nee
 - `io_stream` (SuspendObjectStream \| None, optional): I/O stream (default: `None`)
 - `train_content` (str \| None, optional): Training content (default: `None`)
 - `stream_id` (str \| None, optional): Stream ID (default: `None`)
-- `resp_extra_usage` (`UniResponseUsage` \| None, optional): Extra usage accumulator (default: `None`)
+- `usage` (`SessionUsageProxy` \| None, optional): Run-scoped usage ledger (default: `None`)
 
 ## Methods
 
@@ -71,7 +76,7 @@ ctx = StrategyContext(
     io_stream=stream,
     train_content="You are a helpful assistant.",
     stream_id="session_abc123",
-    resp_extra_usage=usage_tracker,
+    usage=usage_tracker,
 )
 
 # Strategies access DI fields via _StrategyBase convenience properties:

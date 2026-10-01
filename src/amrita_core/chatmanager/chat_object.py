@@ -774,7 +774,9 @@ AGENT_BLOCK: NodeCompose = (
 
 #: Native step loop: one task iteration is one Step, driven by ``STEP_BODY``.
 STEP_AGENT_BLOCK: NodeCompose = (
-    AGENT_ENTRY.as_compose() >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
+    AGENT_ENTRY.as_compose()
+    >> NATIVE_DO(STEP_BODY).WHILE(task_cond)
+    >> AGENT_POST_PROCESS
 )
 
 # Strategy dispatch is workflow control flow, not Python: the agent block and the inline runner are two guarded branches, each skipped when its predicate is false. Normalize before compact so the summary reads text, and compact before rendering so the new summary reaches the system instruction of the request it was computed for.

@@ -51,9 +51,7 @@ def _mk_usage(
 
 class TestBillingRecord:
     def test_rate_survives_json_roundtrip(self):
-        rate = RateConfig(
-            per=1000, input=Decimal("0.00014"), output=Decimal("0.00028")
-        )
+        rate = RateConfig(per=1000, input=Decimal("0.00014"), output=Decimal("0.00028"))
         record = BillingRecord(model="m", preset_name="p", rate=rate, total_tokens=10)
         restored = BillingRecord.model_validate(record.model_dump(mode="json"))
         assert restored.rate is not None

@@ -49,18 +49,18 @@ flowchart LR
 所有 step 级状态在 `AgentRunState` 中（在 `AgentLoopState.run_state` 与
 `strategy.run_state` 之间桥接——**同一实例**）：
 
-| 字段                                | 含义                                  |
-| ----------------------------------- | ------------------------------------- |
-| `step_index`                        | 全局 step 计数器                      |
-| `current_phase` / `current_step_id` | 活动 DAG 节点                         |
-| `plan` / `completed_step_ids`       | 任务 DAG + 进度                       |
-| `step_tool_signatures`              | 当前 Step 内的工具签名（停滞窗口）    |
-| `stall_injected`                    | give-up prompt 已注入（每 Step 一次） |
+| 字段                                | 含义                                                   |
+| ----------------------------------- | ------------------------------------------------------ |
+| `step_index`                        | 全局 step 计数器                                       |
+| `current_phase` / `current_step_id` | 活动 DAG 节点                                          |
+| `plan` / `completed_step_ids`       | 任务 DAG + 进度                                        |
+| `step_tool_signatures`              | 当前 Step 内的工具签名（停滞窗口）                     |
+| `stall_injected`                    | give-up prompt 已注入（每 Step 一次）                  |
 | `tool_error_hints`                  | 本 Step 中遇到的硬 ERROR 工具结果数（重试→改计划指引） |
-| `last_summary`                      | 前一个 Step 的主谓摘要                |
-| `tokens`                            | 真实 API token 统计（压缩触发）       |
-| `exec_finished`                     | 策略完成工具调用 → 迭代循环结束       |
-| `step_started_ts`                   | Step 的墙上时钟起点（token 预算窗口锚点） |
+| `last_summary`                      | 前一个 Step 的主谓摘要                                 |
+| `tokens`                            | 真实 API token 统计（压缩触发）                        |
+| `exec_finished`                     | 策略完成工具调用 → 迭代循环结束                        |
+| `step_started_ts`                   | Step 的墙上时钟起点（token 预算窗口锚点）              |
 
 ## 停滞防护
 

@@ -47,10 +47,14 @@ The step-driven variant swaps only the middle link:
 
 ```python
 # AGENT_BLOCK — one single_execute per iteration
-AGENT_BLOCK = AGENT_ENTRY >> WHILE(single_execute).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS
+AGENT_BLOCK = (
+    AGENT_ENTRY >> WHILE(single_execute).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS
+)
 
 # STEP_AGENT_BLOCK — one task iteration is one Step
-STEP_AGENT_BLOCK = AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
+STEP_AGENT_BLOCK = (
+    AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
+)
 ```
 
 ```python

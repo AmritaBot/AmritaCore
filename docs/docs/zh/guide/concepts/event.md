@@ -45,10 +45,10 @@ AmritaSense 提供两个事件基类：
 `"PRESET_FALLBACK"`）。下面两个事件都继承自共享基类 `Event`（含 `user_input`、
 `original_context`、`chat_object` 以及可变的 `message` 包装）。
 
-| 事件                 | 类型字符串             | 触发时机                        |
-| -------------------- | ---------------------- | ------------------------------- |
-| `PreCompletionEvent` | `"BEFORE_COMPLETION"`  | LLM 调用前（在此修改上下文）    |
-| `CompletionEvent`    | `"COMPLETION"`         | 响应后（改写 `model_response`） |
+| 事件                 | 类型字符串            | 触发时机                        |
+| -------------------- | --------------------- | ------------------------------- |
+| `PreCompletionEvent` | `"BEFORE_COMPLETION"` | LLM 调用前（在此修改上下文）    |
+| `CompletionEvent`    | `"COMPLETION"`        | 响应后（改写 `model_response`） |
 
 便捷装饰器：`@on_precompletion`、`@on_completion`、`@on_preset_fallback`、
 `@on_event("<type>")`。
@@ -59,11 +59,11 @@ AmritaSense 提供两个事件基类：
 `"PRESET_FALLBACK"`，具体子类用于告诉匹配器**哪一个**网关调用失败了。字段：
 `preset`、`exc_info`、`config`、`context`、`term`。
 
-| 事件                        | 失败的调用         | 额外字段  |
-| --------------------------- | ------------------ | --------- |
-| `CompletionFallbackContext` | `call_completion`  | —         |
-| `ToolsFallbackContext`      | `tools_caller`     | `tools`   |
-| `EmbeddingFallbackContext`  | `call_embedding`   | —         |
+| 事件                        | 失败的调用        | 额外字段 |
+| --------------------------- | ----------------- | -------- |
+| `CompletionFallbackContext` | `call_completion` | —        |
+| `ToolsFallbackContext`      | `tools_caller`    | `tools`  |
+| `EmbeddingFallbackContext`  | `call_embedding`  | —        |
 
 调用 `event.fail(reason)` 会抛出 `FallbackFailed`。
 

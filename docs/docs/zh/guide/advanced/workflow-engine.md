@@ -43,10 +43,14 @@ Step 驱动变体只替换中间那一环：
 
 ```python
 # AGENT_BLOCK —— 每次迭代一次 single_execute
-AGENT_BLOCK = AGENT_ENTRY >> WHILE(single_execute).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS
+AGENT_BLOCK = (
+    AGENT_ENTRY >> WHILE(single_execute).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS
+)
 
 # STEP_AGENT_BLOCK —— 一次任务循环迭代 = 一个 Step
-STEP_AGENT_BLOCK = AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
+STEP_AGENT_BLOCK = (
+    AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
+)
 ```
 
 ```python

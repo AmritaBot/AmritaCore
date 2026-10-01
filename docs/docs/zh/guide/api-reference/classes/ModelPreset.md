@@ -28,10 +28,18 @@ ModelPreset 类定义 AI 模型的预设配置。
 ```python
 from amrita_core.types.preset import resolve_max_context, resolve_max_output
 
-window = resolve_max_context(preset, config)  # preset.max_context 或 config.llm.session_tokens_windows
-budget = resolve_max_output(preset, config)  # preset.max_output 或 config.llm.max_tokens
+window = resolve_max_context(
+    preset, config
+)  # preset.max_context 或 config.llm.session_tokens_windows
+budget = resolve_max_output(
+    preset, config
+)  # preset.max_output 或 config.llm.max_tokens
 ```
 
 模型适配器用 `resolve_max_output` 生成请求的 `max_tokens` 参数，`ContextCompactor` 用 `resolve_max_context` 计算压缩阈值。
 
 > 由于 `rate.input` / `rate.output` 是 `Decimal`，`model_dump()` 返回的是 `Decimal` 对象。`save()` 因此写出 `model_dump(mode="json")`；你自己的序列化代码也应如此。
+
+## 描述
+
+ModelPreset 类继承自 BaseModel，用于封装 AI 模型的完整配置信息。它不仅包含基础模型参数，还提供配置文件的加载与保存功能，便于管理并复用不同的模型配置。

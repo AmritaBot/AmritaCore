@@ -21,17 +21,17 @@
 `loop: AgentLoopState`，解释器注入匹配实例。关键上下文（全部由
 `ChatObject` 拥有）：
 
-| 上下文               | 承载                        |
-| -------------------- | --------------------------- |
-| `SessionMetadata`    | 会话/流 id、时间戳          |
-| `MemoryContext`      | 运行时记忆                  |
-| `AbilityState`       | 配置、preset、后端槽位      |
-| `GeneralInput`       | 用户输入、train、模板       |
-| `WorkingState`       | `SendMessageWrap`           |
+| 上下文               | 承载                                               |
+| -------------------- | -------------------------------------------------- |
+| `SessionMetadata`    | 会话/流 id、时间戳                                 |
+| `MemoryContext`      | 运行时记忆                                         |
+| `AbilityState`       | 配置、preset、后端槽位                             |
+| `GeneralInput`       | 用户输入、train、模板                              |
+| `WorkingState`       | `SendMessageWrap`                                  |
 | `RespState`          | 响应 + 用量（本次运行的 `SessionUsageProxy` 账本） |
-| `AgentLoopState`     | 策略、调用计数、`run_state` |
-| `StrategyPayload`    | 策略工厂                    |
-| `DatabackendOptions` | 后端获取/提交跳过标志       |
+| `AgentLoopState`     | 策略、调用计数、`run_state`                        |
+| `StrategyPayload`    | 策略工厂                                           |
+| `DatabackendOptions` | 后端获取/提交跳过标志                              |
 
 > 用 AmritaSense 的术语，这是标准的依赖注入机制——一般规则见
 > [sense.amritabot.com](https://sense.amritabot.com)。
@@ -51,10 +51,10 @@
 
 ## 两篇深入
 
-| 页面                        | 覆盖                                                                          |
-| --------------------------- | ----------------------------------------------------------------------------- |
+| 页面                        | 覆盖                                                                           |
+| --------------------------- | ------------------------------------------------------------------------------ |
 | [数据后端](data-backend.md) | `AbilityBackend` / `MemoryBackend` / `BillingBackend` 接口与如何编写自己的后端 |
-| [记忆模型](data-memory.md)  | `MemoryModel`、加载/提交生命周期与历史压缩                                    |
+| [记忆模型](data-memory.md)  | `MemoryModel`、加载/提交生命周期与历史压缩                                     |
 
 ## 下一步
 

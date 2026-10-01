@@ -19,7 +19,7 @@ gives you:
 - `self.chat_object` — the lifecycle-manager handle
 - `self.tools_manager` — the tools manager
 - convenience properties: `self.preset`, `self.config`, `self.io_stream`,
-  `self.train_content`, `self.stream_id`, `self.resp_extra_usage`
+  `self.train_content`, `self.stream_id`, `self.usage`
 
 > `StrategyLikedObject.__call__` must call `super().__call__(ctx)` first when
 > overridden. `AgentStrategy` binds in `__init__`.

@@ -9,7 +9,7 @@ Raised when a provider rejects a request for exceeding its context window.
 - An **overflow** is worth reacting to: compact the history and retry, since resending the same request would fail identically.
 - An **ordinary failure** is transient: fall back to the next preset, as usual.
 
-`libchat.call_completion` checks each failure and re-raises an overflow as `ContextOverflowError` *before* the preset-fallback loop, so an oversized request never burns through the fallback chain.
+`libchat.call_completion` checks each failure and re-raises an overflow as `ContextOverflowError` _before_ the preset-fallback loop, so an oversized request never burns through the fallback chain.
 
 ## `is_context_overflow_error(error: BaseException) -> bool`
 

@@ -8,10 +8,10 @@
 
 两个消费方：
 
-| 调用点                            | 时机                         |
-| --------------------------------- | ---------------------------- |
-| `COMPACT` 节点                    | 轮边界，在请求构建之前       |
-| `ReActAgentStrategy` 的 Step 之间 | agent 循环内的 Step 边界     |
+| 调用点                            | 时机                     |
+| --------------------------------- | ------------------------ |
+| `COMPACT` 节点                    | 轮边界，在请求构建之前   |
+| `ReActAgentStrategy` 的 Step 之间 | agent 循环内的 Step 边界 |
 
 摘要存放在 [`MemoryModel.abstract`](MemoryModel.md)，由 train 模板渲染回系统指令。不会向消息列表注入任何内容，因此 provider 的消息顺序规则不受影响。
 
@@ -86,7 +86,7 @@ flowchart LR
 @dataclass
 class CompactionResult:
     messages: CONTENT_LIST_TYPE  # 存活的历史，从干净的轮次边界开始
-    summary: str                 # 替换被折叠前缀的摘要
+    summary: str  # 替换被折叠前缀的摘要
 ```
 
 ## 相关

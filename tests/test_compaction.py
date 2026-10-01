@@ -82,7 +82,9 @@ class TestSplitHistory:
             Message(
                 role="assistant",
                 content=None,
-                tool_calls=[ToolCall(id="t1", function={"name": "f", "arguments": "{}"})],  # pyright: ignore[reportArgumentType]
+                tool_calls=[
+                    ToolCall(id="t1", function={"name": "f", "arguments": "{}"})
+                ],  # pyright: ignore[reportArgumentType]
             ),
             ToolResult(role="tool", name="f", content="r1", tool_call_id="t1"),
             Message(role="user", content="u2"),
@@ -372,9 +374,7 @@ class TestSummarize:
                 [Message(role="user", content="new turn")], "old summary"
             )
         assert summary == "merged"
-        prompt = "".join(
-            str(m.content) for m in captured[0] if isinstance(m, Message)
-        )
+        prompt = "".join(str(m.content) for m in captured[0] if isinstance(m, Message))
         assert "old summary" in prompt
         assert "new turn" in prompt
 
@@ -504,9 +504,7 @@ class TestNormalizeMessages:
         config = AmritaConfig()
         config.llm.enable_multi_modal = False
         with pytest.raises(RuntimeError, match="LOAD_STATE"):
-            NORMALIZE_MESSAGES.func(
-                ability=_ability(config), mem=MemoryContext(None)
-            )
+            NORMALIZE_MESSAGES.func(ability=_ability(config), mem=MemoryContext(None))
 
 
 class TestOverflowDetection:
@@ -572,9 +570,7 @@ class TestOverflowRecovery:
         mem = MemoryContext(MemoryModel())
         resp = RespState()
         with (
-            patch(
-                "amrita_core.components.llm.call_completion", side_effect=fake_call
-            ),
+            patch("amrita_core.components.llm.call_completion", side_effect=fake_call),
             patch(
                 "amrita_core.components.llm.ContextCompactor.summarize",
                 new=AsyncMock(return_value="folded summary"),
@@ -612,9 +608,7 @@ class TestOverflowRecovery:
             return overflow()
 
         with (
-            patch(
-                "amrita_core.components.llm.call_completion", side_effect=fake_call
-            ),
+            patch("amrita_core.components.llm.call_completion", side_effect=fake_call),
             pytest.raises(ContextOverflowError),
         ):
             await LLM_COMPLETION.func(  # pyright: ignore[reportGeneralTypeIssues]
@@ -641,9 +635,7 @@ class TestOverflowRecovery:
             ]
         )
         with (
-            patch(
-                "amrita_core.components.llm.call_completion", side_effect=fake_call
-            ),
+            patch("amrita_core.components.llm.call_completion", side_effect=fake_call),
             pytest.raises(ContextOverflowError),
         ):
             await LLM_COMPLETION.func(  # pyright: ignore[reportGeneralTypeIssues]

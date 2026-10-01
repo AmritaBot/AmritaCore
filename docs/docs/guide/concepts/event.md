@@ -49,10 +49,10 @@ Type strings come from `EventTypeEnum` (`"COMPLETION"`, `"Nil"`,
 shared `Event` base (`user_input`, `original_context`, `chat_object`, and the
 mutable `message` wrap).
 
-| Event                | Type string         | When                                          |
-| -------------------- | ------------------- | --------------------------------------------- |
-| `PreCompletionEvent` | `"BEFORE_COMPLETION"` | Before the LLM call (mutate context here)   |
-| `CompletionEvent`    | `"COMPLETION"`      | After the response (rewrite `model_response`) |
+| Event                | Type string           | When                                          |
+| -------------------- | --------------------- | --------------------------------------------- |
+| `PreCompletionEvent` | `"BEFORE_COMPLETION"` | Before the LLM call (mutate context here)     |
+| `CompletionEvent`    | `"COMPLETION"`        | After the response (rewrite `model_response`) |
 
 Convenience decorators: `@on_precompletion`, `@on_completion`,
 `@on_preset_fallback`, `@on_event("<type>")`.
@@ -64,11 +64,11 @@ shares the single type string `"PRESET_FALLBACK"`; the concrete subclass tells
 matchers **which** gateway call failed. Fields: `preset`, `exc_info`, `config`,
 `context`, `term`.
 
-| Event                        | Failing call      | Extra field      |
-| ---------------------------- | ----------------- | ---------------- |
-| `CompletionFallbackContext`  | `call_completion` | —                |
-| `ToolsFallbackContext`       | `tools_caller`    | `tools`          |
-| `EmbeddingFallbackContext`   | `call_embedding`  | —                |
+| Event                       | Failing call      | Extra field |
+| --------------------------- | ----------------- | ----------- |
+| `CompletionFallbackContext` | `call_completion` | —           |
+| `ToolsFallbackContext`      | `tools_caller`    | `tools`     |
+| `EmbeddingFallbackContext`  | `call_embedding`  | —           |
 
 Calling `event.fail(reason)` raises `FallbackFailed`.
 

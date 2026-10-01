@@ -47,7 +47,7 @@ class ModelAdapter:
 
 ## Methods
 
-### get*adapter_protocol()*(Abstract)
+### get*adapter_protocol() *(Abstract)\_
 
 Get the protocol identifier(s) for this adapter.
 

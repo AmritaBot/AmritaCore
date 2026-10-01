@@ -82,7 +82,7 @@ ChatObject 类是与 AI 对话的主要接口。它通过 `io_stream` 属性使�
 
 ## 挂起与恢复方法
 
-#### `io_stream.wait_to_suspend(*tags: str, timeout: float | None = None)`
+### `io_stream.wait_to_suspend(*tags: str, timeout: float | None = None)`
 
 在独立的外部任务中调用此方法，可在 `ChatObject` 执行到达下一个挂起点时将其暂停。
 
@@ -118,7 +118,7 @@ await chat.io_stream.wait_to_suspend(SuspendEnum.SINGLE_TOOL.value, timeout=5.0)
 await chat.io_stream.wait_to_suspend("custom_tag", timeout=2.0)
 ```
 
-#### `io_stream.resume()`
+### `io_stream.resume()`
 
 恢复被挂起的执行流。继续执行直到下一个挂起点，或完成当前操作。
 
@@ -132,7 +132,7 @@ async def controller(chat_obj):
     chat_obj.io_stream.resume()  # 恢复执行
 ```
 
-#### `io_stream._wait_for_continue(tag: str | None = None)`
+### `io_stream._wait_for_continue(tag: str | None = None)`
 
 手动挂起点，通常在自定义函数内部使用，以便与外部控制器配合实现细粒度的流程控制。
 
@@ -197,5 +197,89 @@ chat_with_event_params = ChatObject(
     hook_kwargs={"custom_key": "custom_value"},
     exception_ignored=(ValueError, TypeError),
 )
+
+# 使用自定义 Jinja2 变量的示例
+chat_with_jinja2_vars = ChatObject(
+    train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
+    jinja2_vars={"custom_role": "AI expert", "company_name": "Amrita Corp"},
+)
+
+# 使用自定义 io_stream 的示例
+from amrita_sense.streaming import SuspendObjectStream
+
+custom_stream = SuspendObjectStream(queue_size=100, queue_timeout=30.0)
+chat_with_custom_stream = ChatObject(
+    train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
+    io_stream=custom_stream,
+)
+
+# 使用预组合工作流的示例（v0.12.6+）
+from amrita_core.builtins.workflows import SIMPLE_REACT
+
+chat_with_workflow = ChatObject(
+    train=train.model_dump(),
+    user_input="Hello!",
+    session_id="session_123",
+    workflow=SIMPLE_REACT,
+)
+
+# ❌ 无效：会导致 TypeError
+# chat_with_override = ChatObject(
+#     train=train.model_dump(),
+#     user_input="Hello!",
+#     session_id="session_123",
+#     jinja2_vars={"config": {"custom_setting": "value"}}  # 错误：'config' 是内置参数
+# )
 ```
 
+## 描述
+
+ChatObject 类负责处理单次聊天会话，包括消息接收、上下文管理、模型调用与响应发送。它是 AmritaCore 框架中处理对话的核心类之一。
+
+### 回调机制
+
+回调机制由 `io_stream` 属性（一个 `SuspendObjectStream` 实例）提供，工作方式如下：
+
+1. 提供了回调时，响应会直接传给回调函数而不是入队
+2. 这可避免内存堆积与潜在的溢出问题
+3. 回调函数以异步方式执行，并配合适当的锁以保证线程安全
+
+未提供回调时，则使用传统的基于队列的流式机制，由 AnyIO 的内存对象流提供内建背压处理。
+
+### 事件参数注入
+
+`hook_args`、`hook_kwargs` 与 `exception_ignored` 参数支持向事件处理函数注入自定义参数。当 `PreCompletionEvent` 或 `CompletionEvent` 等事件被触发时，这些参数会传给已注册的事件处理函数，使其能够访问额外的上下文信息，并根据具体聊天会话的需求定制行为。
+
+### Jinja2 模板变量
+
+`jinja2_vars` 参数允许向 Jinja2 模板系统传入自定义变量。这些变量在模板渲染时会通过 `**self.jinja2_vars` **直接展开**，这意味着：
+
+1. **直接访问变量**：`jinja2_vars` 字典中的键会直接成为可用的模板变量（例如 `{"role": "expert"}` 会让模板中可直接使用 `role`）
+2. **不可覆盖内置变量**：**注意**：`jinja2_vars` 中不能使用与内置变量名（`train`、`memory`、`chatobj`、`config`）相同的键，否则会抛出 `TypeError`，因为 Python 不允许函数调用中出现重复的关键字参数。
+3. **保留关键字**：键 `'self'` 为保留字，不能在 `jinja2_vars` 中使用
+
+这一设计在保持安全（避免与内置变量意外冲突）的同时，为模板定制提供了最大灵活性。
+
+### 流式响应处理
+
+AmritaCore 使用 **AnyIO 内存对象流**处理流式响应，自带背压处理：
+
+```python
+# 处理流式响应
+async for message in chat.io_stream.get_response_generator():
+    content = message if isinstance(message, str) else message.get_content()
+    print(content, end="")
+```
+
+**AnyIO 背压的关键特性**：
+
+- **自动流控**：消费者慢于生产者时，生产者会自动等待
+- **单一缓冲**：使用单个缓冲区，而不是带溢出机制的双队列
+- **内存高效**：内建的缓冲区大小限制可防止内存无界增长
+- **超时安全**：队列操作遵守 `queue_timeout` 参数
+
+**注意**：先前的 `overflow_queue_size` 参数已被移除。所有背压现在都由 AnyIO 的单流机制处理。

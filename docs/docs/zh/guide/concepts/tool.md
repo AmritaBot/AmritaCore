@@ -30,10 +30,10 @@ handler 接收已解析的参数 `dict` 并返回 `str`（模型看到的结果�
 
 `amrita_core.tools.schema` 把这个 schema 当作中间表示，提供两个正交方向：
 
-| 方向 | 入口                                                                     | 用途             |
-| ---- | ------------------------------------------------------------------------ | ---------------- |
+| 方向 | 入口                                                                      | 用途                 |
+| ---- | ------------------------------------------------------------------------- | -------------------- |
 | 投影 | `function_definition_from_pydantic`、`function_definition_from_signature` | Python 类型 → schema |
-| 编译 | `compile_parameters_model`                                                | schema → 校验器  |
+| 编译 | `compile_parameters_model`                                                | schema → 校验器      |
 
 schema 是给**模型**读的；编译出的 Pydantic 模型负责校验**调用**。因为编译只从
 schema 出发，所以它对所有来源都成立——手写 schema、`@simple_tool` 的类型注解、

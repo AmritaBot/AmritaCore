@@ -53,18 +53,18 @@ flowchart LR
 All step-level state lives in `AgentRunState` (bridged between
 `AgentLoopState.run_state` and `strategy.run_state` — **one instance**):
 
-| Field                               | Meaning                                            |
-| ----------------------------------- | -------------------------------------------------- |
-| `step_index`                        | Global step counter                                |
-| `current_phase` / `current_step_id` | The active DAG node                                |
-| `plan` / `completed_step_ids`       | The task DAG + progress                            |
-| `step_tool_signatures`              | Tool signatures in the current Step (stall window) |
-| `stall_injected`                    | Give-up prompt injected (once per Step)            |
+| Field                               | Meaning                                                           |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `step_index`                        | Global step counter                                               |
+| `current_phase` / `current_step_id` | The active DAG node                                               |
+| `plan` / `completed_step_ids`       | The task DAG + progress                                           |
+| `step_tool_signatures`              | Tool signatures in the current Step (stall window)                |
+| `stall_injected`                    | Give-up prompt injected (once per Step)                           |
 | `tool_error_hints`                  | Hard ERROR tool results seen in this Step (retry→revise guidance) |
-| `last_summary`                      | Subject-predicate summary of the previous Step     |
-| `tokens`                            | Real API token accounting (compression trigger)    |
-| `exec_finished`                     | Strategy done calling tools → iteration loop ends  |
-| `step_started_ts`                   | Wall-clock start of the Step (token-budget window anchor) |
+| `last_summary`                      | Subject-predicate summary of the previous Step                    |
+| `tokens`                            | Real API token accounting (compression trigger)                   |
+| `exec_finished`                     | Strategy done calling tools → iteration loop ends                 |
+| `step_started_ts`                   | Wall-clock start of the Step (token-budget window anchor)         |
 
 ## Stall Protection
 

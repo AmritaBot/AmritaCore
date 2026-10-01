@@ -1402,7 +1402,9 @@ class TestBetweenStepCompression:
 
         with patch(
             "amrita_core.components.compaction.call_completion",
-            side_effect=AssertionError("LLM must not be called with compaction disabled"),
+            side_effect=AssertionError(
+                "LLM must not be called with compaction disabled"
+            ),
         ):
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4  # untouched

@@ -6,27 +6,28 @@ use instead.
 
 ## At a Glance
 
-| Removed / renamed                      | Replacement                                                    |
-| -------------------------------------- | -------------------------------------------------------------- |
-| `amrita_core.tokenizer` module         | provider-reported usage (`MemoryModel.usage`)                  |
-| `TokenizerManager`, `BaseTokenizer`    | (none — tokenization is the provider's job)                    |
-| `get_tokens()`, `hybrid_token_count()` | `UniResponseUsage` from the provider response                  |
-| `FunctionConfig.no_tokenizer`          | (none)                                                         |
-| `FunctionConfig.tokenizer_used`        | (none)                                                         |
-| `LLMConfig.tokens_count_mode`          | (none)                                                         |
-| `LLMConfig.enable_tokens_limit`        | (none)                                                         |
-| `config.llm.max_tokens` for requests   | `resolve_max_output(preset, config)`                           |
-| `LLMConfig.enable_memory_abstract`     | `LLMConfig.enable_compaction`                                  |
-| `LLMConfig.memory_abstract_proportion` | `LLMConfig.compaction_trigger_ratio`                           |
-| `LLMConfig.memory_abstract_threshold`  | `LLMConfig.compaction_trigger_ratio` (+ `memory_length_limit`) |
-| `chatmanager.MemoryLimiter`            | `ContextCompactor` + `NORMALIZE_MESSAGES`                      |
-| `UsageRegistry` and friends            | `SessionUsageProxy`                                            |
-| `ChatObject(context=...)`              | `ChatObject(session_id=...)` (now required)                    |
-| `chat.state` / `StateContext`          | `chat.session_id`, `chat.data`, DI contexts                    |
-| `LegacyBackend(ctx=...)`               | `LegacyBackend()`                                              |
-| `HybridReActAgentStrategy`             | `ReActAgentStrategy`                                           |
-| `BuiltinName`                          | (none)                                                         |
-| Tool arguments left unchecked          | `function_config.validate_tool_arguments` (default `True`)     |
+| Removed / renamed                                                 | Replacement                                                    |
+| ----------------------------------------------------------------- | -------------------------------------------------------------- |
+| `amrita_core.tokenizer` module                                    | provider-reported usage (`MemoryModel.usage`)                  |
+| `TokenizerManager`, `BaseTokenizer`                               | (none — tokenization is the provider's job)                    |
+| `get_tokens()`, `hybrid_token_count()`                            | `UniResponseUsage` from the provider response                  |
+| `FunctionConfig.no_tokenizer`                                     | (none)                                                         |
+| `FunctionConfig.tokenizer_used`                                   | (none)                                                         |
+| `LLMConfig.tokens_count_mode`                                     | (none)                                                         |
+| `LLMConfig.enable_tokens_limit`                                   | (none)                                                         |
+| `config.llm.max_tokens` for requests                              | `resolve_max_output(preset, config)`                           |
+| `LLMConfig.enable_memory_abstract`                                | `LLMConfig.enable_compaction`                                  |
+| `LLMConfig.memory_abstract_proportion`                            | `LLMConfig.compaction_trigger_ratio`                           |
+| `LLMConfig.memory_abstract_threshold`                             | `LLMConfig.compaction_trigger_ratio` (+ `memory_length_limit`) |
+| `chatmanager.MemoryLimiter`                                       | `ContextCompactor` + `NORMALIZE_MESSAGES`                      |
+| `UsageRegistry` and friends                                       | `SessionUsageProxy`                                            |
+| `ChatObject(context=...)`                                         | `ChatObject(session_id=...)` (now required)                    |
+| `chat.state` / `StateContext`                                     | `chat.session_id`, `chat.data`, DI contexts                    |
+| `LegacyBackend(ctx=...)`                                          | `LegacyBackend()`                                              |
+| `HybridReActAgentStrategy`                                        | `ReActAgentStrategy`                                           |
+| `BuiltinName`                                                     | (none)                                                         |
+| Tool arguments left unchecked                                     | `function_config.validate_tool_arguments` (default `True`)     |
+| `SuspendEnum.MEMORY_APPEND`, `.FINALIZE`, `.CALL_SINGLE_STRATEGY` | (none — never emitted)                                         |
 
 ## 1. The Tokenizer Is Gone
 
@@ -149,9 +150,7 @@ preset = ModelPreset(
     model="deepseek-chat",
     name="deepseek",
     api_key="sk-...",
-    rate=RateConfig(
-        per=1_000_000, input=Decimal("0.27"), output=Decimal("1.10")
-    ),
+    rate=RateConfig(per=1_000_000, input=Decimal("0.27"), output=Decimal("1.10")),
 )
 ```
 
@@ -277,6 +276,24 @@ MCP tools also stopped losing their constraints: `minimum`, `maximum`,
 `pattern`, `minLength`, `maxLength`, `multipleOf`, `exclusiveMinimum`,
 `exclusiveMaximum`, `const`, `default` and `additionalProperties` are now
 carried through from the server's JSON Schema.
+
+## 9. Three Unused `SuspendEnum` Values Are Gone
+
+`SuspendEnum.MEMORY_APPEND`, `SuspendEnum.FINALIZE` and
+`SuspendEnum.CALL_SINGLE_STRATEGY` were declared but never attached to a node,
+so nothing ever emitted them. They are removed.
+
+The practical consequence is only for code that **waited** on them:
+
+```python
+# before — would block forever, nothing ever emitted this tag
+await chat.io_stream.wait_to_suspend(SuspendEnum.FINALIZE.value)
+```
+
+If you need a hook at the end of a run, use the `COMPLETION` event
+([Event System](concepts/event.md)) or the `COMMIT_MEMORY` tag, which is
+attached to a real node. Note that `MEMORY_APPEND` was never the tag on
+`APPEND_RESPONSE` — that node carries `SuspendEnum.MEMORY`, alongside `COMPACT`.
 
 ## Next
 

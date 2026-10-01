@@ -29,7 +29,7 @@ flowchart TB
 | [ChatObject](chat-object.md)    | 生命周期管理器：工作流、DI 上下文、流                                 |
 | [配置系统](configuration.md)    | `AmritaConfig`、`FunctionConfig`、`LLMConfig`、preset                 |
 | [事件系统](event.md)            | 管线事件 + matcher 钩子系统                                           |
-| [工具系统](tool.md)             | 工具注册、schema、执行                                                  |
+| [工具系统](tool.md)             | 工具注册、schema、执行                                                |
 | [Agent 策略](agent-strategy.md) | 策略模式；Step 驱动的 ReAct 循环                                      |
 | [数据管理](data.md)             | 消息、DI 上下文、[后端](data-backend.md) + [记忆](data-memory.md)深入 |
 

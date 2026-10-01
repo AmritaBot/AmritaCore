@@ -36,7 +36,7 @@ agent = create_agent(..., config=config)  # or per-agent
 | `function_config.agent_tool_call_limit`   | `10`      | Hard cap on tool rounds per run                                              |
 | `function_config.agent_step_token_budget` | `-1`      | Per-Step prompt-token budget (`<= 0` = disabled/unlimited)                   |
 | `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                                               |
-| `builtin.agent_thought_mode`              | `"chat"`  | `"reasoning"` / `"chat"` / `"reasoning-required"` / `"reasoning-optional"` |
+| `builtin.agent_thought_mode`              | `"chat"`  | `"reasoning"` / `"chat"` / `"reasoning-required"` / `"reasoning-optional"`   |
 | `builtin.loop_reasoning_trigger`          | `5`       | Stall detection: N identical tool signatures → give up                       |
 | `llm.enable_compaction`                   | `True`    | Fold long history into a summary instead of resending it                     |
 | `llm.compaction_trigger_ratio`            | `0.9`     | Fraction of the attention window at which compaction fires                   |
