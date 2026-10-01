@@ -9,8 +9,5 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs"
-  },
-  "dependencies": {
-    "@vuepress/plugin-palette": "^2.0.0-rc.112"
   }
 }
