@@ -146,7 +146,7 @@ try:
                                 },
                             }
                         )
-                # Other types are ignored for now
+                # TODO: `FileContent` (type "file") is silently dropped here, so the model answers about a file it never received. The endpoint wants `source.type="file"` and the `anthropic-beta: files-api-2025-04-14` header, and the adapter has no way to inject that header yet. Until then this should at least raise instead of discarding.
             return blocks or [{"type": "text", "text": ""}]
 
         @staticmethod

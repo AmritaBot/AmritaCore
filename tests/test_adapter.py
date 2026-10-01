@@ -468,7 +468,9 @@ class TestAnthropicAdapter:
         content = [
             {
                 "type": "image_url",
-                "image_url": {"url": f"data:image/jpeg;charset=utf-8;base64,{_PNG_B64}"},
+                "image_url": {
+                    "url": f"data:image/jpeg;charset=utf-8;base64,{_PNG_B64}"
+                },
             }
         ]
         blocks = AnthropicAdapter._convert_content_to_blocks(content)
@@ -488,15 +490,15 @@ class TestAnthropicAdapter:
 
     def test_convert_content_to_blocks_inline_image_requires_base64(self):
         """A URL-encoded data URI is not something the provider accepts."""
-        content = [
-            {"type": "image_url", "image_url": {"url": "data:image/png,%89PNG"}}
-        ]
+        content = [{"type": "image_url", "image_url": {"url": "data:image/png,%89PNG"}}]
         with pytest.raises(ValueError, match="must be base64-encoded"):
             AnthropicAdapter._convert_content_to_blocks(content)
 
     def test_convert_content_to_blocks_inline_image_requires_payload(self):
         """An empty payload is rejected rather than sent as an empty image."""
-        content = [{"type": "image_url", "image_url": {"url": "data:image/png;base64,"}}]
+        content = [
+            {"type": "image_url", "image_url": {"url": "data:image/png;base64,"}}
+        ]
         with pytest.raises(ValueError, match="carries no payload"):
             AnthropicAdapter._convert_content_to_blocks(content)
 
