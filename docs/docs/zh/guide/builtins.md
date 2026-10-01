@@ -36,7 +36,6 @@
 | 策略                       | 类别          | 备注                                                                                                         |
 | -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------ |
 | `ReActAgentStrategy`       | `agent-mixed` | **默认策略类**；step 循环工作流激活后以节点驱动 Step 循环运行（见 [Agent 策略](concepts/agent-strategy.md)） |
-| `HybridReActAgentStrategy` | `agent-mixed` | MoE XML 风格结果；**已弃用，v0.14.0 移除**                                                                   |
 | `NoActionAgentStrategy`    | `workflow`    | 跳过工具调用                                                                                                 |
 
 ## 内置事件钩子

@@ -37,8 +37,7 @@ class _StrategyBase(ABC):
     chat_object: ChatObject  # lifecycle-manager handle, resolved from StrategyContext
     ctx: StrategyContext
 
-    # Convenience properties — prefer StrategyContext DI fields,
-    # fall back to chat_object for backward compatibility.
+    # Convenience properties - prefer StrategyContext DI fields, fall back to chat_object for backward compatibility.
 
     @property
     def preset(self) -> ModelPreset:

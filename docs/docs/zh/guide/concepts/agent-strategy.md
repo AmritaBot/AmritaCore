@@ -58,10 +58,9 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 
 ## 其他内置策略
 
-| 策略                       | 类别          | 用途                                               |
-| -------------------------- | ------------- | -------------------------------------------------- |
-| `HybridReActAgentStrategy` | `agent-mixed` | MoE 模型；XML 风格结果（**已弃用，v0.14.0 移除**） |
-| `NoActionAgentStrategy`    | `workflow`    | 完全跳过工具调用                                   |
+| 策略                    | 类别       | 用途               |
+| ----------------------- | ---------- | ------------------ |
+| `NoActionAgentStrategy` | `workflow` | 完全跳过工具调用   |
 
 ## 编写自定义策略
 

@@ -12,7 +12,7 @@ class BaseModel(B_Model):
     """BaseModel+dict duck typing"""
 
     def __str__(self) -> str:
-        return json.dumps(self.model_dump(), ensure_ascii=True)
+        return json.dumps(self.model_dump(mode="json"), ensure_ascii=True)
 
     def __repr__(self) -> str:
         return self.__str__()

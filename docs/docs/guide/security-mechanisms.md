@@ -22,9 +22,9 @@ config.cookie.enable_cookie = True
 Tool results and peer messages enter the model context as text. Treat them as
 untrusted:
 
-- **Built-in strategies** store tool results in `ToolResult` pairs; the
-  XML-rendering style of the deprecated `HybridReActAgentStrategy` carried
-  higher injection risk (plain-text results).
+- **Built-in strategies** store tool results in paired `ToolResult` messages
+  rather than inlining them as plain text, keeping untrusted output out of the
+  instruction-carrying text stream.
 - **Peer messages** (`send_to_producer`) are appended with the `[peer message]`
   marker — design your system prompt to treat that marker as data, not
   instructions.

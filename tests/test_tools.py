@@ -55,8 +55,7 @@ class TestMultiToolsManager:
         # get_tools should include the registered tool and it should not be disabled
         all_tools = manager.get_tools()
         assert len(all_tools) == 1
-        # Depending on implementation, get_tools might return a dict or iterable of names/models.
-        # These assertions are intentionally loose: they only require that the tool is visible.
+        # Depending on implementation, get_tools might return a dict or iterable of names/models. These assertions are intentionally loose: they only require that the tool is visible.
         assert tool_name in str(all_tools)
         assert tool_name not in manager._disabled_tools
         assert manager._models[tool_name] is data

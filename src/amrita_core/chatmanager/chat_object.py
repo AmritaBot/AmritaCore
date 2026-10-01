@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import copy
 from asyncio import Task
 from collections.abc import Awaitable, Callable
@@ -11,8 +10,6 @@ from typing import Any, TypeVar
 from uuid import uuid4
 
 from amrita_sense import (
-    ALIAS,
-    NOP,
     WHILE,
     Node,
     NodeCompose,
@@ -20,9 +17,8 @@ from amrita_sense import (
     WorkflowInterpreter,
 )
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
-from amrita_sense.instructions import JMP
-from amrita_sense.instructions.native import NATIVE_DO
-from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT, SubprogramStorage
+from amrita_sense.instructions.native import NATIVE_DO, NATIVE_IF
+from amrita_sense.instructions.subprogram import SubprogramStorage
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
@@ -33,13 +29,14 @@ from amrita_core._compat import exc_ignored_disabled
 from amrita_core.agent.context import build_strategy_context
 from amrita_core.agent.strategy import (
     AgentStrategy,
-    NoExceptionHandler,
     StrategyLikedObject,
 )
 from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.builtins.backends import LegacyBackend
+from amrita_core.components.compaction import COMPACT, should_compact
 from amrita_core.components.llm import JINJA2_RENDER, LLM_COMPLETION
+from amrita_core.components.normalize import NORMALIZE_MESSAGES
 from amrita_core.components.process import BUILD_MESSAGE, COMMIT_MEMORY, LOAD_STATE
 from amrita_core.components.react import (
     AGENT_ENTRY,
@@ -48,6 +45,11 @@ from amrita_core.components.react import (
     SINGLE_STRATEGY_CALL,
     STEP_BODY,
     task_cond,
+)
+from amrita_core.components.strategy import (
+    RUN_INLINE_STRATEGY,
+    is_agent_category,
+    not_agent_category,
 )
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
@@ -66,7 +68,6 @@ from amrita_core.contexts import (
     WorkingState,
 )
 from amrita_core.enums import (
-    BuiltinName,
     SuspendEnum,
 )
 from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
@@ -79,12 +80,11 @@ from amrita_core.types import (
     UniResponseUsage,
 )
 from amrita_core.types.memory import MemoryModel
-from amrita_core.usage import UsageRegistry, UsageSnapshot
+from amrita_core.usage import SessionUsageProxy
 from amrita_core.utils import get_current_datetime_timestamp
 
 from .chat_libs import ChatManager, chat_manager
 from .chat_obj_meta import ChatObjectMeta
-from .memory_limiter import MemoryLimiter
 
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 
@@ -150,7 +150,6 @@ class ChatObject:
     # ChatObject temp storage
     _chatman: ChatManager
     _state: StateContext | None  # Backref for external consumers
-    usage_snapshot: UsageSnapshot | None  # Run usage kept after the run ends
 
     # DI context references — component nodes read/write these via extra_args type injection
     _di_ability: AbilityState
@@ -189,7 +188,6 @@ class ChatObject:
         "io_stream",
         "last_call",
         "now_calling",
-        "usage_snapshot",
     )
 
     def __init__(
@@ -320,7 +318,6 @@ class ChatObject:
                 prompt_tokens=0, completion_tokens=0, total_tokens=0
             )
         )
-        self.usage_snapshot = None
         self._di_loop = AgentLoopState()
         self._di_agent = StrategyPayload(strategy=_strategy)
         self._di_opt = _bke_opt
@@ -615,7 +612,11 @@ class ChatObject:
         await self.io_stream._wait_for_continue(SuspendEnum.ENTRY_POINT)
         if not self._is_running and not self._is_done:
             self._di_session.stream_id = uuid4().hex
-            self._di_resp.usage = UsageRegistry.register(self.stream_id)
+            self._di_resp.usage = SessionUsageProxy(
+                session_id=self.session_id,
+                stream_id=self.stream_id,
+                backend=self._di_ability.slot.billing,
+            )
             logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
 
             try:
@@ -628,11 +629,8 @@ class ChatObject:
             finally:
                 self._is_running = False
                 self._is_done = True
-                # Keep run usage on the object, then release the registry entry.
                 if self._di_resp.usage is not None:
-                    self.usage_snapshot = self._di_resp.usage.snapshot()
                     self._di_resp.extra_usage = self._di_resp.usage.extra_total
-                UsageRegistry.unregister(self.stream_id)
                 try:
                     await self.io_stream.set_queue_done()  # Write a EOF to the queue
                 except TimeoutError:
@@ -677,33 +675,6 @@ class ChatObject:
 #  Retained workflow nodes (use DI _di_xxx refs)
 
 
-@Node(SuspendEnum.MEMORY)
-async def _limiting_memory(chat_obj: ChatObject):
-    logger.debug("Starting applying memory limitations..")
-    mem_ctx = chat_obj._di_memory
-    input_ctx = chat_obj._di_input
-    ab = chat_obj._di_ability
-    resp = chat_obj._di_resp
-    if not ab.config.llm.enable_memory_abstract:
-        return
-    assert mem_ctx.memory is not None, "Memory must be loaded before limiting"
-    async with MemoryLimiter(
-        mem_ctx.memory,
-        input_ctx.train,
-        config=ab.config,
-        preset=ab.preset,
-        usage=resp.usage,
-    ) as lim:
-        await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY)
-        await lim.run_enforce()
-
-        if abs_usage := lim.usage:
-            if not lim.recorded_via_gateway and resp.usage is not None:
-                resp.usage.record(abs_usage)
-        mem_ctx.memory = lim.memory
-    logger.debug("Memory limitation application completed")
-
-
 @Node(SuspendEnum.PRECOMPLE)
 async def _pre_runner(chat_obj: ChatObject):
     wok = chat_obj._di_working
@@ -740,14 +711,26 @@ async def _pre_runner(chat_obj: ChatObject):
 
 
 @Node(SuspendEnum.STRATEGY_START)
-async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None:
-    """Run workflow of strategy given."""
-    agent = chat_obj._di_agent
-    input_ctx = chat_obj._di_input
-    ab = chat_obj._di_ability
-    wok = chat_obj._di_working
-    assert wok.context_wrap is not None, "Context wrap must be built before strategy"
+def _prepare_strategy(
+    chat_obj: ChatObject,
+    agent: StrategyPayload,
+    input_ctx: GeneralInput,
+    ab: AbilityState,
+    wok: WorkingState,
+    session: SessionMetadata,
+    resp: RespState,
+    loop: AgentLoopState,
+    intp: WorkflowInterpreter,
+) -> None:
+    """Build the strategy context for whichever category runs next.
 
+    Only assembles data: the workflow decides which branch executes via
+    ``is_agent_category`` / ``not_agent_category``, so this node has no control
+    flow of its own. It stays in this module because it needs the live
+    ``ChatObject`` as the strategy's lifecycle handle, and importing
+    ``ChatObject`` from ``components`` would close an import cycle.
+    """
+    assert wok.context_wrap is not None, "Context wrap must be built before strategy"
     match agent.strategy.get_category():
         case "agent-mixed" | "agent":
             context = (
@@ -760,23 +743,6 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
                 if ab.config.function_config.use_minimal_context
                 else wok.context_wrap.copy()
             )
-            ctx = build_strategy_context(
-                user_input=input_ctx.user_input,
-                original_context=context,
-                chat_object=chat_obj,
-                preset=ab.preset,
-                config=ab.config,
-                tools_manager=ab.ability.tools if ab.ability else None,
-                io_stream=intp.object_io,
-                train_content=input_ctx.train.content,
-                stream_id=chat_obj._di_session.stream_id,
-                usage=chat_obj._di_resp.usage,
-            )
-            chat_obj._di_loop.stg_ctx = ctx
-            return intp.jump_to(
-                intp.get_graph().calc.resolve_alias(BuiltinName.AGENT_STRATEGY)
-            )
-
         case "rag":
             context = SendMessageWrap.validate_messages(
                 [
@@ -788,7 +754,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
             context = wok.context_wrap.copy()
         case _:
             raise RuntimeError("Invalid agent strategy")
-    ctx = build_strategy_context(
+    loop.stg_ctx = build_strategy_context(
         user_input=input_ctx.user_input,
         original_context=context,
         chat_object=chat_obj,
@@ -797,20 +763,9 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
         tools_manager=ab.ability.tools if ab.ability else None,
         io_stream=intp.object_io,
         train_content=input_ctx.train.content,
-        stream_id=chat_obj._di_session.stream_id,
-        usage=chat_obj._di_resp.usage,
+        stream_id=session.stream_id,
+        usage=resp.usage,
     )
-    st = agent.strategy(ctx)
-    try:
-        await st.run()
-    except Exception as e:
-        if isinstance(e, chat_obj._raised_exc):
-            raise
-        with contextlib.suppress(NoExceptionHandler):
-            await st.on_exception(e)
-    else:
-        await st.on_post_process()
-    wok.context_wrap.extend(ctx.original_context.end_messages)
 
 
 @Node(SuspendEnum.COMPLE)
@@ -859,20 +814,30 @@ async def _post_runner(chat_obj: ChatObject):
 
 # pre-compile workflows — component nodes + retained local nodes
 _single_call = SINGLE_STRATEGY_CALL(fallback_on_fail=False)
+
+#: Legacy single-call agent loop (one ``single_execute`` per iteration).
+AGENT_BLOCK: NodeCompose = (
+    AGENT_ENTRY.as_compose()
+    >> WHILE(_single_call).ACTION(REACT_COUNTER)
+    >> AGENT_POST_PROCESS
+)
+
+#: Native step loop: one task iteration is one Step, driven by ``STEP_BODY``.
+STEP_AGENT_BLOCK: NodeCompose = (
+    AGENT_ENTRY.as_compose() >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
+)
+
+# Strategy dispatch is workflow control flow, not Python: the agent block and the inline runner are two guarded branches, each skipped when its predicate is false. Normalize before compact so the summary reads text, and compact before rendering so the new summary reaches the system instruction of the request it was computed for.
 _workflow: NodeCompose = (
     LOAD_STATE.as_compose()
+    >> NORMALIZE_MESSAGES
+    >> NATIVE_IF(should_compact, COMPACT)
     >> JINJA2_RENDER
-    >> _limiting_memory
     >> BUILD_MESSAGE
     >> _pre_runner
-    >> _run_strategy
-    >> (
-        JMP(BuiltinName.STRATEGY_EOF)
-        >> ALIAS(AGENT_ENTRY, BuiltinName.AGENT_STRATEGY)
-        >> WHILE(_single_call).ACTION(REACT_COUNTER)
-        >> AGENT_POST_PROCESS
-        >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
-    )
+    >> _prepare_strategy
+    >> NATIVE_IF(is_agent_category, AGENT_BLOCK)
+    >> NATIVE_IF(not_agent_category, RUN_INLINE_STRATEGY)
     >> LLM_COMPLETION
     >> _post_runner
     >> COMMIT_MEMORY
@@ -882,19 +847,14 @@ _workflow_rendered = _workflow.render()
 # Native step-loop variant: same outer shell, NATIVE_DO step loop inside.
 _step_workflow: NodeCompose = (
     LOAD_STATE.as_compose()
+    >> NORMALIZE_MESSAGES
+    >> NATIVE_IF(should_compact, COMPACT)
     >> JINJA2_RENDER
-    >> _limiting_memory
     >> BUILD_MESSAGE
     >> _pre_runner
-    >> _run_strategy
-    >> (
-        ARCHIVED_SEGMENT(
-            ALIAS(AGENT_ENTRY, BuiltinName.AGENT_STRATEGY)
-            >> NATIVE_DO(STEP_BODY).WHILE(task_cond)
-            >> AGENT_POST_PROCESS
-        )
-        >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
-    )
+    >> _prepare_strategy
+    >> NATIVE_IF(is_agent_category, STEP_AGENT_BLOCK)
+    >> NATIVE_IF(not_agent_category, RUN_INLINE_STRATEGY)
     >> LLM_COMPLETION
     >> _post_runner
     >> COMMIT_MEMORY
@@ -902,6 +862,8 @@ _step_workflow: NodeCompose = (
 _step_workflow_rendered = _step_workflow.render()
 
 __all__ = [
+    "AGENT_BLOCK",
+    "STEP_AGENT_BLOCK",
     "ChatObject",
     "_step_workflow_rendered",
     "_workflow_rendered",

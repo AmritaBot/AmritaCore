@@ -100,15 +100,14 @@ async def handle_user_input(
 async def main():
     print_welcome_message()
 
-    # Load AmritaCore
-    # Set configuration
+    # Load AmritaCore and set the configuration
     func = FunctionConfig(
         use_minimal_context=False,
         # agent_mcp_client_enable=True,
         # agent_mcp_server_scripts=[],
     )
     llm = LLMConfig(
-        enable_memory_abstract=True,
+        enable_compaction=True,
     )
     config = AmritaConfig(
         function_config=func,

@@ -156,4 +156,3 @@ class MyCustomReActStrategy(BaseReActAgentStrategy):
 ## Built-in Subclasses
 
 - [ReActAgentStrategy](ReActAgentStrategy.md): Standard implementation with OpenAI-compatible ToolCall-ToolResult pairing
-- [HybridReActAgentStrategy](HybridReActAgentStrategy.md): Specialized implementation for MoE architecture models using XML tags

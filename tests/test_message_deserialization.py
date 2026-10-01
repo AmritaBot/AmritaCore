@@ -30,8 +30,7 @@ def test_message_generic_validation():
     assert isinstance(msg_content.content[0], TextContent)
     assert isinstance(msg_content.content[1], ImageContent)
 
-    # Test 3: Using unparameterized Message should be more permissive
-    # This is the current behavior in the codebase
+    # Test 3: an unparameterized Message is more permissive, which is the current behavior in the codebase.
     msg_unparam = Message.model_validate(string_data)
     assert msg_unparam.content == "Hello world"
 
@@ -48,8 +47,7 @@ def test_message_generic_validation():
 def test_current_codebase_behavior():
     """Test how the current codebase handles Message deserialization."""
 
-    # This simulates what happens in the current codebase
-    # where Message.model_validate() is called without type parameters
+    # This simulates what happens in the current codebase where Message.model_validate() is called without type parameters
 
     string_data = {"role": "user", "content": "Hello world"}
     content_data = {"role": "user", "content": [{"type": "text", "text": "Hello"}]}
@@ -58,7 +56,6 @@ def test_current_codebase_behavior():
     msg1 = Message.model_validate(string_data)
     msg2 = Message.model_validate(content_data)
 
-    # But we lose type safety - the same Message class instance
-    # could have different content types
+    # But we lose type safety - the same Message class instance could have different content types
     assert isinstance(msg1.content, str)
     assert isinstance(msg2.content, list)

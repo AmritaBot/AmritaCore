@@ -21,8 +21,3 @@ class SuspendEnum(str, Enum):
     # Builtin ReAct step-loop boundary markers (native instruction loop).
     STEP_INTRO = "ChatObject::step_intro"
     STEP_LEAVE = "ChatObject::step_leave"
-
-
-class BuiltinName(str, Enum):
-    AGENT_STRATEGY = "ChatObject::__agent_main__"
-    STRATEGY_EOF = "ChatObject::__strategy_eof__"

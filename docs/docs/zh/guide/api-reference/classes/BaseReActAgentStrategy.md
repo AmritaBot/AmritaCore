@@ -16,4 +16,3 @@
 ## 子类
 
 - [`ReActAgentStrategy`](ReActAgentStrategy.md)：标准实现，支持 `"agent-mixed"` 类别
-- [`HybridReActAgentStrategy`](HybridReActAgentStrategy.md)：针对 MoE 架构模型优化的实现

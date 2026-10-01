@@ -170,13 +170,11 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         #  Initialize reasoning enhancement state
         self._predicted_tools = []
         self._run_state = None
-        # The plan-revision built-in (update_step) is exposed only when the
-        # native step loop activates (intro_step), never in the legacy loop.
+        # The plan-revision built-in (update_step) is exposed only when the native step loop activates (intro_step), never in the legacy loop.
         self._step_tools_injected = False
         # Last plan snapshot injected into the context (change detection).
         self._last_plan_snapshot: str | None = None
-        # Peer (reverse-stream) input: lazily opened on first Step boundary;
-        # closed once (idempotent) when the agent run finishes.
+        # Peer (reverse-stream) input: lazily opened on first Step boundary; closed once (idempotent) when the agent run finishes.
         self._peer_input_gen: AsyncGenerator[Any, None] | None = None
         self._peer_input_closed: bool = False
         self.origin_msg: str = (
@@ -189,8 +187,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             else ctx.original_context.user_query.content
         )
 
-    # Step lifecycle (native step loop): intro/leave mark boundaries; a
-    # Step may span multiple iterations, all state lives in self.run_state.
+    # Step lifecycle (native step loop): intro/leave mark boundaries; a Step may span multiple iterations, all state lives in self.run_state.
 
     @property
     def run_state(self) -> "AgentRunState | None":
@@ -225,9 +222,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         Args:
             phase: the reasoning phase being entered.
         """
-        # Only the native step workflow calls intro_step — the legacy loop
-        # never does — so this is the reliable point to expose the
-        # plan-revision built-in (idempotent).
+        # Only the native step workflow calls intro_step - the legacy loop never does - so this is the reliable point to expose the plan-revision built-in (idempotent).
         self._ensure_step_tools()
         await self._drain_peer_input()
         rs = self._init_run_state()
@@ -269,14 +264,11 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             try:
                 self._peer_input_gen = stream.get_producer_input_generator()
             except StreamStateError:
-                # Reverse stream already consumed (callback mode, another
-                # consumer, ...): silently skip peer draining.
+                # Reverse stream already consumed (callback mode, another consumer, ...): silently skip peer draining.
                 self._peer_input_closed = True
                 return
         while True:
-            # Non-blocking drain: wait_for(coro, 0) would time out before the
-            # coroutine even runs; a 1ms window is enough for an already
-            # buffered item (anyio receive_nowait returns synchronously).
+            # Non-blocking drain: wait_for(coro, 0) would time out before the coroutine even runs; a 1ms window is enough for an already buffered item (anyio receive_nowait returns synchronously).
             try:
                 item = await asyncio.wait_for(
                     self._peer_input_gen.__anext__(), timeout=0.001
@@ -312,8 +304,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     async def leave_step(self, phase: "Phase | None" = None) -> None:
         """Leave a Step boundary (default no-op; subclasses may override)."""
-        # Hook point: token accounting, stall injection, compression and the
-        # subject-predicate summary are implemented by subclasses / mixins.
+        # Hook point: token accounting, stall injection, compression and the subject-predicate summary are implemented by subclasses / mixins.
         return
 
     async def after_iteration(self) -> None:
@@ -550,8 +541,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             content=template_content,
         )
 
-        # Custom yield wrapper that emits reasoning chunk metadata during
-        # streaming (per-step metadata emitted post-hoc after parsing).
+        # Custom yield wrapper that emits reasoning chunk metadata during streaming (per-step metadata emitted post-hoc after parsing).
         def _yield_wrapper(chunk):
             if isinstance(chunk, str):
                 return MessageWithMetadata(
@@ -575,8 +565,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             yield_to_wrapper=_yield_wrapper,
         )
 
-        # Prefer `content` (template output), fall back to the provider's
-        # native `reasoning_content` field.
+        # Prefer `content` (template output), fall back to the provider's native `reasoning_content` field.
         reasoning_text = ct.content or ct.reasoning_content or ""
         if use_structured:
             # Parse steps for metadata tracking
@@ -982,12 +971,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         async def _exec_one(tc: ToolCall) -> tuple[ToolCall, str, BaseException | None]:
             fn = tc.function.name
-            # Record the tool-call signature for per-Step stall detection
-            # (covers built-in and regular tools uniformly).
+            # Record the tool-call signature for per-Step stall detection (covers built-in and regular tools uniformly).
             self._record_tool_signature(tc)
             try:
-                # Cancel the call before execution when it would trip the
-                # stall detector (explicit cancellation, not a normal result).
+                # Cancel the call before execution when it would trip the stall detector (explicit cancellation, not a normal result).
                 if self._should_cancel_tool_call(tc):
                     return (
                         tc,
@@ -1008,8 +995,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     except json.JSONDecodeError:
                         args = {}
                     await self._handle_update_step(args)
-                    # Echo the revised plan back so the model can confirm the
-                    # change without waiting for the next Step intro.
+                    # Echo the revised plan back so the model can confirm the change without waiting for the next Step intro.
                     rs = self._init_run_state()
                     plan_desc = (
                         ", ".join(n.id for n in (rs.plan or []))
@@ -1059,8 +1045,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     result = self._build_stop_response(args)
                     return (tc, result, None)
 
-                # Regular tool: pre-call event (rewrite/cancel), execute,
-                # then post-call event (rewrite/skip append).
+                # Regular tool: pre-call event (rewrite/cancel), execute, then post-call event (rewrite/skip append).
                 args_str, cancel = await self._trigger_tool_call_event(tc)
                 if cancel:
                     return (
@@ -1136,8 +1121,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             tuple[ToolCall, str, BaseException | None]
         ] = await self._run_tool_calls_concurrently(tool_calls)
 
-        #  Collect results, then append ONE assistant message with every
-        #  tool_call followed by all ToolResults (never split per call).
+        # Collect results, then append ONE assistant message with every tool_call followed by all ToolResults (never split per call).
         result_msg_list: list[ToolResult] = []
         collected: list[tuple[ToolCall, str, BaseException | None]] = []
         should_continue = True  # default: keep looping (old `ret` semantics)
@@ -1148,8 +1132,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
             if is_reasoning:
                 if func_response.startswith("ERR:"):
-                    # Reasoning generation failed (raised inside the
-                    # concurrent runner); surface the error, don't swallow.
+                    # Reasoning generation failed (raised inside the concurrent runner); surface the error, don't swallow.
                     self.reasoning_pc = 0
                     await self._handle_error_append(
                         tc,
@@ -1160,8 +1143,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 else:
                     # _run_tool_calls_concurrently already called _append_reasoning.
                     should_continue = True
-                # The pair was appended above (error) or by the runner
-                # (success) — never re-appended via the collected batch.
+                # The pair was appended above (error) or by the runner (success) - never re-appended via the collected batch.
                 continue
 
             if is_stop:

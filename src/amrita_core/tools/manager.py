@@ -326,8 +326,7 @@ def _python_type_to_property_schema(
             )
 
         elif origin is dict:
-            # Dict types are not supported in tool parameters
-            # Users should use Pydantic models instead for object structures
+            # Dict types are not supported in tool parameters Users should use Pydantic models instead for object structures
             raise ValueError(
                 "Dict types are not supported in tool parameters. Use Pydantic models to define object structures."
             )
@@ -364,8 +363,7 @@ def _python_type_to_property_schema(
             )
 
         elif origin is typing.Union or origin is types.UnionType:
-            # Handle both typing.Union and Python 3.10+ UnionType (str | int)
-            # For both cases, get_args returns the type arguments
+            # Handle both typing.Union and Python 3.10+ UnionType (str | int) For both cases, get_args returns the type arguments
             args = get_args(python_type)
             non_none_types = [arg for arg in args if arg is not type(None)]
 
@@ -377,8 +375,7 @@ def _python_type_to_property_schema(
                 schema = _python_type_to_property_schema(
                     main_type, globalns, description
                 )
-                # For Optional, we don't set nullable in JSON Schema
-                # The caller should handle required vs optional at the parameter level
+                # For Optional, we don't set nullable in JSON Schema The caller should handle required vs optional at the parameter level
                 return schema
             else:
                 # Reject Union of multiple types (non-Optional unions)

@@ -778,8 +778,7 @@ class TestAnthropicAdapter:
         """Test call_api with streaming Anthropic response"""
         from anthropic.types import TextBlock, Usage
 
-        # Create event-like objects matching Anthropic SDK 0.84+ stream event types
-        # New SDK uses: event.type == "content_block_delta" + event.delta.type
+        # Create event-like objects matching Anthropic SDK 0.84+ stream event types New SDK uses: event.type == "content_block_delta" + event.delta.type
         class MockDelta:
             def __init__(self, delta_type, text=None):
                 self.type = delta_type
@@ -962,8 +961,7 @@ class TestAnthropicAdapter:
     @pytest.mark.asyncio
     async def test_call_tools_basic(self, anthropic_adapter, messages_with_tool_calls):
         """Test call_tools with basic tool call scenario"""
-        # This would require mocking the Anthropic client's tool calling behavior
-        # For now, we'll focus on the message conversion parts which are the core logic
+        # This would require mocking the Anthropic client's tool calling behavior For now, we'll focus on the message conversion parts which are the core logic
 
         # Test the message conversion that happens before calling the API
         converted_messages = AnthropicAdapter._convert_messages(
@@ -976,5 +974,4 @@ class TestAnthropicAdapter:
             converted_messages[2]["role"] == "user"
         )  # tool results merged into user message
 
-        # The actual API call would be tested with proper mocking in a real implementation
-        # For coverage purposes, we've tested all the helper methods thoroughly
+        # The actual API call would be tested with proper mocking in a real implementation For coverage purposes, we've tested all the helper methods thoroughly

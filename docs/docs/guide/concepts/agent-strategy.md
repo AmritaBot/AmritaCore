@@ -63,10 +63,9 @@ Full details: [Advanced → Step Loop](../advanced/step-loop.md).
 
 ## Other Built-in Strategies
 
-| Strategy                   | Category      | Use case                                                           |
-| -------------------------- | ------------- | ------------------------------------------------------------------ |
-| `HybridReActAgentStrategy` | `agent-mixed` | MoE models; XML-style results (**deprecated, removed in v0.14.0**) |
-| `NoActionAgentStrategy`    | `workflow`    | Skip tool calling entirely                                         |
+| Strategy                | Category   | Use case                   |
+| ----------------------- | ---------- | -------------------------- |
+| `NoActionAgentStrategy` | `workflow` | Skip tool calling entirely |
 
 ## Writing a Custom Strategy
 

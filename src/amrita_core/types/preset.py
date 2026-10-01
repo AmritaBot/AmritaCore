@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
 
 from amrita_core.types.base import BaseModel
+from amrita_core.types.billing import RateConfig
+
+if TYPE_CHECKING:
+    from amrita_core.config import AmritaConfig
 
 
 class ModelConfig(BaseModel):
@@ -72,9 +76,22 @@ class ModelPreset(BaseModel):
     )
     api_key: str = Field(default="", description="Key required to access API")
     protocol: str = Field(default="__main__", description="Protocol adapter type")
-    rate: float | None = Field(
+    rate: RateConfig | None = Field(
         default=None,
-        description="Token cost rate for the model (used for cost estimation, optional)",
+        description="Pricing snapshot used for cost accounting (optional)",
+    )
+    max_context: int | None = Field(
+        default=None,
+        ge=1,
+        description="Input token budget of the model. Together with `max_output` "
+        "it forms the attention window. Falls back to "
+        "`config.llm.session_tokens_windows` when unset.",
+    )
+    max_output: int | None = Field(
+        default=None,
+        ge=1,
+        description="Tokens reserved for the response. Falls back to "
+        "`config.llm.max_tokens` when unset.",
     )
     config: ModelConfig = Field(
         default_factory=ModelConfig, description="Model configuration"
@@ -98,4 +115,18 @@ class ModelPreset(BaseModel):
 
     def save(self, path: Path):
         with path.open("w", encoding="u8") as f:
-            json.dump(self.model_dump(), f, indent=4, ensure_ascii=False)
+            json.dump(self.model_dump(mode="json"), f, indent=4, ensure_ascii=False)
+
+
+def resolve_max_context(preset: ModelPreset, config: AmritaConfig) -> int:
+    """Effective input token budget: preset value, else the config default."""
+    if preset.max_context is not None:
+        return preset.max_context
+    return config.llm.session_tokens_windows
+
+
+def resolve_max_output(preset: ModelPreset, config: AmritaConfig) -> int:
+    """Effective response reservation: preset value, else the config default."""
+    if preset.max_output is not None:
+        return preset.max_output
+    return config.llm.max_tokens

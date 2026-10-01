@@ -176,7 +176,6 @@ agent = create_agent(
 | [StrategyContext](classes/StrategyContext.md)                   | Context passed to strategy execution               |
 | [BaseReActAgentStrategy](classes/BaseReActAgentStrategy.md)     | Base ReAct strategy implementation                 |
 | [ReActAgentStrategy](classes/ReActAgentStrategy.md)             | Standard ReAct strategy                            |
-| [HybridReActAgentStrategy](classes/HybridReActAgentStrategy.md) | Hybrid ReAct strategy                              |
 | [NoActionAgentStrategy](classes/NoActionAgentStrategy.md)       | Strategy that performs no actions                  |
 
 ## Events & Hooks

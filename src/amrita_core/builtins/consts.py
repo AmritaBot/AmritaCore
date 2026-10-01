@@ -24,17 +24,6 @@ AGENT_PROCESS_TOOLS = (
     UPDATE_STEP_TOOL,
 )
 
-HYBRID_TEMPLATE = Template("""<TOOL_CALL name="{{tool_name}}">
-    <PARAMS>
-        {% for key,value in params.items() %}
-        <PARAM name="{{key}}">{{value}}</PARAM>
-        {% endfor %}
-    </PARAMS>
-</TOOL_CALL>
-<TOOL_RESULT name="{{tool_name}}">
-    {{result}}
-</TOOL_RESULT>""")
-
 REASONING_TEMPLATE = Template("""
 ## Reasoning Summary Instructions
 

@@ -26,6 +26,7 @@ from amrita_core.types import (
     UniResponse,
     UniResponseUsage,
 )
+from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import RequestMetadata
 from amrita_core.utils import model_dump
 
@@ -237,7 +238,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(config.llm.max_tokens / 2),
+                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -258,7 +259,7 @@ try:
                 async with client.messages.stream(
                     model=preset.model,
                     messages=anthropic_msgs,
-                    max_tokens=config.llm.max_tokens,
+                    max_tokens=resolve_max_output(preset, config),
                     top_p=preset_config.top_p,
                     temperature=preset_config.temperature,
                     **kwargs,
@@ -303,7 +304,7 @@ try:
                 last_msg: Message = await client.messages.create(
                     model=preset.model,
                     messages=anthropic_msgs,
-                    max_tokens=config.llm.max_tokens,
+                    max_tokens=resolve_max_output(preset, config),
                     top_p=preset_config.top_p,
                     temperature=preset_config.temperature,
                     **kwargs,
@@ -367,7 +368,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(config.llm.max_tokens / 2),
+                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -389,7 +390,7 @@ try:
             response: Message = await client.messages.create(
                 model=preset.model,
                 messages=anthropic_msgs,
-                max_tokens=config.llm.max_tokens,
+                max_tokens=resolve_max_output(preset, config),
                 top_p=preset_config.top_p,
                 temperature=preset_config.temperature,
                 tools=anthropic_tools,

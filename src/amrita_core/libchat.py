@@ -15,6 +15,7 @@ from amrita_core.base.adapter import (
     MessageContent,
     ModelAdapter,
 )
+from amrita_core.exceptions import ContextOverflowError, is_context_overflow_error
 from amrita_core.hook.event import (
     CompletionFallbackContext,
     EmbeddingFallbackContext,
@@ -27,7 +28,6 @@ from amrita_core.usage import SessionUsageProxy
 from amrita_core.utils import _did_you_mean_hint
 
 from .config import AmritaConfig, get_config
-from .tokenizer import hybrid_token_count
 from .tools.models import ToolChoice, ToolFunctionSchema
 from .types import (
     CONTENT_LIST_TYPE,
@@ -38,7 +38,6 @@ from .types import (
     ToolCall,
     ToolResult,
     UniResponse,
-    UniResponseUsage,
 )
 
 T = typing.TypeVar("T")
@@ -90,47 +89,6 @@ def text_generator(
             if full_message:
                 yield str_tmp.getvalue()
     return ""
-
-
-def get_tokens(
-    memory: CONTENT_LIST_TYPE,
-    response: UniResponse[str, None],
-    config: AmritaConfig | None = None,
-) -> UniResponseUsage[int] | None:
-    """Calculate token counts for messages and response
-
-    Args:
-        memory: Message history list
-        response: Model response
-        config: Optional configuration to use (uses default if not provided)
-
-    Returns:
-        Object containing token usage information
-    """
-    if (
-        response.usage is not None
-        and response.usage.total_tokens is not None
-        and response.usage.completion_tokens is not None
-        and response.usage.prompt_tokens is not None
-    ):
-        return response.usage
-    config = config or get_config()
-    if config.function_config.no_tokenizer:
-        return
-    it = hybrid_token_count(
-        "".join(text_generator(memory, full_message=True)),
-        config.llm.tokens_count_mode,
-        tokenizer_type=config.function_config.tokenizer_used,
-    )
-
-    ot = hybrid_token_count(
-        response.content,
-        config.llm.tokens_count_mode,
-        tokenizer_type=config.function_config.tokenizer_used,
-    )
-    return UniResponseUsage(
-        prompt_tokens=it, total_tokens=it + ot, completion_tokens=ot
-    )
 
 
 def _normalize_message_content(msg: Message) -> None:
@@ -434,6 +392,8 @@ async def tools_caller(
             usage.record(
                 resp.usage,
                 model=resp.metadata.model,
+                preset_name=current_preset.name,
+                rate=current_preset.rate,
                 request_id=resp.metadata.original_request_id,
             )
         return resp
@@ -510,6 +470,8 @@ async def call_completion(
                         usage.record(
                             resp.usage,
                             model=resp.metadata.model,
+                            preset_name=current_preset.name,
+                            rate=current_preset.rate,
                             request_id=resp.metadata.original_request_id,
                         )
                 yield resp
@@ -520,6 +482,9 @@ async def call_completion(
                 yield chunk
             return
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
+            if is_context_overflow_error(e):
+                # Another preset cannot shrink the request, so surface it instead of burning the whole fallback budget on it.
+                raise ContextOverflowError(str(e)) from e
             logger.warning(
                 f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_fallbacks})..."
             )

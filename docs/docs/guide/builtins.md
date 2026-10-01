@@ -37,7 +37,6 @@ OpenAI-compatible endpoint via `base_url`/`model`) and the Anthropic adapter
 | Strategy                   | Category      | Notes                                                                                                                                      |
 | -------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | `ReActAgentStrategy`       | `agent-mixed` | **Default strategy class**; node-driven Step loop once the step-loop workflow is active (see [Agent Strategy](concepts/agent-strategy.md)) |
-| `HybridReActAgentStrategy` | `agent-mixed` | MoE XML-style results; **deprecated, removed in v0.14.0**                                                                                  |
 | `NoActionAgentStrategy`    | `workflow`    | Skip tool calling                                                                                                                          |
 
 ## Built-in Event Hooks

@@ -20,8 +20,8 @@ config.cookie.enable_cookie = True
 
 工具结果与 peer 消息以文本进入模型上下文。把它们当作不可信输入：
 
-- **内置策略**把工具结果存为 `ToolResult` 配对；已弃用的
-  `HybridReActAgentStrategy` 的 XML 渲染风格注入风险更高（纯文本结果）。
+- **内置策略**把工具结果存为配对的 `ToolResult` 消息，而不是以纯文本内联，
+  从而让不可信输出不进入承载指令的文本流。
 - **Peer 消息**（`send_to_producer`）以 `[peer message]` 标记追加——设计
   system prompt 时把该标记当作数据而非指令。
 - **自定义工具**：结果来自外部源时，返回前先校验工具输出。

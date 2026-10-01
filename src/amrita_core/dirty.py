@@ -253,8 +253,7 @@ class DirtyAwareModel(BaseModel):
             if wrapped is not value:
                 object.__setattr__(self, name, wrapped)
 
-    # Methods defined under ``if not TYPE_CHECKING`` to prevent static type
-    # checkers from incorrectly determining the existence of actual attributes.
+    # Methods defined under ``if not TYPE_CHECKING`` to prevent static type checkers from incorrectly determining the existence of actual attributes.
     if not TYPE_CHECKING:
 
         def __setattr__(self, name, value):
@@ -280,8 +279,7 @@ class DirtyAwareModel(BaseModel):
                 wrapped = _wrap_container(value, self, name)
                 object.__setattr__(self, name, wrapped)
                 return wrapped
-            # It is unlikely that anyone would nest several layers deep within
-            # an ORM model, so a simple handling is sufficient here.
+            # It is unlikely that anyone would nest several layers deep within an ORM model, so a simple handling is sufficient here.
             elif isinstance(value, BaseModel):
                 self._mark_dirty(name)
 

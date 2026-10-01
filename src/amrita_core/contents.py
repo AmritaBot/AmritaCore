@@ -49,8 +49,7 @@ class StringMessageContent(MessageContent):
         return self.text
 
 
-# TODO: When Python 3.10 EOL, refactor to use TypedDict + Generic
-#       e.g. class MessageMetadataPayload(TypedDict, Generic[T, T_E]):
+# TODO: When Python 3.10 EOL, refactor to use TypedDict + Generic e.g. class MessageMetadataPayload(TypedDict, Generic[T, T_E]):
 class MessageMetadataPayload(TypedDict):
     type: str
     extra_type: str | None

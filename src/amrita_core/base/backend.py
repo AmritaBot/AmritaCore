@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
+
+from amrita_core.types.billing import BillingRecord
 
 if TYPE_CHECKING:
     from amrita_core.contexts import AbilityContext
@@ -40,7 +42,57 @@ class MemoryBackend(ABC):
         ...
 
 
+class BillingBackend(ABC):
+    """Optional sink for per-request billing records.
+
+    Records already travel inside ``MemoryModel.billing``, so the default
+    persistence path needs no billing backend at all. Implement this only to
+    forward the same records to an external cost store (database, metrics
+    pipeline, quota enforcer).
+    """
+
+    @abstractmethod
+    async def commit_billing(
+        self, session_id: str, records: list[BillingRecord]
+    ) -> None:
+        """Append the records produced by one run."""
+        ...
+
+    @abstractmethod
+    async def load_billing(self, session_id: str) -> list[BillingRecord]:
+        """Return the records previously committed for a session."""
+        ...
+
+
+class NullBillingBackend(BillingBackend):
+    """No-op billing sink; records stay in memory only."""
+
+    async def commit_billing(
+        self, session_id: str, records: list[BillingRecord]
+    ) -> None:
+        return
+
+    async def load_billing(self, session_id: str) -> list[BillingRecord]:
+        return []
+
+
+def _default_billing_backend() -> BillingBackend:
+    """Build the out-of-the-box in-memory billing sink."""
+    from amrita_core.builtins.backends import LegacyBackend
+
+    return LegacyBackend()
+
+
 @dataclass
 class BackendSlots:
     ability: AbilityBackend
     memory: MemoryBackend
+    billing: BillingBackend = field(default_factory=_default_billing_backend)
+
+    @classmethod
+    def default(cls) -> BackendSlots:
+        """Build slots backed by a single shared in-memory backend."""
+        from amrita_core.builtins.backends import LegacyBackend
+
+        backend = LegacyBackend()
+        return cls(ability=backend, memory=backend, billing=backend)

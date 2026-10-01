@@ -128,8 +128,7 @@ def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
         if effective_prop.uniqueItems is not None:
             base_params["uniqueItems"] = effective_prop.uniqueItems
 
-    # For numeric and boolean types, no additional fields are needed since FunctionPropertySchema
-    # doesn't include minimum/maximum fields in the same way
+    # For numeric and boolean types, no additional fields are needed since FunctionPropertySchema doesn't include minimum/maximum fields in the same way
     return FunctionPropertySchema(**base_params)
 
 

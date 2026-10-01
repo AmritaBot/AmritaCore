@@ -172,10 +172,6 @@ export default withMermaid({
                 link: "/guide/extensions-integration/mcp-server",
               },
               {
-                text: "Custom Tokenizers",
-                link: "/guide/extensions-integration/tokenizer",
-              },
-              {
                 text: "Custom Tools",
                 link: "/guide/extensions-integration/tools",
               },
@@ -308,8 +304,12 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/BaseReActAgentStrategy",
               },
               {
-                text: "BaseTokenizer",
-                link: "/guide/api-reference/classes/BaseTokenizer",
+                text: "BillingBackend",
+                link: "/guide/api-reference/classes/BillingBackend",
+              },
+              {
+                text: "BillingRecord",
+                link: "/guide/api-reference/classes/BillingRecord",
               },
               {
                 text: "ChatManager",
@@ -358,10 +358,6 @@ export default withMermaid({
               {
                 text: "FunctionDefinitionSchema",
                 link: "/guide/api-reference/classes/FunctionDefinitionSchema",
-              },
-              {
-                text: "HybridReActAgentStrategy",
-                link: "/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
                 text: "LLMConfig",
@@ -422,6 +418,10 @@ export default withMermaid({
               {
                 text: "PresetManager",
                 link: "/guide/api-reference/classes/PresetManager",
+              },
+              {
+                text: "RateConfig",
+                link: "/guide/api-reference/classes/RateConfig",
               },
               {
                 text: "ReActAgentStrategy",
@@ -747,10 +747,6 @@ export default withMermaid({
               {
                 text: "FunctionDefinitionSchema",
                 link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
-              },
-              {
-                text: "HybridReActAgentStrategy",
-                link: "/zh/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
                 text: "LLMConfig",

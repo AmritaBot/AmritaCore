@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "0.13.9"
+version = "1.0.0"
 description = "High performance, flexible, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
@@ -37,15 +37,13 @@ dev = [
     "pyright>=1.1.407",
     "anthropic>=0.84.0,<1.0",
     "pytest-asyncio>=1.3.0",
-    "jieba>=0.42.1",
     "pytest-cov>=7.0.0",
     "setuptools>=82.0.1",
 ]
 
 [project.optional-dependencies]
 anthropic = ["anthropic>=0.116.0,<0.122.0"]
-jieba = ["jieba>=0.42.1"]
-all = ["amrita_core[anthropic,jieba]"]
+all = ["amrita_core[anthropic]"]
 
 [tool.ruff]
 line-length = 88
@@ -83,6 +81,7 @@ ignore = [
 typeCheckingMode = "standard"
 venvPath = "."
 venv = ".venv"
+exclude = ["build", "dist"]
 
 [tool.coverage.run]
 source = ["src/"]

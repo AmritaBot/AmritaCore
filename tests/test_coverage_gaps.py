@@ -431,6 +431,7 @@ class TestProcessComponents:
             ability=ab,
             meta=SessionMetadata(session_id="no-commit"),
             mem=MemoryContext(memory=MemoryModel()),
+            resp=RespState(),
         )  # pyright: ignore[reportGeneralTypeIssues]
 
 
@@ -486,85 +487,3 @@ class TestRespStateExtraUsage:
         assert rs.extra_usage.prompt_tokens == 150
         assert rs.extra_usage.completion_tokens == 75
         assert rs.extra_usage.total_tokens == 225
-
-
-# _limiting_memory node — usage collected from MemoryLimiter
-
-
-class TestLimitingMemoryNode:
-    """Test that the _limiting_memory workflow node collects
-    MemoryLimiter.usage into the run's usage ledger."""
-
-    @pytest.mark.asyncio
-    async def test_collects_limiter_usage_when_abstract_enabled(self):
-        from unittest.mock import AsyncMock, MagicMock, patch
-
-        from amrita_core.chatmanager.chat_object import _limiting_memory
-        from amrita_core.usage import UsageRegistry
-
-        # Build a minimal ChatObject mock with a registered run ledger.
-        chat_obj = MagicMock()
-        chat_obj._di_memory = MemoryContext(
-            memory=MemoryModel(messages=[Message(role="user", content="hello")])
-        )
-        chat_obj._di_input = _simple_ip()
-        chat_obj._di_resp = RespState()
-        chat_obj._di_resp.usage = UsageRegistry.register("limiter-test-stream")
-        chat_obj._di_ability = AbilityState(
-            config=AmritaConfig(),
-            slot=BackendSlots(LegacyBackend(), LegacyBackend()),
-        )
-        chat_obj._di_ability.config.llm.enable_memory_abstract = True
-        chat_obj._di_ability.config.llm.enable_tokens_limit = False
-        chat_obj.io_stream._wait_for_continue = AsyncMock(return_value=None)
-
-        limiter_usage = UniResponseUsage(
-            prompt_tokens=30, completion_tokens=15, total_tokens=45
-        )
-
-        # Mock MemoryLimiter so it doesn't call real LLM
-        class _FakeLimiter:
-            usage = limiter_usage
-            memory = chat_obj._di_memory.memory  # preserve original memory
-            recorded_via_gateway = False  # fake bypasses the gateway
-
-            async def __aenter__(self):
-                return self
-
-            async def __aexit__(self, *args):
-                pass
-
-            async def run_enforce(self):
-                pass
-
-        with patch(
-            "amrita_core.chatmanager.chat_object.MemoryLimiter",
-            return_value=_FakeLimiter(),
-        ):
-            await _limiting_memory.func(chat_obj=chat_obj)  # type: ignore[arg-type]
-
-        # Verify usage was collected into the run's usage ledger
-        total = chat_obj._di_resp.usage.extra_total
-        assert total.prompt_tokens == 30
-        assert total.completion_tokens == 15
-        assert total.total_tokens == 45
-        UsageRegistry.unregister("limiter-test-stream")
-
-    @pytest.mark.asyncio
-    async def test_skips_when_abstract_disabled(self):
-        from amrita_core.chatmanager.chat_object import _limiting_memory
-
-        chat_obj = MagicMock()
-        chat_obj._di_ability = AbilityState(
-            config=AmritaConfig(),
-            slot=BackendSlots(LegacyBackend(), LegacyBackend()),
-        )
-        chat_obj._di_ability.config.llm.enable_memory_abstract = False
-        chat_obj._di_resp = RespState()
-
-        await _limiting_memory.func(chat_obj=chat_obj)  # type: ignore[arg-type]
-
-        # extra_usage should remain at zeroes
-        assert chat_obj._di_resp.extra_usage.prompt_tokens == 0
-        assert chat_obj._di_resp.extra_usage.completion_tokens == 0
-        assert chat_obj._di_resp.extra_usage.total_tokens == 0

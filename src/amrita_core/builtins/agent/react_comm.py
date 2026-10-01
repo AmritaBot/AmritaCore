@@ -21,11 +21,10 @@ from amrita_core.builtins.types import (
     AgentStepLeaveMetadata,
     AgentStepStallMetadata,
 )
-from amrita_core.consts import ABSTRACT_INSTRUCTION
+from amrita_core.components.compaction import ContextCompactor
 from amrita_core.libchat import (
     call_completion,
     get_last_response,
-    text_generator,
     tools_caller,
 )
 from amrita_core.tools.models import ToolFunctionSchema
@@ -119,8 +118,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
         )
 
-    # Step lifecycle implementation (native step loop): decomposition,
-    # stall give-up, per-Step summary, between-Step token-driven compression.
+    # Step lifecycle implementation (native step loop): decomposition, stall give-up, per-Step summary, between-Step token-driven compression.
 
     async def _decide_decomposition(self) -> None:
         """Analyze phase: ask the LLM whether to decompose the task into a DAG.
@@ -188,8 +186,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                     prompt, preset=self.preset, config=self.config, usage=self.usage
                 )
             )
-            # Empty response (some providers return '' when thinking is
-            # engaged) — degrade immediately instead of parsing garbage.
+            # Empty response (some providers return '' when thinking is engaged) - degrade immediately instead of parsing garbage.
             if not (resp.content or "").strip():
                 req_id = getattr(resp.metadata, "original_request_id", None)
                 logger.warning(
@@ -329,8 +326,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         rs = self._init_run_state()
         if rs.stall_injected or rs.exec_finished:
             return
-        # Lifecycle hook: matchers may end the Step early (end_step=True) or
-        # raise StepAbortError to force-terminate the iteration loop.
+        # Lifecycle hook: matchers may end the Step early (end_step=True) or raise StepAbortError to force-terminate the iteration loop.
         ev = StepIterationEvent.constructor(rs)
         try:
             await self._trigger_step_event(ev, exception_ignored=(StepAbortError,))
@@ -375,8 +371,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
         )
         rs.stall_injected = True
-        # Giving up on this Step means the whole task is abandoned:
-        # end the task loop (task_cond checks exec_finished / stall_injected).
+        # Giving up on this Step means the whole task is abandoned: end the task loop (task_cond checks exec_finished / stall_injected).
         rs.exec_finished = True
         logger.warning("Stall detected — injected give-up prompt inside Step.")
         # Push the stall-recovery metadata.
@@ -437,8 +432,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                     prompt, preset=self.preset, config=self.config, usage=self.usage
                 )
             )
-            # Empty response (some providers return '' when thinking is
-            # engaged) — degrade immediately instead of parsing garbage.
+            # Empty response (some providers return '' when thinking is engaged) - degrade immediately instead of parsing garbage.
             if not (resp.content or "").strip():
                 req_id = getattr(resp.metadata, "original_request_id", None)
                 logger.warning(
@@ -458,79 +452,37 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         """Between-Step compression: summarize completed-Step history when
         the real API prompt-token usage exceeds the configured threshold.
 
-        The pairing is closed at Step boundaries, so folding the oldest
-        ``memory`` prefix into one summary message is safe here: assistant
-        messages with ``tool_calls`` are folded together with their
-        consecutive ``ToolResult`` messages, keeping the remaining context
-        well-formed.  The token baseline is reset after compression.
+        The threshold comes from the preset's attention window, the same source
+        the between-turn compaction uses, so one number describes one model.
+        The pairing is closed at Step boundaries, so folding the oldest prefix
+        into one summary message is safe here: the cut lands on a ``user``
+        message, keeping every assistant tool call next to its tool results.
+        The token baseline is reset after compression.
         """
         rs = self._init_run_state()
+        compactor = ContextCompactor(
+            config=self.config,
+            preset=self.preset,
+            usage=self.usage,
+        )
+        if not compactor.enabled:
+            return
         # Refresh the current Step's prompt window before threshold checks.
         rs.tokens.refresh_window(self.usage, rs.step_started_ts)
-        threshold = self.config.llm.memory_abstract_threshold
-        if threshold <= 0 or rs.tokens.prompt_tokens <= threshold:
+        if rs.tokens.prompt_tokens <= compactor.threshold:
             return
         logger.info(
-            f"Prompt tokens {rs.tokens.prompt_tokens} > threshold {threshold}; "
-            "compressing history between Steps."
+            f"Prompt tokens {rs.tokens.prompt_tokens} > threshold "
+            f"{compactor.threshold}; compressing history between Steps."
         )
         trigger_tokens = rs.tokens.prompt_tokens
         msg_wrap = self.ctx.message
-        history = msg_wrap.memory
-        # Fold the oldest proportion of the history, keeping recent context.
-        proportion = self.config.llm.memory_abstract_proportion
-        index = int(len(history) * proportion)
-        if index <= 0:
-            rs.tokens.reset()
-            rs.step_started_ts = time.time()
-            return
-        # Walk the boundary forward past tool pairs so the kept context is
-        # well-formed (every assistant(tool_calls) keeps its ToolResults).
-        idx = 0
-        while idx < index and idx < len(history):
-            element = history[idx]
-            if getattr(element, "tool_calls", None) is not None:
-                next_idx = idx + 1
-                while (
-                    next_idx < len(history)
-                    and getattr(history[next_idx], "role", None) == "tool"
-                ):
-                    next_idx += 1
-                idx = next_idx
-            else:
-                idx += 1
-        if idx <= 0:
-            rs.tokens.reset()
-            rs.step_started_ts = time.time()
-            return
-        dropped = history[:idx]
-        kept = history[idx:]
-        # Ask the LLM for a summary of the folded messages.
-        prompt: list = [
-            Message(role="system", content=ABSTRACT_INSTRUCTION),
-            Message(
-                role="user",
-                content=(
-                    "Make a summary of full informations in message list:"
-                    + "\n\n```text\n"
-                    + "".join(
-                        f"{it}\n" for it in text_generator(dropped, split_role=True)
-                    )
-                    + "\n```"
-                ),
-            ),
-        ]
         try:
-            resp = await get_last_response(
-                call_completion(
-                    prompt, preset=self.preset, config=self.config, usage=self.usage
-                )
-            )
-            summary = (resp.content or "").strip()
-            if not summary:
-                raise ValueError("empty compression response")
+            result = await compactor.fold(msg_wrap.memory)
         except Exception as e:
             logger.warning(f"History compression failed, keeping history: {e!s}")
+            result = None
+        if result is None:
             rs.tokens.reset()
             rs.step_started_ts = time.time()
             return
@@ -538,22 +490,22 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         msg_wrap.memory = [
             Message(
                 role="user",
-                content=f"[Summary of previous steps]\n{summary}",
+                content=f"[Summary of previous steps]\n{result.summary}",
             ),
-            *kept,
+            *result.messages,
         ]
         # Push the compression metadata.
         await self._emit_step_event(
             content=(
                 "[step] compress: prompt tokens "
-                f"{trigger_tokens} > threshold {threshold}; "
+                f"{trigger_tokens} > threshold {compactor.threshold}; "
                 "history between Steps summarized."
             ),
             metadata=AgentStepCompressMetadata(
                 type="step",
                 extra_type="compress",
                 prompt_tokens=trigger_tokens,
-                threshold=threshold,
+                threshold=compactor.threshold,
             ),
         )
         rs.tokens.reset()  # reset baseline after compression
@@ -569,8 +521,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         Pending peer messages are drained first so the incoming Step sees
         them as the latest context (see ``_drain_peer_input``).
         """
-        # The native step loop always enters through intro_step — expose the
-        # plan-revision built-in exactly here (idempotent).
+        # The native step loop always enters through intro_step - expose the plan-revision built-in exactly here (idempotent).
         self._ensure_step_tools()
         await self._drain_peer_input()
         rs = self._init_run_state()
@@ -590,12 +541,10 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 rs.begin_node(node)
         # Refresh the Step's prompt-token window from the ledger proxy.
         rs.tokens.refresh_window(self.usage, rs.step_started_ts)
-        # Keep the model aware of the current plan (idempotent snapshot) so
-        # it can autonomously revise the plan via update_step mid-run.
+        # Keep the model aware of the current plan (idempotent snapshot) so it can autonomously revise the plan via update_step mid-run.
         self._inject_plan_status()
 
-        # Lifecycle hook: matchers may redirect the phase name
-        # (override_phase) before the Step starts.
+        # Lifecycle hook: matchers may redirect the phase name (override_phase) before the Step starts.
         intro_ev = StepIntroEvent.constructor(rs)
         await self._trigger_step_event(intro_ev)
         if intro_ev.override_phase and rs.current_phase != intro_ev.override_phase:
@@ -605,8 +554,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 f"-> {intro_ev.override_phase}"
             )
 
-        # Push the step-intro metadata.
-        # Resolve the current node description (plan mode only).
+        # Push the step-intro metadata. Resolve the current node description (plan mode only).
         node_desc: str | None = None
         if rs.plan and rs.current_step_id:
             for node in rs.plan:
@@ -644,8 +592,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         - between-Step token accounting + history compression.
         """
         rs = self._init_run_state()
-        # Stall detection is also done per-iteration inside the loop; here it
-        # is the idempotent fallback when the loop exits without stalling.
+        # Stall detection is also done per-iteration inside the loop; here it is the idempotent fallback when the loop exits without stalling.
         if self._detect_step_stall() and not rs.stall_injected:
             await self._inject_give_up_prompt()
         # Subject-predicate summary of what this Step accomplished.
@@ -653,8 +600,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         # Mark the DAG node done (no-op in simple mode).
         rs.complete_current_node()
 
-        # Lifecycle hook: matchers may override the summary produced above
-        # (override_verb / override_object).
+        # Lifecycle hook: matchers may override the summary produced above (override_verb / override_object).
         leave_ev = StepLeaveEvent.constructor(rs)
         await self._trigger_step_event(leave_ev)
         if leave_ev.override_verb or leave_ev.override_object:
@@ -692,8 +638,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 ),
             ),
         )
-        # Compression happens between Steps (pairing closed here); the
-        # auxiliary call usage is accounted via the ledger proxy.
+        # Compression happens between Steps (pairing closed here); the auxiliary call usage is accounted via the ledger proxy.
         await self._compress_history_between_steps()
 
     @override
@@ -734,8 +679,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 tool_call_id=tool_call.id,
             )
         )
-        # Deterministic failure guidance: a hard ERROR result is an objective
-        # plan failure — teach the model to revise instead of retrying forever.
+        # Deterministic failure guidance: a hard ERROR result is an objective plan failure - teach the model to revise instead of retrying forever.
         self._maybe_inject_tool_failure_hint(tool_call, func_response)
 
     @override
