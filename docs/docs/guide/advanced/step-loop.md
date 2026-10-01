@@ -6,9 +6,10 @@ interruptible.
 
 ## Enabling the Step Loop
 
-The Step loop is **opt-in** — the default `ChatObject` workflow is simple chat
-(one LLM call, no decomposition). Enable it by passing the step-loop workflow
-explicitly:
+The Step loop is **opt-in** — the default `ChatObject` workflow
+(`_workflow_rendered`) runs the full shell with the **legacy single-call agent
+loop** on its agent branch (one `single_execute` per round, no decomposition).
+Enable the Step loop by passing the step-loop workflow explicitly:
 
 ```python
 from amrita_core.chatmanager import _step_workflow_rendered
@@ -59,9 +60,11 @@ All step-level state lives in `AgentRunState` (bridged between
 | `plan` / `completed_step_ids`       | The task DAG + progress                            |
 | `step_tool_signatures`              | Tool signatures in the current Step (stall window) |
 | `stall_injected`                    | Give-up prompt injected (once per Step)            |
+| `tool_error_hints`                  | Hard ERROR tool results seen in this Step (retry→revise guidance) |
 | `last_summary`                      | Subject-predicate summary of the previous Step     |
 | `tokens`                            | Real API token accounting (compression trigger)    |
 | `exec_finished`                     | Strategy done calling tools → iteration loop ends  |
+| `step_started_ts`                   | Wall-clock start of the Step (token-budget window anchor) |
 
 ## Stall Protection
 
@@ -91,14 +94,20 @@ tools (REASONING / UPDATE_STEP / STOP) do not fire events.
 
 ## Between-Step Compression
 
-When `llm.memory_abstract_threshold` is set and the real API prompt-token
-count exceeds it at a Step boundary, `leave_step` folds the oldest history
-into one summary message: the LLM summarizes the dropped prefix (with the
-`ABSTRACT_INSTRUCTION` prompt), the summary replaces it, and the token
-baseline resets. Folding keeps `assistant(tool_calls)` + `ToolResult` pairs
-together, so the remaining context stays well-formed. A failed/empty summary
-keeps the history untouched (baseline still resets, no retry loop). The
-`compress` metadata carries the triggering token count and threshold.
+The step loop folds completed-Step history when the prompt tokens the provider
+reported for the current Step exceed the compaction threshold
+(`ContextCompactor.threshold` = the preset's attention window ×
+`llm.compaction_trigger_ratio`). It is gated by the same
+`llm.enable_compaction` switch as between-turn compaction, and both read the
+threshold from one source, so one number describes one model.
+
+On success the folded prefix is replaced by a single `user` message
+(`[Summary of previous steps]\n<summary>`) followed by the retained tail. The
+cut lands on a `user` message, so every `assistant(tool_calls)` stays next to
+its `ToolResult` and the remaining context is still well-formed. A failed or
+empty summary leaves the history untouched; either way the token baseline
+resets, so there is no retry loop. The `compress` step metadata carries the
+triggering token count and the threshold.
 
 ## Step Metadata
 

@@ -60,15 +60,14 @@ class TestChatObjectNewAPI:
         assert chat_obj.slot.ability is bkd
         assert chat_obj.slot.memory is bkd
 
-    def test_chatobject_requires_either_context_or_session_id(self):
-        """Providing neither context nor session_id must raise ValueError."""
+    def test_chatobject_requires_session_id(self):
+        """Providing no session_id must raise ValueError."""
         train = {"role": "system", "content": "system message"}
 
-        with pytest.raises(ValueError, match="Either context or session_id"):
+        with pytest.raises(ValueError, match="session_id must be provided"):
             ChatObject(
                 train=train,
                 user_input="hello",
-                context=None,
                 session_id=None,
                 preset=ModelPreset(model="gpt-3.5-turbo", name="t", api_key="k"),
             )

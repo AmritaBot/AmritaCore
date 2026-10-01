@@ -41,6 +41,13 @@ class FunctionConfig(BaseModel):
         ge=1,
         description="Tool call limit in calling tools.",
     )
+    validate_tool_arguments: bool = Field(
+        default=True,
+        description="Whether to check the arguments the model produced against "
+        "each tool's parameter schema before the tool runs. A failed check is "
+        "returned to the model as an `ERR:` tool result, which lets it correct "
+        "the call; disable to pass arguments through untouched.",
+    )
 
     agent_step_token_budget: int = Field(
         default=-1,

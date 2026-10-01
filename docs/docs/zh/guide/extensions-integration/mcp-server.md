@@ -112,4 +112,4 @@ result = await client.simple_call("list_files", {"path": "/tmp"})
 
 ## 下一步
 
-[自定义 Tokenizer](tokenizer.md)——接入自己的 tokenizer 用于用量统计。
+[模型适配器](adapters.md)——切换 provider，或编写自己的适配器。

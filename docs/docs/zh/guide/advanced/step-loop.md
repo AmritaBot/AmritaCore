@@ -5,8 +5,9 @@
 
 ## 启用 Step 循环
 
-Step 循环是**显式启用**的——默认的 `ChatObject` 工作流是简单对话（一次
-LLM 调用、不分解）。传入 step 循环工作流即可启用：
+Step 循环是**显式启用**的——默认的 `ChatObject` 工作流
+（`_workflow_rendered`）运行完整外壳，其 agent 分支是**传统单调用 agent
+循环**（每轮一次 `single_execute`，不分解）。传入 step 循环工作流即可启用：
 
 ```python
 from amrita_core.chatmanager import _step_workflow_rendered
@@ -55,9 +56,11 @@ flowchart LR
 | `plan` / `completed_step_ids`       | 任务 DAG + 进度                       |
 | `step_tool_signatures`              | 当前 Step 内的工具签名（停滞窗口）    |
 | `stall_injected`                    | give-up prompt 已注入（每 Step 一次） |
+| `tool_error_hints`                  | 本 Step 中遇到的硬 ERROR 工具结果数（重试→改计划指引） |
 | `last_summary`                      | 前一个 Step 的主谓摘要                |
 | `tokens`                            | 真实 API token 统计（压缩触发）       |
 | `exec_finished`                     | 策略完成工具调用 → 迭代循环结束       |
+| `step_started_ts`                   | Step 的墙上时钟起点（token 预算窗口锚点） |
 
 ## 停滞防护
 
@@ -85,11 +88,17 @@ Matcher 可修改事件或抛 `StepAbortError`（控制流）。内置工具
 
 ## Step 间压缩
 
-设置 `llm.memory_abstract_threshold` 后，当真实 API prompt-token 数在
-Step 边界超过该值时，`leave_step` 会把最旧的历史折叠成一条摘要消息：LLM
-以 `ABSTRACT_INSTRUCTION` 提示总结被丢弃的前缀，摘要替换之，token 基线重置。
-折叠时 `assistant(tool_calls)` 与其 `ToolResult` 配对保持在一起，剩余上下文始终保持形态良好。摘要失败/为空时保留历史不动（基线仍重置，不重试循环）。
-`compress` 元数据携带触发时的 token 数与阈值。
+当 provider 为当前 Step 上报的 prompt token 超过压缩阈值时，step 循环会折叠
+已完成的 Step 历史（`ContextCompactor.threshold` = 预设注意力窗口 ×
+`llm.compaction_trigger_ratio`）。它与轮边界压缩受同一个
+`llm.enable_compaction` 开关控制，且两者从同一处读取阈值，因此一个数字就
+描述了一个模型。
+
+成功后，被折叠的前缀由一条 `user` 消息（`[Summary of previous steps]\n<summary>`）
+加保留的尾部替代。切点落在 `user` 消息上，因此每个
+`assistant(tool_calls)` 都紧邻其 `ToolResult`，剩余上下文依然形态良好。
+摘要失败或为空时历史保持不变；两种情况都会重置 token 基线，因此不存在
+重试循环。`compress` step 元数据携带触发时的 token 数与阈值。
 
 ## Step 元数据
 

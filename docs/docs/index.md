@@ -58,7 +58,7 @@ conversation objects, tool calling, MCP clients, model adapters, and a built-in 
 | ① Run it            | [Getting Started](/guide/getting-started)                         | Environment, minimal example, first agent                |
 | ② Use it            | [Tutorials](/guide/tutorials)                                     | Tools, streaming, hooks, memory — step by step           |
 | ③ Understand it     | [Concepts](/guide/concepts)                                       | How ChatObject, strategies, events and data fit together |
-| ④ Extend it         | [Extensions & Integration](/guide/extensions-integration)         | Adapters, custom tools, MCP, custom tokenizers           |
+| ④ Extend it         | [Extensions & Integration](/guide/extensions-integration)         | Adapters, custom tools, MCP                              |
 | ⑤ Tune it           | [Agent Engineering](/guide/agent-engineering)                     | Prompt engineering, Jinja2 templates, troubleshooting    |
 | ⑥ Go deeper         | [Advanced](/guide/advanced)                                       | The workflow engine, suspend/resume, step-loop internals |
 | ⑦ Design philosophy | [Introduction](/guide/introduction) + [Appendix](/guide/appendix) | Why AmritaCore is designed the way it is                 |

@@ -34,8 +34,8 @@ untrusted:
 ## Sensitive Data in Contexts
 
 - Strategies hold `chat_object` as a lifecycle handle — do not log it
-- `StateContext` (deprecated accessor, removed in **v0.14.0**) exposes session id /
-  memory / ability — treat it as sensitive when serializing
+- `MemoryModel` carries the full conversation plus billing records — treat it as
+  sensitive when serializing
 
 ## Template Safety
 

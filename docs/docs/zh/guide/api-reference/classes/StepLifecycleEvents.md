@@ -86,5 +86,5 @@ execute Step 内每轮工具调用后广播。
 ## 相关
 
 - [AgentRunState](AgentRunState.md) —— 事件构建自的状态
-- [核心概念 → 事件系统](../concepts/event.md) —— matcher 机制
-- [进阶 → Step 循环](../advanced/step-loop.md) —— 每个事件的触发时机
+- [核心概念 → 事件系统](../../concepts/event.md) —— matcher 机制
+- [进阶 → Step 循环](../../advanced/step-loop.md) —— 每个事件的触发时机

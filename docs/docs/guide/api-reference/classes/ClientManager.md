@@ -151,6 +151,6 @@ Handles connection establishment, tool discovery, registration, and cleanup for 
 ## Related Documentation
 
 - [MCPClient](MCPClient.md) - Individual client management
-- [ToolsManager](ToolsManager.md) - Tool registration system
-- [MCP Server Integration](../../guide/extensions-integration/mcp-server-integration.md) - Comprehensive integration guide
+- `ToolsManager` - Tool registration system
+- [MCP Server Integration](../../extensions-integration/mcp-server.md) - Comprehensive integration guide
 - [AmritaConfig](AmritaConfig.md) - Configuration-based setup

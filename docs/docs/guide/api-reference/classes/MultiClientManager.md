@@ -342,5 +342,5 @@ For most use cases, prefer using ClientManager over directly instantiating Multi
 
 - [ClientManager](ClientManager.md) - Singleton wrapper for global access
 - [MCPClient](MCPClient.md) - Individual client management
-- [ToolsManager](ToolsManager.md) - Tool registration system
-- [MCP Server Integration](../../guide/extensions-integration/mcp-server-integration.md) - Comprehensive integration guide
+- `ToolsManager` - Tool registration system
+- [MCP Server Integration](../../extensions-integration/mcp-server.md) - Comprehensive integration guide

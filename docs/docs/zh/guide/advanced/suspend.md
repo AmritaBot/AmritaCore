@@ -51,9 +51,11 @@ async def interactive(chat):
 ## 规则
 
 - 每方向单一 consumer：生成器 _或_ 回调（不能同时）
-- `set_queue_done()` 后，进一步 `yield_response` 抛 `StreamStateError`
-- `send_done_to_producer()` 后，进一步 `send_to_producer` 快速失败——
-  不阻塞队列超时
+- `set_queue_done()` 后，`yield_response` 抛
+  `StreamStateError("Queue is closed.")`——但仅在未配置回调时；配置了回调时
+  该块改由回调投递
+- `send_done_to_producer()` 后，`send_to_producer` 立即抛
+  `StreamStateError("Reverse queue is closed.")`（不会等待队列）
 
 ## 下一步
 

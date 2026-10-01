@@ -10,6 +10,7 @@
 - `skip_presets_fetch` (bool)：跳过从后端加载预设（默认：`False`）
 - `skip_ability_extra_setting` (bool)：跳过从后端加载额外能力设置（默认：`False`）
 - `skip_memory_commit` (bool)：跳过执行后将记忆提交回后端（默认：`False`）
+- `skip_billing_commit` (bool)：跳过把计费记录交给 `BackendSlots.billing`（默认：`False`）。记录仍会写入 `MemoryModel.billing`，因此不会丢数据，只是跳过了外部镜像
 
 ## 使用
 

@@ -4,13 +4,18 @@ The MemoryModel class stores conversation history and context.
 
 ## Inheritance
 
-`MemoryModel` extends [`DirtyAwareBaseModel`](DirtyAwareBaseModel.md) (which itself combines `BaseModel` with dirty-mark tracking), enabling automatic mutation tracking on all fields.
+`MemoryModel` extends `DirtyAwareBaseModel` (which itself combines `BaseModel` with dirty-mark tracking), enabling automatic mutation tracking on all fields.
 
 ## Properties
 
 - `messages` (list): List of messages in the conversation
 - `time` (float): Timestamp
-- `abstract` (str): Summary
+- `abstract` (str): Summary produced by history compaction. Rendered into the system instruction by the train template when `LLMConfig.enable_compaction` is on
+- `usage` (`UniResponseUsage` | None): The usage the provider reported for the most recent request. Drives the compaction trigger, and is cleared after each fold
+- `billing` (list[[BillingRecord](BillingRecord.md)]): Per-request billing records accumulated for this session. This is the default persistence path for cost data
+- `dirty_exclude__` (`tuple[str, ...]`): Names of fields the dirty tracker must ignore; defaults to `("model_config",)`
+
+> The model allows extra keys (`extra="allow"`), so consumers can attach their own fields without subclassing.
 
 ## Dirty Tracking Methods
 

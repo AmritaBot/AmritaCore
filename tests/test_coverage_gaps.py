@@ -24,6 +24,7 @@ from amrita_core.contexts import (
     SessionMetadata,
     WorkingState,
 )
+from amrita_core.tools.models import FunctionParametersSchema
 from amrita_core.types import (
     Message,
     ModelPreset,
@@ -240,6 +241,9 @@ class TestCallTool:
         fake = MagicMock()
         fake.custom_run = True
         fake.func = _none
+        fake.data.function.parameters = FunctionParametersSchema(
+            type="object", properties={}
+        )
         tm = MagicMock()
         tm.get_tool.return_value = fake
         co = MagicMock()
@@ -268,6 +272,9 @@ class TestCallTool:
         fake = MagicMock()
         fake.custom_run = False
         fake.func = _tool
+        fake.data.function.parameters = FunctionParametersSchema(
+            type="object", properties={}
+        )
         tm = MagicMock()
         tm.get_tool.return_value = fake
         co = MagicMock()

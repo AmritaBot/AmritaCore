@@ -6,7 +6,7 @@ The FunctionDefinitionSchema class is the schema definition for function paramet
 
 - `name` (str): Function name
 - `description` (str): Function description
-- `parameters` ([FunctionParametersSchema](FunctionParametersSchema.md)): Function parameter definition, containing the parameter `type`, `properties`, and `required` list
+- `parameters` (`FunctionParametersSchema`): Function parameter definition, containing the parameter `type`, `properties`, and `required` list
 
 ## Description
 

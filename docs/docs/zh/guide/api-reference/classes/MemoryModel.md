@@ -10,7 +10,12 @@ MemoryModel 类存储对话历史和上下文。
 
 - `messages` (list)：对话中的消息列表
 - `time` (float)：时间戳
-- `abstract` (str)：摘要
+- `abstract` (str)：历史压缩产生的摘要。当 `LLMConfig.enable_compaction` 开启时，由 train 模板渲染进系统指令
+- `usage` (`UniResponseUsage` | None)：provider 为最近一次请求上报的用量。驱动压缩触发；每次折叠后被清空
+- `billing` (list[[BillingRecord](BillingRecord.md)])：本会话累积的逐请求计费记录。这是成本数据的默认持久化路径
+- `dirty_exclude__` (`tuple[str, ...]`)：脏跟踪需要忽略的字段名；默认为 `("model_config",)`
+
+> 该模型允许额外键（`extra="allow"`），消费方无需继承即可附加自己的字段。
 
 ## 脏跟踪方法
 

@@ -83,7 +83,7 @@ FallbackContext(
 
 **抛出**：
 
-- [`FallbackFailed`](../exceptions/FallbackFailed.md)：总是抛出此异常以终止回退流程。
+- `FallbackFailed`：总是抛出此异常以终止回退流程。
 
 ### get_event_type() -> EventTypeEnum
 

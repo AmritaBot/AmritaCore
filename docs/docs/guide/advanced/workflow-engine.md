@@ -9,24 +9,48 @@ is opted into by passing `workflow=_step_workflow_rendered` (or
 
 ```mermaid
 flowchart LR
-    A["LOAD_STATE"] --> B["JINJA2_RENDER"]
+    A["LOAD_STATE"] --> N["NORMALIZE_MESSAGES"]
+    N --> Q["NATIVE_IF(should_compact)<br/>→ COMPACT"]
+    Q --> B["JINJA2_RENDER"]
     B --> C["BUILD_MESSAGE"]
     C --> D["_pre_runner (events)"]
-    D --> E["_run_strategy → strategy block"]
+    D --> P["_prepare_strategy"]
+    P --> E["NATIVE_IF(is_agent_category)<br/>→ agent block"]
+    P --> E2["NATIVE_IF(not_agent_category)<br/>→ RUN_INLINE_STRATEGY"]
     E --> F["LLM_COMPLETION"]
+    E2 --> F
     F --> G["_post_runner (events)"]
     G --> H["COMMIT_MEMORY"]
 ```
 
-The **strategy block** is what changes by mode. Simple chat skips it entirely;
-the step-driven loop runs:
+Two of those steps exist to keep history inside the window, and their order is
+load-bearing: `NORMALIZE_MESSAGES` flattens content blocks first, so the
+summarizer reads text rather than raw blocks; `COMPACT` runs before
+`JINJA2_RENDER`, so the summary it produces reaches the system instruction of
+the very request it was computed for. Both are described in
+[Data & Memory](../concepts/data-memory.md).
+
+The **agent block** is what changes by mode. The inline runner is not a
+special case bolted onto the side: dispatch is two guarded branches, each of
+which is skipped when its predicate is false.
 
 ```mermaid
 flowchart LR
-    S["_run_strategy<br/>(dispatch on get_category)"] -->|agent / agent-mixed| J["jump_to AGENT_STRATEGY"]
-    J --> K["AGENT_ENTRY<br/>(instantiate strategy)"]
-    K --> L["NATIVE_DO(STEP_BODY).WHILE(task_cond)"]
+    G1{"is_agent_category?"} -->|agent / agent-mixed| AB["AGENT_BLOCK"]
+    G2{"not_agent_category?"} -->|workflow / rag| IN["RUN_INLINE_STRATEGY"]
+    AB --> K["AGENT_ENTRY<br/>(instantiate strategy)"]
+    K --> L["WHILE(single_execute).ACTION(REACT_COUNTER)"]
     L --> M["AGENT_POST_PROCESS"]
+```
+
+The step-driven variant swaps only the middle link:
+
+```python
+# AGENT_BLOCK — one single_execute per iteration
+AGENT_BLOCK = AGENT_ENTRY >> WHILE(single_execute).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS
+
+# STEP_AGENT_BLOCK — one task iteration is one Step
+STEP_AGENT_BLOCK = AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
 ```
 
 ```python
@@ -45,16 +69,16 @@ what makes the same nodes reusable across pipelines.
 `amrita_core.builtins.workflows` ships ready graphs. Two families, one choice
 per family:
 
-| Pipeline                | Composition                                                                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STEP_REACT_BLOCK`      | `STRATEGY_INIT >> AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS`                                                     |
-| `SIMPLE_STEP_REACT`     | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`                                             |
-| `STEP_REACT_ONLY`       | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                                                                |
-| `CHATOBJECT_STEP_REACT` | `ARCHIVED_SEGMENT(ALIAS(AGENT_ENTRY, AGENT_STRATEGY) >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS) >> ALIAS(NOP, STRATEGY_EOF)` |
-| `REACT_BLOCK` (legacy)  | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS`                                         |
-| `SIMPLE_REACT` (legacy) | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`                                                  |
-| `REACT_ONLY` (legacy)   | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                                                                     |
-| `SIMPLE_CHAT`           | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                                                                 |
+| Pipeline                | Composition                                                                                                                                    |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMPACT_HISTORY`       | `NATIVE_IF(should_compact, COMPACT)`                                                                                                           |
+| `STEP_REACT_BLOCK`      | `STRATEGY_INIT >> AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS`                                                  |
+| `SIMPLE_STEP_REACT`     | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY` |
+| `STEP_REACT_ONLY`       | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                    |
+| `REACT_BLOCK` (legacy)  | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS`                                      |
+| `SIMPLE_REACT` (legacy) | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`      |
+| `REACT_ONLY` (legacy)   | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                         |
+| `SIMPLE_CHAT`           | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                     |
 
 **How to choose**:
 
@@ -70,10 +94,11 @@ per family:
   [The Step Loop](step-loop.md)).
 - `REACT_BLOCK` / `SIMPLE_REACT` / `REACT_ONLY` are the legacy single-call
   loop — kept for compatibility, prefer the step-driven family.
-- `CHATOBJECT_STEP_REACT` is the internal variant used when a strategy block
-  is archived (JMP-skipped) inside the ChatObject runner — `_run_strategy`
-  jumps to `AGENT_STRATEGY`, and a trailing `NOP` aliased `STRATEGY_EOF`
-  provides the fall-through. You normally don't pass it by hand.
+
+> The blocks in this table carry their own `STRATEGY_INIT`, because they are
+> meant to be composed by hand. The pipeline `ChatObject` runs by default does
+> the same job with its local `_prepare_strategy` node instead, which is why
+> `AGENT_BLOCK` / `STEP_AGENT_BLOCK` do not include it.
 
 `ChatObject(workflow=...)` accepts any rendered graph; `workflow` and
 `archived_nodes` are mutually exclusive. The default `workflow=None` resolves

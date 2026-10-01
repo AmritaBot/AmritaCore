@@ -17,11 +17,11 @@ This dataclass contains all the necessary information that an agent strategy nee
 
 - `preset` ([ModelPreset](ModelPreset.md) \| None): Model preset for the chat (default: `None`)
 - `config` ([AmritaConfig](AmritaConfig.md) \| None): Configuration settings (default: `None`)
-- `tools_manager` ([ToolsManager](ToolsManager.md) \| None): Manager for available tools (default: `None`)
+- `tools_manager` (`ToolsManager` \| None): Manager for available tools (default: `None`)
 - `io_stream` (SuspendObjectStream \| None): Streaming I/O interface for yielding responses (default: `None`)
 - `train_content` (str \| None): System/training prompt content string (default: `None`)
 - `stream_id` (str \| None): Unique stream identifier (default: `None`)
-- `resp_extra_usage` ([UniResponseUsage](UniResponseUsage.md) \| None): Accumulator for response usage statistics (default: `None`)
+- `resp_extra_usage` (`UniResponseUsage` \| None): Accumulator for response usage statistics (default: `None`)
 
 ### Core Reference Field
 
@@ -34,11 +34,11 @@ This dataclass contains all the necessary information that an agent strategy nee
 - `chat_object` ([ChatObject](ChatObject.md) \| None, optional): The core lifecycle-manager handle for the current conversation. Resources fall back to it when not injected. (default: `None`)
 - `preset` ([ModelPreset](ModelPreset.md) \| None, optional): Model preset (default: `None`)
 - `config` ([AmritaConfig](AmritaConfig.md) \| None, optional): Configuration (default: `None`)
-- `tools_manager` ([ToolsManager](ToolsManager.md) \| None, optional): Tools manager (default: `None`)
+- `tools_manager` (`ToolsManager` \| None, optional): Tools manager (default: `None`)
 - `io_stream` (SuspendObjectStream \| None, optional): I/O stream (default: `None`)
 - `train_content` (str \| None, optional): Training content (default: `None`)
 - `stream_id` (str \| None, optional): Stream ID (default: `None`)
-- `resp_extra_usage` ([UniResponseUsage](UniResponseUsage.md) \| None, optional): Extra usage accumulator (default: `None`)
+- `resp_extra_usage` (`UniResponseUsage` \| None, optional): Extra usage accumulator (default: `None`)
 
 ## Methods
 

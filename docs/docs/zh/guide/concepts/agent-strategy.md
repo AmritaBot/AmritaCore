@@ -10,7 +10,12 @@
 | `agent` / `agent-mixed` | 每轮 `single_execute()` | 框架运行循环 |
 | `rag` / `workflow`      | 一次 `run()`            | 策略完全掌控 |
 
-`_run_strategy` 按类别分派并跳入对应的工作流块。
+分派属于工作流控制流，而不是 Python：`_prepare_strategy` 只构建
+`StrategyContext`，随后两个带守卫的分支选定执行形态——
+`NATIVE_IF(is_agent_category, ...)` 运行框架循环，
+`NATIVE_IF(not_agent_category, RUN_INLINE_STRATEGY)` 调用一次 `run()`。
+各自在断言为假时被跳过，因此任何类别都不会被执行两次
+（见[工作流引擎](../advanced/workflow-engine.md)）。
 
 ## 通过 DI 获取资源
 
@@ -24,7 +29,10 @@
 | `self.io_stream`        | `ctx.io_stream`        | `chat_object.io_stream`            |
 | `self.train_content`    | `ctx.train_content`    | `chat_object.train.content`        |
 | `self.stream_id`        | `ctx.stream_id`        | `chat_object.stream_id`            |
-| `self.resp_extra_usage` | `ctx.resp_extra_usage` | `chat_object._di_resp.extra_usage` |
+| `self.usage`            | `ctx.usage`            | `chat_object._di_resp.usage`，否则 `None` |
+
+> `self.usage` 是运行级作用域的 `SessionUsageProxy` 账本。它覆盖工作流内部用量
+> （策略工具轮次加上辅助调用）；最终补全的用量位于 `resp.response.usage`。
 
 > `chat_object` 是**生命周期管理器句柄**——核心引用，不是弃用路径。
 > 优先 DI 字段；回退 `chat_object`。
@@ -49,8 +57,10 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 - **update_step 工具** —— agent 可中途修订计划
 
 > **工作流需显式启用。** 策略类默认是 `ReActAgentStrategy`，但 Step 循环
-> 只在 **step 循环工作流** 激活时才运行。`ChatObject` 默认是简单对话工作流
-> （一次 LLM 调用、不分解）；传入 `workflow=_step_workflow_rendered`
+> 只在 **step 循环工作流** 激活时才运行。`ChatObject` 默认使用
+> `_workflow_rendered`，其 agent 分支是**传统单调用循环**（`AGENT_BLOCK`）——
+> 每轮一次 `single_execute`、不做 DAG 分解；传入
+> `workflow=_step_workflow_rendered`
 > （或 `SIMPLE_STEP_REACT`）即可启用上面的循环。见
 > [ChatObject](chat-object.md) 与 [进阶 → Step 循环](../advanced/step-loop.md)。
 
@@ -58,9 +68,9 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 
 ## 其他内置策略
 
-| 策略                    | 类别       | 用途               |
-| ----------------------- | ---------- | ------------------ |
-| `NoActionAgentStrategy` | `workflow` | 完全跳过工具调用   |
+| 策略                    | 类别       | 用途             |
+| ----------------------- | ---------- | ---------------- |
+| `NoActionAgentStrategy` | `workflow` | 完全跳过工具调用 |
 
 ## 编写自定义策略
 

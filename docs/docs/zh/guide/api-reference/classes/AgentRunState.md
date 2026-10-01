@@ -24,9 +24,11 @@ state.begin_step("execute")
 | `plan_revision`        | `int`                   | `update_step` 修订计数器                         |
 | `step_tool_signatures` | `list[str]`             | 当前 Step 内的工具签名(停滞窗口)                 |
 | `stall_injected`       | `bool`                  | give-up prompt 已注入(每 Step 一次)              |
+| `tool_error_hints`     | `int`                   | 当前 Step 中遇到的硬 ERROR 工具结果数（驱动「先重试后改计划」指引） |
 | `last_summary`         | `StepSummary \| None`   | 前一个 Step 的主谓摘要                           |
 | `tokens`               | `TokenBudget`           | 真实 API token 统计                              |
 | `exec_finished`        | `bool`                  | 策略完成工具调用 → 迭代循环结束                  |
+| `step_started_ts`      | `float \| None`         | 当前 Step 的墙上时钟起点；token 预算窗口锚点 |
 
 ## 方法
 
@@ -44,6 +46,6 @@ state.begin_step("execute")
 ## 相关
 
 - [DAGNode](DAGNode.md) —— 计划子步骤
-- [StepSummary](StepSummary.md) —— 主谓摘要
-- [TokenBudget](TokenBudget.md) —— token 统计
-- 完整机制见[进阶 → Step 循环](../advanced/step-loop.md)
+- `StepSummary` —— 主谓摘要
+- `TokenBudget` —— token 统计
+- 完整机制见[进阶 → Step 循环](../../advanced/step-loop.md)

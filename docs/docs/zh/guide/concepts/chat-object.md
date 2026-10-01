@@ -11,7 +11,6 @@ flowchart TD
     CO["ChatObject"] --> WF["_workflow / _interpreter — AmritaSense 指令序列"]
     CO --> IO["io_stream — SuspendObjectStream（双向）"]
     CO --> DI["_di_* 上下文 — 与工作流节点共享的类型化 DI 状态"]
-    CO --> ST["state — StateContext（已弃用访问器）"]
     DI --> S1["_di_session — SessionMetadata"]
     DI --> S2["_di_memory — MemoryContext"]
     DI --> S3["_di_ability — AbilityState"]
@@ -20,6 +19,7 @@ flowchart TD
     DI --> S6["_di_resp — RespState"]
     DI --> S7["_di_loop — AgentLoopState"]
     DI --> S8["_di_agent — StrategyPayload"]
+    DI --> S9["_di_opt — DatabackendOptions"]
 ```
 
 ## 生命周期
@@ -34,35 +34,56 @@ flowchart LR
     F --> G["流 EOF"]
 ```
 
-- **`begin()`** 运行一次工作流；`_is_done` 防止重复进入。
-- 退出时 `set_queue_done()` 关闭响应通道；会话由 `ChatManager` 清理。
-- **中间件**（`middleware=...`）可包装整个工作流。
+- **`begin()`** 把 `_entry()` 调度为任务，但只调度一次——守卫条件是
+  `hasattr(self, "_task")`。`_entry()` 自身会再检查 `_is_running` / `_is_done`，
+  若对象已在运行或已完成则抛出 `RuntimeError`。
+- 退出时设置 `_is_done`，`set_queue_done()` 向响应通道写入 EOF，打上 `end_at`
+  时间戳，从 `ChatManager.running_chat_object_id2map` 中移除，并由
+  `ChatManager.clean_obj()` 强制限制每个会话保留的对象数量。
+- **中间件**（`middleware=...`）可包装整个工作流；设置后会跳过解释器，直接
+  等待该中间件。
 
 ## 工作流选择
 
 `ChatObject` 运行一条预编译的工作流。**默认**（`workflow=None` 时）是
-简单对话管线（`_workflow_rendered`）——一次 LLM 调用、一个回答、不分解。
+`_workflow_rendered`，即完整外壳：
+
+`LOAD_STATE → NORMALIZE_MESSAGES → (COMPACT) → JINJA2_RENDER → BUILD_MESSAGE →
+_pre_runner → _prepare_strategy → agent 分支 → LLM_COMPLETION → _post_runner →
+COMMIT_MEMORY`
+
+其 **agent 分支是传统的单调用循环**（`AGENT_BLOCK`：每轮迭代一次
+`single_execute`，不做 DAG 分解）。非 agent 类别的策略则走
+`RUN_INLINE_STRATEGY` 分支。`_pre_runner`（触发 `PRECOMPLE` 断点与预完成匹配器）
+和 `_post_runner` 都属于这个默认外壳。
+
 要运行内置的 **Step 驱动 ReAct 循环**（decompose → Step → summarize、
-`update_step` 计划修订），请**显式传入** step 循环工作流：
+`update_step` 计划修订），请传入 `_step_workflow_rendered`——同一外壳，
+只是把 `AGENT_BLOCK` 换成 `STEP_AGENT_BLOCK`：
 
 ```python
 from amrita_core.chatmanager import _step_workflow_rendered
 from amrita_core.builtins.workflows import SIMPLE_STEP_REACT, SIMPLE_CHAT
 
-# 默认：简单对话，一次调用（workflow=None 时使用）
+# 默认：完整外壳 + 传统单调用 agent 循环
 chat = ChatObject(train=..., user_input=..., session_id="s1")
 
-# 显式：Step 驱动 ReAct 循环（decompose → Step → summarize）
+# 原生 Step 循环：同一外壳，STEP_AGENT_BLOCK
 chat = ChatObject(..., workflow=_step_workflow_rendered)
 
-# 显式：内置预组合管线
-chat = ChatObject(..., workflow=SIMPLE_CHAT)  # 无 agent，纯对话
-chat = ChatObject(..., workflow=SIMPLE_STEP_REACT)  # 完整 Step 循环管线
+# amrita_core.builtins.workflows 中的预组合管线
+chat = ChatObject(..., workflow=SIMPLE_CHAT)  # 无 agent 分支：一次 LLM 调用
+chat = ChatObject(..., workflow=SIMPLE_STEP_REACT)  # Step 循环，仅组件节点
 ```
 
-> `workflow` 与 `archived_nodes` 互斥。Step 循环工作流正是开启 `step`
-> 元数据事件（`decompose` / `intro` / `leave`）与 `update_step` 工具的
-> 开关——见 [进阶 → Step 循环](../advanced/step-loop.md)。
+> `amrita_core.builtins.workflows` 中的管线只由组件节点拼装——**不含**
+> `_pre_runner` / `_prepare_strategy` / `_post_runner`。使用 `SIMPLE_CHAT` 时
+> 预完成匹配器永不触发，因此 `PRECOMPLE` 断点不可达。
+
+> `workflow` 与 `archived_nodes` 互斥——同时传入会抛出 `ValueError`。
+> Step 循环工作流正是开启 `step` 元数据事件（`decompose` / `intro` /
+> `leave`）与 `update_step` 工具的开关——见
+> [进阶 → Step 循环](../advanced/step-loop.md)。
 
 ## 为什么"生命周期管理器"重要
 

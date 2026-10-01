@@ -10,8 +10,12 @@ stateful instances) and declares a **category** via `get_category()`:
 | `agent` / `agent-mixed` | `single_execute()` per round | Framework runs the loop   |
 | `rag` / `workflow`      | `run()` once                 | Strategy has full control |
 
-`_run_strategy` dispatches on the category and jumps into the corresponding
-workflow block.
+Dispatch is workflow control flow, not Python: `_prepare_strategy` only builds
+the `StrategyContext`, then two guarded branches pick the execution shape —
+`NATIVE_IF(is_agent_category, ...)` runs the framework loop, and
+`NATIVE_IF(not_agent_category, RUN_INLINE_STRATEGY)` calls `run()` once. Each
+branch is skipped when its predicate is false, so no category can execute
+twice (see [Workflow Engine](../advanced/workflow-engine.md)).
 
 ## Resource Access via DI
 
@@ -26,7 +30,11 @@ fields, falling back to `chat_object`:
 | `self.io_stream`        | `ctx.io_stream`        | `chat_object.io_stream`            |
 | `self.train_content`    | `ctx.train_content`    | `chat_object.train.content`        |
 | `self.stream_id`        | `ctx.stream_id`        | `chat_object.stream_id`            |
-| `self.resp_extra_usage` | `ctx.resp_extra_usage` | `chat_object._di_resp.extra_usage` |
+| `self.usage`            | `ctx.usage`            | `chat_object._di_resp.usage`, else `None` |
+
+> `self.usage` is the run-scoped `SessionUsageProxy` ledger. It covers
+> workflow-internal usage (strategy tool rounds plus auxiliary calls); the
+> final completion's usage lives on `resp.response.usage`.
 
 > `chat_object` is the **lifecycle-manager handle** — the core reference, not
 > a deprecated path. Prefer DI fields; fall back to `chat_object`.
@@ -54,9 +62,11 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 
 > **Opt-in workflow.** The strategy class is the default, but the Step loop
 > only runs when the **step-loop workflow** is active. `ChatObject` defaults
-> to the simple chat workflow (one LLM call, no decomposition); pass
-> `workflow=_step_workflow_rendered` (or `SIMPLE_STEP_REACT`) to enable the
-> loop above. See [ChatObject](chat-object.md) and
+> to `_workflow_rendered`, whose agent branch is the **legacy single-call
+> loop** (`AGENT_BLOCK`) — one `single_execute` per round, no DAG
+> decomposition; pass `workflow=_step_workflow_rendered` (or
+> `SIMPLE_STEP_REACT`) to enable the loop above. See
+> [ChatObject](chat-object.md) and
 > [Advanced → Step Loop](../advanced/step-loop.md).
 
 Full details: [Advanced → Step Loop](../advanced/step-loop.md).

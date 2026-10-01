@@ -25,4 +25,4 @@ node = DAGNode(
 ## Related
 
 - [AgentRunState](AgentRunState.md) — holds `plan: list[DAGNode]`
-- [DecomposeDecision](DecomposeDecision.md) — the LLM output producing the DAG
+- `DecomposeDecision` — the LLM output producing the DAG

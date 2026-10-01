@@ -12,11 +12,18 @@ memory = MemoryModel()  # empty history
 memory.messages  # list[Message | ToolResult]
 ```
 
-- `messages` — the conversation: `Message` entries (user / assistant) and
-  `ToolResult` entries paired with their tool calls.
-- Being a Pydantic model, it serializes with `model_dump()` and validates with
-  `model_validate()` — exactly what a file/DB backend needs
-  (see [Data Backend](data-backend.md)).
+| Field      | Holds                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------- |
+| `messages` | The conversation: `Message` entries (user / assistant) and `ToolResult` entries paired with their tool calls |
+| `abstract` | The summary produced by compaction. Rendered into the system instruction by the train template |
+| `usage`    | The usage the provider reported for the most recent request. Drives the compaction trigger; cleared after each fold |
+| `billing`  | Per-request `BillingRecord` entries accumulated for this session — the default persistence path for cost data |
+| `time`     | Timestamp                                                                              |
+
+Being a Pydantic model, it serializes with `model_dump()` and validates with
+`model_validate()` — exactly what a file/DB backend needs
+(see [Data Backend](data-backend.md)). Because `billing` may hold `Decimal`
+prices, use `model_dump(mode="json")` when writing JSON.
 
 ## The Lifecycle
 
@@ -49,29 +56,84 @@ chat._di_memory.memory  # MemoryModel | None — set after LOAD_STATE
 Workflow nodes and strategies access it via type-matched injection
 (`mem: MemoryContext`).
 
-## Memory Summarization
+## Keeping History Inside the Model's Limits
 
-`LLMConfig.enable_memory_abstract` + `memory_abstract_threshold` trigger
-summarization: when the prompt token count exceeds the threshold, older turns
-are replaced by a summary before the request is sent (see
-[Tutorial 5 — Memory](../tutorials/memory.md)). The built-in step strategy
-additionally compresses history between Steps
-(see [Step Loop](../advanced/step-loop.md)).
+Three separate mechanisms run before a request is built. They are deliberately
+independent — each can be enabled alone, and they solve different problems:
 
-## `StateContext` (Legacy Accessor)
+| Mechanism            | Solves                                       | Runs when                             |
+| -------------------- | -------------------------------------------- | ------------------------------------- |
+| Content normalization | History carries blocks the model cannot read | `llm.enable_multi_modal` is **off**   |
+| History compaction   | History is too long                          | A trigger threshold is reached        |
+| Overflow recovery    | The provider already rejected the request    | A `ContextOverflowError` is raised    |
 
-> **Deprecated**: scheduled for removal in **v0.14.0**. Using `StateContext` or
-> the `chat.state` property emits a `DeprecationWarning`.
+The default pipeline order is
+`LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT >> JINJA2_RENDER >> BUILD_MESSAGE`
+(see [Workflow Engine](../advanced/workflow-engine.md)).
 
-`StateContext` (session_id + memory + ability) still exists as a
-backward-compatible accessor: `chat.state` synthesizes one from the DI
-contexts, and `LegacyBackend` uses it as its in-process storage.
+### 1. Content Normalization
 
-**Migration**: new code should use the DI contexts directly:
+Some providers accept only plain text. A conversation carrying content blocks
+(images, files) therefore has to be flattened before the request is built, or
+the adapter sends blocks the model cannot read.
 
-- `chat._di_session.session_id` instead of `chat.state.session_id`
-- `chat.data` (a `MemoryModel`) instead of `chat.state.memory`
-- `chat._di_ability.ability` instead of `chat.state.ability`
+The `NORMALIZE_MESSAGES` node does this, gated by
+`LLMConfig.enable_multi_modal` (default `True`):
+
+- `enable_multi_modal=True` — the node is a no-op; blocks pass through
+- `enable_multi_modal=False` — every **user** message whose `content` is a list
+  of blocks is rewritten to its concatenated text
+
+Only user messages are rewritten. Assistant turns keep their structure, because
+tool-call pairing depends on it.
+
+This is deliberately separate from compaction: normalization is **lossless**
+flattening of what is already there, while compaction throws history away.
+Keeping them apart means either can run alone.
+
+### 2. History Compaction
+
+`LLMConfig.enable_compaction` turns on history folding. A
+[`ContextCompactor`](../api-reference/classes/ContextCompactor.md) reads the
+attention window from the active preset (`max_context`, falling back to
+`LLMConfig.session_tokens_windows`) and forces a fold once the last measured
+prompt reaches `compaction_trigger_ratio` of it.
+
+Compaction fires on whichever trigger comes first:
+
+- **Token trigger** — the prompt size the provider reported for the previous
+  request reaches the threshold. No local tokenizer is involved; the
+  provider's own usage report is the measurement
+- **Message-count fallback** — history reaches `LLMConfig.memory_length_limit`
+  (default `200`). This exists because the token trigger needs the provider to
+  report usage; a gateway that reports none would otherwise let history grow
+  without bound
+
+The fold cuts at the **newest `user` message**, so the surviving tail starts a
+clean turn and no assistant tool call is ever separated from its tool results.
+The summary is stored on `MemoryModel.abstract` and rendered back into the
+system instruction by the train template, so nothing is injected into the
+message list and provider message-ordering rules stay untouched.
+
+See [Tutorial 5 — Memory](../tutorials/memory.md) for a hands-on setup, and
+[Step Loop](../advanced/step-loop.md) for the between-Step variant the built-in
+step strategy additionally performs.
+
+### 3. Overflow Recovery
+
+Sometimes the estimate is simply wrong — the provider rejects the request
+outright. `libchat` detects this and raises
+[`ContextOverflowError`](../api-reference/classes/ContextOverflowError.md)
+*before* the preset-fallback loop, so an oversized request never burns through
+the fallback chain.
+
+With `LLMConfig.enable_overflow_recovery` (default `True`), `LLM_COMPLETION`
+catches the error, folds the history through the same `ContextCompactor`, and
+retries **once**. If the retry also overflows, the error propagates.
+
+Detection is a deliberately conservative pattern match over the provider's
+message: mistaking a transient failure for an overflow would throw away history
+for nothing.
 
 ## Next
 

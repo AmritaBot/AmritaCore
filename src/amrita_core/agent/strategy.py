@@ -12,6 +12,7 @@ from amrita_core.agent.context import StrategyContext
 from amrita_core.contents import MessageMetadataPayloadSystem, MessageWithMetadata
 from amrita_core.tools.manager import MultiToolsManager
 from amrita_core.tools.models import ToolContext
+from amrita_core.tools.schema import validate_arguments
 from amrita_core.types import Message, ToolCall
 
 if TYPE_CHECKING:
@@ -177,6 +178,10 @@ class _StrategyBase(ABC):
         function_name = tool_call.function.name
         function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
         if (tool_data := self.tools_manager.get_tool(function_name)) is not None:
+            if self.config.function_config.validate_tool_arguments:
+                function_args = validate_arguments(
+                    tool_data.data.function.parameters, function_args
+                )
             if not tool_data.custom_run:
                 func_response: str | None = await typing.cast(
                     Callable[[dict[str, Any]], Awaitable[str]],

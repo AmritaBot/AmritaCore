@@ -89,5 +89,5 @@ classmethod.
 ## Related
 
 - [AgentRunState](AgentRunState.md) — the state events are constructed from
-- [Concepts → Event System](../concepts/event.md) — matcher mechanics
-- [Advanced → Step Loop](../advanced/step-loop.md) — when each event fires
+- [Concepts → Event System](../../concepts/event.md) — matcher mechanics
+- [Advanced → Step Loop](../../advanced/step-loop.md) — when each event fires

@@ -23,7 +23,7 @@ from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
 from pytz import utc
-from typing_extensions import Self, deprecated
+from typing_extensions import Self
 
 from amrita_core._compat import exc_ignored_disabled
 from amrita_core.agent.context import build_strategy_context
@@ -55,7 +55,6 @@ from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
 from amrita_core.contents import MessageContent
 from amrita_core.contexts import (
-    AbilityContext,
     AbilityState,
     AgentLoopState,
     DatabackendOptions,
@@ -63,7 +62,6 @@ from amrita_core.contexts import (
     MemoryContext,
     RespState,
     SessionMetadata,
-    StateContext,
     StrategyPayload,
     WorkingState,
 )
@@ -149,7 +147,6 @@ class ChatObject:
 
     # ChatObject temp storage
     _chatman: ChatManager
-    _state: StateContext | None  # Backref for external consumers
 
     # DI context references — component nodes read/write these via extra_args type injection
     _di_ability: AbilityState
@@ -181,7 +178,6 @@ class ChatObject:
         "_middleware",
         "_raised_exc",
         "_s_id",
-        "_state",
         "_task",
         "_workflow",
         "end_at",
@@ -194,7 +190,6 @@ class ChatObject:
         self,
         train: dict[str, str] | Message[str],
         user_input: USER_INPUT,
-        context: StateContext | None = None,
         session_id: str | None = None,
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
@@ -218,10 +213,8 @@ class ChatObject:
         Args:
             train: Training data (system prompts).
             user_input: Input from the user.
-            context: Pre-built state context. Mutually exclusive with ``session_id``.
-            session_id: Unique identifier for the session. Mutually exclusive with
-                ``context``. When both are None, ChatObject requires ``session_id``
-                to create a new StateContext at runtime.
+            session_id: Unique identifier for the session. When omitted, the
+                object cannot persist or resume state across runs.
             config: Config used for this call. Defaults to global config.
             preset: Preset used for this call. Defaults to None (resolved at runtime).
             backend: Backend slots for memory and ability I/O. Defaults to
@@ -258,15 +251,10 @@ class ChatObject:
         # initialize iostream
         self.io_stream = io_stream or SuspendObjectStream()
 
-        # Validate context / session_id
-        if not context and not session_id:
-            raise ValueError("Either context or session_id must be provided")
-        if session_id:
-            if context:  # nocov
-                raise ValueError(  # nocov
-                    "Both context and session_id cannot be provided"  # nocov
-                )  # nocov
-            self._s_id = session_id
+        # Validate session_id
+        if not session_id:
+            raise ValueError("session_id must be provided")
+        self._s_id = session_id
         if workflow and archived_nodes:
             raise ValueError("Cannot provide both workflow and archived_nodes")
         # Resolve locals (no longer stored directly on ChatObject)
@@ -321,12 +309,6 @@ class ChatObject:
         self._di_loop = AgentLoopState()
         self._di_agent = StrategyPayload(strategy=_strategy)
         self._di_opt = _bke_opt
-        self._state = None
-        if context:  # nocov
-            self._state = context  # nocov
-            self._di_memory.memory = context.memory  # nocov
-            self._di_ability.ability = context.ability  # nocov
-            self._di_session.session_id = context.session_id  # nocov
 
         # Workflow system
         wkfl = None
@@ -408,38 +390,6 @@ class ChatObject:
     @strategy.setter
     def strategy(self, val: type[AgentStrategy] | StrategyLikedObject) -> None:
         self._di_agent.strategy = val
-
-    @property
-    @deprecated(
-        "This property is deprecated and will be removed in v0.14.0. "
-        "Use session_id / data / config etc. directly instead.",
-        category=DeprecationWarning,
-    )
-    def state(self) -> StateContext:  # nocov
-        """Backward-compatible accessor. Returns the StateContext if one was
-        provided, otherwise synthesises one from the DI components.
-
-        Hint: The best practice of acquiring the full state
-            is to use the `.dump_interpreter()` method of workflow interpreter."""  # nocov
-        if self._state is not None:  # nocov
-            return self._state  # nocov
-        return StateContext(  # nocov
-            session_id=self._di_session.session_id,  # nocov
-            memory=self._di_memory.memory or MemoryModel(),  # nocov
-            ability=self._di_ability.ability or AbilityContext(),  # nocov
-        )  # nocov
-
-    @state.setter
-    @deprecated(
-        "This property is deprecated and will be removed in v0.14.0. "
-        "Use session_id / data setters directly instead.",
-        category=DeprecationWarning,
-    )
-    def state(self, val: StateContext) -> None:  # nocov
-        self._state = val  # nocov
-        self._di_memory.memory = val.memory  # nocov
-        self._di_ability.ability = val.ability  # nocov
-        self._di_session.session_id = val.session_id  # nocov
 
     @property
     def user_input(self) -> USER_INPUT:

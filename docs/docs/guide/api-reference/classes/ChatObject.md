@@ -12,10 +12,6 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 ### State & Backend
 
 - `slot` ([BackendSlots](BackendSlots.md)): Backend slots providing memory and ability backends (delegates to `_di_ability.slot`)
-- `state` ([StateContext](StateContext.md)): Runtime state context containing memory, ability, and session ID.
-  > **Deprecated**: scheduled for removal in **v0.14.0**. Using this property emits a `DeprecationWarning`. Use `session_id`, `data`, `config` and the DI contexts (`_di_session`, `_di_memory`, `_di_ability`) instead.
-  >
-  > **v0.12.0**: This is now a **compatibility property** — if a `StateContext` was set via the setter, it is returned directly; otherwise a new context is synthesised from DI components (`_di_session`, `_di_memory`, `_di_ability`).
 
 ### Timing
 
@@ -53,23 +49,26 @@ The ChatObject class is the primary interface for conversations with the AI. It 
 
 ## Constructor Parameters
 
+`train`, `user_input`, `session_id`, `config` and `preset` are positional-or-keyword;
+every parameter after `preset` is keyword-only.
+
 - `train` (dict[str, str] | [Message](Message.md)[str]): Training/prompt data for the AI (system prompt)
 - `user_input` (str | Sequence[Content] | None): The user's input message
-- `context` ([StateContext](StateContext.md) | None, optional): Pre-built state context. **Deprecated** — scheduled for removal in **v0.14.0**. If provided, `session_id` must NOT be provided (mutually exclusive). When both are None, ChatObject requires `session_id` to create a new StateContext at runtime. Pass `session_id` and set `data` afterwards instead (default: None)
-- `session_id` (str | None, optional): Unique identifier for the session. If provided, `context` must NOT be provided (mutually exclusive). The session ID is used by the Backend to load/save memory and ability state (default: None)
+- `session_id` (str | None, optional): Unique identifier for the session. Required: constructing a `ChatObject` without one raises `ValueError`. The session ID is used by the Backend to load/save memory and ability state (default: None)
+- `config` ([AmritaConfig](AmritaConfig.md) | None, optional): Configuration settings for the chat that overrides the global configuration (default: None)
 - `preset` ([ModelPreset](ModelPreset.md) | None, optional): Model preset for the chat (default: None, resolved at runtime)
 - `backend` ([BackendSlots](BackendSlots.md) | None, optional): Backend slots providing memory and ability backends. If None, a `LegacyBackend` is used for both slots (default: None)
-- `config` ([AmritaConfig](AmritaConfig.md) | None, optional): Configuration settings for the chat that overrides the global configuration (default: None)
-- `io_stream` (SuspendObjectStream[RESPONSE_TYPE] | None, optional): External SuspendObjectStream instance to use. If None, a new one is created automatically (default: None)
-- `agent_strategy` (type[AgentStrategy] | [StrategyLikedObject](StrategyLikedObject.md), optional): Agent strategy to be used for execution. Accepts either a strategy **class** (`type[AgentStrategy]`) or a pre-initialised strategy **instance** (`StrategyLikedObject`). The latter enables stateful strategies with internal state machines (default: ReActAgentStrategy)
+- `chat_man` ([ChatManager](ChatManager.md) | None, optional): `ChatManager` this object is bound to. Defaults to the global `ChatManager` (default: None)
 - `train_template` (Template | str, optional): Jinja2 template used to format system message (default: DEFAULT_TEMPLATE)
+- `io_stream` (SuspendObjectStream[RESPONSE_TYPE] | None, optional): External SuspendObjectStream instance to use. If None, a new one is created automatically (default: None)
 - `jinja2_vars` (dict[str, Any] | None, optional): Variables to be passed to the template system for custom template variables (default: None). **Important**: Keys in this dictionary must NOT match built-in variable names (`train`, `memory`, `chatobj`, `config`) as this would cause a TypeError due to duplicate keyword arguments.
+- `agent_strategy` (type[AgentStrategy] | `StrategyLikedObject`, optional): Agent strategy to be used for execution. Accepts either a strategy **class** (`type[AgentStrategy]`) or a pre-initialised strategy **instance** (`StrategyLikedObject`). The latter enables stateful strategies with internal state machines (default: ReActAgentStrategy)
 - `hook_args` (tuple[Any, ...], optional): Positional arguments passed to event handlers when events are triggered (default: empty tuple)
 - `hook_kwargs` (dict[str, Any] | None, optional): Keyword arguments passed to event handlers when events are triggered (default: None)
 - `exception_ignored` (tuple[type[BaseException], ...], optional): Exception types that should be ignored and raised again in event handlers (default: empty tuple)
 - `middleware` (Callable[[Self], Awaitable[Any]] | None, optional): Async middleware function that wraps the entire workflow execution. When set, the workflow engine delegates execution to the middleware instead of running the default pipeline. Useful for custom orchestration, monitoring, or cross-cutting concerns (default: None)
 - `archived_nodes` (SubprogramStorage | None, optional): Additional node subprograms to append at the end of the workflow pipeline. Allows extending the ChatObject execution with custom steps after the standard pipeline completes. When `None`, defaults to `ARCHIVED_NODES` from `amrita_sense.instructions` (default: None)
-- `backend_options` ([DatabackendOptions](DatabackendOptions.md) | None, optional): Options controlling backend fetch and commit behavior. Allows selectively skipping memory fetch, tools fetch, MCP fetch, presets fetch, ability extra settings, and memory commit (default: None)
+- `backend_options` ([DatabackendOptions](DatabackendOptions.md) | None, optional): Options controlling backend fetch and commit behavior. Allows selectively skipping memory fetch, tools fetch, MCP fetch, presets fetch, ability extra settings, memory commit and billing commit (default: None)
 - `workflow` (NodeComposeRendered | None, optional): Pre-rendered workflow to execute instead of the default pipeline. When provided, the ChatObject uses this external workflow graph rather than building the built-in one. **Cannot be used together with `archived_nodes`** — if both are provided, a `ValueError` is raised. Supported pre-composed workflows are available in `amrita_core.builtins.workflows` (e.g. `SIMPLE_REACT`, `REACT_ONLY`, `SIMPLE_CHAT`). (default: None)
 
 ### Core Methods
@@ -94,7 +93,7 @@ Call this method from an external independent task to pause `ChatObject` executi
   - No tags (default): Matches all methods decorated with `@suspend`
   - Single tag string: Only matches methods decorated with `@SuspendObjectStream.suspend_with_tag(tag)`
   - **Standard tags**: Use [SuspendEnum](SuspendEnum.md) values for built-in breakpoints:
-    - `SuspendEnum.MEMORY.value`: Before memory summarization
+    - `SuspendEnum.MEMORY.value`: At the two memory-mutation nodes (`COMPACT` and `APPEND_RESPONSE`)
     - `SuspendEnum.SINGLE_TOOL.value`: Before each tool call
     - `SuspendEnum.PRECOMPLE.value`: Before model completion
     - `SuspendEnum.COMPLE.value`: After model completion
@@ -160,7 +159,7 @@ class MyProcessor:
         return result
 ```
 
-**For detailed documentation, see**: [Suspend & Resume Mechanism](../advanced/suspend.md)
+**For detailed documentation, see**: [Suspend & Resume Mechanism](../../advanced/suspend.md)
 
 ## Example
 

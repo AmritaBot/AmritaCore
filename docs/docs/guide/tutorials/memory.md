@@ -48,39 +48,44 @@ id, a second conversation with that id will load it; if it does not, it won't.
 
 ## 3. Memory Summarization
 
-Long sessions hit context limits. Enable automatic summarization:
+Long sessions hit context limits. Enable automatic compaction:
 
 ```python
 from amrita_core import minimal_init
 from amrita_core.config import AmritaConfig
 
 config = AmritaConfig()
-config.llm.enable_memory_abstract = True
-config.llm.memory_abstract_threshold = 4000  # tokens
+config.llm.enable_compaction = True
+config.llm.compaction_trigger_ratio = 0.9  # fold once 90% of the window is in use
 await minimal_init(config)
 ```
 
-When the prompt exceeds the threshold, older turns are summarized before the
-request is sent. (The built-in step strategy additionally performs between-Step
-compression — see [Step Loop](../advanced/step-loop.md).)
+Compaction fires on whichever of two triggers comes first:
 
-Compression actually has two triggers: `llm.session_tokens_windows` (default
-64k) and `llm.memory_length_limit` (default 200) — whichever is reached first
-fires. Raising only the token window without relaxing the message cap makes the
-cap fire first, trimming long sessions too often and lowering prompt cache hit
-rate. Rule of thumb: ~300 tokens per message, so a 256k context pairs with
-~800 messages.
+- **Token trigger**: the prompt size the provider reported for the previous
+  request reaches `compaction_trigger_ratio` × the preset's `max_context`
+- **Message-count fallback**: history reaches `llm.memory_length_limit`
+  (default 200)
+
+The summary is stored on `memory.abstract` and rendered into the system
+instruction, so the folded turns leave the message list entirely. (The built-in
+step strategy additionally performs between-Step compression — see
+[Step Loop](../advanced/step-loop.md).)
+
+Rule of thumb: ~300 tokens per message, so a 64k window pairs with ~200
+messages. Set `memory_length_limit` to `0` only if every provider you use
+reports usage.
 
 ## 4. What Just Happened
 
 - `session_id` is a **unique identifier** for a conversation — naming only
 - The **data backend** decides where history lives and what survives
-- Summarization keeps long sessions within the context window
+- Compaction keeps long sessions within the context window
 
 ## Next
 
 You have completed the tutorial path. Recommended next steps:
 
 - [Concepts](../concepts/index.md) — understand what just happened under the hood
-- [Extensions & Integration](../extensions-integration/index.md) — adapters, MCP, custom tokenizers
+- [Extensions & Integration](../extensions-integration/index.md) — adapters, MCP
 - [Agent Engineering](../agent-engineering/index.md) — prompt tuning and troubleshooting

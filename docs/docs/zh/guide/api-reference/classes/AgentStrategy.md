@@ -42,7 +42,7 @@ AgentStrategy 抽象基类定义了 agent 应如何执行其工作流。
 
 **参数**：
 
-- `tool_call` ([ToolCall](ToolCall.md))：包含函数名和参数的 ToolCall 对象
+- `tool_call` (`ToolCall`)：包含函数名和参数的 ToolCall 对象
 
 **返回**：str - 工具执行的字符串响应
 

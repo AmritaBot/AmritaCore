@@ -36,15 +36,14 @@ class TestChatObject:
         assert chat_obj.train.model_dump() == train
 
     @pytest.mark.asyncio
-    async def test_chat_object_needs_either_context_or_session_id(self):
-        """Test that at least context or session_id must be provided"""
+    async def test_chat_object_requires_session_id(self):
+        """Test that session_id must be provided"""
         train = {"role": "system", "content": "system message"}
 
-        with pytest.raises(ValueError, match="Either context or session_id"):
+        with pytest.raises(ValueError, match="session_id must be provided"):
             ChatObject(
                 train=train,
                 user_input="hello",
-                context=None,
                 session_id=None,
                 preset=ModelPreset(model="gpt-3.5-turbo", name="t", api_key="k"),
             )

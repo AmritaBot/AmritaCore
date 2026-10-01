@@ -109,7 +109,6 @@ class AgentRuntime:
         return ChatObject(
             train=self.train,
             user_input=user_input,
-            context=None,
             session_id=self.session_id,
             backend=self.slot,
             config=self.config,

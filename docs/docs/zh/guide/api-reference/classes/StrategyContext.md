@@ -15,11 +15,11 @@ StrategyContext 类为 agent 策略提供执行上下文。
 
 - `preset` ([ModelPreset](ModelPreset.md) | None)：模型预设
 - `config` ([AmritaConfig](AmritaConfig.md) | None)：配置设置
-- `tools_manager` ([ToolsManager](ToolsManager.md) | None)：可用工具管理器
+- `tools_manager` (`ToolsManager` | None)：可用工具管理器
 - `io_stream` (SuspendObjectStream | None)：流式 I/O 接口
 - `train_content` (str | None)：系统/训练提示词内容
 - `stream_id` (str | None)：唯一流标识符
-- `resp_extra_usage` ([UniResponseUsage](UniResponseUsage.md) | None)：响应使用统计累加器
+- `resp_extra_usage` (`UniResponseUsage` | None)：响应使用统计累加器
 
 ### 旧版字段（已弃用）
 

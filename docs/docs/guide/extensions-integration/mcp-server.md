@@ -127,4 +127,4 @@ remapped) tool name.
 
 ## Next
 
-[Custom Tokenizers](tokenizer.md) — plug your own tokenizer for usage accounting.
+[Model Adapters](adapters.md) — switch providers, or write your own adapter.

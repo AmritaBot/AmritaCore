@@ -35,9 +35,9 @@ Append tool result to context (strategy-specific).
 
 **Parameters**:
 
-- `tool_call` ([ToolCall](ToolCall.md)): The tool call object
+- `tool_call` (`ToolCall`): The tool call object
 - `func_response` (str): The function execution result
-- `response_msg` ([UniResponse](UniResponse.md)): The original response message
+- `response_msg` (`UniResponse`): The original response message
 
 #### \_handle_error_append()
 
@@ -56,7 +56,7 @@ Append reasoning content to context (strategy-specific).
 
 **Parameters**:
 
-- `response` ([UniResponse](UniResponse.md)): The response from tools_caller containing reasoning tool calls
+- `response` (`UniResponse`): The response from tools_caller containing reasoning tool calls
 
 ### Concrete Methods (Can be overridden by subclasses)
 
@@ -102,7 +102,7 @@ Send tool call completion notifications to user.
 
 **Parameters**:
 
-- `result_msg_list` (list[[ToolResult](ToolResult.md)]): List of tool results to notify
+- `result_msg_list` (list[`ToolResult`]): List of tool results to notify
 - `function_name` (str): Name of the called function
 - `tool_call_id` (str): ID of the tool call
 
@@ -121,7 +121,7 @@ Build stop response and append to message list (strategy-specific).
 **Parameters**:
 
 - `function_args` (dict[str, Any]): Arguments passed to the stop tool
-- `response_msg` ([UniResponse](UniResponse.md)): The original response message
+- `response_msg` (`UniResponse`): The original response message
 
 ## Usage
 

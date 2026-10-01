@@ -2,7 +2,7 @@ from threading import Lock
 from typing import ClassVar
 
 from amrita_core.base.backend import AbilityBackend, BillingBackend, MemoryBackend
-from amrita_core.contexts import AbilityContext, StateContext
+from amrita_core.contexts import AbilityContext
 from amrita_core.preset import MultiPresetManager
 from amrita_core.tools.manager import MultiToolsManager
 from amrita_core.tools.mcp import MultiClientManager
@@ -15,9 +15,8 @@ class LegacyBackend(AbilityBackend, MemoryBackend, BillingBackend):
 
     glb: ClassVar[AbilityContext] = AbilityContext()
 
-    def __init__(self, ctx: StateContext | None = None):  # nocov
-        # Backward-compatible seed: keep accepting a (deprecated) StateContext.
-        self._memory: MemoryModel = ctx.memory if ctx else MemoryModel()  # nocov
+    def __init__(self):
+        self._memory: MemoryModel = MemoryModel()
         self._billing: dict[str, list[BillingRecord]] = {}
         self._billing_lock = Lock()
 

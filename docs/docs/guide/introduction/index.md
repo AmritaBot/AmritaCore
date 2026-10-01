@@ -19,7 +19,7 @@ focused agent runtime.
 - **Lightweight**: minimal dependencies, maximum performance
 - **Vendor-agnostic**: data types and conversation management are independent
   of providers
-- **Extensible**: adapters, custom tools, MCP clients, custom tokenizers
+- **Extensible**: adapters, custom tools, MCP clients
 - **Security-aware**: built-in cookie detection, injection-aware defaults
 
 ## What it is not

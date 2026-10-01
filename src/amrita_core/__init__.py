@@ -19,7 +19,7 @@ Type System
 
 Backends & Contexts
     - **Backends**: AbilityBackend, MemoryBackend, LegacyBackend, BackendSlots
-    - **Contexts**: AbilityContext, StateContext
+    - **Contexts**: AbilityContext
 
 Event Hooks
     - **Events**: CompletionEvent, PreCompletionEvent, EventTypeEnum
@@ -27,6 +27,7 @@ Event Hooks
 
 Tool System
     - **Management**: ToolsManager, on_tools, simple_tool
+    - **Schema**: function_definition_from_pydantic
     - **MCP**: mcp
 
 Chat API
@@ -56,7 +57,7 @@ from .base.backend import AbilityBackend, BackendSlots, MemoryBackend
 from .builtins.backends import LegacyBackend
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
 from .config import AmritaConfig, get_config, set_config
-from .contexts import AbilityContext, StateContext
+from .contexts import AbilityContext
 from .hook.event import (
     CompletionEvent,
     CompletionFallbackContext,
@@ -83,6 +84,7 @@ from .tools.models import (
     ToolData,
     ToolFunctionSchema,
 )
+from .tools.schema import function_definition_from_pydantic
 from .types import (
     BaseModel,
     BillingRecord,
@@ -149,7 +151,6 @@ __all__ = [
     "PresetManager",
     "PresetReport",
     "RateConfig",
-    "StateContext",
     "SuspendEnum",
     "SuspendObjectStream",
     "TextContent",
@@ -166,6 +167,7 @@ __all__ = [
     "call_completion",
     "create_agent",
     "debug_log",
+    "function_definition_from_pydantic",
     "get_config",
     "get_last_response",
     "load_amrita",

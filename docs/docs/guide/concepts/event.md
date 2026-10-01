@@ -44,12 +44,33 @@ from the class.
 
 ### Pipeline events
 
-| Event                | Type string | When                                          |
-| -------------------- | ----------- | --------------------------------------------- |
-| `PreCompletionEvent` | —           | Before the LLM call (mutate context here)     |
-| `CompletionEvent`    | —           | After the response (rewrite `model_response`) |
+Type strings come from `EventTypeEnum` (`"COMPLETION"`, `"Nil"`,
+`"BEFORE_COMPLETION"`, `"PRESET_FALLBACK"`). Both events below extend the
+shared `Event` base (`user_input`, `original_context`, `chat_object`, and the
+mutable `message` wrap).
 
-Convenience decorators: `@on_precompletion`, `@on_completion`, `@on_event("<type>")`.
+| Event                | Type string         | When                                          |
+| -------------------- | ------------------- | --------------------------------------------- |
+| `PreCompletionEvent` | `"BEFORE_COMPLETION"` | Before the LLM call (mutate context here)   |
+| `CompletionEvent`    | `"COMPLETION"`      | After the response (rewrite `model_response`) |
+
+Convenience decorators: `@on_precompletion`, `@on_completion`,
+`@on_preset_fallback`, `@on_event("<type>")`.
+
+### Fallback events
+
+`FallbackContext` is the base for the preset-fallback family. Every subclass
+shares the single type string `"PRESET_FALLBACK"`; the concrete subclass tells
+matchers **which** gateway call failed. Fields: `preset`, `exc_info`, `config`,
+`context`, `term`.
+
+| Event                        | Failing call      | Extra field      |
+| ---------------------------- | ----------------- | ---------------- |
+| `CompletionFallbackContext`  | `call_completion` | —                |
+| `ToolsFallbackContext`       | `tools_caller`    | `tools`          |
+| `EmbeddingFallbackContext`   | `call_embedding`  | —                |
+
+Calling `event.fail(reason)` raises `FallbackFailed`.
 
 ### Step lifecycle events (built-in ReAct)
 

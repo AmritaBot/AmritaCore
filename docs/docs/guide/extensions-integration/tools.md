@@ -19,15 +19,23 @@ Decorators register into the global container. For session-scoped control,
 register into a manager instance yourself:
 
 ```python
-from amrita_core.tools.manager import ToolsManager
+from amrita_core.tools.manager import MultiToolsManager
+from amrita_core.tools.models import ToolData, ToolFunctionSchema
 
-manager = ToolsManager()
-manager.register(schema, handler, custom_run=False)
+manager = MultiToolsManager()
+manager.register_tool(
+    ToolData(
+        data=ToolFunctionSchema(function=STATUS_DEFINITION, strict=True),
+        func=report_progress,
+        custom_run=True,
+    )
+)
 # pass the manager as the session's ability.tools (see Data Layer)
 ```
 
 `MultiToolsManager` holds several named managers; a session resolves the one
-assigned to it.
+assigned to it. `register_tool` rejects a duplicate tool name, and
+`disable_tool` / `enable_tool` hide one without unregistering it.
 
 ## `custom_run` — Tools with Framework Access
 
@@ -59,8 +67,11 @@ async def report_progress(tool_ctx: ToolContext) -> str:
     return "progress reported"
 ```
 
-**How it works**: `call_tool()` detects the handler's signature — a
-`ToolContext` parameter switches it into `custom_run` mode.
+**How it works**: `custom_run` is an explicit flag on the registration
+(`on_tools(..., custom_run=True)`), stored on `ToolData`. `call_tool()` reads
+that flag — it does **not** infer the mode from the handler's signature, so a
+`ToolContext` parameter on a tool registered without the flag would receive the
+argument dict instead.
 
 ## Validation Constraints
 
@@ -73,7 +84,11 @@ async def report_progress(tool_ctx: ToolContext) -> str:
 - Special: `enum`, `const`, `default`
 - Union: `type` as a list (manual schemas only)
 
-Arguments are validated before your handler runs; invalid calls never reach it.
+Arguments are checked before your handler runs, by a validator compiled from
+the schema itself, so an invalid call never reaches it — the model gets an
+`ERR:` result instead. See
+[Tool System (concepts)](../concepts/tool.md#schemas-and-validation) for the
+projection/compilation split and the `validate_tool_arguments` switch.
 
 ## Tool Calling Mode
 

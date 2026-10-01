@@ -21,4 +21,4 @@
 
 ## 内置实现
 
-- [`LegacyBackend`](LegacyBackend.md)：默认的进程内实现，将记忆存储在 `StateContext` 容器中
+- [`LegacyBackend`](LegacyBackend.md)：默认的进程内实现，将记忆保存在 `MemoryModel` 字段中

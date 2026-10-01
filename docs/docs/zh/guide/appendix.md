@@ -55,7 +55,7 @@ Manager 类遵循一条简单规则：
 
 ### 其他前缀
 
-- `Base*` —— 抽象基类（`BaseTokenizer`、`BaseReActAgentStrategy`）
+- `Base*` —— 抽象基类（`BaseReActAgentStrategy`、`BaseModel`）
 - `Legacy*` —— 向后兼容实现（`LegacyBackend`）
 
 ## 术语表

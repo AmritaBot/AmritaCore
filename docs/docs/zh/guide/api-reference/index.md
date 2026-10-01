@@ -6,7 +6,7 @@
 
 ### `load_amrita()`
 
-`load_amrita()` 函数在配置中启用 MCP 时异步加载 MCP 客户端。分词器和适配器在导入时已注册——`load_amrita()` 不会加载它们。
+`load_amrita()` 函数在配置中启用 MCP 时异步加载 MCP 客户端。适配器在导入时已注册——`load_amrita()` 不会加载它们。
 
 ```python
 import asyncio
@@ -83,7 +83,7 @@ agent = create_agent(
 - `api_key` (str)：API 密钥
 - `model` (str, optional)：要使用的模型。默认为 `"auto"`
 - `train` (str | None, optional)：系统提示词
-- `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, optional)：模型配置
+- `model_config` (`ModelConfig` | dict | None, optional)：模型配置
 - `config` ([AmritaConfig](classes/AmritaConfig.md) | None, optional)：agent 配置
 - `**kwargs`：转发给 [AgentRuntime](classes/AgentRuntime.md) 的额外参数
 
@@ -104,6 +104,6 @@ agent = create_agent(
 
 - [AgentRunState](classes/AgentRunState.md)：语义级 step 运行状态（计划、停滞窗口、token）
 - [DAGNode](classes/DAGNode.md)：任务计划的子步骤
-- [StepEvents](classes/StepEvents.md)：可变 step 生命周期事件（`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`）与 `StepAbortError`
+- [StepLifecycleEvents](classes/StepLifecycleEvents.md)：可变 step 生命周期事件（`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`）与 `StepAbortError`
 
 完整机制见[进阶 → Step 循环](../advanced/step-loop.md)。

@@ -1,6 +1,6 @@
 # LegacyBackend
 
-The default built-in backend that implements both [AbilityBackend](AbilityBackend.md) and [MemoryBackend](MemoryBackend.md) using in-process global containers.
+The default built-in backend that implements [AbilityBackend](AbilityBackend.md), [MemoryBackend](MemoryBackend.md) and [BillingBackend](BillingBackend.md) using in-process containers.
 
 ## Description
 
@@ -8,22 +8,19 @@ The default built-in backend that implements both [AbilityBackend](AbilityBacken
 
 ## Inheritance
 
-`LegacyBackend` implements both [AbilityBackend](AbilityBackend.md) and [MemoryBackend](MemoryBackend.md).
+`LegacyBackend` implements [AbilityBackend](AbilityBackend.md), [MemoryBackend](MemoryBackend.md) and [BillingBackend](BillingBackend.md).
 
 ## Constructor
 
 ```python
-LegacyBackend(ctx: StateContext | None = None)
+LegacyBackend()
 ```
-
-**Parameters**:
-
-- `ctx` ([StateContext](StateContext.md) | None, optional): An optional pre-built state context. If not provided, a new one is created lazily when memory operations are performed
 
 ## Behavior
 
 - **Ability methods** (`load_ability_all`, `load_mcp_clients`, `load_tools`, `load_presets`): All return references to a shared global `AbilityContext` singleton (`LegacyBackend.glb`)
-- **Memory methods** (`load_memory`, `commit_memory`): Read from and write to an internal `StateContext` instance, scoped per `LegacyBackend` instance
+- **Memory methods** (`load_memory`, `commit_memory`): Read from and write to a `MemoryModel` field, scoped per `LegacyBackend` instance
+- **Billing methods** (`commit_billing`, `load_billing`): Append to and read from a per-session in-process record store guarded by a lock
 
 ## Usage
 
@@ -32,5 +29,5 @@ from amrita_core.builtins.backends import LegacyBackend
 from amrita_core.base.backend import BackendSlots
 
 backend = LegacyBackend()
-slot = BackendSlots(ability=backend, memory=backend)
+slot = BackendSlots(ability=backend, memory=backend, billing=backend)
 ```

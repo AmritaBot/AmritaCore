@@ -6,7 +6,7 @@ FunctionDefinitionSchema 类是函数参数的模式定义。
 
 - `name` (str)：函数名
 - `description` (str)：函数描述
-- `parameters` ([FunctionParametersSchema](FunctionParametersSchema.md))：函数参数定义，包含参数 `type`、`properties` 和 `required` 列表
+- `parameters` (`FunctionParametersSchema`)：函数参数定义，包含参数 `type`、`properties` 和 `required` 列表
 
 ## 描述
 

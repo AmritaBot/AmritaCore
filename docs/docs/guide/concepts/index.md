@@ -19,8 +19,9 @@ flowchart TB
     end
 ```
 
-> The default workflow is **simple chat** (one LLM call). The step-driven
-> ReAct loop is enabled by passing the step-loop workflow explicitly — see
+> The default workflow (`_workflow_rendered`) runs the full shell with the
+> **legacy single-call agent loop** on its agent branch. The step-driven ReAct
+> loop is enabled by passing the step-loop workflow explicitly — see
 > [ChatObject](chat-object.md).
 
 ## Concepts
@@ -30,7 +31,7 @@ flowchart TB
 | [ChatObject](chat-object.md)        | The lifecycle manager: workflow, DI contexts, stream                                    |
 | [Configuration](configuration.md)   | `AmritaConfig`, `FunctionConfig`, `LLMConfig`, presets                                  |
 | [Event System](event.md)            | Pipeline events + the matcher hook system                                               |
-| [Tool System](tool.md)              | Tool registration, validation, execution                                                |
+| [Tool System](tool.md)              | Tool registration, schemas, execution                                                   |
 | [Agent Strategy](agent-strategy.md) | Strategy pattern; the step-driven ReAct loop                                            |
 | [Data Management](data.md)          | Messages, DI contexts, [backend](data-backend.md) + [memory](data-memory.md) deep-dives |
 

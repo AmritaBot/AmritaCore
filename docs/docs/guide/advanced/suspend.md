@@ -55,9 +55,12 @@ usage.
 ## Rules
 
 - One consumer per direction: generator _or_ callback (not both)
-- After `set_queue_done()`, further `yield_response` raises `StreamStateError`
-- After `send_done_to_producer()`, further `send_to_producer` fails fast —
-  no blocking on the queue timeout
+- After `set_queue_done()`, `yield_response` raises
+  `StreamStateError("Queue is closed.")` — but only when no callback is
+  configured; with a callback the chunk is delivered through it instead
+- After `send_done_to_producer()`, `send_to_producer` raises
+  `StreamStateError("Reverse queue is closed.")` immediately (it does not wait
+  on the queue)
 
 ## Next
 
