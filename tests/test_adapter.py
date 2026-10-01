@@ -19,6 +19,13 @@ from amrita_core.config import AmritaConfig
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import ModelPreset, ToolCall, UniResponse
 
+#: A real 16x16 solid-red PNG, base64-encoded. Small enough to inline in a test
+#: and verifiably an image, which keeps the data-URI cases honest.
+_PNG_B64 = (
+    "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMA"
+    "kPn/Afnh+ngAAAAASUVORK5CYII="
+)
+
 
 class MockAsyncStream(AsyncStream):
     """Mock AsyncStream for testing"""
@@ -431,6 +438,78 @@ class TestAnthropicAdapter:
             },
         ]
         assert blocks == expected
+
+    def test_convert_content_to_blocks_inline_image_becomes_base64_source(self):
+        """A data URI must become a `base64` source, not a `url` source.
+
+        The provider rejects a data URI sent as a `url` source, so passing the
+        string through untouched loses the image entirely.
+        """
+        content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/png;base64,{_PNG_B64}"},
+            }
+        ]
+        blocks = AnthropicAdapter._convert_content_to_blocks(content)
+        assert blocks == [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/png",
+                    "data": _PNG_B64,
+                },
+            }
+        ]
+
+    def test_convert_content_to_blocks_inline_image_ignores_extra_parameters(self):
+        """A data URI may carry parameters before the `base64` marker."""
+        content = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;charset=utf-8;base64,{_PNG_B64}"},
+            }
+        ]
+        blocks = AnthropicAdapter._convert_content_to_blocks(content)
+        assert blocks[0]["source"] == {
+            "type": "base64",
+            "media_type": "image/jpeg",
+            "data": _PNG_B64,
+        }
+
+    def test_convert_content_to_blocks_inline_image_requires_media_type(self):
+        """A data URI with no media type cannot be expressed as a base64 source."""
+        content = [
+            {"type": "image_url", "image_url": {"url": f"data:;base64,{_PNG_B64}"}}
+        ]
+        with pytest.raises(ValueError, match="missing its media type"):
+            AnthropicAdapter._convert_content_to_blocks(content)
+
+    def test_convert_content_to_blocks_inline_image_requires_base64(self):
+        """A URL-encoded data URI is not something the provider accepts."""
+        content = [
+            {"type": "image_url", "image_url": {"url": "data:image/png,%89PNG"}}
+        ]
+        with pytest.raises(ValueError, match="must be base64-encoded"):
+            AnthropicAdapter._convert_content_to_blocks(content)
+
+    def test_convert_content_to_blocks_inline_image_requires_payload(self):
+        """An empty payload is rejected rather than sent as an empty image."""
+        content = [{"type": "image_url", "image_url": {"url": "data:image/png;base64,"}}]
+        with pytest.raises(ValueError, match="carries no payload"):
+            AnthropicAdapter._convert_content_to_blocks(content)
+
+    def test_convert_content_to_blocks_image_url_as_plain_string(self):
+        """A malformed `image_url` that is a bare string still converts."""
+        content = [{"type": "image_url", "image_url": "https://example.com/x.png"}]
+        blocks = AnthropicAdapter._convert_content_to_blocks(content)
+        assert blocks == [
+            {
+                "type": "image",
+                "source": {"type": "url", "url": "https://example.com/x.png"},
+            }
+        ]
 
     def test_convert_content_to_blocks_empty_list(self):
         """Test _convert_content_to_blocks with empty list returns default text block"""
