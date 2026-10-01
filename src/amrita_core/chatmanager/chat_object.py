@@ -20,7 +20,7 @@ from amrita_sense import (
     WorkflowInterpreter,
 )
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
-from amrita_sense.instructions import GOTO
+from amrita_sense.instructions import JMP
 from amrita_sense.instructions.native import NATIVE_DO
 from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT, SubprogramStorage
 from amrita_sense.logging import logger
@@ -867,7 +867,7 @@ _workflow: NodeCompose = (
     >> _pre_runner
     >> _run_strategy
     >> (
-        GOTO(BuiltinName.STRATEGY_EOF)
+        JMP(BuiltinName.STRATEGY_EOF)
         >> ALIAS(AGENT_ENTRY, BuiltinName.AGENT_STRATEGY)
         >> WHILE(_single_call).ACTION(REACT_COUNTER)
         >> AGENT_POST_PROCESS

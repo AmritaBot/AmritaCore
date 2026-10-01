@@ -282,7 +282,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiologic", specifier = ">=0.16.0" },
     { name = "amrita-core", extras = ["anthropic", "jieba"], marker = "extra == 'all'", editable = "." },
-    { name = "amrita-sense", specifier = ">=0.7.0" },
+    { name = "amrita-sense", specifier = ">=1.1.0" },
     { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.116.0,<0.122.0" },
     { name = "fastmcp-slim", extras = ["client"], specifier = ">=3.4.4,<5.0" },
     { name = "filetype", specifier = ">=1.2.0" },
@@ -312,18 +312,19 @@ dev = [
 
 [[package]]
 name = "amrita-sense"
-version = "0.7.0"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiologic" },
     { name = "anyio" },
     { name = "cachetools" },
+    { name = "colorama" },
     { name = "exceptiongroup" },
     { name = "loguru" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/bc/98/b425571ee73519e9fe749c20cb2d298a1f28ce06f883f3f698c466ee5a29/amrita_sense-0.7.0.tar.gz", hash = "sha256:851aba0c600fd45428954159183aadebbdf920bafb8674c1ba6010a758d9da45", size = 107859, upload-time = "2026-09-05T15:56:18.96Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ea/38/1574a1d2cae81b8b670c6e59e392a173ebb905c51438e5da4be5fb33e03e/amrita_sense-1.1.0.tar.gz", hash = "sha256:4601b7f69559ca583e51ee4ab36ddf3234e4e7cc8c9e9313b81782ac21583920", size = 142705, upload-time = "2026-10-01T05:00:20.973Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2b/5a/be18daeaab0d06e50393cfb474df6e9eaa8833553b5e8b4461f52b6e1145/amrita_sense-0.7.0-py3-none-any.whl", hash = "sha256:69a9694b3004c43561bec97eaf3b904bd7203441c904d9d903046c60a0d0de97", size = 101960, upload-time = "2026-09-05T15:56:17.789Z" },
+    { url = "https://files.pythonhosted.org/packages/d2/f1/777606c03acc0ea628c67baac27333e6af4407f4b79fa39e8ba842fa81d2/amrita_sense-1.1.0-py3-none-any.whl", hash = "sha256:e75946ed8e7a5d5c84ef91b0ea4e5165d4e2c985942f800c66d2a15802f5414b", size = 127116, upload-time = "2026-10-01T05:00:19.546Z" },
 ]
 
 [[package]]
