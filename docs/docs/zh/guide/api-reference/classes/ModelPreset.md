@@ -11,7 +11,7 @@ ModelPreset 类定义 AI 模型的预设配置。
 - `protocol` (str)：协议适配器类型，默认为 `"__main__"`（OpenAI 兼容适配器）
 - `rate` ([RateConfig](RateConfig.md) | None)：用于成本核算的价格快照。在该预设生效期间，会逐字复制进每一条 [BillingRecord](BillingRecord.md)
 - `max_context` (int | None)：模型的输入 token 预算。与 `max_output` 共同构成注意力窗口。未设置时回退到 `LLMConfig.session_tokens_windows`
-- `max_output` (int | None)：为响应预留的 token 数。未设置时回退到 `LLMConfig.max_tokens`
+- `max_output` (int | None)：默认 `28000`。为响应预留的 token 数，即请求的 `max_tokens` 参数。这个数字属于模型。`LLMConfig.max_tokens` 仅作为最后兜底，只有显式设为 `None` 时才会用到
 - `config` (`ModelConfig`)：模型配置对象
 - `thinking_config` ([ThinkingConfig](ThinkingConfig.md) | None)：思考/推理配置
 - `extra` (dict[str, Any])：额外配置项

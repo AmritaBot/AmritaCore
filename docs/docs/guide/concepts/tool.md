@@ -111,6 +111,28 @@ flowchart LR
 - **Lifecycle events** let matchers rewrite arguments, cancel, rewrite results,
   or skip appending.
 
+### Concurrent Tool Calls
+
+The model may return several `tool_call`s in one response. Regular tools run
+concurrently (`asyncio.gather`), but the context stays in one piece:
+
+- **One assistant message** carries every `tool_call` of the round, in the order
+  the model emitted them, with the provider's `reasoning_content` /
+  `reasoning_signature` and any extra field copied back verbatim — the round trip
+  has to be faithful for thinking-mode providers.
+- **One `tool` message per call** follows immediately, in the same order, so every
+  `tool_calls` entry has its matching result and nothing is interleaved.
+- All results are collected **before** the batch is appended, so a slow tool
+  cannot slip its message between another call and its result.
+
+Splitting the batch — one assistant message per call — is not an option: it would
+drop the model's reasoning from all but one message and leave providers looking at
+an assistant `tool_calls` message whose results are missing.
+
+Built-in flow-control tools (`think_and_reason`, `update_step`, `agent_stop`) are
+ordered **after** regular tools and may append their own messages, so their side
+effects never race with the batched results.
+
 ## Advanced: `custom_run` and `ToolContext`
 
 Tools that need framework access use `custom_run` mode: the handler receives a

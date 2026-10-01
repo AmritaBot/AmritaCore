@@ -75,7 +75,7 @@ every parameter after `preset` is keyword-only.
 
 - `begin()`: Start the chat object task (returns Self)
 - `terminate()`: Terminate task execution
-- `full_response()`: Return full response from the queue as a single string
+- `full_response()`: Return the answer from the queue as a single string. Structured events (reasoning chunks, step boundaries, tool-call notices, errors) travel in the same stream and are skipped — use `io_stream.get_response_generator()` when those are wanted
 - `get_exception()`: Get exceptions that occurred during task execution
 - `is_running()`: Check if the task is running
 - `is_done()`: Check if the task has completed

@@ -99,6 +99,25 @@ flowchart LR
   被取消，返回 `"Cancelled: Reach the max limit of repeatly calling tool."`
 - **生命周期事件**让 matcher 改写参数、取消、改写结果或跳过追加。
 
+### 并发工具调用
+
+模型可能在一个响应里返回多个 `tool_call`。常规工具并发执行
+（`asyncio.gather`），但上下文始终是完整的一块：
+
+- **一条 assistant 消息**承载该轮的**全部** `tool_call`，顺序与模型发出的一致，
+  并把 provider 的 `reasoning_content` / `reasoning_signature` 及任何额外字段原样
+  回填——对 thinking 模式的 provider 来说，这个往返必须忠实。
+- **每个调用一条 `tool` 消息**紧随其后，顺序相同，因此每个 `tool_calls` 条目都有
+  对应的结果，中间不插入任何东西。
+- 全部结果收集完毕**之后**才追加整批，因此慢工具无法把自己的消息插进另一个调用与
+  其结果之间。
+
+把这一批拆开——每个调用一条 assistant 消息——不是一个选项：那会让除一条之外的所有
+消息都丢掉模型的推理，并让 provider 看到一条缺少结果的 assistant `tool_calls` 消息。
+
+内置控制流工具（`think_and_reason`、`update_step`、`agent_stop`）排在常规工具
+**之后**，它们可以追加自己的消息，因此其副作用永远不会与成批结果竞争。
+
 ## 进阶：`custom_run` 与 `ToolContext`
 
 需要框架访问的工具使用 `custom_run` 模式：handler 接收 `ToolContext`

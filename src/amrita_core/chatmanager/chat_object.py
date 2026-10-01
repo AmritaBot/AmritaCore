@@ -53,7 +53,7 @@ from amrita_core.components.strategy import (
 )
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
-from amrita_core.contents import MessageContent
+from amrita_core.contents import MessageContent, MessageWithMetadata
 from amrita_core.contexts import (
     AbilityState,
     AgentLoopState,
@@ -506,15 +506,24 @@ class ChatObject:
             self._task.cancel()
 
     async def full_response(self) -> str:
-        """Return full response from the queue as a single string.
+        """Return the answer from the queue as a single string.
+
+        Only answer chunks are collected. The same stream also carries
+        structured :class:`MessageWithMetadata` events - reasoning chunks,
+        step boundaries, tool-call notices and error payloads - which are
+        **not** part of the answer and would otherwise be concatenated into it.
+        Use :meth:`io_stream.get_response_generator` directly when those events
+        are wanted.
 
         Returns:
-            Complete response string combining all chunks in the queue
+            Complete answer string combining all answer chunks in the queue
         """
         builder = StringIO()
         async for item in self.io_stream.get_response_generator():
             if isinstance(item, str):
                 builder.write(item)
+            elif isinstance(item, MessageWithMetadata):
+                continue
             elif isinstance(item, MessageContent):
                 builder.write(str(item.get_content()))
         return builder.getvalue()
@@ -735,6 +744,7 @@ async def _post_runner(chat_obj: ChatObject):
         wok.context_wrap,
         chat_obj,
         resp.response.content,
+        resp.response.reasoning_content,
     )
     await chat_obj.io_stream._wait_for_continue(SuspendEnum.COMPLE)
     await MatcherManager.trigger_event(
@@ -748,6 +758,7 @@ async def _post_runner(chat_obj: ChatObject):
         **chat_obj._hook_kwargs,
     )
     resp.response.content = chat_event.model_response
+    resp.response.reasoning_content = chat_event.model_reasoning
     wok.context_wrap.append(
         Message[str](
             content=resp.response.content,

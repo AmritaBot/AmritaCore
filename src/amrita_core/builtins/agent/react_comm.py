@@ -642,46 +642,6 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         await self._compress_history_between_steps()
 
     @override
-    async def _append_tool_result_to_context(
-        self,
-        tool_call: ToolCall,
-        func_response: str,
-        response_msg: UniResponse[None, list[ToolCall] | None],
-    ):
-        """ReAct strategy: append assistant message with only this tool_call paired with its ToolResult.
-
-        This follows OpenAI's ToolCall-ToolResult pairing requirement where every
-        assistant message with tool_calls must be followed by corresponding tool messages.
-        Only a single ToolCall is included per assistant message to prevent the
-        "insufficient tool messages following tool_calls message" API error when the
-        model returns multiple tool_calls in one response.
-
-        The fabricated assistant message mirrors the provider's response
-        verbatim: every field (``reasoning_content``, ``reasoning_signature``
-        and any extra — ``Message`` allows extra) is carried over as-is via
-        :meth:`_assistant_fields_from_response`, never hard-coded.
-        """
-        self._record_tool_signature(tool_call)
-        msg_list = self.ctx.message
-        msg_list.append(
-            Message(
-                role="assistant",
-                content=response_msg.content if response_msg else None,
-                tool_calls=[tool_call],
-                **self._assistant_fields_from_response(response_msg),
-            )
-        )
-        msg_list.append(
-            ToolResult(
-                role="tool",
-                name=tool_call.function.name,
-                content=func_response,
-                tool_call_id=tool_call.id,
-            )
-        )
-        # Deterministic failure guidance: a hard ERROR result is an objective plan failure - teach the model to revise instead of retrying forever.
-        self._maybe_inject_tool_failure_hint(tool_call, func_response)
-
     @override
     def _maybe_inject_tool_failure_hint(
         self, tool_call: ToolCall, func_response: str

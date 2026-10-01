@@ -25,6 +25,7 @@ from amrita_core.contexts import (
 from amrita_core.exceptions import ContextOverflowError, is_context_overflow_error
 from amrita_core.types import (
     CONTENT_LIST_TYPE,
+    Function,
     MemoryModel,
     Message,
     ModelPreset,
@@ -83,8 +84,8 @@ class TestSplitHistory:
                 role="assistant",
                 content=None,
                 tool_calls=[
-                    ToolCall(id="t1", function={"name": "f", "arguments": "{}"})
-                ],  # pyright: ignore[reportArgumentType]
+                    ToolCall(id="t1", function=Function(name="f", arguments="{}"))
+                ],
             ),
             ToolResult(role="tool", name="f", content="r1", tool_call_id="t1"),
             Message(role="user", content="u2"),
@@ -218,6 +219,57 @@ class TestMessageLimitFallback:
             )
         assert memory.abstract == "folded"
         assert len(memory.messages) == 2
+
+
+class TestSummaryOutputBudget:
+    """The summarizer needs its own output ceiling.
+
+    A reasoning model spends its output budget on thinking before it emits any
+    content, so a summary call capped by a small ``max_output`` returns an empty
+    answer and the fold silently does nothing.
+    """
+
+    def test_raises_the_ceiling_below_the_configured_budget(self):
+        config = AmritaConfig()
+        config.llm.compaction_max_tokens = 2048
+        compactor = ContextCompactor(config=config, preset=_preset(max_output=200))
+
+        assert compactor.summary_preset is not None
+        assert compactor.summary_preset.max_output == 2048
+        # The chat preset itself is untouched.
+        assert compactor.preset is not None
+        assert compactor.preset.max_output == 200
+
+    def test_keeps_a_ceiling_that_is_already_high_enough(self):
+        config = AmritaConfig()
+        config.llm.compaction_max_tokens = 2048
+        preset = _preset(max_output=8192)
+        compactor = ContextCompactor(config=config, preset=preset)
+
+        assert compactor.summary_preset is preset
+
+    def test_zero_inherits_the_preset_value(self):
+        config = AmritaConfig()
+        config.llm.compaction_max_tokens = 0
+        preset = _preset(max_output=200)
+        compactor = ContextCompactor(config=config, preset=preset)
+
+        assert compactor.summary_preset is preset
+
+    def test_no_preset_stays_none(self):
+        config = AmritaConfig()
+        compactor = ContextCompactor(config=config, preset=None)
+
+        assert compactor.summary_preset is None
+
+    def test_falls_back_to_the_global_max_tokens(self):
+        config = AmritaConfig()
+        config.llm.compaction_max_tokens = 2048
+        config.llm.max_tokens = 100
+        compactor = ContextCompactor(config=config, preset=_preset())
+
+        assert compactor.summary_preset is not None
+        assert compactor.summary_preset.max_output == 2048
 
 
 class TestShouldCompact:

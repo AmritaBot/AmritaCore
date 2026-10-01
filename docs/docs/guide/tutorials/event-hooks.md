@@ -26,7 +26,7 @@ from amrita_core import on_completion
 from amrita_core.hook.event import CompletionEvent
 
 
-@on_completion
+@on_completion().handle()
 async def log_response(event: CompletionEvent):
     print(f"[completion] {event.model_response[:80]}...")
 ```
@@ -41,7 +41,7 @@ from amrita_core import on_precompletion
 from amrita_core.hook.event import PreCompletionEvent
 
 
-@on_precompletion
+@on_precompletion().handle()
 async def inject_context(event: PreCompletionEvent):
     # `event.original_context` is a SendMessageWrap — append anything.
     event.original_context.append(
@@ -57,7 +57,7 @@ Match any event type by string:
 from amrita_core import on_event
 
 
-@on_event("agent.step_intro")
+@on_event("agent.step_intro").handle()
 async def on_step_intro(event):
     print(f"[step intro] {event.phase}")
 ```
@@ -85,13 +85,51 @@ from amrita_core import on_event
 from amrita_core.builtins.agent.events import StepAbortError
 
 
-@on_event("agent.tool_call")
+@on_event("agent.tool_call").handle()
 async def guard_tool(event):
     if event.tool_name == "dangerous_delete":
         event.cancel = True  # or: raise StepAbortError("blocked")
 ```
 
-## 4. What Just Happened
+## 4. Two Registration Pitfalls
+
+### Handlers must be resolvable at module scope
+
+Parameters are matched to framework objects by annotation. A handler defined
+_inside_ another function, in a module that uses
+`from __future__ import annotations`, cannot be resolved: the annotations are
+strings and the closure's globals do not carry the classes. The matcher is
+skipped with a warning, so the hook silently does nothing.
+
+```python
+# silently skipped
+async def setup():
+    @on_completion().handle()
+    async def nested(event: CompletionEvent): ...
+
+
+# works - module scope
+async def on_completion_handler(event: CompletionEvent): ...
+```
+
+### Annotate fallback handlers with the base class
+
+`FallbackContext` is shared by the completion, tools and embedding fallbacks.
+Annotating a handler with a subclass (`CompletionFallbackContext`) makes the
+matcher resolve only for that subclass, so a tools or embedding failure skips it
+and the run reports `No preset fallback available`. Annotate the base class and
+narrow inside if you need to.
+
+```python
+from amrita_core.hook.event import FallbackContext
+
+
+@on_preset_fallback().handle()
+async def swap(event: FallbackContext):
+    event.preset = backup_preset
+```
+
+## 5. What Just Happened
 
 - `@on_completion` / `@on_precompletion` — pipeline boundaries
 - `@on_event("<type>")` — arbitrary events, including step lifecycle

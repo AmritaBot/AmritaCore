@@ -324,13 +324,17 @@ The `@on_event` decorator registers functions as event handlers.
 from amrita_core.hook.on import on_event
 
 
-@on_event()
+@on_event().handle()
 def my_event_handler(event):
     # Handle custom events
     pass
 ```
 
 **Purpose**: Registers a function to handle specific events during the processing pipeline.
+
+> Every matcher factory (`on_event`, `on_precompletion`, `on_completion`,
+> `on_preset_fallback`) returns a `Matcher`, so the handler has to be attached
+> with `.handle()` — `@on_event("<type>")` alone raises `TypeError`.
 
 ### `@on_precompletion`
 

@@ -214,6 +214,48 @@ class TestChatObjectAdvanced:
         assert full_resp == "Hello World!"
 
     @pytest.mark.asyncio
+    async def test_full_response_skips_structured_events(self):
+        """full_response collects the answer only, not metadata events.
+
+        Reasoning chunks travel in the same stream as the answer, so a
+        ``MessageWithMetadata`` that is written through would end up
+        concatenated into the returned string.
+        """
+        from amrita_core.contents import MessageWithMetadata
+
+        session_id = "test-session-full-response-events"
+        train = {"role": "system", "content": "system message"}
+        default_preset = ModelPreset(
+            model="gpt-3.5-turbo", name="test-default-events", api_key="fake-key"
+        )
+
+        chat_obj = ChatObject(
+            train=train,
+            user_input="test input",
+            session_id=session_id,
+            preset=default_preset,
+        )
+
+        await chat_obj.io_stream._put_to_queue(
+            MessageWithMetadata(
+                "thinking out loud",
+                {"type": "reasoning_chunk", "extra_type": "cot_chunk"},
+            )
+        )
+        await chat_obj.io_stream._put_to_queue("the ")
+        await chat_obj.io_stream._put_to_queue("answer")
+        await chat_obj.io_stream._put_to_queue(
+            MessageWithMetadata(
+                "Called tool search\n",
+                {"type": "function_call", "extra_type": None},
+            )
+        )
+        await chat_obj.io_stream.set_queue_done()
+
+        full_resp = await chat_obj.full_response()
+        assert full_resp == "the answer"
+
+    @pytest.mark.asyncio
     async def test_prepare_send_messages(self):
         """Test _prepare_send_messages method"""
         session_id = "test-session-prepare"

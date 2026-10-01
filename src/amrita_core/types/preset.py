@@ -88,10 +88,13 @@ class ModelPreset(BaseModel):
         "`config.llm.session_tokens_windows` when unset.",
     )
     max_output: int | None = Field(
-        default=None,
+        default=28000,
         ge=1,
-        description="Tokens reserved for the response. Falls back to "
-        "`config.llm.max_tokens` when unset.",
+        description="Tokens reserved for the response, i.e. the `max_tokens` "
+        "request parameter. The model owns this number because only the model "
+        "knows how much output it can produce. `config.llm.max_tokens` is the "
+        "last-resort fallback, used only when a preset explicitly sets this "
+        "to `None`.",
     )
     config: ModelConfig = Field(
         default_factory=ModelConfig, description="Model configuration"

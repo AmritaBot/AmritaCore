@@ -41,7 +41,7 @@ agent = create_agent(..., config=config)  # 或按 agent
 | `llm.enable_compaction`                   | `True`    | 将长历史折叠为摘要，而不是反复重发                                         |
 | `llm.compaction_trigger_ratio`            | `0.9`     | 触发压缩时占注意力窗口的比例                                               |
 | `preset.max_context`                      | `None`    | 按模型的输入预算；未设置时回退到 `llm.session_tokens_windows`（64k）       |
-| `preset.max_output`                       | `None`    | 按模型的响应预留；未设置时回退到 `llm.max_tokens`（1000）                  |
+| `preset.max_output`                       | `28000`   | 按模型的响应预留；`llm.max_tokens`（10000）为最后兜底                      |
 | `llm.memory_length_limit`                 | `200`     | 消息条数兜底，即使不上报 usage 也会触发（`0` = 关闭）                      |
 | `llm.enable_overflow_recovery`            | `True`    | provider 因请求过大拒绝时，压缩并重试一次                                  |
 

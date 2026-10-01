@@ -381,9 +381,8 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
     """Test ReActAgentStrategy single_execute with tool execution error."""
     from amrita_core.types import ToolCall, UniResponse
 
-    # Configure for agent mode with error notification
+    # Configure for agent mode
     mock_config.builtin.tool_calling_mode = "agent"
-    mock_config.builtin.agent_tool_call_notice = True
     mock_strategy_context.chat_object.config = mock_config
 
     # Mock tools_caller to return tool call

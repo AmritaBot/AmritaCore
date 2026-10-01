@@ -30,15 +30,30 @@
 
 ### 抽象方法（子类必须实现）
 
-#### `_append_tool_result_to_context()`
+#### `_append_reasoning()`
 
-把工具结果追加到上下文（策略特有）。
+把推理内容追加到上下文（策略特有）。
 
 **参数**：
 
-- `tool_call` (`ToolCall`)：工具调用对象
-- `func_response` (str)：函数执行结果
+- `tool_call` (`ToolCall`)：请求该推理的工具调用
+- `reasoning_content` (`UniResponse[str, None]`)：推理响应
+
+### 具体方法（子类可覆写）
+
+#### `_append_tool_results_batch(response_msg, results)`
+
+把一轮工具调用追加到上下文。每轮调用一次，传入该轮的**全部**结果。
+
+默认实现追加一条 assistant 消息，携带全部 `tool_calls` 以及原样回填的 provider
+推理字段，随后按模型给出的顺序每个调用追加一条 `ToolResult`。覆写它可以改变一轮的
+记录方式；但一轮内的调用必须留在同一条 assistant 消息里，拆开会让除一条之外的所有
+消息丢掉推理，并让 provider 看到一条缺少结果的 `tool_calls` 消息。
+
+**参数**：
+
 - `response_msg` (`UniResponse`)：原始响应消息
+- `results` (list[tuple[`ToolCall`, str, BaseException | None]])：每个已执行调用一项，顺序与模型一致
 
 #### `_handle_error_append()`
 
@@ -50,16 +65,6 @@
 - `error_content` (str)：要追加的格式化错误消息
 - `tool_call_id` (str)：工具调用的 ID
 - `original_exception` (BaseException)：用于基于类型处理的原始异常对象
-
-#### `_append_reasoning()`
-
-把推理内容追加到上下文（策略特有）。
-
-**参数**：
-
-- `response` (`UniResponse`)：来自 tools_caller 的响应，包含推理工具调用
-
-### 具体方法（子类可覆写）
 
 #### `_is_native_thinking_enabled()`
 
@@ -136,26 +141,17 @@ from amrita_core.builtins.agent import BaseReActAgentStrategy
 
 
 class MyCustomReActStrategy(BaseReActAgentStrategy):
-    async def _append_tool_result_to_context(
-        self, tool_call, func_response, response_msg
-    ):
-        # 实现策略特有的工具结果处理
-        pass
-
-    async def _handle_error_append(
-        self, function_name, error_content, tool_call_id, original_exception
-    ):
-        # 实现策略特有的错误处理
-        pass
-
-    async def _append_reasoning(self, response):
-        # 实现策略特有的推理处理
-        pass
+    async def _append_reasoning(self, tool_call, reasoning_content):
+        # 唯一必须实现的方法：按你自己的方式记录推理
+        ...
 
     @classmethod
     def get_category(cls):
         return "agent-mixed"
 ```
+
+`_append_tool_results_batch` 与 `_handle_error_append` 已有可用的默认实现，只有在
+想换一种记录工具轮次的方式时才需要覆写。
 
 ## 内置子类
 

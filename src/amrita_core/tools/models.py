@@ -144,9 +144,7 @@ def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
         if effective_prop.uniqueItems is not None:
             base_params["uniqueItems"] = effective_prop.uniqueItems
 
-    # Scalar constraints only apply when exactly one non-null type is declared:
-    # a multi-type property has to stay constraint-free for the orthogonality
-    # validator below to accept it.
+    # Scalar constraints only apply when exactly one non-null type is declared: a multi-type property has to stay constraint-free for the orthogonality validator below to accept it.
     if non_null_types == ["string"]:
         _copy_constraints(
             base_params,

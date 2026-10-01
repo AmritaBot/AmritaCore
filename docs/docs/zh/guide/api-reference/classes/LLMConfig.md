@@ -5,7 +5,8 @@ LLMConfig 类定义 LLM 调用和记忆管理的配置参数。
 ## 属性
 
 - `require_tools` (bool)：默认 `False`。是否强制每次调用至少使用一个工具
-- `max_tokens` (int)：默认 `1000`。单次响应中生成的最大 token 数（必须 `>= 1`）。同时作为 [`ModelPreset.max_output`](ModelPreset.md) 的兜底
+- `max_tokens` (int)：默认 `10000`。响应输出预算的最后兜底（必须 `>= 1`）。真正发给 provider 的数字通常来自 [`ModelPreset.max_output`](ModelPreset.md)（默认 `28000`）；只有当预设显式设置 `max_output=None` 时才会用到本项
+- `compaction_max_tokens` (int)：默认 `2048`。历史压缩摘要调用的输出上限（必须 `>= 0`；`0` 表示摘要沿用预设自身的值）。推理模型在产出任何内容之前会先花掉输出预算思考，因此继承较小 `max_output` 的摘要会返回空内容，导致折叠静默不生效
 - `session_tokens_windows` (int)：默认 `65536`（64k）。当前预设未声明 `max_context` 时使用的兜底注意力窗口（必须 `>= 1`）
 - `llm_timeout` (int)：默认 `60`。API 请求超时时间（秒）（必须 `>= 1`）
 - `auto_retry` (bool)：默认 `True`。请求失败时自动重试

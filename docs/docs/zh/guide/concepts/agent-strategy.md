@@ -92,9 +92,9 @@ class MyStrategy(AgentStrategy):
         return "agent"
 ```
 
-ReAct 风格策略请扩展 `BaseReActAgentStrategy`，覆写模板方法
-（`_append_tool_result_to_context`、`_handle_error_append`、
-`_append_reasoning`……）。
+ReAct 风格策略请扩展 `BaseReActAgentStrategy`，覆写 `_append_reasoning`
+（唯一的抽象方法）；`_append_tool_results_batch` 与 `_handle_error_append`
+可以覆写，但已有可用的默认实现。
 
 ## 下一步
 

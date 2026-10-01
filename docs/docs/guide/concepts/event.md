@@ -55,7 +55,8 @@ mutable `message` wrap).
 | `CompletionEvent`    | `"COMPLETION"`        | After the response (rewrite `model_response`) |
 
 Convenience decorators: `@on_precompletion`, `@on_completion`,
-`@on_preset_fallback`, `@on_event("<type>")`.
+`@on_preset_fallback`, `@on_event("<type>")`. Each is a factory returning a
+`Matcher`, so the handler must be attached with `.handle()`.
 
 ### Fallback events
 
@@ -92,7 +93,7 @@ Two powerful properties:
 1. **Events are mutable** — the hook reads fields back after dispatch:
 
    ```python
-   @on_event("agent.step_leave")
+   @on_event("agent.step_leave").handle()
    async def fix_summary(event):
        event.override_verb = "Reviewed"  # replaces the auto summary
    ```
@@ -105,7 +106,7 @@ Two powerful properties:
    from amrita_core.builtins.agent.events import StepAbortError
 
 
-   @on_event("agent.tool_call")
+   @on_event("agent.tool_call").handle()
    async def block_tool(event):
        raise StepAbortError("blocked")  # tool never executes
    ```

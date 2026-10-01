@@ -873,27 +873,28 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     ):
         """Send tool call completion notifications to user.
 
+        Emitted unconditionally: the stream carries structured
+        ``function_call`` events and consumers decide whether to render them.
+
         Args:
             result_msg_list: List of tool results to notify
             function_name: Name of the called function
             tool_call_id: ID of the tool call
         """
-        config = self.config
-        if config.builtin.agent_tool_call_notice == "notify":
-            for rslt in result_msg_list:
-                await self.io_stream.yield_response(
-                    MessageWithMetadata(
-                        content=f"Called tool {rslt.name}\n",
-                        metadata=AgentToolCallMetadata(
-                            type="function_call",
-                            extra_type=None,
-                            function_name=function_name,
-                            is_done=True,
-                            tool_id=tool_call_id,
-                            err=None,
-                        ),
-                    )
+        for rslt in result_msg_list:
+            await self.io_stream.yield_response(
+                MessageWithMetadata(
+                    content=f"Called tool {rslt.name}\n",
+                    metadata=AgentToolCallMetadata(
+                        type="function_call",
+                        extra_type=None,
+                        function_name=function_name,
+                        is_done=True,
+                        tool_id=tool_call_id,
+                        err=None,
+                    ),
                 )
+            )
 
     async def _build_stop_response_and_append(
         self,
@@ -1101,7 +1102,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
         )
 
-        #  Notify "calling" for every tool
+        #  Notify "calling" for every tool, unconditionally: the stream carries structured `function_call` events and consumers decide whether to render them.
         for tc in tool_calls:
             await self.io_stream.yield_response(
                 MessageWithMetadata(
@@ -1255,25 +1256,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """
         ...
 
-    @abstractmethod
-    async def _append_tool_result_to_context(
-        self,
-        tool_call: ToolCall,
-        func_response: str,
-        response_msg: UniResponse[None, list[ToolCall] | None],
-    ):
-        """Append tool result to context (strategy-specific).
-
-        Subclasses must implement this to define how tool results are added to context.
-        Subclasses should use self.ctx.message to access the message list.
-
-        Args:
-            tool_call: The tool call object
-            func_response: The function execution result
-            response_msg: The original response message
-        """
-        ...
-
     async def _handle_tool_error_common(
         self,
         function_name: str,
@@ -1297,7 +1279,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if (
             config.builtin.tool_calling_mode == "agent"
             and function_name not in BUILTIN_TOOLS_NAME
-            and config.builtin.agent_tool_call_notice
         ):
             await self.io_stream.yield_response(
                 MessageWithMetadata(

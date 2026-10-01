@@ -74,7 +74,7 @@ ChatObject 类是与 AI 对话的主要接口。它通过 `io_stream` 属性使�
 
 - `begin()`：启动聊天对象任务（返回 Self）
 - `terminate()`：终止任务执行
-- `full_response()`：以单个字符串形式返回队列中的完整响应
+- `full_response()`：以单个字符串形式返回队列中的**答案**。结构化事件（推理块、step 边界、工具调用通知、错误）也在同一条流里，但会被跳过——需要这些事件时请改用 `io_stream.get_response_generator()`
 - `get_exception()`：获取任务执行期间发生的异常
 - `is_running()`：检查任务是否正在运行
 - `is_done()`：检查任务是否已完成

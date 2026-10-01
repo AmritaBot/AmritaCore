@@ -5,7 +5,8 @@ The LLMConfig class defines configuration parameters for LLM calls and memory ma
 ## Properties
 
 - `require_tools` (bool): Default `False`. Whether to force at least one tool to be used per call
-- `max_tokens` (int): Default `1000`. Maximum number of tokens generated in a single response (must be `>= 1`). Also the fallback for [`ModelPreset.max_output`](ModelPreset.md)
+- `max_tokens` (int): Default `10000`. Last-resort fallback for the response output budget (must be `>= 1`). The number that reaches the provider normally comes from [`ModelPreset.max_output`](ModelPreset.md) (default `28000`); this is used only when a preset sets `max_output=None` explicitly
+- `compaction_max_tokens` (int): Default `2048`. Output-token ceiling for the history-compaction summary call (must be `>= 0`; `0` lets the summary use the preset's own value). A reasoning model spends its output budget on thinking before it emits anything, so a summary that inherits a small `max_output` comes back empty and the fold silently does nothing
 - `session_tokens_windows` (int): Default `65536` (64k). Fallback attention window used when the active preset does not declare `max_context` (must be `>= 1`)
 - `llm_timeout` (int): Default `60`. API request timeout duration (seconds) (must be `>= 1`)
 - `auto_retry` (bool): Default `True`. Automatically retry on request failure

@@ -127,10 +127,6 @@ class BuiltinAgentConfig(BaseModel):
         default="agent",
         description="Tool calling mode for amrita's built-in agent strategy",
     )
-    agent_tool_call_notice: Literal["hide", "notify"] = Field(
-        default="hide",
-        description="Method of showing tool call status in built-in agent strategy, hide to conceal, notify to inform",
-    )
     agent_thought_mode: Literal[
         "reasoning", "chat", "reasoning-required", "reasoning-optional"
     ] = Field(
@@ -139,10 +135,6 @@ class BuiltinAgentConfig(BaseModel):
         "reasoning-required requires task analysis for each Tool Calling; "
         "reasoning-optional does not require reasoning but allows it; "
         "chat mode executes tasks directly",
-    )
-    agent_reasoning_hide: bool = Field(
-        default=False,
-        description="Whether to hide the thought process in built-in agent strategy",
     )
     loop_reasoning_trigger: int = Field(
         default=5,
@@ -163,9 +155,21 @@ class LLMConfig(BaseModel):
         description="Whether to force at least one tool to be used per call",
     )
     max_tokens: int = Field(
-        default=1000,
+        default=10000,
         ge=1,
-        description="Maximum number of tokens generated in a single response",
+        description="Last-resort fallback for the response output budget. The "
+        "number that actually reaches the provider comes from the preset's "
+        "`max_output` (default 28000); this value is used only when a preset "
+        "explicitly sets `max_output` to `None`.",
+    )
+    compaction_max_tokens: int = Field(
+        default=2048,
+        ge=0,
+        description="Output-token ceiling for the history-compaction summary "
+        "call. A reasoning model spends its output budget on thinking before "
+        "it emits anything, so a summary that inherits a small `max_output` "
+        "comes back empty and the fold silently does nothing. Set 0 to let "
+        "the summary call use the preset's own value.",
     )
     session_tokens_windows: int = Field(
         default=65536,

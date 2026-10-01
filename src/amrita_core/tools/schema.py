@@ -52,8 +52,7 @@ _JSON_SCALAR_TYPES: dict[str, Any] = {
     "boolean": bool,
 }
 
-#: Constraint attributes Pydantic leaves on a field's metadata, keyed by the
-#: JSON Schema keyword each one feeds.
+#: Constraint attributes Pydantic leaves on a field's metadata, keyed by the JSON Schema keyword each one feeds.
 _FIELD_CONSTRAINT_KEYS: tuple[tuple[str, str], ...] = (
     ("gt", "gt"),
     ("ge", "ge"),

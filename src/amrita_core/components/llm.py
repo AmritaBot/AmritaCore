@@ -112,6 +112,15 @@ async def _stream_completion(
             await intp.object_io.yield_response(chunk)
     if response is None:
         raise RuntimeError("No final response from chat adapter.")
+    if not response.content and not response.tool_calls and response.reasoning_content:
+        # A reasoning model spends its output budget on thinking first, so a cap too small for the model leaves nothing for the answer and the turn silently produces an empty reply.
+        used = response.usage.completion_tokens if response.usage else "?"
+        logger.warning(
+            "Provider returned reasoning but no answer and no tool calls "
+            f"({used} output tokens). The output budget was likely exhausted by "
+            "the reasoning, leaving nothing for the answer. Raise "
+            "`LLMConfig.max_tokens` or the preset's `max_output`."
+        )
     return response
 
 

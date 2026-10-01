@@ -5,9 +5,24 @@
 AmritaCore can detect sensitive cookie values in model responses and terminate
 the session to prevent data leakage:
 
-- **Activation**: `config.cookie.enable_cookie = True`
-- **Detection**: responses are scanned for configured cookie values
-- **Response**: on match, the session terminates with a generic error message
+- **Activation**: `config.cookie.enable_cookie = True` (the default)
+- **Detection**: the model's answer **and** its reasoning are scanned for the
+  configured cookie value. Reasoning is part of the model's output and reaches
+  consumers as `reasoning_chunk` events, so scanning only the answer would let a
+  model that quotes the cookie while thinking pass the check
+- **Response**: on match, the run terminates with a generic error message and the
+  event's response and reasoning are replaced, so the value is not stored on the
+  response object or in the conversation history
+
+The guard watches for **system-prompt leakage**: the canary lives inside the
+system prompt, so any run that reproduces it has leaked system content into
+model output, whether that came from a prompt-injection attempt or from the model
+quoting the marker on its own. Firing on reasoning is deliberate — reasoning is
+streamed to consumers just like the answer.
+
+> Chunks already handed to a streaming consumer cannot be retracted. The error
+> payload appended to the stream is what marks the run as failed, so consumers
+> that render `reasoning_chunk` events should stop on an `error` event.
 
 ```python
 from amrita_core.config import AmritaConfig

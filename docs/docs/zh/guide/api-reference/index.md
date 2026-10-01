@@ -327,13 +327,17 @@ async def add(data: dict[str, Any]) -> str:
 from amrita_core.hook.on import on_event
 
 
-@on_event()
+@on_event().handle()
 def my_event_handler(event):
     # Handle custom events
     pass
 ```
 
 **用途**：注册函数以处理处理流水线中的特定事件。
+
+> 每个匹配器工厂（`on_event`、`on_precompletion`、`on_completion`、
+> `on_preset_fallback`）返回的都是 `Matcher`，因此必须用 `.handle()` 挂接处理器
+> ——单独写 `@on_event("<type>")` 会抛出 `TypeError`。
 
 ### `@on_precompletion`
 

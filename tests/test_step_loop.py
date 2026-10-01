@@ -485,7 +485,9 @@ class TestStrategyStepLifecycle:
             reasoning_content="thinking about the search",
         )
         asyncio_run(
-            strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+            strategy._append_tool_results_batch(
+                response_msg, [(tool_call, "result", None)]
+            )
         )
         msgs = strategy.ctx.message.unwrap(exclude_system=True)
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
@@ -503,7 +505,9 @@ class TestStrategyStepLifecycle:
         )
         response_msg = UniResponse(content=None, tool_calls=[tool_call])
         asyncio_run(
-            strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+            strategy._append_tool_results_batch(
+                response_msg, [(tool_call, "result", None)]
+            )
         )
         msgs = strategy.ctx.message.unwrap(exclude_system=True)
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
@@ -593,12 +597,54 @@ class TestStrategyStepLifecycle:
             reasoning_signature="sig-abc123",
         )
         asyncio_run(
-            strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+            strategy._append_tool_results_batch(
+                response_msg, [(tool_call, "result", None)]
+            )
         )
         msgs = strategy.ctx.message.unwrap(exclude_system=True)
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
         assert assistant_msgs[-1].reasoning_content == "thinking about the search"
         assert assistant_msgs[-1].reasoning_signature == "sig-abc123"
+
+    def test_append_tool_results_batch_keeps_concurrent_calls_together(self, strategy):
+        """Concurrent calls stay in ONE assistant message followed by results.
+
+        Splitting a concurrent batch into one assistant message per call (a)
+        drops the model's reasoning from all but one of them and (b) makes the
+        provider see an assistant ``tool_calls`` message without its matching
+        tool results. Context coherence wins over message-count tidiness.
+        """
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        calls = [
+            ToolCall(
+                id=f"t{i}",
+                function={"name": "search", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
+            )
+            for i in (1, 2, 3)
+        ]
+        response_msg = UniResponse(
+            content=None,
+            tool_calls=calls,
+            reasoning_content="I need all three at once",
+        )
+        asyncio_run(
+            strategy._append_tool_results_batch(
+                response_msg, [(tc, f"r{i}", None) for i, tc in enumerate(calls, 1)]
+            )
+        )
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        assistant = [m for m in msgs if m.role == "assistant"]
+        assert len(assistant) == 1, (
+            f"expected one assistant message, got {len(assistant)}"
+        )
+        assert [tc.id for tc in assistant[0].tool_calls or []] == ["t1", "t2", "t3"]
+        assert assistant[0].reasoning_content == "I need all three at once"
+        # The three results follow immediately, in call order, with no gap.
+        tail = msgs[msgs.index(assistant[0]) + 1 :][:3]
+        assert [m.role for m in tail] == ["tool", "tool", "tool"]
+        assert [m.tool_call_id for m in tail] == ["t1", "t2", "t3"]
 
     def test_exec_one_error_append_carries_reasoning_signature(self, strategy):
         """A raising tool must round-trip the signature and keep args verbatim.

@@ -11,7 +11,7 @@ The ModelPreset class defines the preset configuration for AI models.
 - `protocol` (str): Protocol adapter type, defaults to `"__main__"` (OpenAI-compatible adapter)
 - `rate` ([RateConfig](RateConfig.md) | None): Pricing snapshot used for cost accounting. Copied into every [BillingRecord](BillingRecord.md) produced while this preset is active
 - `max_context` (int | None): Input token budget of the model. Together with `max_output` it forms the attention window. Falls back to `LLMConfig.session_tokens_windows` when unset
-- `max_output` (int | None): Tokens reserved for the response. Falls back to `LLMConfig.max_tokens` when unset
+- `max_output` (int | None): Default `28000`. Tokens reserved for the response, i.e. the `max_tokens` request parameter. The model owns this number. `LLMConfig.max_tokens` is the last-resort fallback, used only when this is explicitly set to `None`
 - `config` (`ModelConfig`): Model configuration object
 - `thinking_config` ([ThinkingConfig](ThinkingConfig.md) | None): Thinking/reasoning configuration for models that support it (e.g., OpenAI o1, Anthropic extended thinking)
 - `extra` (dict[str, Any]): Extra configuration items

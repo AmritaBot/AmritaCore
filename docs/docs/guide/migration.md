@@ -28,6 +28,8 @@ use instead.
 | `BuiltinName`                                                     | (none)                                                         |
 | Tool arguments left unchecked                                     | `function_config.validate_tool_arguments` (default `True`)     |
 | `SuspendEnum.MEMORY_APPEND`, `.FINALIZE`, `.CALL_SINGLE_STRATEGY` | (none — never emitted)                                         |
+| `BuiltinAgentConfig.agent_tool_call_notice`                       | (none — filter the stream)                                     |
+| `BuiltinAgentConfig.agent_reasoning_hide`                         | (none — filter the stream)                                     |
 
 ## 1. The Tokenizer Is Gone
 
@@ -82,6 +84,17 @@ budget = resolve_max_output(preset, config)
 
 If you were passing `config.llm.max_tokens` into a provider request, use
 `resolve_max_output(preset, config)` instead. The built-in adapters already do.
+
+### New Defaults
+
+`max_output` now defaults to `28000` and `LLMConfig.max_tokens` to `10000`. The
+old global default of `1000` was small enough that a reasoning model could spend
+the entire budget on thinking and return an empty answer, and a compaction
+summary could come back empty and silently skip the fold.
+
+`max_tokens` is now only the last resort — it is reached when a preset sets
+`max_output=None` explicitly, so a model that needs a different ceiling declares
+it on its own preset.
 
 ## 3. Compaction Replaces Memory Abstraction
 
@@ -294,6 +307,82 @@ If you need a hook at the end of a run, use the `COMPLETION` event
 ([Event System](concepts/event.md)) or the `COMMIT_MEMORY` tag, which is
 attached to a real node. Note that `MEMORY_APPEND` was never the tag on
 `APPEND_RESPONSE` — that node carries `SuspendEnum.MEMORY`, alongside `COMPACT`.
+
+## 10. `hide` Switches Are Gone — Filter the Stream
+
+`BuiltinAgentConfig.agent_tool_call_notice` and `agent_reasoning_hide` are
+removed. They tried to decide inside the framework what a consumer should see,
+and they disagreed with each other: the "calling" notice ignored
+`agent_tool_call_notice` entirely, so `"hide"` never hid anything.
+
+The framework now always emits structured events and leaves presentation to the
+consumer:
+
+| Event             | `type`            | `extra_type` |
+| ----------------- | ----------------- | ------------ |
+| Tool call starts  | `function_call`   | —            |
+| Tool call returns | `function_call`   | —            |
+| Reasoning stream  | `reasoning_chunk` | `cot_chunk`  |
+
+```python
+# before
+config.builtin.agent_tool_call_notice = "hide"
+
+# after — drop what you do not want to show
+async for msg in chat.io_stream.get_response_generator():
+    if getattr(msg, "metadata", {}).get("type") == "function_call":
+        continue
+```
+
+`agent_reasoning_hide` was never read anywhere in the framework, so removing it
+changes nothing at runtime.
+
+## 11. `full_response()` Returns the Answer Only
+
+`ChatObject.full_response()` used to concatenate every item in the stream,
+including `MessageWithMetadata` events. Because a reasoning model streams its
+thinking as `reasoning_chunk` events, the returned string began with the model's
+reasoning and ended with the answer.
+
+It now collects answer chunks only, so the result matches the response object's
+`content` instead of being roughly ten times longer.
+
+The stream itself is unchanged — reasoning still arrives as events. A consumer
+that calls `get_content()` on every item still folds the thinking into its own
+output; branch on the type or on `metadata["type"]` (see
+[Streaming and Callbacks](tutorials/streaming.md)).
+
+## 12. The Leak Canary Actually Runs
+
+`builtins/hooks.py` registers its completion matcher as an import side effect,
+and nothing imported it — `load_amrita()` only loads MCP clients. The cookie
+guard had therefore never run. `amrita_core.builtins` now imports it.
+
+Two gaps in the guard itself are closed as well:
+
+- **Reasoning is scanned.** The check only looked at the answer, so a model that
+  quoted the canary while thinking passed. Reasoning is part of the model's
+  output and is streamed to consumers, so it is checked too.
+- **The persisted response is rewritten.** The runner stores whatever the
+  completion event carries on the response object and in the conversation
+  history. Substituting only the streamed payload left the canary reachable
+  through `get_last_response()` and the next turn's context.
+
+Chunks already delivered to a streaming consumer cannot be retracted; the error
+payload appended to the stream is what marks the run as failed.
+
+## 13. A Separate Output Budget for Compaction
+
+The summary call used to inherit the chat preset's output ceiling. A reasoning
+model spends its budget on thinking before it emits any content, so a small
+`max_output` produced an empty summary and the fold silently did nothing.
+
+`LLMConfig.compaction_max_tokens` (default `2048`) now raises the ceiling for
+the summary call alone; set it to `0` to go back to inheriting the preset value.
+
+The same starvation can hit an ordinary answer. When the provider returns
+reasoning but no content and no tool calls, the framework now logs a warning
+naming the cause instead of returning an empty reply with no explanation.
 
 ## Next
 

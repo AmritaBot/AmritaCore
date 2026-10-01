@@ -27,6 +27,8 @@ AmritaCore 1.0 移除了本地分词器，并把上下文管理改为以模型�
 | `BuiltinName`                                                     | （无）                                                          |
 | 工具参数不做校验                                                  | `function_config.validate_tool_arguments`（默认 `True`）        |
 | `SuspendEnum.MEMORY_APPEND`、`.FINALIZE`、`.CALL_SINGLE_STRATEGY` | （无——从未发出过）                                              |
+| `BuiltinAgentConfig.agent_tool_call_notice`                       | （无——请过滤流）                                                |
+| `BuiltinAgentConfig.agent_reasoning_hide`                         | （无——请过滤流）                                                |
 
 ## 1. 分词器已移除
 
@@ -78,6 +80,15 @@ budget = resolve_max_output(preset, config)
 
 如果你此前把 `config.llm.max_tokens` 直接传给 provider 请求，请改用
 `resolve_max_output(preset, config)`。内置适配器已经这样做了。
+
+### 新的默认值
+
+`max_output` 现在默认为 `28000`，`LLMConfig.max_tokens` 默认为 `10000`。原先
+`1000` 的全局默认值偏小：推理模型可能把全部预算花在思考上而返回空答案，压缩摘要也
+可能返回空内容从而静默跳过折叠。
+
+`max_tokens` 现在只是最后兜底——只有当预设显式设置 `max_output=None` 时才会用到，
+因此需要不同上限的模型在自己的预设里声明即可。
 
 ## 3. 压缩取代记忆摘要
 
@@ -277,6 +288,70 @@ await chat.io_stream.wait_to_suspend(SuspendEnum.FINALIZE.value)
 （[事件系统](concepts/event.md)）或 `COMMIT_MEMORY` 标签，后者挂接在真实节点
 上。注意 `MEMORY_APPEND` 从来不是 `APPEND_RESPONSE` 上的标签——该节点携带的是
 `SuspendEnum.MEMORY`，与 `COMPACT` 相同。
+
+## 10. `hide` 开关已移除——请过滤流
+
+`BuiltinAgentConfig.agent_tool_call_notice` 与 `agent_reasoning_hide` 已移除。
+它们试图在框架内部决定消费者应该看到什么，而两者彼此矛盾：「开始调用」通知完全
+忽略了 `agent_tool_call_notice`，因此 `"hide"` 从未真正隐藏过任何东西。
+
+框架现在始终发出结构化事件，把展示方式留给消费者：
+
+| 事件         | `type`            | `extra_type` |
+| ------------ | ----------------- | ------------ |
+| 工具调用开始 | `function_call`   | —            |
+| 工具调用返回 | `function_call`   | —            |
+| 推理流       | `reasoning_chunk` | `cot_chunk`  |
+
+```python
+# 之前
+config.builtin.agent_tool_call_notice = "hide"
+
+# 之后——不想要的自己丢掉
+async for msg in chat.io_stream.get_response_generator():
+    if getattr(msg, "metadata", {}).get("type") == "function_call":
+        continue
+```
+
+`agent_reasoning_hide` 在框架中从未被读取过，因此移除它不改变任何运行时行为。
+
+## 11. `full_response()` 只返回答案
+
+`ChatObject.full_response()` 以前会把流中的每个条目都拼接起来，包括
+`MessageWithMetadata` 事件。由于推理模型把思考以 `reasoning_chunk` 事件流式输出，
+返回的字符串会以模型的推理开头、以答案结尾。
+
+现在它只收集答案 chunk，结果与响应对象的 `content` 一致，而不再长出约十倍。
+
+流本身没有变化——推理仍以事件形式到达。对每个条目都调 `get_content()` 的消费者
+仍然会把思考混进自己的输出；请按类型或按 `metadata["type"]` 分支（参见
+[流式与回调](tutorials/streaming.md)）。
+
+## 12. 泄漏金丝雀现在真的会运行
+
+`builtins/hooks.py` 通过 import 副作用注册它的完成匹配器，而此前没有任何地方导入
+它——`load_amrita()` 只加载 MCP 客户端。因此 cookie 守卫从未运行过。现在
+`amrita_core.builtins` 会导入它。
+
+守卫本身的两处缺口也已堵上：
+
+- **推理内容会被扫描。** 检查原本只看答案，因此在思考里引用金丝雀的模型可以通过。
+  推理是模型输出的一部分且会流式送达消费者，因此现在也会检查。
+- **持久化响应会被重写。** runner 会把完成事件携带的内容写入响应对象与对话历史。
+  只替换流式载荷会让金丝雀仍可通过 `get_last_response()` 与下一轮上下文拿到。
+
+已经交给流式消费者的 chunk 无法收回；追加到流中的错误载荷是本次运行失败的标记。
+
+## 13. 压缩拥有独立的输出预算
+
+摘要调用以前继承对话预设的输出上限。推理模型在产出任何内容之前会先花掉预算思考，
+因此较小的 `max_output` 会产出空摘要，折叠静默失效。
+
+`LLMConfig.compaction_max_tokens`（默认 `2048`）现在只为摘要调用抬高上限；设为 `0`
+则回到继承预设值的行为。
+
+同样的饥饿也会发生在普通答案上。当 provider 返回了推理但既无内容也无工具调用时，
+框架现在会记录一条指明原因的警告，而不是毫无解释地返回空回复。
 
 ## 下一步
 

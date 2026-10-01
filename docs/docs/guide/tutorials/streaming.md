@@ -49,6 +49,12 @@ async with chat.begin():
                 print(f"\n[{meta}] {content}", flush=True)
 ```
 
+> **Do not concatenate every item.** A `str` chunk and a reasoning chunk are
+> different things: calling `msg.get_content()` on both and joining the results
+> folds the model's thinking into the answer. Branch on the type (or on
+> `metadata["type"]`) as above. `chat.full_response()` already does this for
+> you and returns the answer alone.
+
 ### Common metadata types
 
 | `type`            | `extra_type`         | Emitted when                                                 |
@@ -90,6 +96,12 @@ await chat.io_stream.send_to_producer(
 - Messages pushed **before a Step starts** are consumed at that boundary.
 - Messages pushed **while the agent is working** are picked up at the next Step.
 - Messages pushed **after the run finishes** are dropped (channel closed).
+
+> **A Step boundary is required.** Peer messages are drained in `intro_step`,
+> which only the native step workflow reaches. Under the default simple-chat
+> pipeline they are dropped without notice, so pass
+> `get_chatobject(..., workflow=_step_workflow_rendered)` when you need the
+> reverse channel.
 
 This is the foundation for human-in-the-loop, tool feedback and streaming
 inputs. See [Suspend/Resume](../advanced/suspend.md) for the full picture.

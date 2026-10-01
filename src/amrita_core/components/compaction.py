@@ -32,7 +32,11 @@ from amrita_core.enums import SuspendEnum
 from amrita_core.libchat import call_completion, get_last_response, text_generator
 from amrita_core.types.memory import MemoryModel
 from amrita_core.types.message import CONTENT_LIST_TYPE, Message
-from amrita_core.types.preset import ModelPreset, resolve_max_context
+from amrita_core.types.preset import (
+    ModelPreset,
+    resolve_max_context,
+    resolve_max_output,
+)
 from amrita_core.usage import SessionUsageProxy
 
 
@@ -115,6 +119,23 @@ class ContextCompactor:
         """
         return self.config.llm.memory_length_limit
 
+    @property
+    def summary_preset(self) -> ModelPreset | None:
+        """Preset for the summarizer call, with its own output ceiling.
+
+        A reasoning model spends its output budget on thinking before it emits
+        any content, so a summary call that inherits a small ``max_output``
+        comes back with an empty answer and the fold silently does nothing.
+        ``LLMConfig.compaction_max_tokens`` raises the ceiling for this call
+        only; ``0`` keeps the preset's own value.
+        """
+        budget = self.config.llm.compaction_max_tokens
+        if self.preset is None or budget <= 0:
+            return self.preset
+        if resolve_max_output(self.preset, self.config) >= budget:
+            return self.preset
+        return self.preset.model_copy(update={"max_output": budget})
+
     def should_compact(self, memory: MemoryModel | None) -> bool:
         """Whether ``memory`` should be folded before the next request.
 
@@ -160,7 +181,7 @@ class ContextCompactor:
         response = await get_last_response(
             call_completion(
                 prompt,
-                preset=self.preset,
+                preset=self.summary_preset,
                 config=self.config,
                 usage=self.usage,
             )

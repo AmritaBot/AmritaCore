@@ -41,7 +41,7 @@ agent = create_agent(..., config=config)  # or per-agent
 | `llm.enable_compaction`                   | `True`    | Fold long history into a summary instead of resending it                     |
 | `llm.compaction_trigger_ratio`            | `0.9`     | Fraction of the attention window at which compaction fires                   |
 | `preset.max_context`                      | `None`    | Per-model input budget; falls back to `llm.session_tokens_windows` (64k)     |
-| `preset.max_output`                       | `None`    | Per-model response reservation; falls back to `llm.max_tokens` (1000)        |
+| `preset.max_output`                       | `28000`   | Per-model response reservation; `llm.max_tokens` (10000) is the last resort  |
 | `llm.memory_length_limit`                 | `200`     | Message-count fallback that fires even when no usage is reported (`0` = off) |
 | `llm.enable_overflow_recovery`            | `True`    | Compact and retry once when the provider rejects an oversized request        |
 

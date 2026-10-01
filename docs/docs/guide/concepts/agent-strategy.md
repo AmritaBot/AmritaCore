@@ -98,8 +98,9 @@ class MyStrategy(AgentStrategy):
 ```
 
 For ReAct-style strategies, extend `BaseReActAgentStrategy` instead and
-override the template methods (`_append_tool_result_to_context`,
-`_handle_error_append`, `_append_reasoning`, ...).
+override `_append_reasoning` (the only abstract method);
+`_append_tool_results_batch` and `_handle_error_append` are overridable but
+ship with working defaults.
 
 ## Next
 

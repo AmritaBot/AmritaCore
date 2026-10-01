@@ -29,15 +29,34 @@ This class provides shared functionality for ReAct-style agents including tool c
 
 ### Abstract Methods (Must be implemented by subclasses)
 
-#### \_append_tool_result_to_context()
+#### \_append_reasoning()
 
-Append tool result to context (strategy-specific).
+Append reasoning content to context (strategy-specific).
 
 **Parameters**:
 
-- `tool_call` (`ToolCall`): The tool call object
-- `func_response` (str): The function execution result
+- `tool_call` (`ToolCall`): The tool call that requested the reasoning
+- `reasoning_content` (`UniResponse[str, None]`): The reasoning response
+
+### Concrete Methods (Can be overridden by subclasses)
+
+#### \_append_tool_results_batch(response_msg, results)
+
+Append one tool round to the context. Called once per round with **every**
+result of that round.
+
+The default implementation appends a single assistant message carrying all
+`tool_calls` plus the provider's reasoning fields copied verbatim, followed by
+one `ToolResult` per call in the model's original order. Override it to change
+how a round is recorded; keep the calls of one round in a single assistant
+message, because splitting them would drop the reasoning from all but one
+message and leave the provider with a `tool_calls` message whose results are
+missing.
+
+**Parameters**:
+
 - `response_msg` (`UniResponse`): The original response message
+- `results` (list[tuple[`ToolCall`, str, BaseException | None]]): One entry per executed call, in the model's order
 
 #### \_handle_error_append()
 
@@ -49,16 +68,6 @@ Handle appending error messages to context (strategy-specific).
 - `error_content` (str): Formatted error message to append
 - `tool_call_id` (str): ID of the tool call
 - `original_exception` (BaseException): The original exception object for type-based handling
-
-#### \_append_reasoning()
-
-Append reasoning content to context (strategy-specific).
-
-**Parameters**:
-
-- `response` (`UniResponse`): The response from tools_caller containing reasoning tool calls
-
-### Concrete Methods (Can be overridden by subclasses)
 
 #### \_is_native_thinking_enabled()
 
@@ -132,26 +141,18 @@ from amrita_core.builtins.agent import BaseReActAgentStrategy
 
 
 class MyCustomReActStrategy(BaseReActAgentStrategy):
-    async def _append_tool_result_to_context(
-        self, tool_call, func_response, response_msg
-    ):
-        # Implement strategy-specific tool result handling
-        pass
-
-    async def _handle_error_append(
-        self, function_name, error_content, tool_call_id, original_exception
-    ):
-        # Implement strategy-specific error handling
-        pass
-
-    async def _append_reasoning(self, response):
-        # Implement strategy-specific reasoning handling
-        pass
+    async def _append_reasoning(self, tool_call, reasoning_content):
+        # The only required override: record the reasoning your own way.
+        ...
 
     @classmethod
     def get_category(cls):
         return "agent-mixed"
 ```
+
+`_append_tool_results_batch` and `_handle_error_append` already have working
+defaults; override them only when you want a different way of recording tool
+rounds.
 
 ## Built-in Subclasses
 

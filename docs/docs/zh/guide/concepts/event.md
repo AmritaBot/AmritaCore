@@ -51,7 +51,8 @@ AmritaSense 提供两个事件基类：
 | `CompletionEvent`    | `"COMPLETION"`        | 响应后（改写 `model_response`） |
 
 便捷装饰器：`@on_precompletion`、`@on_completion`、`@on_preset_fallback`、
-`@on_event("<type>")`。
+`@on_event("<type>")`。它们都是返回 `Matcher` 的工厂，因此必须用 `.handle()`
+挂接处理器。
 
 ### 兜底（Fallback）事件
 
@@ -86,7 +87,7 @@ AmritaSense 提供两个事件基类：
 1. **事件可变**——钩子在分发后读回字段：
 
    ```python
-   @on_event("agent.step_leave")
+   @on_event("agent.step_leave").handle()
    async def fix_summary(event):
        event.override_verb = "Reviewed"  # 替换自动摘要
    ```
@@ -98,7 +99,7 @@ AmritaSense 提供两个事件基类：
    from amrita_core.builtins.agent.events import StepAbortError
 
 
-   @on_event("agent.tool_call")
+   @on_event("agent.tool_call").handle()
    async def block_tool(event):
        raise StepAbortError("blocked")  # 工具永不执行
    ```
