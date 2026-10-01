@@ -353,6 +353,27 @@ async for msg in chat.io_stream.get_response_generator():
 同样的饥饿也会发生在普通答案上。当 provider 返回了推理但既无内容也无工具调用时，
 框架现在会记录一条指明原因的警告，而不是毫无解释地返回空回复。
 
+## 14. Anthropic 路径的内联图片已可用
+
+Anthropic 适配器以前把每个 `ImageContent` 都翻译成 `source.type` 为 `url` 的
+`image` 块。provider 接受三种 source 变体，并会拒绝以 `url` 形式发送的 `data:`
+URI，因此内联图片会让整个请求以 `400 invalid url` 失败：
+
+```python
+#  修复前失败，现在可用
+ImageContent(
+    type="image_url",
+    image_url=ImageUrl(url="data:image/png;base64,iVBORw0KGgo..."),
+)
+```
+
+适配器现在根据 URL 选择变体：内联 `data:` URI 转为 `base64` source（带 media
+type），其它一律保持 `url` source。外部 `http(s)` URL 此前行为就正确，未作改动。
+
+无法转为 `base64` source 的 `data:` URI 现在会抛出 `ValueError` 而非被转发：缺少
+media type、非 base64 载荷、空 body 三种情况都会响亮失败，而不是发出一个让模型
+对着它从未收到的图片作答的请求。
+
 ## 下一步
 
 [API 参考](api-reference/index.md)——完整的 1.0 接口，或

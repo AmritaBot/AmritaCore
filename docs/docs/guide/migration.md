@@ -384,6 +384,30 @@ The same starvation can hit an ordinary answer. When the provider returns
 reasoning but no content and no tool calls, the framework now logs a warning
 naming the cause instead of returning an empty reply with no explanation.
 
+## 14. Inline Images Work on the Anthropic Path
+
+The Anthropic adapter translated every `ImageContent` into an `image` block whose
+`source.type` was `url`. The provider accepts three source variants and rejects a
+`data:` URI sent as a `url` one, so an inline image failed the whole request with
+`400 invalid url`:
+
+```python
+#  Broken before, works now
+ImageContent(
+    type="image_url",
+    image_url=ImageUrl(url="data:image/png;base64,iVBORw0KGgo..."),
+)
+```
+
+The adapter now picks the variant from the URL: an inline `data:` URI becomes a
+`base64` source (with its media type), and anything else stays a `url` source.
+External `http(s)` URLs behaved correctly before and are unchanged.
+
+A `data:` URI that cannot become a `base64` source now raises `ValueError`
+instead of being forwarded: a missing media type, a non-base64 payload and an
+empty body each fail loudly rather than sending a request the model answers about
+a picture it never received.
+
 ## Next
 
 [API Reference](api-reference/index.md) — the full 1.0 surface, or

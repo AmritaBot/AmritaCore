@@ -91,6 +91,37 @@ This is deliberately separate from compaction: normalization is **lossless**
 flattening of what is already there, while compaction throws history away.
 Keeping them apart means either can run alone.
 
+#### Sending Images
+
+An `ImageContent` block carries a URL, and the two accepted forms are:
+
+```python
+from amrita_core.types.content import ImageContent, ImageUrl, TextContent
+
+#  External http(s) URL — the provider downloads it itself
+ImageContent(type="image_url", image_url=ImageUrl(url="https://example.com/cat.png"))
+
+#  Inline data URI — the image travels inside the request body
+ImageContent(
+    type="image_url",
+    image_url=ImageUrl(url="data:image/png;base64,iVBORw0KGgo..."),
+)
+```
+
+Both work on every built-in adapter. The OpenAI wire format already uses
+`image_url`, so that adapter passes blocks through untouched. The Anthropic
+adapter translates the block and picks the `source` variant from the URL: an
+inline `data:` URI becomes a `base64` source, anything else a `url` source.
+
+That split is not cosmetic — the Anthropic-compatible endpoint answers
+`400 invalid url` when a data URI is sent as a `url` source, so an inline image
+would be lost if the block were forwarded verbatim.
+
+A `data:` URI that cannot be expressed as a `base64` source raises `ValueError`
+instead of being dropped: a missing media type, a non-base64 payload and an
+empty body all fail loudly rather than sending a request the model answers about
+a picture it never received.
+
 ### 2. History Compaction
 
 `LLMConfig.enable_compaction` turns on history folding. A

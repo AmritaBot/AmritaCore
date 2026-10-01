@@ -81,6 +81,34 @@ chat._di_memory.memory  # MemoryModel | None——LOAD_STATE 之后被设置
 它与压缩刻意分离：归一化是对已有内容的**无损**拍平，而压缩会丢弃历史。
 分开之后，任一机制都能单独运行。
 
+#### 发送图片
+
+`ImageContent` 块携带一个 URL，可接受的两种形式是：
+
+```python
+from amrita_core.types.content import ImageContent, ImageUrl, TextContent
+
+#  外部 http(s) URL——由 provider 自行下载
+ImageContent(type="image_url", image_url=ImageUrl(url="https://example.com/cat.png"))
+
+#  内联 data URI——图片随请求体一同传输
+ImageContent(
+    type="image_url",
+    image_url=ImageUrl(url="data:image/png;base64,iVBORw0KGgo..."),
+)
+```
+
+两种形式在所有内置适配器上都可用。OpenAI 的线格式本身就是 `image_url`，因此该
+适配器原样传递内容块。Anthropic 适配器会翻译内容块，并根据 URL 选择 `source`
+变体：内联 `data:` URI 转为 `base64` source，其它一律为 `url` source。
+
+这个区分不是装饰性的——Anthropic 兼容端点在 data URI 以 `url` source 发送时会返回
+`400 invalid url`，因此若把内容块原样转发，内联图片会直接丢失。
+
+无法表达为 `base64` source 的 `data:` URI 会抛出 `ValueError` 而非被丢弃：缺少
+media type、非 base64 载荷、空 body 三种情况都会响亮失败，而不是发出一个让模型
+对着它从未收到的图片作答的请求。
+
 ### 2. 历史压缩
 
 `LLMConfig.enable_compaction` 开启历史折叠。
