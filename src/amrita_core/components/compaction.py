@@ -365,9 +365,15 @@ class ContextCompactor:
             #  no assistant can have declared them. Step over those, which
             #  cannot lose a call that is still around.
             index = 0
-            while index < len(messages) - 1 and isinstance(messages[index], ToolResult):
+            while index < len(messages) and isinstance(messages[index], ToolResult):
                 index += 1
-            return index
+            #  Sweeping the whole head matters: stopping a message short leaves
+            #  the last orphan in place and the payload invalid anyway. When
+            #  that consumes the entire history there is no boundary left to
+            #  keep, and returning one would empty ``memory.messages`` — the
+            #  wrap rebuilt from an empty list has no last message to read the
+            #  user query from — so the history is left alone instead.
+            return 0 if index >= len(messages) else index
         boundaries = [
             index
             for index in range(1, len(messages))

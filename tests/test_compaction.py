@@ -629,6 +629,26 @@ class TestSlide:
         compactor = self._compactor()
         assert compactor._safe_cut(messages, 0) == 1
 
+    def test_safe_cut_leaves_an_all_orphan_history_alone(self):
+        """Nothing to keep means nothing to cut.
+
+        An empty ``memory.messages`` leaves the next wrap with no last message
+        to fall back to for the user query, so the history stays as it is.
+        """
+        compactor = self._compactor()
+        orphan = ToolResult(role="tool", name="f", content="r1", tool_call_id="c1")
+        assert compactor._safe_cut([orphan], 0) == 0
+        assert (
+            compactor._safe_cut(
+                [
+                    orphan,
+                    ToolResult(role="tool", name="f", content="r2", tool_call_id="c2"),
+                ],
+                0,
+            )
+            == 0
+        )
+
     def test_safe_cut_keeps_a_paired_tool_result(self):
         """A result whose call survives is valid and must not be skipped."""
         messages: CONTENT_LIST_TYPE = [
