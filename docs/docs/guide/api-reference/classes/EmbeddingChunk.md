@@ -51,4 +51,4 @@ for chunk in embeddings:
 
 - [`ModelAdapter.call_embed()`](ModelAdapter.md#call_embed): Method that returns `EmbeddingChunk` instances
 - [`ModelAdapter`](ModelAdapter.md): Base class for adapters, uses `ADAPTER_TYPE` literal type
-- [`call_completion()`](../functions/call_completion.md): Function that handles embedding adapter calls
+- `call_completion()`: Function that handles embedding adapter calls

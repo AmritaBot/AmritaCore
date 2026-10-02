@@ -74,10 +74,7 @@ async def mcp_integration_example():
     print("\n")
     print("✅ MCP integration example completed!")
 
-    # Note: In a real implementation, you would need to:
-    # 1. Have actual MCP scripts in the specified paths
-    # 2. Ensure the MCP client manager is properly initialized
-    # 3. Handle MCP client lifecycle management
+    # Note: a real implementation needs actual MCP scripts at those paths, plus a properly initialized and lifecycle-managed MCP client.
 
 
 # Alternative example showing manual MCP client setup

@@ -60,7 +60,7 @@ This is a unified interface for tool execution that processes the given tool cal
 
 **Parameters**:
 
-- `tool_call` ([ToolCall](ToolCall.md)): The ToolCall object containing the function name and arguments
+- `tool_call` (`ToolCall`): The ToolCall object containing the function name and arguments
 
 **Returns**: str - The string response from the tool execution, or a default message if the tool returns None
 

@@ -211,6 +211,7 @@ async def COMMIT_MEMORY(
     ability: AbilityState,
     meta: SessionMetadata,
     mem: MemoryContext,
+    resp: RespState,
 ) -> None:
     """Persist memory to the backend storage (terminal node).
 
@@ -218,11 +219,16 @@ async def COMMIT_MEMORY(
     conversation history survives beyond the current request. Honours
     `DatabackendOptions.skip_memory_commit` to skip persistence.
 
+    The run's billing records are folded into `mem.memory.billing` first, so
+    the default persistence path carries them for free, and then handed to
+    `ability.slot.billing` for consumers that mirror them elsewhere.
+
     Context Dependencies:
-        * DatabackendOptions — controls whether to skip the commit.
-        * AbilityState — provides backend slot (`slot.memory`).
+        * DatabackendOptions — controls whether to skip the commits.
+        * AbilityState — provides backend slots (`slot.memory`, `slot.billing`).
         * SessionMetadata — provides `session_id` as storage key.
         * MemoryContext — provides memory data to persist.
+        * RespState — provides the run's usage ledger.
 
     Upstream:
         * LOAD_STATE — must have set `mem.memory` and `ability.slot`.
@@ -235,5 +241,9 @@ async def COMMIT_MEMORY(
     """
     if mem.memory is None:
         raise RuntimeError("Memory is not set, please run `LOAD_STATE` before commit")
+    if resp.usage is not None:
+        resp.usage.flush_into(mem.memory.billing)
     if not opt.skip_memory_commit:
         await ability.slot.memory.commit_memory(meta.session_id, mem.memory)
+    if resp.usage is not None and not opt.skip_billing_commit:
+        await resp.usage.commit()

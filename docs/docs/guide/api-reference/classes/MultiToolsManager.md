@@ -4,7 +4,7 @@ The MultiToolsManager class manages multiple tool registrations and lookups.
 
 ## Description
 
-MultiToolsManager provides a registry of tools keyed by function name, with support for enabling/disabling tools and conditional activation via `enable_if`. [ToolsManager](ToolsManager.md) is the singleton subclass used by default.
+MultiToolsManager provides a registry of tools keyed by function name, with support for enabling/disabling tools and conditional activation via `enable_if`. `ToolsManager` is the singleton subclass used by default.
 
 ## Methods
 

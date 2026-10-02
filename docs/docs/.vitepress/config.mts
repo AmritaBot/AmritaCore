@@ -172,10 +172,6 @@ export default withMermaid({
                 link: "/guide/extensions-integration/mcp-server",
               },
               {
-                text: "Custom Tokenizers",
-                link: "/guide/extensions-integration/tokenizer",
-              },
-              {
                 text: "Custom Tools",
                 link: "/guide/extensions-integration/tools",
               },
@@ -257,6 +253,16 @@ export default withMermaid({
             ],
           },
           {
+            text: "Migration Guide",
+            collapsed: false,
+            items: [
+              {
+                text: "Migration Guide: 0.13 → 1.0",
+                link: "/guide/migration",
+              },
+            ],
+          },
+          {
             text: "Project Introduction",
             collapsed: false,
             items: [
@@ -300,16 +306,20 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/BackendSlots",
               },
               {
-                text: "BaseModel",
-                link: "/guide/api-reference/classes/BaseModel",
-              },
-              {
                 text: "BaseReActAgentStrategy",
                 link: "/guide/api-reference/classes/BaseReActAgentStrategy",
               },
               {
-                text: "BaseTokenizer",
-                link: "/guide/api-reference/classes/BaseTokenizer",
+                text: "BillingBackend",
+                link: "/guide/api-reference/classes/BillingBackend",
+              },
+              {
+                text: "BillingRecord",
+                link: "/guide/api-reference/classes/BillingRecord",
+              },
+              {
+                text: "BuiltinAgentConfig",
+                link: "/guide/api-reference/classes/BuiltinAgentConfig",
               },
               {
                 text: "ChatManager",
@@ -332,8 +342,12 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/CompletionEvent",
               },
               {
-                text: "CookieConfig",
-                link: "/guide/api-reference/classes/CookieConfig",
+                text: "ContextCompactor",
+                link: "/guide/api-reference/classes/ContextCompactor",
+              },
+              {
+                text: "ContextOverflowError",
+                link: "/guide/api-reference/classes/ContextOverflowError",
               },
               {
                 text: "DAGNode",
@@ -358,10 +372,6 @@ export default withMermaid({
               {
                 text: "FunctionDefinitionSchema",
                 link: "/guide/api-reference/classes/FunctionDefinitionSchema",
-              },
-              {
-                text: "HybridReActAgentStrategy",
-                link: "/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
                 text: "LLMConfig",
@@ -392,10 +402,6 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/ModelAdapter",
               },
               {
-                text: "ModelConfig",
-                link: "/guide/api-reference/classes/ModelConfig",
-              },
-              {
                 text: "ModelPreset",
                 link: "/guide/api-reference/classes/ModelPreset",
               },
@@ -416,6 +422,10 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/NoActionAgentStrategy",
               },
               {
+                text: "NullBillingBackend",
+                link: "/guide/api-reference/classes/NullBillingBackend",
+              },
+              {
                 text: "PreCompletionEvent",
                 link: "/guide/api-reference/classes/PreCompletionEvent",
               },
@@ -424,8 +434,16 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/PresetManager",
               },
               {
+                text: "RateConfig",
+                link: "/guide/api-reference/classes/RateConfig",
+              },
+              {
                 text: "ReActAgentStrategy",
                 link: "/guide/api-reference/classes/ReActAgentStrategy",
+              },
+              {
+                text: "ReactConfig",
+                link: "/guide/api-reference/classes/ReactConfig",
               },
               {
                 text: "RequestMetadata",
@@ -436,12 +454,12 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/SendMessageWrap",
               },
               {
-                text: "StateContext",
-                link: "/guide/api-reference/classes/StateContext",
+                text: "SessionUsageProxy",
+                link: "/guide/api-reference/classes/SessionUsageProxy",
               },
               {
-                text: "StepEvents",
-                link: "/guide/api-reference/classes/StepEvents",
+                text: "StepLifecycleEvents",
+                link: "/guide/api-reference/classes/StepLifecycleEvents",
               },
               {
                 text: "StrategyContext",
@@ -452,16 +470,8 @@ export default withMermaid({
                 link: "/guide/api-reference/classes/SuspendEnum",
               },
               {
-                text: "TextContent",
-                link: "/guide/api-reference/classes/TextContent",
-              },
-              {
                 text: "ThinkingConfig",
                 link: "/guide/api-reference/classes/ThinkingConfig",
-              },
-              {
-                text: "ToolCall",
-                link: "/guide/api-reference/classes/ToolCall",
               },
               {
                 text: "ToolContext",
@@ -474,22 +484,6 @@ export default withMermaid({
               {
                 text: "ToolFunctionSchema",
                 link: "/guide/api-reference/classes/ToolFunctionSchema",
-              },
-              {
-                text: "ToolResult",
-                link: "/guide/api-reference/classes/ToolResult",
-              },
-              {
-                text: "ToolsManager",
-                link: "/guide/api-reference/classes/ToolsManager",
-              },
-              {
-                text: "UniResponse",
-                link: "/guide/api-reference/classes/UniResponse",
-              },
-              {
-                text: "UniResponseUsage",
-                link: "/guide/api-reference/classes/UniResponseUsage",
               },
             ],
           },
@@ -580,10 +574,6 @@ export default withMermaid({
                 link: "/zh/guide/extensions-integration/mcp-server",
               },
               {
-                text: "自定义 Tokenizer",
-                link: "/zh/guide/extensions-integration/tokenizer",
-              },
-              {
                 text: "自定义工具",
                 link: "/zh/guide/extensions-integration/tools",
               },
@@ -651,6 +641,13 @@ export default withMermaid({
             items: [{ text: "附录与设计哲学", link: "/zh/guide/appendix" }],
           },
           {
+            text: "迁移指南",
+            collapsed: false,
+            items: [
+              { text: "迁移指南：0.13 → 1.0", link: "/zh/guide/migration" },
+            ],
+          },
+          {
             text: "项目介绍",
             collapsed: false,
             items: [{ text: "项目介绍", link: "/zh/guide/introduction" }],
@@ -689,16 +686,20 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/BackendSlots",
               },
               {
-                text: "BaseModel",
-                link: "/zh/guide/api-reference/classes/BaseModel",
-              },
-              {
                 text: "BaseReActAgentStrategy",
                 link: "/zh/guide/api-reference/classes/BaseReActAgentStrategy",
               },
               {
-                text: "BaseTokenizer",
-                link: "/zh/guide/api-reference/classes/BaseTokenizer",
+                text: "BillingBackend",
+                link: "/zh/guide/api-reference/classes/BillingBackend",
+              },
+              {
+                text: "BillingRecord",
+                link: "/zh/guide/api-reference/classes/BillingRecord",
+              },
+              {
+                text: "BuiltinAgentConfig",
+                link: "/zh/guide/api-reference/classes/BuiltinAgentConfig",
               },
               {
                 text: "ChatManager",
@@ -721,8 +722,12 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/CompletionEvent",
               },
               {
-                text: "CookieConfig",
-                link: "/zh/guide/api-reference/classes/CookieConfig",
+                text: "ContextCompactor",
+                link: "/zh/guide/api-reference/classes/ContextCompactor",
+              },
+              {
+                text: "ContextOverflowError",
+                link: "/zh/guide/api-reference/classes/ContextOverflowError",
               },
               {
                 text: "DAGNode",
@@ -747,10 +752,6 @@ export default withMermaid({
               {
                 text: "FunctionDefinitionSchema",
                 link: "/zh/guide/api-reference/classes/FunctionDefinitionSchema",
-              },
-              {
-                text: "HybridReActAgentStrategy",
-                link: "/zh/guide/api-reference/classes/HybridReActAgentStrategy",
               },
               {
                 text: "LLMConfig",
@@ -781,10 +782,6 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/ModelAdapter",
               },
               {
-                text: "ModelConfig",
-                link: "/zh/guide/api-reference/classes/ModelConfig",
-              },
-              {
                 text: "ModelPreset",
                 link: "/zh/guide/api-reference/classes/ModelPreset",
               },
@@ -805,6 +802,10 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/NoActionAgentStrategy",
               },
               {
+                text: "NullBillingBackend",
+                link: "/zh/guide/api-reference/classes/NullBillingBackend",
+              },
+              {
                 text: "PreCompletionEvent",
                 link: "/zh/guide/api-reference/classes/PreCompletionEvent",
               },
@@ -813,8 +814,16 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/PresetManager",
               },
               {
+                text: "RateConfig",
+                link: "/zh/guide/api-reference/classes/RateConfig",
+              },
+              {
                 text: "ReActAgentStrategy",
                 link: "/zh/guide/api-reference/classes/ReActAgentStrategy",
+              },
+              {
+                text: "ReactConfig",
+                link: "/zh/guide/api-reference/classes/ReactConfig",
               },
               {
                 text: "RequestMetadata",
@@ -825,12 +834,12 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/SendMessageWrap",
               },
               {
-                text: "StateContext",
-                link: "/zh/guide/api-reference/classes/StateContext",
+                text: "SessionUsageProxy",
+                link: "/zh/guide/api-reference/classes/SessionUsageProxy",
               },
               {
-                text: "StepEvents",
-                link: "/zh/guide/api-reference/classes/StepEvents",
+                text: "StepLifecycleEvents",
+                link: "/zh/guide/api-reference/classes/StepLifecycleEvents",
               },
               {
                 text: "StrategyContext",
@@ -841,16 +850,8 @@ export default withMermaid({
                 link: "/zh/guide/api-reference/classes/SuspendEnum",
               },
               {
-                text: "TextContent",
-                link: "/zh/guide/api-reference/classes/TextContent",
-              },
-              {
                 text: "ThinkingConfig",
                 link: "/zh/guide/api-reference/classes/ThinkingConfig",
-              },
-              {
-                text: "ToolCall",
-                link: "/zh/guide/api-reference/classes/ToolCall",
               },
               {
                 text: "ToolContext",
@@ -863,22 +864,6 @@ export default withMermaid({
               {
                 text: "ToolFunctionSchema",
                 link: "/zh/guide/api-reference/classes/ToolFunctionSchema",
-              },
-              {
-                text: "ToolResult",
-                link: "/zh/guide/api-reference/classes/ToolResult",
-              },
-              {
-                text: "ToolsManager",
-                link: "/zh/guide/api-reference/classes/ToolsManager",
-              },
-              {
-                text: "UniResponse",
-                link: "/zh/guide/api-reference/classes/UniResponse",
-              },
-              {
-                text: "UniResponseUsage",
-                link: "/zh/guide/api-reference/classes/UniResponseUsage",
               },
             ],
           },

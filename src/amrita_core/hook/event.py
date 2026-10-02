@@ -138,6 +138,13 @@ class CompletionEvent(Event):
     """Used after model completion"""
 
     model_response: str
+    model_reasoning: str | None = None
+    """The model's reasoning/thinking text, when the provider returned any.
+
+    Kept alongside the answer because it is part of the model's output and is
+    streamed to consumers as ``reasoning_chunk`` events, so anything that must
+    not leave the process (a leak canary, for one) has to be checked here too.
+    """
 
     def __post_init__(self):
         super().__post_init__()
@@ -155,6 +162,9 @@ class CompletionEvent(Event):
 
     def get_model_response(self) -> str:
         return self.model_response
+
+    def get_model_reasoning(self) -> str | None:
+        return self.model_reasoning
 
 
 @dataclass

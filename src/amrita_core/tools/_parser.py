@@ -6,6 +6,7 @@ import json
 import re
 import sys
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from fastmcp.client.transports import (
@@ -67,7 +68,7 @@ SHORTHAND_SCHEMES: dict[str, tuple[str, str]] = {
     "sse": ("sse", "http"),
 }
 
-ResolvedTransport = str | SSETransport | StreamableHttpTransport | StdioTransport
+ResolvedTransport = str | Path | SSETransport | StreamableHttpTransport | StdioTransport
 
 #  Compiled regexes
 
@@ -103,7 +104,12 @@ def resolve_transport(server_script: str) -> ResolvedTransport:
 
         stdio://["cmd","arg1",...]
 
-    All other inputs (``http://``, ``https://``, file paths) pass through to fastmcp.
+    Any remaining input without a ``://`` scheme is taken to be a local script
+    path and returned as a :class:`~pathlib.Path`, which makes fastmcp build an
+    explicit ``StdioTransport``.  A bare string works too, but fastmcp 4
+    deprecated inferring the transport from it and FastMCP 5 removes the
+    inference.  ``http://``/``https://`` and unrecognised schemes pass through
+    unchanged for fastmcp to interpret.
     """
     script = server_script.strip()
 
@@ -145,6 +151,10 @@ def resolve_transport(server_script: str) -> ResolvedTransport:
             f"{m.group('protocol')}://{auth_prefix}{m.group('host')}{port_part}{path}"
         )
         return TRANSPORT_REGISTRY[extra](real_url, m.group("user"), m.group("password"))
+
+    #  Local script path
+    if "://" not in script:
+        return Path(script)
 
     #  Pass-through
     return script

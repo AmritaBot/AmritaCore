@@ -11,10 +11,17 @@ memory = MemoryModel()  # 空历史
 memory.messages  # list[Message | ToolResult]
 ```
 
-- `messages` —— 对话本身：`Message` 条目（user / assistant）与配对的
-  `ToolResult` 条目。
-- 作为 Pydantic 模型，可用 `model_dump()` 序列化、`model_validate()` 校验——
-  正是文件/DB 后端需要的（见[数据后端](data-backend.md)）。
+| 字段       | 承载                                                                   |
+| ---------- | ---------------------------------------------------------------------- |
+| `messages` | 对话本身：`Message` 条目（user / assistant）与配对的 `ToolResult` 条目 |
+| `abstract` | 压缩产生的摘要。由 train 模板渲染进系统指令                            |
+| `usage`    | provider 为最近一次请求上报的用量。驱动压缩触发；每次折叠后被清空      |
+| `billing`  | 本会话累积的逐请求 `BillingRecord`——成本数据的默认持久化路径           |
+| `time`     | 时间戳                                                                 |
+
+作为 Pydantic 模型，可用 `model_dump()` 序列化、`model_validate()` 校验——
+正是文件/DB 后端需要的（见[数据后端](data-backend.md)）。由于 `billing` 可能
+含有 `Decimal` 价格，写 JSON 时请用 `model_dump(mode="json")`。
 
 ## 生命周期
 
@@ -42,26 +49,103 @@ chat._di_memory.memory  # MemoryModel | None——LOAD_STATE 之后被设置
 
 工作流节点与策略通过类型匹配注入访问（`mem: MemoryContext`）。
 
-## 记忆摘要
+## 让历史装进模型的限制里
 
-`LLMConfig.enable_memory_abstract` + `memory_abstract_threshold` 触发摘要：
-当 prompt token 数超过阈值，较旧轮次在请求发出前被摘要替换
-（见[教程 5——记忆](../tutorials/memory.md)）。内置 step 策略还会在 Step
-之间压缩历史（见[Step 循环](../advanced/step-loop.md)）。
+在请求被构建之前，有三个相互独立的机制会运行。它们刻意彼此独立——各自可
+单独启用，解决的是不同问题：
 
-## `StateContext`（遗留访问器）
+| 机制       | 解决什么                     | 何时运行                            |
+| ---------- | ---------------------------- | ----------------------------------- |
+| 内容归一化 | 历史携带了模型读不懂的内容块 | `llm.enable_multi_modal` 为**关**时 |
+| 历史压缩   | 历史太长                     | 触发阈值达到时                      |
+| 溢出恢复   | provider 已经拒绝了请求      | 抛出 `ContextOverflowError` 时      |
 
-> **已弃用**：计划在 **v0.14.0** 移除。使用 `StateContext` 或 `chat.state`
-> 属性会触发 `DeprecationWarning`。
+默认管线顺序是
+`LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT >> JINJA2_RENDER >> BUILD_MESSAGE`
+（见[工作流引擎](../advanced/workflow-engine.md)）。
 
-`StateContext`（session_id + memory + ability）仍作为向后兼容访问器存在：
-`chat.state` 从 DI 上下文合成一个，`LegacyBackend` 用它作进程内存储。
+### 1. 内容归一化
 
-**迁移**：新代码应直接使用 DI 上下文：
+有些 provider 只接受纯文本。因此携带内容块（图片、文件）的对话必须在请求被
+构建之前拍平，否则适配器会发出模型读不懂的块。
 
-- `chat._di_session.session_id` 替代 `chat.state.session_id`
-- `chat.data`（`MemoryModel`）替代 `chat.state.memory`
-- `chat._di_ability.ability` 替代 `chat.state.ability`
+`NORMALIZE_MESSAGES` 节点负责此事，由 `LLMConfig.enable_multi_modal`
+（默认 `True`）门控：
+
+- `enable_multi_modal=True` —— 节点是空操作，内容块原样通过
+- `enable_multi_modal=False` —— 每条 `content` 为内容块列表的 **user** 消息
+  被改写为其拼接后的文本
+
+只有 user 消息会被改写。assistant 轮次保持结构，因为工具调用配对依赖它。
+
+它与压缩刻意分离：归一化是对已有内容的**无损**拍平，而压缩会丢弃历史。
+分开之后，任一机制都能单独运行。
+
+#### 发送图片
+
+`ImageContent` 块携带一个 URL，可接受的两种形式是：
+
+```python
+from amrita_core.types.content import ImageContent, ImageUrl, TextContent
+
+#  外部 http(s) URL——由 provider 自行下载
+ImageContent(type="image_url", image_url=ImageUrl(url="https://example.com/cat.png"))
+
+#  内联 data URI——图片随请求体一同传输
+ImageContent(
+    type="image_url",
+    image_url=ImageUrl(url="data:image/png;base64,iVBORw0KGgo..."),
+)
+```
+
+两种形式在所有内置适配器上都可用。OpenAI 的线格式本身就是 `image_url`，因此该
+适配器原样传递内容块。Anthropic 适配器会翻译内容块，并根据 URL 选择 `source`
+变体：内联 `data:` URI 转为 `base64` source，其它一律为 `url` source。
+
+这个区分不是装饰性的——Anthropic 兼容端点在 data URI 以 `url` source 发送时会返回
+`400 invalid url`，因此若把内容块原样转发，内联图片会直接丢失。
+
+无法表达为 `base64` source 的 `data:` URI 会抛出 `ValueError` 而非被丢弃：缺少
+media type、非 base64 载荷、空 body 三种情况都会响亮失败，而不是发出一个让模型
+对着它从未收到的图片作答的请求。
+
+### 2. 历史压缩
+
+`LLMConfig.enable_compaction` 开启历史折叠。
+[`ContextCompactor`](../api-reference/classes/ContextCompactor.md) 从当前预设
+读取注意力窗口（`max_context`，未声明时回退到
+`LLMConfig.session_tokens_windows`），当上次实测的 prompt 达到其
+`compaction_trigger_ratio` 时强制折叠。
+
+压缩在两条触发线中先到者触发：
+
+- **token 触发** —— provider 为上一次请求上报的 prompt 大小达到阈值。全程
+  不涉及本地分词器；度量值就是 provider 自己的 usage 上报
+- **消息条数兜底** —— 历史达到 `LLMConfig.memory_length_limit`（默认 `200`）。
+  该兜底存在的原因是 token 触发依赖 provider 上报 usage；从不上报的网关否则
+  会让历史无界增长
+
+切点落在**最新的 `user` 消息**上，因此存活的尾部从干净的轮次开始，assistant
+的工具调用永远不会与其工具结果分离。摘要存放在 `MemoryModel.abstract`，由
+train 模板渲染回系统指令，因此不会往消息列表里注入任何内容，provider 的消息
+顺序规则不受影响。
+
+实操配置见[教程 5——记忆](../tutorials/memory.md)；内置 step 策略额外执行的
+Step 间变体见 [Step 循环](../advanced/step-loop.md)。
+
+### 3. 溢出恢复
+
+有时估算就是错的——provider 直接拒绝请求。`libchat` 会检测到这一点并在预设
+回退循环**之前**抛出
+[`ContextOverflowError`](../api-reference/classes/ContextOverflowError.md)，
+因此过大的请求不会白烧掉整条回退链。
+
+开启 `LLMConfig.enable_overflow_recovery`（默认 `True`）时，`LLM_COMPLETION`
+捕获该错误，经同一个 `ContextCompactor` 折叠历史，并重试**一次**。若重试仍然
+溢出，错误向上传播。
+
+检测是对 provider 消息的模式匹配，且刻意保守：把瞬时失败误判为溢出会白白
+丢弃历史。
 
 ## 下一步
 

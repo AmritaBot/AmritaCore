@@ -14,20 +14,22 @@ state.begin_step("execute")
 
 ## Fields
 
-| Field                  | Type                    | Meaning                                                          |
-| ---------------------- | ----------------------- | ---------------------------------------------------------------- |
-| `step_index`           | `int`                   | Global step counter (1-based)                                    |
-| `current_phase`        | `str \| None`           | The active phase — a DAG node id (or `"execute"` in simple mode) |
-| `plan`                 | `list[DAGNode] \| None` | The task DAG (`None` = no decomposition)                         |
-| `simple_mode`          | `bool`                  | True when the LLM decided to run directly                        |
-| `current_step_id`      | `str \| None`           | Id of the DAG node being executed                                |
-| `completed_step_ids`   | `list[str]`             | Finished DAG node ids (dependency check)                         |
-| `plan_revision`        | `int`                   | `update_step` revision counter                                   |
-| `step_tool_signatures` | `list[str]`             | Tool-call signatures in the current Step (stall window)          |
-| `stall_injected`       | `bool`                  | Give-up prompt injected (once per Step)                          |
-| `last_summary`         | `StepSummary \| None`   | Subject-predicate summary of the previous Step                   |
-| `tokens`               | `TokenBudget`           | Real API token accounting                                        |
-| `exec_finished`        | `bool`                  | Strategy done calling tools → iteration loop ends                |
+| Field                  | Type                    | Meaning                                                                         |
+| ---------------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| `step_index`           | `int`                   | Global step counter (1-based)                                                   |
+| `current_phase`        | `str \| None`           | The active phase — a DAG node id (or `"execute"` in simple mode)                |
+| `plan`                 | `list[DAGNode] \| None` | The task DAG (`None` = no decomposition)                                        |
+| `simple_mode`          | `bool`                  | True when the LLM decided to run directly                                       |
+| `current_step_id`      | `str \| None`           | Id of the DAG node being executed                                               |
+| `completed_step_ids`   | `list[str]`             | Finished DAG node ids (dependency check)                                        |
+| `plan_revision`        | `int`                   | `update_step` revision counter                                                  |
+| `step_tool_signatures` | `list[str]`             | Tool-call signatures in the current Step (stall window)                         |
+| `stall_injected`       | `bool`                  | Give-up prompt injected (once per Step)                                         |
+| `tool_error_hints`     | `int`                   | Hard ERROR tool results seen in the current Step (drives retry→revise guidance) |
+| `last_summary`         | `StepSummary \| None`   | Subject-predicate summary of the previous Step                                  |
+| `tokens`               | `TokenBudget`           | Real API token accounting                                                       |
+| `exec_finished`        | `bool`                  | Strategy done calling tools → iteration loop ends                               |
+| `step_started_ts`      | `float \| None`         | Wall-clock start of the current Step; the token-budget window anchor            |
 
 ## Methods
 
@@ -45,6 +47,6 @@ state.begin_step("execute")
 ## Related
 
 - [DAGNode](DAGNode.md) — a plan sub-step
-- [StepSummary](StepSummary.md) — subject-predicate summary
-- [TokenBudget](TokenBudget.md) — token accounting
-- See [Advanced → Step Loop](../advanced/step-loop.md) for the full picture
+- `StepSummary` — subject-predicate summary
+- `TokenBudget` — token accounting
+- See [Advanced → Step Loop](../../advanced/step-loop.md) for the full picture

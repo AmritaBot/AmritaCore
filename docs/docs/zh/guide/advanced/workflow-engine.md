@@ -8,23 +8,49 @@
 
 ```mermaid
 flowchart LR
-    A["LOAD_STATE"] --> B["JINJA2_RENDER"]
+    A["LOAD_STATE"] --> N["NORMALIZE_MESSAGES"]
+    N --> Q["NATIVE_IF(should_compact)<br/>→ COMPACT"]
+    Q --> B["JINJA2_RENDER"]
     B --> C["BUILD_MESSAGE"]
-    C --> D["_pre_runner (事件)"]
-    D --> E["_run_strategy → 策略块"]
+    C --> D["_pre_runner（事件）"]
+    D --> P["_prepare_strategy"]
+    P --> E["NATIVE_IF(is_agent_category)<br/>→ agent 块"]
+    P --> E2["NATIVE_IF(not_agent_category)<br/>→ RUN_INLINE_STRATEGY"]
     E --> F["LLM_COMPLETION"]
-    F --> G["_post_runner (事件)"]
+    E2 --> F
+    F --> G["_post_runner（事件）"]
     G --> H["COMMIT_MEMORY"]
 ```
 
-**策略块**按模式变化。简单对话完全跳过它；Step 驱动循环运行：
+其中两步是为了把历史控制在窗口内，且顺序不能调换：`NORMALIZE_MESSAGES`
+先把内容块拍平，总结器读到的才是文本而非原始块；`COMPACT` 在
+`JINJA2_RENDER` 之前运行，因此它产出的摘要能进入它所计算的那次请求的系统
+指令。两者详见[数据与记忆](../concepts/data-memory.md)。
+
+**agent 块**按模式变化。内联运行器不是旁路特例：分派是两个带守卫的分支，
+各自在断言为假时被跳过。
 
 ```mermaid
 flowchart LR
-    S["_run_strategy<br/>(按 get_category 分派)"] -->|agent / agent-mixed| J["jump_to AGENT_STRATEGY"]
-    J --> K["AGENT_ENTRY<br/>(实例化策略)"]
-    K --> L["NATIVE_DO(STEP_BODY).WHILE(task_cond)"]
+    G1{"is_agent_category?"} -->|agent / agent-mixed| AB["AGENT_BLOCK"]
+    G2{"not_agent_category?"} -->|workflow / rag| IN["RUN_INLINE_STRATEGY"]
+    AB --> K["AGENT_ENTRY<br/>（实例化策略）"]
+    K --> L["WHILE(single_execute).ACTION(REACT_COUNTER)"]
     L --> M["AGENT_POST_PROCESS"]
+```
+
+Step 驱动变体只替换中间那一环：
+
+```python
+# AGENT_BLOCK —— 每次迭代一次 single_execute
+AGENT_BLOCK = (
+    AGENT_ENTRY >> WHILE(single_execute).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS
+)
+
+# STEP_AGENT_BLOCK —— 一次任务循环迭代 = 一个 Step
+STEP_AGENT_BLOCK = (
+    AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS
+)
 ```
 
 ```python
@@ -41,16 +67,16 @@ STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAV
 
 `amrita_core.builtins.workflows` 提供现成图。两个家族，每个家族选一个：
 
-| 管线                    | 组合                                                                                                                                              |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `STEP_REACT_BLOCK`      | `STRATEGY_INIT >> AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS`                                                     |
-| `SIMPLE_STEP_REACT`     | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`                                             |
-| `STEP_REACT_ONLY`       | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                                                                |
-| `CHATOBJECT_STEP_REACT` | `ARCHIVED_SEGMENT(ALIAS(AGENT_ENTRY, AGENT_STRATEGY) >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS) >> ALIAS(NOP, STRATEGY_EOF)` |
-| `REACT_BLOCK`（遗留）   | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS`                                         |
-| `SIMPLE_REACT`（遗留）  | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`                                                  |
-| `REACT_ONLY`（遗留）    | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                                                                     |
-| `SIMPLE_CHAT`           | `LOAD_STATE >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                                                                 |
+| 管线                   | 组合                                                                                                                                           |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `COMPACT_HISTORY`      | `NATIVE_IF(should_compact, COMPACT)`                                                                                                           |
+| `STEP_REACT_BLOCK`     | `STRATEGY_INIT >> AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS`                                                  |
+| `SIMPLE_STEP_REACT`    | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY` |
+| `STEP_REACT_ONLY`      | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                    |
+| `REACT_BLOCK`（遗留）  | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS`                                      |
+| `SIMPLE_REACT`（遗留） | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`      |
+| `REACT_ONLY`（遗留）   | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                         |
+| `SIMPLE_CHAT`          | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                     |
 
 **如何选择**：
 
@@ -64,9 +90,10 @@ STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAV
   **Step 驱动**循环（选择启用的 ReAct 模式；见[Step 循环](step-loop.md)）。
 - `REACT_BLOCK` / `SIMPLE_REACT` / `REACT_ONLY` 是遗留单次调用循环——
   为兼容保留，优先用 Step 驱动家族。
-- `CHATOBJECT_STEP_REACT` 是策略块在 ChatObject runner 内被归档
-  （JMP 跳过）时使用的内部变体——`_run_strategy` 跳到 `AGENT_STRATEGY`，
-  尾部 `NOP` 别名 `STRATEGY_EOF` 提供顺延。一般无需手工传入。
+
+> 上表中的块自带 `STRATEGY_INIT`，因为它们的设计用途是手工组合。
+> `ChatObject` 默认运行的管线用其局部 `_prepare_strategy` 节点做同一件事，
+> 这也是 `AGENT_BLOCK` / `STEP_AGENT_BLOCK` 不含它的原因。
 
 `ChatObject(workflow=...)` 接受任意渲染图；`workflow` 与 `archived_nodes`
 互斥。默认 `workflow=None` 解析为简单对话管线——需要 Step 驱动循环时传

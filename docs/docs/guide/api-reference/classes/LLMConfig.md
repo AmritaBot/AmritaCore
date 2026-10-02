@@ -5,37 +5,33 @@ The LLMConfig class defines configuration parameters for LLM calls and memory ma
 ## Properties
 
 - `require_tools` (bool): Default `False`. Whether to force at least one tool to be used per call
-- `memory_length_limit` (int): Default `200`. Maximum number of messages in memory context (must be `>= 1`)
-- `max_tokens` (int): Default `1000`. Maximum number of tokens generated in a single response (must be `>= 1`)
-- `tokens_count_mode` (Literal["word", "bpe", "char"]): Default `"bpe"`. Token counting mode: bpe (subwords) / word (words) / char (characters)
-- `enable_tokens_limit` (bool): Default `True`. Whether to enable context length limits
-- `session_tokens_windows` (int): Default `65536` (64k). Session tokens window size (must be `>= 1`)
+- `max_tokens` (int): Default `10000`. Last-resort fallback for the response output budget (must be `>= 1`). The number that reaches the provider normally comes from [`ModelPreset.max_output`](ModelPreset.md) (default `28000`); this is used only when a preset sets `max_output=None` explicitly
+- `compaction_max_tokens` (int): Default `2048`. Output-token ceiling for the history-compaction summary call (must be `>= 0`; `0` lets the summary use the preset's own value). A reasoning model spends its output budget on thinking before it emits anything, so a summary that inherits a small `max_output` comes back empty and the fold silently does nothing
+- `session_tokens_windows` (int): Default `65536` (64k). Fallback attention window used when the active preset does not declare `max_context` (must be `>= 1`)
 - `llm_timeout` (int): Default `60`. API request timeout duration (seconds) (must be `>= 1`)
 - `auto_retry` (bool): Default `True`. Automatically retry on request failure
 - `max_retries` (int): Default `3`. Maximum number of retries (must be `>= 0`; `0` disables retrying)
 - `max_fallbacks` (int): Default `5`. Maximum number of preset fallbacks (must be `>= 1`; `0` would make every request fail immediately)
-- `enable_memory_abstract` (bool): Default `True`. Whether to enable context memory summarization (deletes context and inserts a summary into system instruction)
-- `memory_abstract_proportion` (float): Default `0.5`. Context summarization proportion (must be in `(0, 1]`; e.g. `0.5` = 50%)
-- `memory_abstract_threshold` (int): Default `-1`. Prompt-token threshold that triggers between-Step history compression (`<= 0` = disabled, i.e. never). When the real API prompt-token count exceeds this value at a Step boundary, completed-Step history is summarized into the context
+- `enable_compaction` (bool): Default `True`. Whether to fold long history into a summary. The summary is stored on [`MemoryModel.abstract`](MemoryModel.md) and rendered into the system instruction by the train template
+- `compaction_trigger_ratio` (float): Default `0.9`. Fraction of the attention window at which history compaction is forced (must be in `(0, 1]`). Kept below `1.0` to absorb the lag between the last measured prompt size and the next request's actual size
+- `memory_length_limit` (int): Default `200`. Message-count fallback that forces compaction regardless of token accounting (must be `>= 0`; `0` disables the fallback)
+- `enable_overflow_recovery` (bool): Default `True`. Whether to compact and retry once when the provider rejects a request for exceeding the context window
 - `enable_multi_modal` (bool): Default `True`. Whether to enable multi-modal support (currently only supports image)
 
-## Window Size vs. Message Count
+## Attention Window and Compaction
 
-`session_tokens_windows` and `memory_length_limit` are two independent compression triggers: context is compacted as soon as either one is reached.
+The attention window comes from the model, not from a global number. Each [`ModelPreset`](ModelPreset.md) can declare its own `max_context` (input budget) and `max_output` (response reservation); `session_tokens_windows` and `max_tokens` are only the fallbacks used when a preset leaves them unset. A model's real limit therefore follows the model.
 
-Raising only the token window without relaxing the message cap is therefore not enough. The message-count limit will fire first, context gets trimmed far more often than necessary, and prompt cache hit rate drops.
+Compaction fires on whichever trigger comes first:
 
-Rule of thumb: in a typical agent task, one message (including tool calls and their results) costs roughly 300 tokens. So:
+- **Token trigger**: the prompt size the provider reported for the previous request reaches `compaction_trigger_ratio` × `max_context`. No local tokenizer is involved — the provider's own usage report is the measurement
+- **Message-count fallback**: the history reaches `memory_length_limit` messages. This exists because the token trigger needs the provider to report usage; a gateway that reports none would otherwise let history grow without bound
 
-- 64k context ~ 200 messages (the defaults follow this ratio)
-- 128k context ~ 400 messages
-- 256k context ~ 800 messages
-
-Scale both values together to match the model's actual context window.
+A typical agent message (including tool calls and their results) costs roughly 300 tokens, so a 64k window is around 200 messages. Set `memory_length_limit` to `0` only if every provider you use reports usage.
 
 ## Description
 
-The LLMConfig class inherits from BaseModel and is exposed as `AmritaConfig.llm`. It controls token limits, retry/fallback behavior, memory summarization, and multi-modal support.
+The LLMConfig class inherits from BaseModel and is exposed as `AmritaConfig.llm`. It controls token limits, retry/fallback behavior, history compaction, and multi-modal support.
 
 ## Example
 
@@ -43,7 +39,9 @@ The LLMConfig class inherits from BaseModel and is exposed as `AmritaConfig.llm`
 from amrita_core.config import LLMConfig
 
 llm_config = LLMConfig(
-    enable_memory_abstract=True,
-    memory_abstract_proportion=0.15,  # Summarize a portion of the conversation when reaching the token limit
+    enable_compaction=True,
+    compaction_trigger_ratio=0.85,  # Fold once 85% of the window is in use
+    memory_length_limit=200,  # Message-count fallback
+    enable_overflow_recovery=True,  # Compact and retry on a provider overflow error
 )
 ```

@@ -6,7 +6,7 @@ This reference is organized by functional module. Each entry links to the class 
 
 ### `load_amrita()`
 
-The `load_amrita()` function asynchronously loads MCP clients when MCP is enabled in the configuration. Tokenizers and adapters are already registered at import time — `load_amrita()` does not load them.
+The `load_amrita()` function asynchronously loads MCP clients when MCP is enabled in the configuration. Adapters are already registered at import time — `load_amrita()` does not load them.
 
 ```python
 import asyncio
@@ -28,7 +28,7 @@ asyncio.run(main())
 
 ### `minimal_init()`
 
-The `minimal_init()` function performs minimal initialization: it applies the config and loads MCP clients if enabled. Tokenizers and adapters are already registered at import time.
+The `minimal_init()` function performs minimal initialization: it applies the config and loads MCP clients if enabled. Adapters are already registered at import time.
 
 ```python
 from amrita_core import minimal_init
@@ -93,7 +93,7 @@ agent = create_agent(
 - `api_key` (str): The API key for authentication
 - `model` (str, optional): The model to use. Defaults to `"auto"`
 - `train` (str | None, optional): System prompt; defaults to built-in instructions
-- `model_config` ([ModelConfig](classes/ModelConfig.md) | dict | None, optional): Optional model configuration. Defaults to None
+- `model_config` (`ModelConfig` | dict | None, optional): Optional model configuration. Defaults to None
 - `config` ([AmritaConfig](classes/AmritaConfig.md) | None, optional): Configuration for the agent. Defaults to global config
 - `**kwargs`: Additional keyword arguments forwarded to [AgentRuntime](classes/AgentRuntime.md) (e.g. `strategy`, `template`, `session_id`, `backend`)
 
@@ -107,12 +107,13 @@ agent = create_agent(
 
 ## Configuration
 
-| Class                                       | Description                                                             |
-| ------------------------------------------- | ----------------------------------------------------------------------- |
-| [AmritaConfig](classes/AmritaConfig.md)     | Central configuration object (function_config / llm / cookie / builtin) |
-| [FunctionConfig](classes/FunctionConfig.md) | Functional behavior: context, tokenizer, tool call limit, MCP client    |
-| [LLMConfig](classes/LLMConfig.md)           | LLM behavior: token limits, retries, fallbacks, memory summarization    |
-| [CookieConfig](classes/CookieConfig.md)     | Cookie leak detection mechanism                                         |
+| Class                                               | Description                                                                     |
+| --------------------------------------------------- | ------------------------------------------------------------------------------- |
+| [AmritaConfig](classes/AmritaConfig.md)             | Central configuration object (function_config / llm / cookie / builtin)         |
+| [FunctionConfig](classes/FunctionConfig.md)         | Functional behavior: context, tool call limit, argument validation, MCP client  |
+| [LLMConfig](classes/LLMConfig.md)                   | LLM behavior: token limits, retries, fallbacks, history compaction              |
+| [BuiltinAgentConfig](classes/BuiltinAgentConfig.md) | Built-in agent strategy: tool-calling mode, thought mode, stall detection       |
+| [ReactConfig](classes/ReactConfig.md)               | ReAct reasoning enhancements: structured reasoning, reflection, tool prediction |
 
 ## Chat Management
 
@@ -125,21 +126,14 @@ agent = create_agent(
 
 ## Types
 
-| Class                                           | Description                                             |
-| ----------------------------------------------- | ------------------------------------------------------- |
-| [Message](classes/Message.md)                   | A single message in the conversation                    |
-| [SendMessageWrap](classes/SendMessageWrap.md)   | Iterable wrapper for the message list sent to the model |
-| [MemoryModel](classes/MemoryModel.md)           | Stores conversation history                             |
-| [ModelConfig](classes/ModelConfig.md)           | Model-specific behavior parameters                      |
-| [ModelPreset](classes/ModelPreset.md)           | Complete configuration for a specific model             |
-| [ThinkingConfig](classes/ThinkingConfig.md)     | Thinking/reasoning configuration                        |
-| [TextContent](classes/TextContent.md)           | Text content within messages                            |
-| [ToolCall](classes/ToolCall.md)                 | An invocation of a tool                                 |
-| [ToolResult](classes/ToolResult.md)             | The result of a tool invocation                         |
-| [UniResponse](classes/UniResponse.md)           | Unified response format                                 |
-| [UniResponseUsage](classes/UniResponseUsage.md) | Usage statistics for responses                          |
-| [EmbeddingChunk](classes/EmbeddingChunk.md)     | Embedding vector returned by the embedding adapter      |
-| [BaseModel](classes/BaseModel.md)               | Base class for all data models                          |
+| Class                                         | Description                                             |
+| --------------------------------------------- | ------------------------------------------------------- |
+| [Message](classes/Message.md)                 | A single message in the conversation                    |
+| [SendMessageWrap](classes/SendMessageWrap.md) | Iterable wrapper for the message list sent to the model |
+| [MemoryModel](classes/MemoryModel.md)         | Stores conversation history                             |
+| [ModelPreset](classes/ModelPreset.md)         | Complete configuration for a specific model             |
+| [ThinkingConfig](classes/ThinkingConfig.md)   | Thinking/reasoning configuration                        |
+| [EmbeddingChunk](classes/EmbeddingChunk.md)   | Embedding vector returned by the embedding adapter      |
 
 ## Tools
 
@@ -149,35 +143,57 @@ agent = create_agent(
 | [ToolFunctionSchema](classes/ToolFunctionSchema.md)             | Complete function-calling schema (function + type + strict)  |
 | [ToolData](classes/ToolData.md)                                 | Data model for registering tools (metadata + implementation) |
 | [ToolContext](classes/ToolContext.md)                           | Context passed to tool functions during execution            |
-| [ToolsManager](classes/ToolsManager.md)                         | Singleton tool registry                                      |
 | [MultiToolsManager](classes/MultiToolsManager.md)               | Multi-instance tool registry with enable/disable support     |
 | [MCPClient](classes/MCPClient.md)                               | MCP client for connecting to MCP servers                     |
 | [ClientManager](classes/ClientManager.md)                       | Manages a single MCP client                                  |
 | [MultiClientManager](classes/MultiClientManager.md)             | Manages multiple MCP clients                                 |
 
+The schema layer behind those models lives in `amrita_core.tools.schema`. It has
+two orthogonal directions — projection turns Python into a schema, compilation
+turns a schema back into the validator that checks a call:
+
+| Function                                             | Direction   | Purpose                                         |
+| ---------------------------------------------------- | ----------- | ----------------------------------------------- |
+| `function_definition_from_pydantic(model, ...)`      | Projection  | A whole tool definition from one Pydantic model |
+| `function_definition_from_signature(func, ...)`      | Projection  | A definition from a callable's signature        |
+| `python_type_to_property_schema(t, ns, desc)`        | Projection  | One Python type to one property schema          |
+| `pydantic_model_to_property_schema(model, ns, desc)` | Projection  | One Pydantic model to an object property schema |
+| `compile_parameters_model(params)`                   | Compilation | A parameter schema to the Pydantic validator    |
+| `validate_arguments(params, args)`                   | Compilation | Validate a call and return the arguments to use |
+
+See [Tool System (concepts)](../concepts/tool.md#schemas-and-validation).
+
 ## Backends & Contexts
 
 | Class                                               | Description                                               |
 | --------------------------------------------------- | --------------------------------------------------------- |
-| [BackendSlots](classes/BackendSlots.md)             | Bundles ability and memory backends for I/O               |
+| [BackendSlots](classes/BackendSlots.md)             | Bundles ability, memory and billing backends for I/O      |
 | [AbilityBackend](classes/AbilityBackend.md)         | Abstract base for loading tools, MCP clients, and presets |
 | [MemoryBackend](classes/MemoryBackend.md)           | Abstract base for loading and committing memory           |
+| [BillingBackend](classes/BillingBackend.md)         | Optional sink for per-request billing records             |
+| [NullBillingBackend](classes/NullBillingBackend.md) | No-op billing sink; records stay in memory only           |
 | [LegacyBackend](classes/LegacyBackend.md)           | Default in-process backend implementation                 |
 | [AbilityContext](classes/AbilityContext.md)         | Runtime ability state (tools, presets, MCP clients)       |
-| [StateContext](classes/StateContext.md)             | Runtime session state (session_id, memory, ability)       |
+| [SessionUsageProxy](classes/SessionUsageProxy.md)   | Run-scoped billing ledger with an optional external sink  |
 | [DatabackendOptions](classes/DatabackendOptions.md) | Fine-grained control over backend fetch/commit operations |
+
+## History Compaction
+
+| Class                                                   | Description                                                       |
+| ------------------------------------------------------- | ----------------------------------------------------------------- |
+| [ContextCompactor](classes/ContextCompactor.md)         | Compaction policy: trigger, summarize and fold for one model      |
+| [ContextOverflowError](classes/ContextOverflowError.md) | Raised when a provider rejects a request for exceeding its window |
 
 ## Agent Strategies
 
-| Class                                                           | Description                                        |
-| --------------------------------------------------------------- | -------------------------------------------------- |
-| [AgentRuntime](classes/AgentRuntime.md)                         | Agent runtime wrapper returned by `create_agent()` |
-| [AgentStrategy](classes/AgentStrategy.md)                       | Abstract base class for agent strategies           |
-| [StrategyContext](classes/StrategyContext.md)                   | Context passed to strategy execution               |
-| [BaseReActAgentStrategy](classes/BaseReActAgentStrategy.md)     | Base ReAct strategy implementation                 |
-| [ReActAgentStrategy](classes/ReActAgentStrategy.md)             | Standard ReAct strategy                            |
-| [HybridReActAgentStrategy](classes/HybridReActAgentStrategy.md) | Hybrid ReAct strategy                              |
-| [NoActionAgentStrategy](classes/NoActionAgentStrategy.md)       | Strategy that performs no actions                  |
+| Class                                                       | Description                                        |
+| ----------------------------------------------------------- | -------------------------------------------------- |
+| [AgentRuntime](classes/AgentRuntime.md)                     | Agent runtime wrapper returned by `create_agent()` |
+| [AgentStrategy](classes/AgentStrategy.md)                   | Abstract base class for agent strategies           |
+| [StrategyContext](classes/StrategyContext.md)               | Context passed to strategy execution               |
+| [BaseReActAgentStrategy](classes/BaseReActAgentStrategy.md) | Base ReAct strategy implementation                 |
+| [ReActAgentStrategy](classes/ReActAgentStrategy.md)         | Standard ReAct strategy                            |
+| [NoActionAgentStrategy](classes/NoActionAgentStrategy.md)   | Strategy that performs no actions                  |
 
 ## Events & Hooks
 
@@ -187,14 +203,21 @@ agent = create_agent(
 | [PreCompletionEvent](classes/PreCompletionEvent.md) | Fired before strategy run and completion (`BEFORE_COMPLETION`)                                                                                           |
 | [FallbackContext](classes/FallbackContext.md)       | Base context for preset fallback events (`PRESET_FALLBACK`); subclasses: `CompletionFallbackContext`, `ToolsFallbackContext`, `EmbeddingFallbackContext` |
 
-## Presets & Tokenizers
+## Presets & Adapters
 
 | Class                                               | Description                                           |
 | --------------------------------------------------- | ----------------------------------------------------- |
 | [PresetManager](classes/PresetManager.md)           | Manages model presets                                 |
 | [MultiPresetManager](classes/MultiPresetManager.md) | Multi-instance preset management with testing support |
-| [BaseTokenizer](classes/BaseTokenizer.md)           | Abstract base class for custom tokenizers             |
 | [ModelAdapter](classes/ModelAdapter.md)             | Abstract base class for model adapters                |
+
+## Billing
+
+| Class                                       | Description                                                     |
+| ------------------------------------------- | --------------------------------------------------------------- |
+| [RateConfig](classes/RateConfig.md)         | Unit-price snapshot attached to a model preset                  |
+| [BillingRecord](classes/BillingRecord.md)   | Usage and pricing snapshot for one provider request             |
+| [BillingBackend](classes/BillingBackend.md) | Optional sink that mirrors billing records to an external store |
 
 ## Decorators
 
@@ -285,13 +308,13 @@ async def add(data: dict[str, Any]) -> str:
 **Registration Behavior**:
 
 - Like `@simple_tool`, registers to the **global container** during module loading
-- Provides explicit control over tool schema definition
-- Suitable for complex validation requirements not supported by `@simple_tool`
+- Provides explicit control over the tool schema definition
+- Use [`function_definition_from_pydantic`](#tools) when you would rather derive the schema from a Pydantic model
 
 **Usage Notes**:
 
-- Function must have proper type hints for parameters
-- Function docstring becomes the tool description
+- The handler receives the argument `dict` (or a `ToolContext` when `custom_run=True`); the arguments are checked against the schema before it runs
+- The function docstring is **not** used — `description` comes from the definition you pass
 
 ### `@on_event`
 
@@ -301,13 +324,17 @@ The `@on_event` decorator registers functions as event handlers.
 from amrita_core.hook.on import on_event
 
 
-@on_event()
+@on_event().handle()
 def my_event_handler(event):
     # Handle custom events
     pass
 ```
 
 **Purpose**: Registers a function to handle specific events during the processing pipeline.
+
+> Every matcher factory (`on_event`, `on_precompletion`, `on_completion`,
+> `on_preset_fallback`) returns a `Matcher`, so the handler has to be attached
+> with `.handle()` — `@on_event("<type>")` alone raises `TypeError`.
 
 ### `@on_precompletion`
 
@@ -349,28 +376,20 @@ async def postprocess_response(event: CompletionEvent):
 
 AmritaCore provides several predefined types for consistency:
 
-- [BaseModel](classes/BaseModel.md): Base class for all data models
-- [EmbeddingChunk](classes/EmbeddingChunk.md): Represents an embedding vector returned by embedding adapter
+- `EmbeddingChunk`: Represents an embedding vector returned by embedding adapter
 - [FunctionDefinitionSchema](classes/FunctionDefinitionSchema.md): Schema for function parameters
 - [MemoryModel](classes/MemoryModel.md): Stores conversation history
-- [ModelConfig](classes/ModelConfig.md): Model-specific configuration
 - [ModelPreset](classes/ModelPreset.md): Complete configuration for a specific model
 - [ChatManager](classes/ChatManager.md): Manages running ChatObject instances
 - [ChatObjectMeta](classes/ChatObjectMeta.md): Metadata model for ChatObject snapshots
 - [SuspendEnum](classes/SuspendEnum.md): Standardized breakpoint tags for suspend/resume mechanism
-- [TextContent](classes/TextContent.md): Represents text content within messages
-- [ToolCall](classes/ToolCall.md): Represents an invocation of a tool
 - [ToolContext](classes/ToolContext.md): Provides context for tool execution
-- [ToolResult](classes/ToolResult.md): Represents the result of a tool invocation
-- [ToolsManager](classes/ToolsManager.md): Manages registered tools
-- [UniResponse](classes/UniResponse.md): Unified format for responses
-- [UniResponseUsage](classes/UniResponseUsage.md): Usage statistics for responses
 
 ### Step-Loop Types (built-in ReAct)
 
 - [AgentRunState](classes/AgentRunState.md): Semantic step-level run state (plan, stall window, tokens)
 - [DAGNode](classes/DAGNode.md): A sub-step of the task plan
-- [StepEvents](classes/StepEvents.md): The mutable step lifecycle events (`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`) and `StepAbortError`
+- [StepLifecycleEvents](classes/StepLifecycleEvents.md): The mutable step lifecycle events (`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`) and `StepAbortError`
 
 See [Advanced → Step Loop](../advanced/step-loop.md) for how they fit together.
 

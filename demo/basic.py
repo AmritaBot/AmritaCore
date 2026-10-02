@@ -20,8 +20,7 @@ async def basic_example():
     print("🚀 Starting AmritaCore Basic Example (New API)")
     print("-" * 50)
 
-    # Create an agent with minimal configuration
-    # All necessary defaults (system prompt, context handling) are built-in
+    # Create an agent with minimal configuration All necessary defaults (system prompt, context handling) are built-in
     await minimal_init()
     agent = create_agent(
         base_url="https://api.example.com",  # Your API endpoint

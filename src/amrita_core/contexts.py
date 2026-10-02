@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from jinja2 import Template
-from typing_extensions import deprecated
 
 if TYPE_CHECKING:
     from amrita_core.builtins.agent.state import AgentRunState
@@ -40,20 +39,6 @@ class AbilityContext:
     tools: MultiToolsManager = field(default_factory=ToolsManager)
     presets: MultiPresetManager = field(default_factory=PresetManager)
     mcp: MultiClientManager = field(default_factory=ClientManager)
-    extra: dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-@deprecated(
-    "This context includes too much roles. Deprecated since v0.10.0 will be removed in v0.14.0",
-    category=DeprecationWarning,
-)
-class StateContext:
-    """(!!!Deprecated!!!, no test forks coverage, use other classes instead.) State Context for ChatObject running."""
-
-    session_id: str = field(default_factory=lambda: uuid4().hex)
-    memory: MemoryModel = field(default_factory=MemoryModel)
-    ability: AbilityContext = field(default_factory=AbilityContext)
     extra: dict[str, Any] = field(default_factory=dict)
 
 
@@ -134,3 +119,4 @@ class DatabackendOptions:
     skip_presets_fetch: bool = False
     skip_ability_extra_setting: bool = False
     skip_memory_commit: bool = False
+    skip_billing_commit: bool = False

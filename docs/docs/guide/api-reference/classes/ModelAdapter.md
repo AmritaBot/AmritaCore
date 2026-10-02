@@ -47,7 +47,7 @@ class ModelAdapter:
 
 ## Methods
 
-### get*adapter_protocol()*(Abstract)
+### get*adapter_protocol() *(Abstract)\_
 
 Get the protocol identifier(s) for this adapter.
 
@@ -106,8 +106,8 @@ This method should be overridden to implement the actual API call logic for text
 **Returns**: `AsyncGenerator[COMPLETION_RETURNING, None]` - An async generator yielding:
 
 - `str`: Text chunks (in streaming mode)
-- [`MessageContent`](../protocol.md#messagecontent): Custom message content objects
-- [`UniResponse`](UniResponse.md): Final response with complete content and usage information
+- `MessageContent`: Custom message content objects
+- `UniResponse`: Final response with complete content and usage information
 
 **Raises**: `NotImplementedError` - If not implemented by subclass
 
@@ -133,9 +133,9 @@ This method sends messages to the model with available tools and retrieves the m
 
 - `messages` (`Iterable`): List of messages to send to the model
 - `tools` (`list[ToolFunctionSchema]`): List of available tool schemas
-- `tool_choice` ([`ToolChoice`](../models.md#toolchoice) | `None`, optional): How the model should select tools. Defaults to `None` (auto selection).
+- `tool_choice` (`ToolChoice` | `None`, optional): How the model should select tools. Defaults to `None` (auto selection).
 
-**Returns**: [`UniResponse`](UniResponse.md)`[None, list[`[ToolCall`](ToolCall.md)`] | None]` - Response containing the model's tool call decisions.
+**Returns**: `UniResponse[None, list[ToolCall] | None]` - Response containing the model's tool call decisions.
 
 **Raises**: `NotImplementedError` - If not implemented by subclass
 
@@ -291,9 +291,9 @@ class CustomAdapter(ModelAdapter):
 - [`AdapterManager`](#adaptermanager): Manages adapter registration and retrieval
 - [`ModelPreset`](ModelPreset.md): Configuration preset for adapters
 - [`AmritaConfig`](AmritaConfig.md): Global configuration used by adapters
-- [`UniResponse`](UniResponse.md): Standardized response format
+- `UniResponse`: Standardized response format
 - [`EmbeddingChunk`](EmbeddingChunk.md): Embedding result structure
-- [`ToolCall`](ToolCall.md): Tool call representation
+- `ToolCall`: Tool call representation
 - [`OpenAIAdapter`](#built-in-adapters): Built-in OpenAI adapter implementation
 - [`AnthropicAdapter`](#built-in-adapters): Built-in Anthropic adapter implementation
 

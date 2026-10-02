@@ -84,12 +84,13 @@ passed back"，非偶发——assistant 一旦产出推理，后续每次请求�
 **检查清单**：
 
 - `function_config.agent_tool_call_limit` —— 每次运行的硬上限
-- `llm.memory_abstract_threshold` —— 长会话启用摘要
-- 会话级压缩触发线 —— `llm.session_tokens_windows`（默认 64k）与
-  `llm.memory_length_limit`（默认 200）任意一条先到都会触发上下文压缩。
-  只调大 token 窗口而不同步放宽消息条数，会由条数先行触发，上下文被
-  频繁裁剪、提示词缓存命中率下降。经验换算：一条消息约 300 tokens，
-  256k 上下文约对应 800 条消息
+- `llm.enable_compaction` + `llm.compaction_trigger_ratio` —— 把长历史折叠成
+  摘要，而不是反复重发
+- 压缩触发线 —— token 触发在 provider 上报的 prompt 达到
+  `llm.compaction_trigger_ratio` × 预设 `max_context` 时生效（未声明时回退到
+  `llm.session_tokens_windows`，默认 64k）；`llm.memory_length_limit` 兜底
+  （默认 200）只看消息条数，是为不上报 usage 的网关准备的。经验换算：
+  一条消息约 300 tokens，64k 窗口约对应 200 条消息
 - `function_config.agent_step_token_budget` —— 每 Step 的 prompt-token
   预算；耗尽时 `iter_cond` 停止该 Step（`TokenBudget.exhausted`）
 - Step 间压缩 —— prompt tokens 超阈值时 step 循环压缩历史

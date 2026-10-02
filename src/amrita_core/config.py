@@ -36,15 +36,17 @@ class FunctionConfig(BaseModel):
         default=False,
         description="Whether to use minimal context, i.e. system prompt + user's last message (disabling this option will use all context from the message list, which may consume a large amount of Tokens during Agent workflow execution; enabling this option may effectively reduce token usage)",
     )
-    no_tokenizer: bool = Field(
-        default=False,
-        description="Disabile built-in tokenizer when response not returning a token count.",
-    )
-    tokenizer_used: str = Field(default="simple", description="Tokenizer to use.")
     agent_tool_call_limit: int = Field(
         default=10,
         ge=1,
         description="Tool call limit in calling tools.",
+    )
+    validate_tool_arguments: bool = Field(
+        default=True,
+        description="Whether to check the arguments the model produced against "
+        "each tool's parameter schema before the tool runs. A failed check is "
+        "returned to the model as an `ERR:` tool result, which lets it correct "
+        "the call; disable to pass arguments through untouched.",
     )
 
     agent_step_token_budget: int = Field(
@@ -125,10 +127,6 @@ class BuiltinAgentConfig(BaseModel):
         default="agent",
         description="Tool calling mode for amrita's built-in agent strategy",
     )
-    agent_tool_call_notice: Literal["hide", "notify"] = Field(
-        default="hide",
-        description="Method of showing tool call status in built-in agent strategy, hide to conceal, notify to inform",
-    )
     agent_thought_mode: Literal[
         "reasoning", "chat", "reasoning-required", "reasoning-optional"
     ] = Field(
@@ -137,10 +135,6 @@ class BuiltinAgentConfig(BaseModel):
         "reasoning-required requires task analysis for each Tool Calling; "
         "reasoning-optional does not require reasoning but allows it; "
         "chat mode executes tasks directly",
-    )
-    agent_reasoning_hide: bool = Field(
-        default=False,
-        description="Whether to hide the thought process in built-in agent strategy",
     )
     loop_reasoning_trigger: int = Field(
         default=5,
@@ -160,35 +154,30 @@ class LLMConfig(BaseModel):
         default=False,
         description="Whether to force at least one tool to be used per call",
     )
-    memory_length_limit: int = Field(
-        default=200,
-        ge=1,
-        description="Maximum number of messages in memory context. "
-        "Should be scaled together with session_tokens_windows: a typical "
-        "agent turn costs roughly 300 tokens per message, so a 64k window "
-        "pairs with about 200 messages (e.g. 256k context -> ~800 messages). "
-        "Raising only the token window without raising this limit will make "
-        "the message-count cap trigger first and hurt prompt cache hit rate.",
-    )
     max_tokens: int = Field(
-        default=1000,
+        default=10000,
         ge=1,
-        description="Maximum number of tokens generated in a single response",
+        description="Last-resort fallback for the response output budget. The "
+        "number that actually reaches the provider comes from the preset's "
+        "`max_output` (default 28000); this value is used only when a preset "
+        "explicitly sets `max_output` to `None`.",
     )
-    tokens_count_mode: Literal["word", "bpe", "char"] = Field(
-        default="bpe",
-        description="Token counting mode: bpe(subwords)/word(words)/char(characters)",
-    )
-    enable_tokens_limit: bool = Field(
-        default=True, description="Whether to enable context length limits"
+    compaction_max_tokens: int = Field(
+        default=2048,
+        ge=0,
+        description="Output-token ceiling for the history-compaction summary "
+        "call. A reasoning model spends its output budget on thinking before "
+        "it emits anything, so a summary that inherits a small `max_output` "
+        "comes back empty and the fold silently does nothing. Set 0 to let "
+        "the summary call use the preset's own value.",
     )
     session_tokens_windows: int = Field(
         default=65536,
         ge=1,
-        description="Session tokens window size (default 64k). Note that this "
-        "value only bounds the token dimension: memory_length_limit must be "
-        "raised accordingly, otherwise the message-count cap will trigger "
-        "compression far earlier than the token window.",
+        description="Fallback attention window (default 64k) used when the "
+        "active preset does not declare `max_context`. Presets that declare "
+        "their own window take precedence, so a model's real limit follows the "
+        "model rather than this global number.",
     )
     llm_timeout: int = Field(
         default=60,
@@ -208,24 +197,33 @@ class LLMConfig(BaseModel):
         ge=1,
         description="Maximum number of preset fallbacks",
     )
-    enable_memory_abstract: bool = Field(
+    enable_compaction: bool = Field(
         default=True,
-        description="Whether to enable context memory summarization (will delete context and insert a summary into system instruction)",
+        description="Whether to fold long history into a summary. The summary "
+        "is stored on `MemoryModel.abstract` and rendered into the system "
+        "instruction by the train template.",
     )
-    memory_abstract_proportion: float = Field(
-        default=50e-2,
+    compaction_trigger_ratio: float = Field(
+        default=0.9,
         gt=0,
         le=1,
-        description="Context summarization proportion (0.5=50%)",
+        description="Fraction of the preset's `max_context` at which history "
+        "compaction is forced. Kept below 1.0 to absorb the lag between the "
+        "last measured prompt size and the next request's actual size.",
     )
-    memory_abstract_threshold: int = Field(
-        default=-1,
-        ge=-1,
-        description="Prompt-token threshold that triggers between-Step history "
-        "compression. Set -1 (or 0) to disable (never "
-        "compress). When the real API prompt-token count exceeds this value "
-        "at a Step boundary, completed-Step history is summarized into the "
-        "context.",
+    memory_length_limit: int = Field(
+        default=200,
+        ge=0,
+        description="Message-count fallback that forces compaction regardless "
+        "of token accounting. Needed because the token trigger relies on the "
+        "provider reporting usage: a gateway that reports none would let "
+        "history grow without bound. Set 0 to disable the fallback and rely "
+        "on the token trigger alone.",
+    )
+    enable_overflow_recovery: bool = Field(
+        default=True,
+        description="Whether to compact and retry once when the provider "
+        "rejects a request for exceeding the context window.",
     )
     enable_multi_modal: bool = Field(
         default=True,

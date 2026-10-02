@@ -23,7 +23,7 @@ from amrita_core import on_completion
 from amrita_core.hook.event import CompletionEvent
 
 
-@on_completion
+@on_completion().handle()
 async def log_response(event: CompletionEvent):
     print(f"[completion] {event.model_response[:80]}...")
 ```
@@ -38,7 +38,7 @@ from amrita_core import on_precompletion
 from amrita_core.hook.event import PreCompletionEvent
 
 
-@on_precompletion
+@on_precompletion().handle()
 async def inject_context(event: PreCompletionEvent):
     # `event.original_context` 是 SendMessageWrap——可追加任何内容。
     event.original_context.append(
@@ -54,7 +54,7 @@ async def inject_context(event: PreCompletionEvent):
 from amrita_core import on_event
 
 
-@on_event("agent.step_intro")
+@on_event("agent.step_intro").handle()
 async def on_step_intro(event):
     print(f"[step intro] {event.phase}")
 ```
@@ -81,13 +81,48 @@ from amrita_core import on_event
 from amrita_core.builtins.agent.events import StepAbortError
 
 
-@on_event("agent.tool_call")
+@on_event("agent.tool_call").handle()
 async def guard_tool(event):
     if event.tool_name == "dangerous_delete":
         event.cancel = True  # 或: raise StepAbortError("blocked")
 ```
 
-## 4. 刚才发生了什么
+## 4. 两个注册陷阱
+
+### 处理器必须能在模块作用域解析
+
+参数是按注解匹配到框架对象的。定义在*另一个函数内部*、且所在模块使用了
+`from __future__ import annotations` 的处理器无法解析：注解是字符串，而闭包的
+globals 里没有那些类。该 matcher 会以警告形式被跳过，于是钩子静默不执行。
+
+```python
+# 会被静默跳过
+async def setup():
+    @on_completion().handle()
+    async def nested(event: CompletionEvent): ...
+
+
+# 可以工作——模块作用域
+async def on_completion_handler(event: CompletionEvent): ...
+```
+
+### 兜底处理器请注解基类
+
+`FallbackContext` 由完成、工具与嵌入三类兜底共享。把处理器注解成子类
+（`CompletionFallbackContext`）会让该 matcher 只对那个子类解析，于是工具或嵌入
+失败时会跳过它，整个运行报 `No preset fallback available`。请注解基类，需要时
+再在内部收窄。
+
+```python
+from amrita_core.hook.event import FallbackContext
+
+
+@on_preset_fallback().handle()
+async def swap(event: FallbackContext):
+    event.preset = backup_preset
+```
+
+## 5. 刚才发生了什么
 
 - `@on_completion` / `@on_precompletion`——管线边界
 - `@on_event("<type>")`——任意事件，包括 step 生命周期

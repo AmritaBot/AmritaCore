@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from amrita_core.types.base import BaseModel, DirtyAwareBaseModel
+from amrita_core.types.billing import BillingRecord, RateConfig
 from amrita_core.types.content import (
     CT_MAP,
     USER_INPUT,
@@ -20,7 +21,13 @@ from amrita_core.types.message import (
     Message,
     SendMessageWrap,
 )
-from amrita_core.types.preset import ModelConfig, ModelPreset, ThinkingConfig
+from amrita_core.types.preset import (
+    ModelConfig,
+    ModelPreset,
+    ThinkingConfig,
+    resolve_max_context,
+    resolve_max_output,
+)
 from amrita_core.types.response import UniResponse, UniResponseUsage
 from amrita_core.types.tool import Function, ToolCall, ToolResult
 
@@ -35,6 +42,7 @@ __all__ = [
     "CT_MAP",
     "USER_INPUT",
     "BaseModel",
+    "BillingRecord",
     "Content",
     "DirtyAwareBaseModel",
     "EmbeddingChunk",
@@ -47,6 +55,7 @@ __all__ = [
     "Message",
     "ModelConfig",
     "ModelPreset",
+    "RateConfig",
     "SendMessageWrap",
     "TextContent",
     "ThinkingConfig",
@@ -55,4 +64,6 @@ __all__ = [
     "UniResponse",
     "UniResponseUsage",
     "register_content",
+    "resolve_max_context",
+    "resolve_max_output",
 ]

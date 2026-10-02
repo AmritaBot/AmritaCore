@@ -19,7 +19,7 @@ Type System
 
 Backends & Contexts
     - **Backends**: AbilityBackend, MemoryBackend, LegacyBackend, BackendSlots
-    - **Contexts**: AbilityContext, StateContext
+    - **Contexts**: AbilityContext
 
 Event Hooks
     - **Events**: CompletionEvent, PreCompletionEvent, EventTypeEnum
@@ -27,10 +27,11 @@ Event Hooks
 
 Tool System
     - **Management**: ToolsManager, on_tools, simple_tool
+    - **Schema**: function_definition_from_pydantic
     - **MCP**: mcp
 
 Chat API
-    - call_completion, tools_caller, text_generator, get_last_response, get_tokens
+    - call_completion, tools_caller, text_generator, get_last_response
 
 Initialization
     - load_amrita(): Full initialization with built-in components and MCP clients
@@ -47,16 +48,16 @@ from amrita_sense.logging import debug_log, logger
 from amrita_sense.streaming import SuspendObjectStream
 
 from amrita_core.base.adapter import AdapterManager
-from amrita_core.base.tokenizer import TokenizerManager
+from amrita_core.base.backend import BillingBackend, NullBillingBackend
 
-from . import adapters, tokenizers
+from . import adapters
 from .agent.functions import AgentRuntime, create_agent
 from .agent.strategy import AgentStrategy
 from .base.backend import AbilityBackend, BackendSlots, MemoryBackend
 from .builtins.backends import LegacyBackend
 from .chatmanager import ChatManager, ChatObject, ChatObjectMeta, SuspendEnum
 from .config import AmritaConfig, get_config, set_config
-from .contexts import AbilityContext, StateContext
+from .contexts import AbilityContext
 from .hook.event import (
     CompletionEvent,
     CompletionFallbackContext,
@@ -69,7 +70,6 @@ from .hook.on import on_completion, on_event, on_precompletion
 from .libchat import (
     call_completion,
     get_last_response,
-    get_tokens,
     text_generator,
     tools_caller,
 )
@@ -84,12 +84,15 @@ from .tools.models import (
     ToolData,
     ToolFunctionSchema,
 )
+from .tools.schema import function_definition_from_pydantic
 from .types import (
     BaseModel,
+    BillingRecord,
     Function,
     MemoryModel,
     ModelConfig,
     ModelPreset,
+    RateConfig,
     TextContent,
     ToolCall,
     ToolResult,
@@ -113,14 +116,10 @@ async def minimal_init(config: AmritaConfig | None = None) -> None:
     await load_amrita()
 
 
-logger.info("Loading tokenizers and adapters......")
+logger.info("Loading adapters......")
 
 load_and_notice(adapters, "Adapters")
 logger.debug(f"Loaded adapters: {','.join(AdapterManager().get_adapters().keys())}")
-load_and_notice(tokenizers, "Tokenizers")
-logger.debug(
-    f"Loaded tokenizers: {','.join(TokenizerManager().get_tokenizers().keys())}"
-)
 
 __all__ = [
     "AbilityBackend",
@@ -129,6 +128,8 @@ __all__ = [
     "AgentStrategy",
     "BackendSlots",
     "BaseModel",
+    "BillingBackend",
+    "BillingRecord",
     "ChatManager",
     "ChatObject",
     "ChatObjectMeta",
@@ -145,10 +146,11 @@ __all__ = [
     "MemoryModel",
     "ModelConfig",
     "ModelPreset",
+    "NullBillingBackend",
     "PreCompletionEvent",
     "PresetManager",
     "PresetReport",
-    "StateContext",
+    "RateConfig",
     "SuspendEnum",
     "SuspendObjectStream",
     "TextContent",
@@ -165,9 +167,9 @@ __all__ = [
     "call_completion",
     "create_agent",
     "debug_log",
+    "function_definition_from_pydantic",
     "get_config",
     "get_last_response",
-    "get_tokens",
     "load_amrita",
     "mcp",
     "minimal_init",
@@ -179,6 +181,5 @@ __all__ = [
     "side_effect_import",
     "simple_tool",
     "text_generator",
-    "tokenizers",
     "tools_caller",
 ]

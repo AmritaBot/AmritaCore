@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import copy
 from asyncio import Task
 from collections.abc import Awaitable, Callable
@@ -11,8 +10,6 @@ from typing import Any, TypeVar
 from uuid import uuid4
 
 from amrita_sense import (
-    ALIAS,
-    NOP,
     WHILE,
     Node,
     NodeCompose,
@@ -20,26 +17,26 @@ from amrita_sense import (
     WorkflowInterpreter,
 )
 from amrita_sense.hook.matcher import MatcherFactory as MatcherManager
-from amrita_sense.instructions import JMP
-from amrita_sense.instructions.native import NATIVE_DO
-from amrita_sense.instructions.subprogram import ARCHIVED_SEGMENT, SubprogramStorage
+from amrita_sense.instructions.native import NATIVE_DO, NATIVE_IF
+from amrita_sense.instructions.subprogram import SubprogramStorage
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 from jinja2 import Template
 from pytz import utc
-from typing_extensions import Self, deprecated
+from typing_extensions import Self
 
 from amrita_core._compat import exc_ignored_disabled
 from amrita_core.agent.context import build_strategy_context
 from amrita_core.agent.strategy import (
     AgentStrategy,
-    NoExceptionHandler,
     StrategyLikedObject,
 )
 from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.builtins.backends import LegacyBackend
+from amrita_core.components.compaction import COMPACT, should_compact
 from amrita_core.components.llm import JINJA2_RENDER, LLM_COMPLETION
+from amrita_core.components.normalize import NORMALIZE_MESSAGES
 from amrita_core.components.process import BUILD_MESSAGE, COMMIT_MEMORY, LOAD_STATE
 from amrita_core.components.react import (
     AGENT_ENTRY,
@@ -49,11 +46,15 @@ from amrita_core.components.react import (
     STEP_BODY,
     task_cond,
 )
+from amrita_core.components.strategy import (
+    RUN_INLINE_STRATEGY,
+    is_agent_category,
+    not_agent_category,
+)
 from amrita_core.config import AmritaConfig, get_config
 from amrita_core.consts import DEFAULT_TEMPLATE
-from amrita_core.contents import MessageContent
+from amrita_core.contents import MessageContent, MessageWithMetadata
 from amrita_core.contexts import (
-    AbilityContext,
     AbilityState,
     AgentLoopState,
     DatabackendOptions,
@@ -61,12 +62,10 @@ from amrita_core.contexts import (
     MemoryContext,
     RespState,
     SessionMetadata,
-    StateContext,
     StrategyPayload,
     WorkingState,
 )
 from amrita_core.enums import (
-    BuiltinName,
     SuspendEnum,
 )
 from amrita_core.hook.event import CompletionEvent, PreCompletionEvent
@@ -79,12 +78,11 @@ from amrita_core.types import (
     UniResponseUsage,
 )
 from amrita_core.types.memory import MemoryModel
-from amrita_core.usage import UsageRegistry, UsageSnapshot
+from amrita_core.usage import SessionUsageProxy
 from amrita_core.utils import get_current_datetime_timestamp
 
 from .chat_libs import ChatManager, chat_manager
 from .chat_obj_meta import ChatObjectMeta
-from .memory_limiter import MemoryLimiter
 
 RESPONSE_CALLBACK_TYPE = Callable[[RESPONSE_TYPE], Awaitable[Any]] | None
 
@@ -149,8 +147,6 @@ class ChatObject:
 
     # ChatObject temp storage
     _chatman: ChatManager
-    _state: StateContext | None  # Backref for external consumers
-    usage_snapshot: UsageSnapshot | None  # Run usage kept after the run ends
 
     # DI context references — component nodes read/write these via extra_args type injection
     _di_ability: AbilityState
@@ -182,21 +178,18 @@ class ChatObject:
         "_middleware",
         "_raised_exc",
         "_s_id",
-        "_state",
         "_task",
         "_workflow",
         "end_at",
         "io_stream",
         "last_call",
         "now_calling",
-        "usage_snapshot",
     )
 
     def __init__(
         self,
         train: dict[str, str] | Message[str],
         user_input: USER_INPUT,
-        context: StateContext | None = None,
         session_id: str | None = None,
         config: AmritaConfig | None = None,
         preset: ModelPreset | None = None,
@@ -220,10 +213,8 @@ class ChatObject:
         Args:
             train: Training data (system prompts).
             user_input: Input from the user.
-            context: Pre-built state context. Mutually exclusive with ``session_id``.
-            session_id: Unique identifier for the session. Mutually exclusive with
-                ``context``. When both are None, ChatObject requires ``session_id``
-                to create a new StateContext at runtime.
+            session_id: Unique identifier for the session. When omitted, the
+                object cannot persist or resume state across runs.
             config: Config used for this call. Defaults to global config.
             preset: Preset used for this call. Defaults to None (resolved at runtime).
             backend: Backend slots for memory and ability I/O. Defaults to
@@ -260,15 +251,10 @@ class ChatObject:
         # initialize iostream
         self.io_stream = io_stream or SuspendObjectStream()
 
-        # Validate context / session_id
-        if not context and not session_id:
-            raise ValueError("Either context or session_id must be provided")
-        if session_id:
-            if context:  # nocov
-                raise ValueError(  # nocov
-                    "Both context and session_id cannot be provided"  # nocov
-                )  # nocov
-            self._s_id = session_id
+        # Validate session_id
+        if not session_id:
+            raise ValueError("session_id must be provided")
+        self._s_id = session_id
         if workflow and archived_nodes:
             raise ValueError("Cannot provide both workflow and archived_nodes")
         # Resolve locals (no longer stored directly on ChatObject)
@@ -320,16 +306,9 @@ class ChatObject:
                 prompt_tokens=0, completion_tokens=0, total_tokens=0
             )
         )
-        self.usage_snapshot = None
         self._di_loop = AgentLoopState()
         self._di_agent = StrategyPayload(strategy=_strategy)
         self._di_opt = _bke_opt
-        self._state = None
-        if context:  # nocov
-            self._state = context  # nocov
-            self._di_memory.memory = context.memory  # nocov
-            self._di_ability.ability = context.ability  # nocov
-            self._di_session.session_id = context.session_id  # nocov
 
         # Workflow system
         wkfl = None
@@ -411,38 +390,6 @@ class ChatObject:
     @strategy.setter
     def strategy(self, val: type[AgentStrategy] | StrategyLikedObject) -> None:
         self._di_agent.strategy = val
-
-    @property
-    @deprecated(
-        "This property is deprecated and will be removed in v0.14.0. "
-        "Use session_id / data / config etc. directly instead.",
-        category=DeprecationWarning,
-    )
-    def state(self) -> StateContext:  # nocov
-        """Backward-compatible accessor. Returns the StateContext if one was
-        provided, otherwise synthesises one from the DI components.
-
-        Hint: The best practice of acquiring the full state
-            is to use the `.dump_interpreter()` method of workflow interpreter."""  # nocov
-        if self._state is not None:  # nocov
-            return self._state  # nocov
-        return StateContext(  # nocov
-            session_id=self._di_session.session_id,  # nocov
-            memory=self._di_memory.memory or MemoryModel(),  # nocov
-            ability=self._di_ability.ability or AbilityContext(),  # nocov
-        )  # nocov
-
-    @state.setter
-    @deprecated(
-        "This property is deprecated and will be removed in v0.14.0. "
-        "Use session_id / data setters directly instead.",
-        category=DeprecationWarning,
-    )
-    def state(self, val: StateContext) -> None:  # nocov
-        self._state = val  # nocov
-        self._di_memory.memory = val.memory  # nocov
-        self._di_ability.ability = val.ability  # nocov
-        self._di_session.session_id = val.session_id  # nocov
 
     @property
     def user_input(self) -> USER_INPUT:
@@ -559,15 +506,24 @@ class ChatObject:
             self._task.cancel()
 
     async def full_response(self) -> str:
-        """Return full response from the queue as a single string.
+        """Return the answer from the queue as a single string.
+
+        Only answer chunks are collected. The same stream also carries
+        structured :class:`MessageWithMetadata` events - reasoning chunks,
+        step boundaries, tool-call notices and error payloads - which are
+        **not** part of the answer and would otherwise be concatenated into it.
+        Use :meth:`io_stream.get_response_generator` directly when those events
+        are wanted.
 
         Returns:
-            Complete response string combining all chunks in the queue
+            Complete answer string combining all answer chunks in the queue
         """
         builder = StringIO()
         async for item in self.io_stream.get_response_generator():
             if isinstance(item, str):
                 builder.write(item)
+            elif isinstance(item, MessageWithMetadata):
+                continue
             elif isinstance(item, MessageContent):
                 builder.write(str(item.get_content()))
         return builder.getvalue()
@@ -615,7 +571,11 @@ class ChatObject:
         await self.io_stream._wait_for_continue(SuspendEnum.ENTRY_POINT)
         if not self._is_running and not self._is_done:
             self._di_session.stream_id = uuid4().hex
-            self._di_resp.usage = UsageRegistry.register(self.stream_id)
+            self._di_resp.usage = SessionUsageProxy(
+                session_id=self.session_id,
+                stream_id=self.stream_id,
+                backend=self._di_ability.slot.billing,
+            )
             logger.debug(f"Starting chat processing, stream ID:{self.stream_id}")
 
             try:
@@ -628,11 +588,8 @@ class ChatObject:
             finally:
                 self._is_running = False
                 self._is_done = True
-                # Keep run usage on the object, then release the registry entry.
                 if self._di_resp.usage is not None:
-                    self.usage_snapshot = self._di_resp.usage.snapshot()
                     self._di_resp.extra_usage = self._di_resp.usage.extra_total
-                UsageRegistry.unregister(self.stream_id)
                 try:
                     await self.io_stream.set_queue_done()  # Write a EOF to the queue
                 except TimeoutError:
@@ -677,33 +634,6 @@ class ChatObject:
 #  Retained workflow nodes (use DI _di_xxx refs)
 
 
-@Node(SuspendEnum.MEMORY)
-async def _limiting_memory(chat_obj: ChatObject):
-    logger.debug("Starting applying memory limitations..")
-    mem_ctx = chat_obj._di_memory
-    input_ctx = chat_obj._di_input
-    ab = chat_obj._di_ability
-    resp = chat_obj._di_resp
-    if not ab.config.llm.enable_memory_abstract:
-        return
-    assert mem_ctx.memory is not None, "Memory must be loaded before limiting"
-    async with MemoryLimiter(
-        mem_ctx.memory,
-        input_ctx.train,
-        config=ab.config,
-        preset=ab.preset,
-        usage=resp.usage,
-    ) as lim:
-        await chat_obj.io_stream._wait_for_continue(SuspendEnum.MEMORY)
-        await lim.run_enforce()
-
-        if abs_usage := lim.usage:
-            if not lim.recorded_via_gateway and resp.usage is not None:
-                resp.usage.record(abs_usage)
-        mem_ctx.memory = lim.memory
-    logger.debug("Memory limitation application completed")
-
-
 @Node(SuspendEnum.PRECOMPLE)
 async def _pre_runner(chat_obj: ChatObject):
     wok = chat_obj._di_working
@@ -740,14 +670,26 @@ async def _pre_runner(chat_obj: ChatObject):
 
 
 @Node(SuspendEnum.STRATEGY_START)
-async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None:
-    """Run workflow of strategy given."""
-    agent = chat_obj._di_agent
-    input_ctx = chat_obj._di_input
-    ab = chat_obj._di_ability
-    wok = chat_obj._di_working
-    assert wok.context_wrap is not None, "Context wrap must be built before strategy"
+def _prepare_strategy(
+    chat_obj: ChatObject,
+    agent: StrategyPayload,
+    input_ctx: GeneralInput,
+    ab: AbilityState,
+    wok: WorkingState,
+    session: SessionMetadata,
+    resp: RespState,
+    loop: AgentLoopState,
+    intp: WorkflowInterpreter,
+) -> None:
+    """Build the strategy context for whichever category runs next.
 
+    Only assembles data: the workflow decides which branch executes via
+    ``is_agent_category`` / ``not_agent_category``, so this node has no control
+    flow of its own. It stays in this module because it needs the live
+    ``ChatObject`` as the strategy's lifecycle handle, and importing
+    ``ChatObject`` from ``components`` would close an import cycle.
+    """
+    assert wok.context_wrap is not None, "Context wrap must be built before strategy"
     match agent.strategy.get_category():
         case "agent-mixed" | "agent":
             context = (
@@ -760,23 +702,6 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
                 if ab.config.function_config.use_minimal_context
                 else wok.context_wrap.copy()
             )
-            ctx = build_strategy_context(
-                user_input=input_ctx.user_input,
-                original_context=context,
-                chat_object=chat_obj,
-                preset=ab.preset,
-                config=ab.config,
-                tools_manager=ab.ability.tools if ab.ability else None,
-                io_stream=intp.object_io,
-                train_content=input_ctx.train.content,
-                stream_id=chat_obj._di_session.stream_id,
-                usage=chat_obj._di_resp.usage,
-            )
-            chat_obj._di_loop.stg_ctx = ctx
-            return intp.jump_to(
-                intp.get_graph().calc.resolve_alias(BuiltinName.AGENT_STRATEGY)
-            )
-
         case "rag":
             context = SendMessageWrap.validate_messages(
                 [
@@ -788,7 +713,7 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
             context = wok.context_wrap.copy()
         case _:
             raise RuntimeError("Invalid agent strategy")
-    ctx = build_strategy_context(
+    loop.stg_ctx = build_strategy_context(
         user_input=input_ctx.user_input,
         original_context=context,
         chat_object=chat_obj,
@@ -797,20 +722,9 @@ async def _run_strategy(chat_obj: ChatObject, intp: WorkflowInterpreter) -> None
         tools_manager=ab.ability.tools if ab.ability else None,
         io_stream=intp.object_io,
         train_content=input_ctx.train.content,
-        stream_id=chat_obj._di_session.stream_id,
-        usage=chat_obj._di_resp.usage,
+        stream_id=session.stream_id,
+        usage=resp.usage,
     )
-    st = agent.strategy(ctx)
-    try:
-        await st.run()
-    except Exception as e:
-        if isinstance(e, chat_obj._raised_exc):
-            raise
-        with contextlib.suppress(NoExceptionHandler):
-            await st.on_exception(e)
-    else:
-        await st.on_post_process()
-    wok.context_wrap.extend(ctx.original_context.end_messages)
 
 
 @Node(SuspendEnum.COMPLE)
@@ -830,6 +744,7 @@ async def _post_runner(chat_obj: ChatObject):
         wok.context_wrap,
         chat_obj,
         resp.response.content,
+        resp.response.reasoning_content,
     )
     await chat_obj.io_stream._wait_for_continue(SuspendEnum.COMPLE)
     await MatcherManager.trigger_event(
@@ -843,6 +758,7 @@ async def _post_runner(chat_obj: ChatObject):
         **chat_obj._hook_kwargs,
     )
     resp.response.content = chat_event.model_response
+    resp.response.reasoning_content = chat_event.model_reasoning
     wok.context_wrap.append(
         Message[str](
             content=resp.response.content,
@@ -859,20 +775,32 @@ async def _post_runner(chat_obj: ChatObject):
 
 # pre-compile workflows — component nodes + retained local nodes
 _single_call = SINGLE_STRATEGY_CALL(fallback_on_fail=False)
+
+#: Legacy single-call agent loop (one ``single_execute`` per iteration).
+AGENT_BLOCK: NodeCompose = (
+    AGENT_ENTRY.as_compose()
+    >> WHILE(_single_call).ACTION(REACT_COUNTER)
+    >> AGENT_POST_PROCESS
+)
+
+#: Native step loop: one task iteration is one Step, driven by ``STEP_BODY``.
+STEP_AGENT_BLOCK: NodeCompose = (
+    AGENT_ENTRY.as_compose()
+    >> NATIVE_DO(STEP_BODY).WHILE(task_cond)
+    >> AGENT_POST_PROCESS
+)
+
+# Strategy dispatch is workflow control flow, not Python: the agent block and the inline runner are two guarded branches, each skipped when its predicate is false. Normalize before compact so the summary reads text, and compact before rendering so the new summary reaches the system instruction of the request it was computed for.
 _workflow: NodeCompose = (
     LOAD_STATE.as_compose()
+    >> NORMALIZE_MESSAGES
+    >> NATIVE_IF(should_compact, COMPACT)
     >> JINJA2_RENDER
-    >> _limiting_memory
     >> BUILD_MESSAGE
     >> _pre_runner
-    >> _run_strategy
-    >> (
-        JMP(BuiltinName.STRATEGY_EOF)
-        >> ALIAS(AGENT_ENTRY, BuiltinName.AGENT_STRATEGY)
-        >> WHILE(_single_call).ACTION(REACT_COUNTER)
-        >> AGENT_POST_PROCESS
-        >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
-    )
+    >> _prepare_strategy
+    >> NATIVE_IF(is_agent_category, AGENT_BLOCK)
+    >> NATIVE_IF(not_agent_category, RUN_INLINE_STRATEGY)
     >> LLM_COMPLETION
     >> _post_runner
     >> COMMIT_MEMORY
@@ -882,19 +810,14 @@ _workflow_rendered = _workflow.render()
 # Native step-loop variant: same outer shell, NATIVE_DO step loop inside.
 _step_workflow: NodeCompose = (
     LOAD_STATE.as_compose()
+    >> NORMALIZE_MESSAGES
+    >> NATIVE_IF(should_compact, COMPACT)
     >> JINJA2_RENDER
-    >> _limiting_memory
     >> BUILD_MESSAGE
     >> _pre_runner
-    >> _run_strategy
-    >> (
-        ARCHIVED_SEGMENT(
-            ALIAS(AGENT_ENTRY, BuiltinName.AGENT_STRATEGY)
-            >> NATIVE_DO(STEP_BODY).WHILE(task_cond)
-            >> AGENT_POST_PROCESS
-        )
-        >> ALIAS(NOP, BuiltinName.STRATEGY_EOF)
-    )
+    >> _prepare_strategy
+    >> NATIVE_IF(is_agent_category, STEP_AGENT_BLOCK)
+    >> NATIVE_IF(not_agent_category, RUN_INLINE_STRATEGY)
     >> LLM_COMPLETION
     >> _post_runner
     >> COMMIT_MEMORY
@@ -902,6 +825,8 @@ _step_workflow: NodeCompose = (
 _step_workflow_rendered = _step_workflow.render()
 
 __all__ = [
+    "AGENT_BLOCK",
+    "STEP_AGENT_BLOCK",
     "ChatObject",
     "_step_workflow_rendered",
     "_workflow_rendered",

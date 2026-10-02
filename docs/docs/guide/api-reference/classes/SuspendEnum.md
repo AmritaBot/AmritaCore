@@ -1,6 +1,6 @@
 # SuspendEnum
 
-The > **v0.12.0 migration**: `SuspendEnum` and `BuiltinName` have been moved from `amrita_core.chatmanager.enums` to `amrita_core.enums`. The old module now emits a `DeprecationWarning` and will be removed in v0.13.x.
+> **v0.12.0 migration**: `SuspendEnum` has been moved from `amrita_core.chatmanager.enums` to `amrita_core.enums`.
 
 `SuspendEnum` class provides standardized breakpoint tags for the suspend/resume mechanism in AmritaCore.
 
@@ -31,8 +31,8 @@ The > **v0.12.0 migration**: `SuspendEnum` and `BuiltinName` have been moved fro
 ### `MEMORY`
 
 - **Value**: `"ChatObject::memory_limiting"`
-- **Description**: Triggered before memory summarization when context exceeds token limits
-- **Usage**: Perfect for inspecting or modifying context before automatic summarization
+- **Description**: The memory-mutation suspend point
+- **Usage**: Intercepted at **two** nodes. `COMPACT` holds it while folding the history prefix into `MemoryModel.abstract`; `APPEND_RESPONSE` holds it after appending the assistant response, before writing back. The value string still carries the old `memory_limiting` name from before compaction replaced the limiter
 
 ### `MESSAGES_PREPARED`
 
@@ -70,17 +70,11 @@ The > **v0.12.0 migration**: `SuspendEnum` and `BuiltinName` have been moved fro
 - **Description**: Triggered after receiving the model response but before processing it
 - **Usage**: Great for response validation, content filtering, or implementing custom response handling logic
 
-### `MEMORY_APPEND`
-
-- **Value**: `"Component::memory_append"`
-- **Description**: Triggered when appending the LLM response to the context message wrap
-- **Usage**: Exposed by the [`APPEND_RESPONSE`](../api-reference/classes/APPEND_RESPONSE.md) component node. Occurs after LLM completion to add the model's response as an assistant message.
-
 ### `APPLY_CONTEXT`
 
 - **Value**: `"Component::apply_context"`
 - **Description**: Triggered when applying the final context wrap back to the memory model
-- **Usage**: Exposed by the [`APPLY_CONTEXT`](../api-reference/classes/APPLY_CONTEXT.md) component node. Occurs before memory commit to write the updated message list into `MemoryModel.messages`.
+- **Usage**: Exposed by the `APPLY_CONTEXT` component node. Occurs before memory commit to write the updated message list into `MemoryModel.messages`.
 
 ### `COMMIT_MEMORY`
 
@@ -88,34 +82,43 @@ The > **v0.12.0 migration**: `SuspendEnum` and `BuiltinName` have been moved fro
 - **Description**: Triggered after the execution pipeline completes, when memory is being committed back to the backend
 - **Usage**: Occurs at the very end of the workflow to persist conversation state. Useful for monitoring persistence or implementing custom memory commit logic
 
-### `FINALIZE`
+### `ADVANCE_COUNTER`
 
-- **Value**: `"ChatObject::finalize"`
-- **Description**: Triggered at the end of the ChatObject execution pipeline
-- **Usage**: Useful for cleanup, logging final state, or post-processing
+- **Value**: `"ChatObject::advance_counter"`
+- **Description**: Triggered when the agent call counter is incremented
+- **Usage**: Intercepted after the increment, so a handler sees the post-increment value. Useful for auditing how many tool rounds a run consumed
 
-## BuiltinName
+## Step-Loop Boundary Markers
 
-`BuiltinName` is a companion enumeration that provides aliases for internal framework components. Currently defined:
+These two values are emitted by the built-in step loop, once per Step. They are
+what `ReActAgentStrategy.intro_step` / `leave_step` hook into (see
+[Step Loop](../../advanced/step-loop.md)).
 
-### `AGENT_STRATEGY`
+### `STEP_INTRO`
 
-- **Value**: `"ChatObject::__agent_main__"`
-- **Description**: Internal alias for the agent strategy subprogram used by the workflow engine
+- **Value**: `"ChatObject::step_intro"`
+- **Description**: Entering a Step boundary
+- **Usage**: The point where the next plan node becomes the current Step, and where per-Step state is reset
+
+### `STEP_LEAVE`
+
+- **Value**: `"ChatObject::step_leave"`
+- **Description**: Leaving a Step boundary
+- **Usage**: Where the completed Step is summarized and between-Step compression is evaluated
 
 ## Usage Example
 
 ```python
+import asyncio
+
 from amrita_core import ChatObject, SuspendEnum
-from amrita_core.types import MemoryModel, Message
+from amrita_core.types import Message
 
 
 async def main():
-    context = MemoryModel()
     train = Message(content="You are a helpful assistant.", role="system")
 
     chat = ChatObject(
-        context=context,
         session_id="session_123",
         user_input="What's the weather like?",
         train=train.model_dump(),

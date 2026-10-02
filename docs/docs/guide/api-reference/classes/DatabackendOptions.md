@@ -14,6 +14,7 @@ Options that control which backend fetch and commit operations are performed dur
 - `skip_presets_fetch` (bool): Skip loading presets from the backend (default: `False`)
 - `skip_ability_extra_setting` (bool): Skip loading extra ability settings from the backend (default: `False`)
 - `skip_memory_commit` (bool): Skip committing memory back to the backend after execution (default: `False`)
+- `skip_billing_commit` (bool): Skip handing billing records to `BackendSlots.billing` (default: `False`). The records still reach `MemoryModel.billing`, so nothing is lost — only the external mirror is skipped
 
 ## Usage
 

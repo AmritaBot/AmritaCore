@@ -4,7 +4,7 @@ MultiToolsManager 类管理多个工具的注册和查找。
 
 ## 描述
 
-MultiToolsManager 提供按函数名索引的工具注册表，支持启用/禁用工具以及通过 `enable_if` 进行条件激活。[ToolsManager](ToolsManager.md) 是默认使用的单例子类。
+MultiToolsManager 提供按函数名索引的工具注册表，支持启用/禁用工具以及通过 `enable_if` 进行条件激活。`ToolsManager` 是默认使用的单例子类。
 
 ## 方法
 

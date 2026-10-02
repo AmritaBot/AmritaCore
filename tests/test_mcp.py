@@ -112,9 +112,7 @@ class TestMCPClient:
             mock_result.content = []
             mcp_client.mcp_client = mock_client
 
-            # Barrier: force BOTH calls to be in flight on the shared
-            # connection before either one returns, otherwise the refcount can
-            # never exceed one and the race is not actually exercised.
+            # Barrier: force BOTH calls to be in flight on the shared connection before either one returns, otherwise the refcount can never exceed one and the race is not actually exercised.
             started_count = 0
             both_started = asyncio.Event()
             release = asyncio.Event()
@@ -133,8 +131,7 @@ class TestMCPClient:
                 asyncio.create_task(mcp_client.simple_call("tool_a", {"x": 1})),
                 asyncio.create_task(mcp_client.simple_call("tool_b", {"y": 2})),
             )
-            # Wait until both coroutines reached call_tool (i.e. _active_calls
-            # is 2), then let them finish.
+            # Wait until both coroutines reached call_tool (i.e. _active_calls is 2), then let them finish.
             await both_started.wait()
             release.set()
             results = await results_task
@@ -142,8 +139,7 @@ class TestMCPClient:
             assert results == ["", ""]
             # Both calls used the SAME shared connection.
             assert mock_client.call_tool.await_count == 2
-            # No immediate teardown while a sibling was in flight: the TTL
-            # waiter is scheduled once, after the last active call exits.
+            # No immediate teardown while a sibling was in flight: the TTL waiter is scheduled once, after the last active call exits.
             assert mock_close.call_count == 1
             assert mcp_client._active_calls == 0
 
@@ -299,10 +295,7 @@ class TestToolModelCompat:
     async def test_refresh_tools_from_sdk_tool_model(self, mock_client_class):
         from mcp.types import Tool
 
-        # Build via model_validate: mcp 1.x names the field ``inputSchema``
-        # while mcp 2.x renamed it to ``input_schema`` and kept the camelCase
-        # spelling as an alias, so no single keyword spelling type-checks on
-        # both SDK lines.
+        # Build via model_validate: mcp 1.x names the field ``inputSchema`` while mcp 2.x renamed it to ``input_schema`` and kept the camelCase spelling as an alias, so no single keyword spelling type-checks on both SDK lines.
         tool = Tool.model_validate(
             {
                 "name": "echo",

@@ -103,8 +103,7 @@ class MCPClient:
         """
         self._active_calls += 1
         try:
-            # Always cancel pending close-waiter first to prevent the TTL task
-            # from closing the connection while call_tool is in progress.
+            # Always cancel pending close-waiter first to prevent the TTL task from closing the connection while call_tool is in progress.
             await self._clean_waiter()
             if self.mcp_client is None:
                 await self._connect()
@@ -127,8 +126,7 @@ class MCPClient:
             if self._active_calls <= 0:
                 self._active_calls = 0
                 if self._close_ttl != -1:
-                    # Defer the close: the TTL task reclaims the connection
-                    # only after the last concurrent call has exited.
+                    # Defer the close: the TTL task reclaims the connection only after the last concurrent call has exited.
                     self.close()
 
     async def _connect(self, update_tools: bool = False):
@@ -137,8 +135,7 @@ class MCPClient:
             update_tools (bool, optional): whether to update the tool list. Defaults to False.
                 When True, tools are always refreshed from the server, even if already connected.
         """
-        # Cancel any pending close-waiter outside the lock to avoid deadlock:
-        # _clean_waiter cancels the waiter task whose _close() also needs _connect_lock.
+        # Cancel any pending close-waiter outside the lock to avoid deadlock: _clean_waiter cancels the waiter task whose _close() also needs _connect_lock.
         await self._clean_waiter()
         async with self._connect_lock:
             if self.mcp_client is not None:

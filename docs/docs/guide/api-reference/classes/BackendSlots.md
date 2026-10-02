@@ -10,6 +10,7 @@ The `BackendSlots` dataclass holds the two backend references used by `ChatObjec
 
 - `ability` ([AbilityBackend](AbilityBackend.md)): Backend responsible for loading tools, MCP clients, and presets
 - `memory` ([MemoryBackend](MemoryBackend.md)): Backend responsible for loading and committing conversation memory
+- `billing` ([BillingBackend](BillingBackend.md)): Optional sink for per-request billing records. Defaults to a `LegacyBackend`, so the slot is never `None`
 
 ## Usage
 
@@ -31,11 +32,13 @@ chat = ChatObject(
 
 ## Default Behavior
 
-When `backend=None` is passed to `ChatObject` or `AgentRuntime`, the default is:
+When `backend=None` is passed to `ChatObject` or `AgentRuntime`, `BackendSlots.default()` builds all three slots from **one shared** `LegacyBackend` instance:
 
 ```python
 bkd = LegacyBackend()
-slot = BackendSlots(bkd, bkd)
+slot = BackendSlots(ability=bkd, memory=bkd, billing=bkd)
 ```
 
-This uses in-process global containers for both memory and ability storage.
+This uses in-process containers for ability, memory and billing storage.
+
+> `billing` is the only field with a default, and it has its own independent fallback: leaving it out of a hand-built `BackendSlots` constructs a fresh `LegacyBackend` just for billing, which does **not** share state with the `ability` / `memory` backends you passed in.

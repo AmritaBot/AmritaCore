@@ -3,7 +3,7 @@ Unit tests for AmritaCore Agent Strategy system.
 
 This module tests the new Agent Strategy architecture including:
 - AgentStrategy abstract base class
-- ReActAgentStrategy and HybridReActAgentStrategy implementations
+- ReActAgentStrategy implementation
 - StrategyContext data class
 - Built-in constants and tools
 - Template method pattern execution flow
@@ -18,7 +18,6 @@ from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
 from amrita_core.builtins.agent import (
     BaseReActAgentStrategy,
-    HybridReActAgentStrategy,
     ReActAgentStrategy,
 )
 from amrita_core.builtins.consts import (
@@ -382,9 +381,8 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
     """Test ReActAgentStrategy single_execute with tool execution error."""
     from amrita_core.types import ToolCall, UniResponse
 
-    # Configure for agent mode with error notification
+    # Configure for agent mode
     mock_config.builtin.tool_calling_mode = "agent"
-    mock_config.builtin.agent_tool_call_notice = True
     mock_strategy_context.chat_object.config = mock_config
 
     # Mock tools_caller to return tool call
@@ -399,8 +397,7 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
         usage=None,
     )
 
-    # Instead of mocking get_tool globally, we'll create a temporary tool registration
-    # that will be cleaned up after the test
+    # Instead of mocking get_tool globally, we'll create a temporary tool registration that will be cleaned up after the test
     from amrita_core.tools.manager import ToolsManager
     from amrita_core.tools.models import (
         FunctionDefinitionSchema,
@@ -456,67 +453,7 @@ async def test_amrita_agent_strategy_single_execute_tool_error(
         manager.remove_tool("failing_tool")
 
 
-# Tests for HybridReActAgentStrategy and Template Method Pattern
-
-
-@pytest.mark.asyncio
-async def test_hybrid_react_agent_strategy_initialization(mock_strategy_context):
-    """Test HybridReActAgentStrategy initialization with text sanitization."""
-    strategy = HybridReActAgentStrategy(mock_strategy_context)
-
-    # Test that origin_msg is sanitized
-    assert isinstance(strategy.origin_msg, str)
-
-
-@pytest.mark.asyncio
-async def test_hybrid_react_agent_strategy_sanitize_text():
-    """Test HybridReActAgentStrategy text sanitization removes XML tags."""
-    from amrita_core.agent.context import StrategyContext
-    from amrita_core.chatmanager import ChatObject
-    from amrita_core.config import AmritaConfig
-    from amrita_core.types import Message, SendMessageWrap
-
-    # Create context with malicious XML tags
-    user_content = "<TOOL_CALL>malicious</TOOL_CALL><PARAMS>data</PARAMS>"
-    user_msg = Message(role="user", content=user_content)
-    train_msg = Message(role="system", content="System")
-    original_context = SendMessageWrap(
-        train=train_msg, memory=[user_msg], user_query=user_msg
-    )
-
-    mock_chat_obj = MagicMock(spec=ChatObject)
-    mock_chat_obj.session_id = "test"
-    mock_chat_obj.preset = "default"
-    mock_chat_obj.config = AmritaConfig()
-    mock_chat_obj.train = train_msg
-
-    ctx = StrategyContext(
-        user_input=user_content,
-        original_context=original_context,
-        chat_object=mock_chat_obj,
-    )
-
-    strategy = HybridReActAgentStrategy(ctx)
-    # Tags should be removed
-    assert "<TOOL_CALL>" not in strategy.origin_msg
-    assert "<PARAMS>" not in strategy.origin_msg
-
-
-@pytest.mark.asyncio
-async def test_hybrid_react_agent_strategy_render_tool():
-    """Test HybridReActAgentStrategy _render_tool method."""
-    strategy = HybridReActAgentStrategy.__new__(HybridReActAgentStrategy)
-
-    tool_call = ToolCall(
-        id="tool1",
-        function={"name": "test_tool", "arguments": '{"param1": "value1"}'},  # pyright: ignore[reportArgumentType]
-    )
-
-    rendered = strategy._render_tool(tool_call, "result_data")
-    assert "<TOOL_CALL" in rendered
-    assert "<TOOL_RESULT" in rendered
-    assert "test_tool" in rendered
-    assert "result_data" in rendered
+# Tests for BaseReActAgentStrategy template method pattern
 
 
 @pytest.mark.asyncio
@@ -573,111 +510,8 @@ async def test_template_method_execute_tool_loop_no_calls(mock_strategy_context)
 
 
 @pytest.mark.asyncio
-async def test_hybrid_strategy_post_process(mock_strategy_context):
-    """Test HybridReActAgentStrategy.on_post_process adds end message."""
-    strategy = HybridReActAgentStrategy(mock_strategy_context)
-    strategy.call_count = 2  # Must be >= 2
-
-    await strategy.on_post_process()
-
-    # Check that END_OF_PROCESS message was added
-    assert len(mock_strategy_context.original_context.end_messages) > 0
-    last_msg = mock_strategy_context.original_context.end_messages[-1]
-    assert "END_OF_PROCESS" in last_msg.content
-
-
-@pytest.mark.asyncio
-async def test_hybrid_tool_result_appends_paired_messages(mock_strategy_context):
-    """Hybrid appends a paired assistant ToolCall + ToolResult (API requirement).
-
-    v0.13 fix: the old plain-text injection (no assistant pairing) violates
-    the OpenAI-compatible "tool_calls must be followed by tool messages"
-    requirement, causing HTTP 400 on DeepSeek/OpenAI.
-    """
-    from amrita_core.types import ToolCall, UniResponse
-
-    strategy = HybridReActAgentStrategy(mock_strategy_context)
-    tool_call = ToolCall(
-        id="t1",
-        function={"name": "search", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
-    )
-    response_msg: UniResponse[None, list[ToolCall] | None] = UniResponse(
-        content=None,
-        tool_calls=[tool_call],
-        reasoning_content="thinking about the search",
-    )
-    await strategy._append_tool_result_to_context(tool_call, "result", response_msg)
-
-    msgs = mock_strategy_context.original_context.end_messages
-    assert msgs[-2].role == "assistant"
-    assert msgs[-2].tool_calls == [tool_call]
-    # Thinking-mode round-trip: reasoning must be carried back verbatim.
-    assert msgs[-2].reasoning_content == "thinking about the search"
-    assert msgs[-1].role == "tool"
-    assert msgs[-1].tool_call_id == "t1"
-    # MoE-friendly XML rendering is kept in the ToolResult content.
-    assert "<TOOL_RESULT" in msgs[-1].content
-
-
-@pytest.mark.asyncio
-async def test_hybrid_reasoning_stored_in_reasoning_content(mock_strategy_context):
-    """Hybrid stores reasoning in ``Message.reasoning_content``, not content.
-
-    v0.13 fix: appending reasoning as plain assistant text leaks it into the
-    model context and breaks the DeepSeek thinking-mode round-trip (HTTP 400).
-    """
-    from amrita_core.types import ToolCall, UniResponse
-
-    strategy = HybridReActAgentStrategy(mock_strategy_context)
-    tool_call = ToolCall(
-        id="r1",
-        function={"name": "reasoning", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
-    )
-    reasoning: UniResponse[str, None] = UniResponse(
-        content="thinking text",
-        tool_calls=None,
-        reasoning_content=None,
-    )
-    await strategy._append_reasoning(tool_call, reasoning)
-
-    msgs = mock_strategy_context.original_context.end_messages
-    assert msgs[-2].role == "assistant"
-    assert msgs[-2].content is None
-    assert msgs[-2].reasoning_content == "thinking text"
-    assert msgs[-1].role == "tool"
-    assert msgs[-1].content == "<REASONING_COMPLETED>"
-
-
-@pytest.mark.asyncio
-async def test_hybrid_stop_appends_paired_messages(mock_strategy_context):
-    """Hybrid stop response is appended as a paired tool message with reasoning."""
-    from amrita_core.types import UniResponse
-
-    strategy = HybridReActAgentStrategy(mock_strategy_context)
-    response_msg: UniResponse[None, list[ToolCall] | None] = UniResponse(
-        content=None,
-        tool_calls=[],
-        reasoning_content="final thinking",
-    )
-    await strategy._build_stop_response_and_append(
-        {"result": "Done"},
-        response_msg,
-        "agent_stop",
-        "stop1",
-        "<STOP>Done</STOP>",
-    )
-
-    msgs = mock_strategy_context.original_context.end_messages
-    assert msgs[-2].role == "assistant"
-    assert msgs[-2].tool_calls[0].id == "stop1"
-    assert msgs[-2].reasoning_content == "final thinking"
-    assert msgs[-1].role == "tool"
-    assert msgs[-1].content == "<STOP>Done</STOP>"
-
-
-@pytest.mark.asyncio
-async def test_hybrid_vs_react_append_difference(mock_strategy_context, mock_config):
-    """Test that Hybrid and ReAct strategies append results differently."""
+async def test_react_append_paired_messages(mock_strategy_context, mock_config):
+    """Test that ReAct appends a paired assistant message and tool result."""
     from amrita_core.types import ToolCall, UniResponse
 
     mock_config.builtin.tool_calling_mode = "agent"
@@ -950,5 +784,4 @@ async def test_reasoning_aware_tool_prioritization(mock_strategy_context, mock_c
         "amrita_core.builtins.agent.react_comm.tools_caller", return_value=mock_response
     ):
         await strategy.single_execute()
-    # Tool prioritization happens inside; we just verify no crash
-    # (the actual reordering is tested by the function logic above)
+    # Tool prioritization happens inside; we just verify no crash (the actual reordering is tested by the function logic above)

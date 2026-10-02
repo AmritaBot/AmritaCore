@@ -1,14 +1,10 @@
 import asyncio
-from unittest.mock import patch
 
 import pytest
 from amrita_sense import StreamStateError
 
-from amrita_core.chatmanager import ChatObject, MemoryLimiter, chat_manager
-from amrita_core.config import AmritaConfig
+from amrita_core.chatmanager import ChatObject, chat_manager
 from amrita_core.types import (
-    CONTENT_LIST_TYPE,
-    CONTENT_LIST_TYPE_ITEM,
     MemoryModel,
     Message,
     ModelPreset,
@@ -40,15 +36,14 @@ class TestChatObject:
         assert chat_obj.train.model_dump() == train
 
     @pytest.mark.asyncio
-    async def test_chat_object_needs_either_context_or_session_id(self):
-        """Test that at least context or session_id must be provided"""
+    async def test_chat_object_requires_session_id(self):
+        """Test that session_id must be provided"""
         train = {"role": "system", "content": "system message"}
 
-        with pytest.raises(ValueError, match="Either context or session_id"):
+        with pytest.raises(ValueError, match="session_id must be provided"):
             ChatObject(
                 train=train,
                 user_input="hello",
-                context=None,
                 session_id=None,
                 preset=ModelPreset(model="gpt-3.5-turbo", name="t", api_key="k"),
             )
@@ -80,58 +75,6 @@ class TestChatObject:
         assert len(responses) == 2
         assert "Hello" in responses
         assert "World" in responses
-
-
-class TestMemoryLimiter:
-    """Test MemoryLimiter class functionality"""
-
-    @pytest.mark.asyncio
-    async def test_memory_limiter_initialization(self):
-        """Test MemoryLimiter initialization"""
-        memory = MemoryModel()
-        train = {
-            "content": "system prompt",
-            "role": "system",
-        }
-        config = AmritaConfig()
-
-        limiter = MemoryLimiter(memory, train, config)
-
-        assert limiter.memory == memory
-        assert limiter.config == config
-        assert limiter._train.model_dump() == train
-
-    @pytest.mark.asyncio
-    async def test_memory_limiter_context_manager(self):
-        """Test MemoryLimiter context manager"""
-        memory = MemoryModel()
-        train = {
-            "content": "system prompt",
-            "role": "system",
-        }
-        config = AmritaConfig()
-
-        async with MemoryLimiter(memory, train, config) as lim:
-            assert hasattr(lim, "_dropped_messages")
-            assert hasattr(lim, "_copied_messages")
-            assert isinstance(lim._dropped_messages, list)
-            assert lim._copied_messages == memory
-
-    @pytest.mark.asyncio
-    async def test_memory_length_limit(self):
-        """Test memory length limit functionality"""
-        messages: list[CONTENT_LIST_TYPE_ITEM] = [
-            Message(role="user", content=f"message {i}") for i in range(20)
-        ]
-        memory = MemoryModel(messages=messages)
-        train = {"role": "system", "content": "system prompt"}
-
-        config = AmritaConfig()
-        config.llm.memory_length_limit = 5
-
-        async with MemoryLimiter(memory, train, config) as lim:
-            await lim._limit_length()
-            assert len(lim.memory.messages) <= config.llm.memory_length_limit
 
 
 class TestChatManager:
@@ -214,160 +157,6 @@ class TestChatManager:
         assert len(objs) <= 2
 
 
-class TestMemoryLimiterAdvanced:
-    """Test advanced MemoryLimiter functionality"""
-
-    @pytest.mark.asyncio
-    async def test_make_abstract_with_llm_call(self):
-        """Test _make_abstract method with mocked LLM call"""
-        from amrita_core.types import UniResponse, UniResponseUsage
-
-        messages: CONTENT_LIST_TYPE = [
-            Message(role="user", content=f"Message {i}") for i in range(10)
-        ]
-        memory = MemoryModel(messages=messages)
-        train = {"role": "system", "content": "system prompt"}
-        config = AmritaConfig()
-        config.llm.memory_abstract_proportion = 0.5  # Abstract first 50% of messages
-
-        # Mock the LLM calls
-        mock_response = UniResponse(
-            content="This is a summary of the dropped messages",
-            tool_calls=[],
-            usage=UniResponseUsage(
-                prompt_tokens=10, completion_tokens=5, total_tokens=15
-            ),
-        )
-
-        with (
-            patch(
-                "amrita_core.chatmanager.memory_limiter.call_completion"
-            ) as mock_call_completion_2,
-        ):
-            # Create async generator mock
-            async def mock_generator():
-                yield mock_response
-
-            mock_call_completion_2.return_value = mock_generator()
-            async with MemoryLimiter(memory, train, config) as lim:
-                # Manually add some dropped messages
-                lim._dropped_messages = messages[:5]  # First 5 messages
-                await lim._make_abstract()
-
-                # Should have set abstract content and usage
-                assert (
-                    lim.memory.abstract == "This is a summary of the dropped messages"
-                )
-                assert lim.usage is not None
-                assert lim.usage.completion_tokens == 5
-
-    @pytest.mark.asyncio
-    async def test_make_abstract_no_dropped_messages(self):
-        """Test _make_abstract when no messages are dropped"""
-        memory = MemoryModel()
-        train = {"role": "system", "content": "system prompt"}
-        config = AmritaConfig()
-
-        async with MemoryLimiter(memory, train, config) as lim:
-            lim._dropped_messages = []  # No dropped messages
-            await lim._make_abstract()
-
-            # Should not change abstract (remains None/empty)
-            assert lim.memory.abstract == ""
-
-    @pytest.mark.asyncio
-    async def test_drop_message_with_tool_messages(self):
-        """Test dropping messages including tool messages"""
-        from amrita_core.types import ToolResult
-
-        # Create messages where the first message is followed by tool messages
-        messages = [
-            Message(role="user", content="First message"),
-            ToolResult(
-                role="tool", content="Tool result 1", tool_call_id="1", name="test1"
-            ),
-            ToolResult(
-                role="tool", content="Tool result 2", tool_call_id="2", name="test2"
-            ),
-            Message(role="user", content="Second message"),
-            Message(role="assistant", content="Final response"),
-        ]
-        memory = MemoryModel(messages=messages)
-        train = {"role": "system", "content": "system prompt"}
-        config = AmritaConfig()
-
-        limiter = MemoryLimiter(memory, train, config)
-        limiter._dropped_messages = []
-
-        # Drop first message and associated tool messages
-        limiter._drop_message()
-
-        # Should have dropped the first user message and both tool results
-        assert len(limiter._dropped_messages) == 3
-        assert (
-            len(limiter.memory.messages) == 2
-        )  # Remaining: second user message and final response
-
-    @pytest.mark.asyncio
-    async def test_limit_tokens_exceeds_window(self):
-        """Test token limitation when exceeding window size"""
-        messages: CONTENT_LIST_TYPE = [
-            Message(
-                role="user",
-                content="This is a very long message that will exceed token limits "
-                * 20,
-            ),
-            Message(role="assistant", content="Response"),
-        ]
-        memory = MemoryModel(messages=messages)
-        train = {"role": "system", "content": "Short system prompt"}
-        config = AmritaConfig()
-        config.llm.enable_tokens_limit = True
-        config.llm.session_tokens_windows = 50  # Very small window
-
-        async with MemoryLimiter(memory, train, config) as lim:
-            await lim._limit_tokens()
-
-            # Should have removed messages to fit within token window
-            assert len(lim.memory.messages) <= len(messages)
-
-    @pytest.mark.asyncio
-    async def test_run_enforce_without_context_manager(self):
-        """Test run_enforce without proper context manager initialization"""
-        memory = MemoryModel()
-        train = {"role": "system", "content": "system prompt"}
-        config = AmritaConfig()
-
-        limiter = MemoryLimiter(memory, train, config)
-
-        with pytest.raises(RuntimeError, match="MemoryLimiter is not initialized"):
-            await limiter.run_enforce()
-
-    @pytest.mark.asyncio
-    async def test_aexit_with_exception(self):
-        """Test context manager exit with exception - should rollback messages"""
-        original_messages: CONTENT_LIST_TYPE = [
-            Message(role="user", content="Original message 1"),
-            Message(role="user", content="Original message 2"),
-        ]
-        memory = MemoryModel(messages=original_messages.copy())
-        train = {"role": "system", "content": "system prompt"}
-        config = AmritaConfig()
-
-        try:
-            async with MemoryLimiter(memory, train, config) as lim:
-                # Modify messages
-                lim.memory.messages.append(Message(role="user", content="New message"))
-                # Simulate an exception
-                raise ValueError("Test exception")
-        except ValueError:
-            pass
-
-        # Messages should be rolled back to original state
-        assert len(memory.messages) == len(original_messages)
-        assert memory.messages == original_messages
-
-
 class TestChatObjectAdvanced:
     """Test advanced ChatObject functionality"""
 
@@ -423,6 +212,48 @@ class TestChatObjectAdvanced:
 
         full_resp = await chat_obj.full_response()
         assert full_resp == "Hello World!"
+
+    @pytest.mark.asyncio
+    async def test_full_response_skips_structured_events(self):
+        """full_response collects the answer only, not metadata events.
+
+        Reasoning chunks travel in the same stream as the answer, so a
+        ``MessageWithMetadata`` that is written through would end up
+        concatenated into the returned string.
+        """
+        from amrita_core.contents import MessageWithMetadata
+
+        session_id = "test-session-full-response-events"
+        train = {"role": "system", "content": "system message"}
+        default_preset = ModelPreset(
+            model="gpt-3.5-turbo", name="test-default-events", api_key="fake-key"
+        )
+
+        chat_obj = ChatObject(
+            train=train,
+            user_input="test input",
+            session_id=session_id,
+            preset=default_preset,
+        )
+
+        await chat_obj.io_stream._put_to_queue(
+            MessageWithMetadata(
+                "thinking out loud",
+                {"type": "reasoning_chunk", "extra_type": "cot_chunk"},
+            )
+        )
+        await chat_obj.io_stream._put_to_queue("the ")
+        await chat_obj.io_stream._put_to_queue("answer")
+        await chat_obj.io_stream._put_to_queue(
+            MessageWithMetadata(
+                "Called tool search\n",
+                {"type": "function_call", "extra_type": None},
+            )
+        )
+        await chat_obj.io_stream.set_queue_done()
+
+        full_resp = await chat_obj.full_response()
+        assert full_resp == "the answer"
 
     @pytest.mark.asyncio
     async def test_prepare_send_messages(self):

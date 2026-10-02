@@ -53,8 +53,7 @@ async def run() -> None:
     )
 
     async def push_mid_run() -> None:
-        # Push while the agent is working; lands at the next Step boundary
-        # (or is dropped if the run finishes first).
+        # Push while the agent is working; lands at the next Step boundary (or is dropped if the run finishes first).
         await asyncio.sleep(2.0)
         try:
             await stream.send_to_producer("mid-run peer note (may be dropped)")

@@ -41,12 +41,32 @@ AmritaSense 提供两个事件基类：
 
 ### 管线事件
 
-| 事件                 | 类型字符串 | 触发时机                        |
-| -------------------- | ---------- | ------------------------------- |
-| `PreCompletionEvent` | —          | LLM 调用前（在此修改上下文）    |
-| `CompletionEvent`    | —          | 响应后（改写 `model_response`） |
+类型字符串来自 `EventTypeEnum`（`"COMPLETION"`、`"Nil"`、`"BEFORE_COMPLETION"`、
+`"PRESET_FALLBACK"`）。下面两个事件都继承自共享基类 `Event`（含 `user_input`、
+`original_context`、`chat_object` 以及可变的 `message` 包装）。
 
-便捷装饰器：`@on_precompletion`、`@on_completion`、`@on_event("<type>")`。
+| 事件                 | 类型字符串            | 触发时机                        |
+| -------------------- | --------------------- | ------------------------------- |
+| `PreCompletionEvent` | `"BEFORE_COMPLETION"` | LLM 调用前（在此修改上下文）    |
+| `CompletionEvent`    | `"COMPLETION"`        | 响应后（改写 `model_response`） |
+
+便捷装饰器：`@on_precompletion`、`@on_completion`、`@on_preset_fallback`、
+`@on_event("<type>")`。它们都是返回 `Matcher` 的工厂，因此必须用 `.handle()`
+挂接处理器。
+
+### 兜底（Fallback）事件
+
+`FallbackContext` 是预设兜底事件族的基类。所有子类共享同一个类型字符串
+`"PRESET_FALLBACK"`，具体子类用于告诉匹配器**哪一个**网关调用失败了。字段：
+`preset`、`exc_info`、`config`、`context`、`term`。
+
+| 事件                        | 失败的调用        | 额外字段 |
+| --------------------------- | ----------------- | -------- |
+| `CompletionFallbackContext` | `call_completion` | —        |
+| `ToolsFallbackContext`      | `tools_caller`    | `tools`  |
+| `EmbeddingFallbackContext`  | `call_embedding`  | —        |
+
+调用 `event.fail(reason)` 会抛出 `FallbackFailed`。
 
 ### Step 生命周期事件（内置 ReAct）
 
@@ -67,7 +87,7 @@ AmritaSense 提供两个事件基类：
 1. **事件可变**——钩子在分发后读回字段：
 
    ```python
-   @on_event("agent.step_leave")
+   @on_event("agent.step_leave").handle()
    async def fix_summary(event):
        event.override_verb = "Reviewed"  # 替换自动摘要
    ```
@@ -79,7 +99,7 @@ AmritaSense 提供两个事件基类：
    from amrita_core.builtins.agent.events import StepAbortError
 
 
-   @on_event("agent.tool_call")
+   @on_event("agent.tool_call").handle()
    async def block_tool(event):
        raise StepAbortError("blocked")  # 工具永不执行
    ```

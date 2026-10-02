@@ -17,7 +17,7 @@
 - `self.chat_object` —— 生命周期管理器句柄
 - `self.tools_manager` —— 工具管理器
 - 便捷属性：`self.preset`、`self.config`、`self.io_stream`、
-  `self.train_content`、`self.stream_id`、`self.resp_extra_usage`
+  `self.train_content`、`self.stream_id`、`self.usage`
 
 > `StrategyLikedObject.__call__` 被覆写时必须先调 `super().__call__(ctx)`。
 > `AgentStrategy` 在 `__init__` 里绑定。
@@ -153,29 +153,37 @@ from amrita_core.types import ToolCall, UniResponse
 
 
 class MyReActStrategy(BaseReActAgentStrategy):
-    async def _append_tool_result_to_context(
+    async def _append_tool_results_batch(
         self,
-        tool_call: ToolCall,
-        func_response: str,
         response_msg: UniResponse[None, list[ToolCall] | None],
-    ):
-        # 自定义配对——例如给结果文本加标记。
+        results: list[tuple[ToolCall, str, BaseException | None]],
+    ) -> None:
+        # 整轮用一条 assistant 消息，然后每个调用一条结果
         self.ctx.message.append(
-            Message(role="assistant", content=None, tool_calls=[tool_call])
-        )
-        self.ctx.message.append(
-            ToolResult(
-                role="tool",
-                name=tool_call.function.name,
-                content=f"[custom] {func_response}",
-                tool_call_id=tool_call.id,
+            Message(
+                role="assistant",
+                content=response_msg.content,
+                tool_calls=[tc for tc, _, _ in results],
             )
         )
+        for tool_call, func_response, _exc in results:
+            self.ctx.message.append(
+                ToolResult(
+                    role="tool",
+                    name=tool_call.function.name,
+                    content=f"[custom] {func_response}",
+                    tool_call_id=tool_call.id,
+                )
+            )
 ```
 
-关键模板方法：`_append_tool_result_to_context`、`_handle_error_append`、
-`_append_reasoning`、`_build_stop_response_and_append`。需要完全控制时覆写
-`single_execute`（参考 `react_comm.py` 里的内置 `ReActAgentStrategy`）。
+`_append_reasoning` 是唯一的抽象方法；`_append_tool_results_batch` 与
+`_handle_error_append` 都有可用的默认实现。一轮内的调用必须留在**同一条** assistant
+消息里——拆开会让除一条之外的所有消息丢掉推理，并让 provider 看到一条缺少结果的
+`tool_calls` 消息。
+
+需要完全控制时覆写 `single_execute`（参考 `react_comm.py` 里的内置
+`ReActAgentStrategy`）。
 
 > 在 step 循环策略上覆写 `single_execute` 时，保持 `get_category()` 返回
 > `"agent-mixed"`，并调用 `_execute_tool_loop(response_msg)` 走共享执行流。

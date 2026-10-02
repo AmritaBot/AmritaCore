@@ -186,5 +186,5 @@ MCPClient includes built-in error handling:
 ## Related Documentation
 
 - [ClientManager](ClientManager.md) - Multi-client management
-- [MCP Server Integration](../../guide/extensions-integration/mcp-server-integration.md) - Detailed integration guide
-- [ToolsManager](ToolsManager.md) - Tool registration and management
+- [MCP Server Integration](../../extensions-integration/mcp-server.md) - Detailed integration guide
+- `ToolsManager` - Tool registration and management

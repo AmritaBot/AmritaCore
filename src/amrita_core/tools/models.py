@@ -55,6 +55,20 @@ def _extract_types_from_anyof(prop: MCPProperty) -> list[JSON_OBJECT_TYPE]:
     return types
 
 
+def _copy_constraints(
+    target: dict[str, Any], source: MCPProperty, names: tuple[str, ...]
+) -> None:
+    """Copy the JSON Schema keywords that are actually set.
+
+    Every keyword is tested against ``None`` rather than truthiness, because
+    ``0``, ``False`` and ``""`` are all meaningful bounds.
+    """
+    for name in names:
+        value = getattr(source, name, None)
+        if value is not None:
+            target[name] = value
+
+
 def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
     """
     Convert a single MCPProperty to FunctionPropertySchema.
@@ -113,6 +127,8 @@ def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
             base_params["properties"] = obj_properties
         if effective_prop.required:
             base_params["required"] = effective_prop.required
+        if effective_prop.additionalProperties is not None:
+            base_params["additionalProperties"] = effective_prop.additionalProperties
 
     elif has_array:
         if effective_prop.items:
@@ -128,8 +144,28 @@ def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
         if effective_prop.uniqueItems is not None:
             base_params["uniqueItems"] = effective_prop.uniqueItems
 
-    # For numeric and boolean types, no additional fields are needed since FunctionPropertySchema
-    # doesn't include minimum/maximum fields in the same way
+    # Scalar constraints only apply when exactly one non-null type is declared: a multi-type property has to stay constraint-free for the orthogonality validator below to accept it.
+    if non_null_types == ["string"]:
+        _copy_constraints(
+            base_params,
+            effective_prop,
+            ("pattern", "minLength", "maxLength", "format"),
+        )
+    elif len(non_null_types) == 1 and non_null_types[0] in ("integer", "number"):
+        _copy_constraints(
+            base_params,
+            effective_prop,
+            (
+                "minimum",
+                "maximum",
+                "exclusiveMinimum",
+                "exclusiveMaximum",
+                "multipleOf",
+            ),
+        )
+
+    _copy_constraints(base_params, effective_prop, ("const", "default"))
+
     return FunctionPropertySchema(**base_params)
 
 
@@ -292,14 +328,14 @@ class FunctionPropertySchema(BaseModel, Generic[T]):
         description="Maximum value (inclusive) for numeric types",
         exclude_if=on_none,
     )
-    exclusiveMinimum: bool | None = Field(
+    exclusiveMinimum: bool | float | int | None = Field(
         default=None,
-        description="Whether value must be greater than minimum (default false)",
+        description="Exclusive lower bound: `true` makes `minimum` exclusive, a number is the bound itself (draft 2020-12)",
         exclude_if=on_none,
     )
-    exclusiveMaximum: bool | None = Field(
+    exclusiveMaximum: bool | float | int | None = Field(
         default=None,
-        description="Whether value must be less than maximum (default false)",
+        description="Exclusive upper bound: `true` makes `maximum` exclusive, a number is the bound itself (draft 2020-12)",
         exclude_if=on_none,
     )
     multipleOf: float | None = Field(

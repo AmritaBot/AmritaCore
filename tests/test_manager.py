@@ -7,7 +7,6 @@ from amrita_core.tools.manager import (
     MultiToolsManager,
     ToolsManager,
     _parse_google_docstring,
-    _python_type_to_property_schema,
     on_tools,
     simple_tool,
 )
@@ -17,6 +16,7 @@ from amrita_core.tools.models import (
     ToolData,
     ToolFunctionSchema,
 )
+from amrita_core.tools.schema import python_type_to_property_schema
 
 
 class TestMultiToolsManager:
@@ -169,58 +169,58 @@ def test_parse_google_docstring():
 
 def test_python_type_to_property_schema():
     ns = globals()
-    assert _python_type_to_property_schema(str, ns).type == "string"
-    assert _python_type_to_property_schema(int, ns).type == "integer"
-    assert _python_type_to_property_schema(float, ns).type == "number"
-    assert _python_type_to_property_schema(bool, ns).type == "boolean"
+    assert python_type_to_property_schema(str, ns).type == "string"
+    assert python_type_to_property_schema(int, ns).type == "integer"
+    assert python_type_to_property_schema(float, ns).type == "number"
+    assert python_type_to_property_schema(bool, ns).type == "boolean"
     with pytest.raises(ValueError):  # noqa: PT011
-        _python_type_to_property_schema(list, globalns=ns).type
+        python_type_to_property_schema(list, globalns=ns).type
     with pytest.raises(ValueError):  # noqa: PT011
-        _python_type_to_property_schema(dict, ns).type
+        python_type_to_property_schema(dict, ns).type
     with pytest.raises(ValueError):  # noqa: PT011
-        _python_type_to_property_schema(Any, ns)
+        python_type_to_property_schema(Any, ns)
 
 
 def test_python_type_to_property_schema_literal():
-    """Test Literal type support in _python_type_to_property_schema."""
+    """Test Literal type support in python_type_to_property_schema."""
     ns = globals()
 
     # Literal[string] -> string type + enum
-    schema = _python_type_to_property_schema(Literal["a", "b", "c"], ns)
+    schema = python_type_to_property_schema(Literal["a", "b", "c"], ns)
     assert schema.type == "string"
     assert schema.enum == ["a", "b", "c"]
 
     # Literal[int] -> integer type + enum
-    schema = _python_type_to_property_schema(Literal[1, 2, 3], ns)
+    schema = python_type_to_property_schema(Literal[1, 2, 3], ns)
     assert schema.type == "integer"
     assert schema.enum == [1, 2, 3]
 
     # Literal[float] -> number type + enum
-    schema = _python_type_to_property_schema(Literal[1.0, 2.5, 3.14], ns)
+    schema = python_type_to_property_schema(Literal[1.0, 2.5, 3.14], ns)
     assert schema.type == "number"
     assert schema.enum == [1.0, 2.5, 3.14]
 
     # Literal[bool] -> boolean type + enum
-    schema = _python_type_to_property_schema(Literal[True, False], ns)
+    schema = python_type_to_property_schema(Literal[True, False], ns)
     assert schema.type == "boolean"
     assert schema.enum == [True, False]
 
     # Literal with custom description
-    schema = _python_type_to_property_schema(Literal["x", "y"], ns, "choose an axis")
+    schema = python_type_to_property_schema(Literal["x", "y"], ns, "choose an axis")
     assert schema.type == "string"
     assert schema.enum == ["x", "y"]
     assert schema.description == "choose an axis"
 
     # Mixed types should raise TypeError
     with pytest.raises(TypeError, match="homogeneous"):
-        _python_type_to_property_schema(Literal["a", 1], ns)
+        python_type_to_property_schema(Literal["a", 1], ns)
 
     # Empty Literal should raise ValueError
     with pytest.raises(ValueError, match="at least one value"):
-        _python_type_to_property_schema(Literal[()], ns)  # type: ignore[arg-type]
+        python_type_to_property_schema(Literal[()], ns)  # type: ignore[arg-type]
 
     # Literal with a single value
-    schema = _python_type_to_property_schema(Literal["only"], ns)
+    schema = python_type_to_property_schema(Literal["only"], ns)
     assert schema.type == "string"
     assert schema.enum == ["only"]
 

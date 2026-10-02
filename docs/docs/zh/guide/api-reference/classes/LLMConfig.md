@@ -5,33 +5,33 @@ LLMConfig 类定义 LLM 调用和记忆管理的配置参数。
 ## 属性
 
 - `require_tools` (bool)：默认 `False`。是否强制每次调用至少使用一个工具
-- `memory_length_limit` (int)：默认 `200`。记忆上下文中的最大消息数（必须 `>= 1`）
-- `max_tokens` (int)：默认 `1000`。单次响应中生成的最大 token 数（必须 `>= 1`）
-- `tokens_count_mode` (Literal["word", "bpe", "char"])：默认 `"bpe"`。token 计数模式
-- `enable_tokens_limit` (bool)：默认 `True`。是否启用上下文长度限制
-- `session_tokens_windows` (int)：默认 `65536`（64k）。会话 token 窗口大小（必须 `>= 1`）
+- `max_tokens` (int)：默认 `10000`。响应输出预算的最后兜底（必须 `>= 1`）。真正发给 provider 的数字通常来自 [`ModelPreset.max_output`](ModelPreset.md)（默认 `28000`）；只有当预设显式设置 `max_output=None` 时才会用到本项
+- `compaction_max_tokens` (int)：默认 `2048`。历史压缩摘要调用的输出上限（必须 `>= 0`；`0` 表示摘要沿用预设自身的值）。推理模型在产出任何内容之前会先花掉输出预算思考，因此继承较小 `max_output` 的摘要会返回空内容，导致折叠静默不生效
+- `session_tokens_windows` (int)：默认 `65536`（64k）。当前预设未声明 `max_context` 时使用的兜底注意力窗口（必须 `>= 1`）
 - `llm_timeout` (int)：默认 `60`。API 请求超时时间（秒）（必须 `>= 1`）
 - `auto_retry` (bool)：默认 `True`。请求失败时自动重试
 - `max_retries` (int)：默认 `3`。最大重试次数（必须 `>= 0`；`0` 表示不重试）
 - `max_fallbacks` (int)：默认 `5`。最大预设回退次数（必须 `>= 1`；`0` 会导致所有请求立即失败）
-- `enable_memory_abstract` (bool)：默认 `True`。是否启用上下文记忆摘要
-- `memory_abstract_proportion` (float)：默认 `0.5`。上下文摘要比例（必须在 `(0, 1]` 之间，如 `0.5` = 50%）
-- `memory_abstract_threshold` (int)：默认 `-1`。触发 Step 边界历史压缩的 prompt-token 阈值（`<= 0` = 禁用，即永不）。当真实 API prompt-token 数在 Step 边界超过该值时，已完成的 Step 历史会被摘要进上下文
+- `enable_compaction` (bool)：默认 `True`。是否将长历史折叠为摘要。摘要存放在 [`MemoryModel.abstract`](MemoryModel.md)，由 train 模板渲染进系统指令
+- `compaction_trigger_ratio` (float)：默认 `0.9`。强制压缩历史时占注意力窗口的比例（必须在 `(0, 1]`）。保持小于 `1.0` 是为了吸收“上次实测 prompt 大小”与“下次请求实际大小”之间的滞后
+- `memory_length_limit` (int)：默认 `200`。不看 token 计数、强制触发压缩的消息条数兜底（必须 `>= 0`；`0` 表示禁用兜底）
+- `enable_overflow_recovery` (bool)：默认 `True`。当 provider 因超出上下文窗口而拒绝请求时，是否压缩并重试一次
 - `enable_multi_modal` (bool)：默认 `True`。是否启用多模态支持
 
-## 窗口长度与消息条数的配合
+## 注意力窗口与压缩
 
-`session_tokens_windows` 与 `memory_length_limit` 是两条相互独立的压缩触发线，任意一条先到都会触发上下文压缩。
+注意力窗口来自模型本身，而不是一个全局数字。每个 [`ModelPreset`](ModelPreset.md) 都可以声明自己的 `max_context`（输入预算）与 `max_output`（响应预留）；`session_tokens_windows` 与 `max_tokens` 仅在预设未设置时作为兜底。因此模型的真实上限跟随模型本身。
 
-因此只调大 token 窗口、不同步放宽消息条数是不够的：消息条数会先一步触发压缩，上下文被频繁裁剪，提示词缓存命中率随之下降。
+压缩在两条触发线中先到者触发：
 
-经验换算：常规 Agent 任务中，一条消息（含工具调用及其结果）大致折算 300 tokens。据此估算：
+- **token 触发**：provider 为上一次请求上报的 prompt 大小达到 `compaction_trigger_ratio` × `max_context`。全程不涉及本地分词器——度量值就是 provider 自己的 usage 上报
+- **消息条数兜底**：历史达到 `memory_length_limit` 条。该兜底存在的原因是 token 触发依赖 provider 上报 usage；从不上报的网关否则会让历史无界增长
 
-- 64k 上下文 ≈ 200 条消息（默认值即按此配比）
-- 128k 上下文 ≈ 400 条消息
-- 256k 上下文 ≈ 800 条消息
+常规 Agent 消息（含工具调用及其结果）大致折算 300 tokens，因此 64k 窗口约对应 200 条消息。只有当你使用的所有 provider 都会上报 usage 时，才将 `memory_length_limit` 设为 `0`。
 
-配置时请按模型实际上下文窗口同步调整这两项。
+## 描述
+
+LLMConfig 类继承自 BaseModel，通过 `AmritaConfig.llm` 公开。它控制 token 限制、重试/回退行为、历史压缩与多模态支持。
 
 ## 示例
 
@@ -39,7 +39,9 @@ LLMConfig 类定义 LLM 调用和记忆管理的配置参数。
 from amrita_core.config import LLMConfig
 
 llm_config = LLMConfig(
-    enable_memory_abstract=True,
-    memory_abstract_proportion=0.15,
+    enable_compaction=True,
+    compaction_trigger_ratio=0.85,  # 窗口用到 85% 时折叠
+    memory_length_limit=200,  # 消息条数兜底
+    enable_overflow_recovery=True,  # provider 报溢出时压缩并重试
 )
 ```

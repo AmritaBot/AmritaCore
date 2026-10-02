@@ -32,7 +32,8 @@ def build_strategy_context(
 
     This is the **single factory** for all ``StrategyContext`` construction.
     When a new DI field is added to ``StrategyContext``, update this function
-    and both ``_run_strategy`` and ``STRATEGY_INIT`` will pick it up.
+    and both the ChatObject strategy-preparation node and ``STRATEGY_INIT``
+    will pick it up.
     """
     return StrategyContext(
         user_input=user_input,

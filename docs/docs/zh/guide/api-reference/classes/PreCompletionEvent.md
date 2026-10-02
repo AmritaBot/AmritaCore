@@ -26,7 +26,7 @@ from amrita_core import on_precompletion
 from amrita_core.hook.event import PreCompletionEvent
 
 
-@on_precompletion
+@on_precompletion().handle()
 async def before_completion(event: PreCompletionEvent):
     # 在模型被调用之前修改消息上下文
     event.message = event.message

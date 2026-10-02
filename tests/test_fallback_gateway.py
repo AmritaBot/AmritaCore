@@ -129,8 +129,7 @@ class TestCompletionFallback:
         matcher = Matcher("PRESET_FALLBACK", priority=1)
 
         async def keep_swapping(ev: FallbackContext):
-            # Always provide a *new* preset object so the loop keeps retrying
-            # until max_fallbacks is exhausted.
+            # Always provide a *new* preset object so the loop keeps retrying until max_fallbacks is exhausted.
             ev.preset = _make_preset(f"alt-{ev.term}")
 
         matcher.handle()(keep_swapping)

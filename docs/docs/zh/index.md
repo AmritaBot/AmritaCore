@@ -52,15 +52,15 @@ MCP 客户端、模型适配器，以及内置的 Step 驱动 ReAct 策略。
 
 ## 阅读路径
 
-| 阶段       | 版块                                                            | 你将获得                                  |
-| ---------- | --------------------------------------------------------------- | ----------------------------------------- |
-| ① 跑起来   | [快速开始](/zh/guide/getting-started)                           | 环境、最小示例、第一个 agent              |
-| ② 用起来   | [教程](/zh/guide/tutorials)                                     | 工具、流式、钩子、记忆——循序渐进          |
-| ③ 理解底层 | [核心概念](/zh/guide/concepts)                                  | ChatObject、策略、事件与数据如何协作      |
-| ④ 扩展     | [扩展与集成](/zh/guide/extensions-integration)                  | 适配器、自定义工具、MCP、自定义 Tokenizer |
-| ⑤ 调优     | [代理工程](/zh/guide/agent-engineering)                         | 提示词工程、Jinja2 模板、异常排查         |
-| ⑥ 深入内核 | [进阶](/zh/guide/advanced)                                      | 工作流引擎、挂起/恢复、Step 循环内部      |
-| ⑦ 设计哲学 | [项目介绍](/zh/guide/introduction) + [附录](/zh/guide/appendix) | AmritaCore 为何这样设计                   |
+| 阶段       | 版块                                                            | 你将获得                             |
+| ---------- | --------------------------------------------------------------- | ------------------------------------ |
+| ① 跑起来   | [快速开始](/zh/guide/getting-started)                           | 环境、最小示例、第一个 agent         |
+| ② 用起来   | [教程](/zh/guide/tutorials)                                     | 工具、流式、钩子、记忆——循序渐进     |
+| ③ 理解底层 | [核心概念](/zh/guide/concepts)                                  | ChatObject、策略、事件与数据如何协作 |
+| ④ 扩展     | [扩展与集成](/zh/guide/extensions-integration)                  | 适配器、自定义工具、MCP              |
+| ⑤ 调优     | [代理工程](/zh/guide/agent-engineering)                         | 提示词工程、Jinja2 模板、异常排查    |
+| ⑥ 深入内核 | [进阶](/zh/guide/advanced)                                      | 工作流引擎、挂起/恢复、Step 循环内部 |
+| ⑦ 设计哲学 | [项目介绍](/zh/guide/introduction) + [附录](/zh/guide/appendix) | AmritaCore 为何这样设计              |
 
 > **捷径**：偏好查阅而非通读？直接跳到 [API 参考](/zh/guide/api-reference)、
 > [内置能力](/zh/guide/builtins) 或 [安全机制](/zh/guide/security-mechanisms)。

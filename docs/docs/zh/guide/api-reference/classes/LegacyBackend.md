@@ -1,6 +1,6 @@
 # LegacyBackend
 
-默认的内置后端，使用进程内全局容器实现 [AbilityBackend](AbilityBackend.md) 和 [MemoryBackend](MemoryBackend.md)。
+默认的内置后端，使用进程内全局容器实现 [AbilityBackend](AbilityBackend.md)、[MemoryBackend](MemoryBackend.md) 和 [BillingBackend](BillingBackend.md)。
 
 ## 描述
 
@@ -8,13 +8,19 @@
 
 ## 继承
 
-`LegacyBackend` 同时实现了 [AbilityBackend](AbilityBackend.md) 和 [MemoryBackend](MemoryBackend.md)。
+`LegacyBackend` 同时实现了 [AbilityBackend](AbilityBackend.md)、[MemoryBackend](MemoryBackend.md) 和 [BillingBackend](BillingBackend.md)。
 
 ## 构造函数
 
 ```python
-LegacyBackend(ctx: StateContext | None = None)
+LegacyBackend()
 ```
+
+## 行为
+
+- **能力方法**（`load_ability_all`、`load_mcp_clients`、`load_tools`、`load_presets`）：全部返回共享的全局 `AbilityContext` 单例引用（`LegacyBackend.glb`）
+- **记忆方法**（`load_memory`、`commit_memory`）：读写一个 `MemoryModel` 字段，作用域为每个 `LegacyBackend` 实例
+- **计费方法**（`commit_billing`、`load_billing`）：向按会话划分的进程内记录存储追加并从中读取，该存储由锁保护
 
 ## 使用
 
@@ -23,5 +29,5 @@ from amrita_core.builtins.backends import LegacyBackend
 from amrita_core.base.backend import BackendSlots
 
 backend = LegacyBackend()
-slot = BackendSlots(ability=backend, memory=backend)
+slot = BackendSlots(ability=backend, memory=backend, billing=backend)
 ```

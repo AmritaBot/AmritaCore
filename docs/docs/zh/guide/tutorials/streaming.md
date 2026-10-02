@@ -48,6 +48,11 @@ async with chat.begin():
                 print(f"\n[{meta}] {content}", flush=True)
 ```
 
+> **不要把每个条目都拼起来。** `str` chunk 与推理 chunk 是两种东西：对两者都调
+> `msg.get_content()` 再把结果拼接，会把模型的思考混进答案。请像上面那样按类型
+> （或按 `metadata["type"]`）分支。`chat.full_response()` 已经替你做了这件事，
+> 只返回答案。
+
 ### 常见元数据类型
 
 | `type`            | `extra_type`         | 触发时机                                            |
@@ -88,6 +93,10 @@ await chat.io_stream.send_to_producer(
 - **Step 开始前**推送的消息 → 在该边界被消费。
 - **agent 工作期间**推送 → 在下一个边界被拾取。
 - **运行结束后**推送 → 被丢弃（通道已关闭）。
+
+> **必须有 Step 边界。** peer 消息在 `intro_step` 中被排空，而只有 native step
+> 工作流会走到那里。默认的简单对话流水线下它们会被静默丢弃，因此需要反向通道时
+> 请传 `get_chatobject(..., workflow=_step_workflow_rendered)`。
 
 这是人机协同、工具反馈与流式输入的基础。完整机制见
 [挂起/恢复](../advanced/suspend.md)。

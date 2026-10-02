@@ -44,37 +44,41 @@ AmritaCore 本身**不存储**对话历史。它把 `session_id` 交给数据后
 
 ## 3. 记忆摘要
 
-长会话会撞上下文上限。开启自动摘要：
+长会话会撞上下文上限。开启自动压缩：
 
 ```python
 from amrita_core import minimal_init
 from amrita_core.config import AmritaConfig
 
 config = AmritaConfig()
-config.llm.enable_memory_abstract = True
-config.llm.memory_abstract_threshold = 4000  # tokens
+config.llm.enable_compaction = True
+config.llm.compaction_trigger_ratio = 0.9  # 窗口用到 90% 时折叠
 await minimal_init(config)
 ```
 
-当 prompt 超过阈值，较旧轮次会在请求发出前被摘要。（内置 step 策略还会
-执行 Step 间压缩——见 [Step 循环](../advanced/step-loop.md)。）
+压缩在两条触发线中先到者触发：
 
-压缩其实有两条触发线：`llm.session_tokens_windows`（默认 64k）与
-`llm.memory_length_limit`（默认 200），任意一条先到都会触发。只调大 token
-窗口而不同步放宽消息条数，条数会先一步触发，长会话被频繁裁剪、提示词缓存
-命中率随之下降。经验换算：一条消息约 300 tokens，256k 上下文约对应 800 条
-消息。
+- **token 触发**：provider 为上一次请求上报的 prompt 大小达到
+  `compaction_trigger_ratio` × 预设的 `max_context`
+- **消息条数兜底**：历史达到 `llm.memory_length_limit`（默认 200）
+
+摘要存放在 `memory.abstract`，由模板渲染进系统指令，因此被折叠的轮次完全
+离开消息列表。（内置 step 策略还会执行 Step 间压缩——见
+[Step 循环](../advanced/step-loop.md)。）
+
+经验换算：一条消息约 300 tokens，64k 窗口约对应 200 条消息。只有当所有
+provider 都会上报 usage 时，才将 `memory_length_limit` 设为 `0`。
 
 ## 4. 刚才发生了什么
 
 - `session_id` 是一次对话的**唯一标识符**——只负责命名
 - **数据后端**决定历史存在哪里、能存活多久
-- 摘要让长会话保持在上下文窗口内
+- 压缩让长会话保持在上下文窗口内
 
 ## 下一步
 
 教程路径已完成。推荐下一步：
 
 - [核心概念](../concepts/index.md)——理解底层发生了什么
-- [扩展与集成](../extensions-integration/index.md)——适配器、MCP、自定义 Tokenizer
+- [扩展与集成](../extensions-integration/index.md)——适配器、MCP
 - [代理工程](../agent-engineering/index.md)——提示词调优与异常排查

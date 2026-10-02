@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 
 import pytest
 from fastmcp.client.transports import (
@@ -135,13 +136,13 @@ class TestPassThrough:
         t = resolve_transport("https://example.com/mcp")
         assert t == "https://example.com/mcp"
 
-    def test_file_path_passthrough(self):
+    def test_file_path_resolves_to_path(self):
         t = resolve_transport("/home/user/my_script.py")
-        assert t == "/home/user/my_script.py"
+        assert t == Path("/home/user/my_script.py")
 
-    def test_relative_path_passthrough(self):
+    def test_relative_path_resolves_to_path(self):
         t = resolve_transport("script.py")
-        assert t == "script.py"
+        assert t == Path("script.py")
 
     def test_unknown_extra_passthrough(self):
         t = resolve_transport("unknown+http://host/path")

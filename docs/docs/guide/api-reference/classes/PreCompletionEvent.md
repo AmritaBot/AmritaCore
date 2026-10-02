@@ -26,7 +26,7 @@ from amrita_core import on_precompletion
 from amrita_core.hook.event import PreCompletionEvent
 
 
-@on_precompletion
+@on_precompletion().handle()
 async def before_completion(event: PreCompletionEvent):
     # Modify the message context before the model is called
     event.message = event.message  # or build a new SendMessageWrap

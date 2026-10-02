@@ -51,7 +51,7 @@ async def STRATEGY_INIT(
 ) -> None:
     """Initialize the strategy context.
 
-    Equivalent to the `_run_strategy('agent' branch)` in chat_object.py.
+    Equivalent to the `_prepare_strategy` node in chat_object.py.
     AGENT_ENTRY is executed right after, and agent.strategy(loop.stg_ctx)
     instantiates ReActAgentStrategy.
 
@@ -112,8 +112,7 @@ def AGENT_ENTRY(
     loop.ctx_backup = mem.context_wrap.copy()
     if loop.run_state is None:
         loop.run_state = AgentRunState()
-    # Bridge the SAME run_state instance between loop and strategy so that
-    # conditions/hooks observe identical state (step strategies only).
+    # Bridge the SAME run_state instance between loop and strategy so that conditions/hooks observe identical state (step strategies only).
     strategy = loop.strategy
     if isinstance(strategy, _step_strategy_guard()):
         if strategy.run_state is None:
@@ -263,8 +262,7 @@ def SINGLE_STRATEGY_CALL(fallback_on_fail: bool = True) -> NodeType[bool]:
     return _single_strategy_exec
 
 
-# Native step-loop nodes (additive over legacy SINGLE_STRATEGY_CALL /
-# REACT_COUNTER; wired via NATIVE_DO/NATIVE_WHILE in workflows.py).
+# Native step-loop nodes (additive over legacy SINGLE_STRATEGY_CALL / REACT_COUNTER; wired via NATIVE_DO/NATIVE_WHILE in workflows.py).
 
 
 def _step_strategy_guard() -> type["BaseReActAgentStrategy"]:
@@ -346,8 +344,7 @@ async def STEP_EXEC(
         mem.context_wrap = loop.ctx_backup
         result = False
     if loop.run_state is not None and result:
-        # Per-iteration hook runs inside the loop so a stalled agent stops
-        # burning tokens (leave_step only runs after the loop exits).
+        # Per-iteration hook runs inside the loop so a stalled agent stops burning tokens (leave_step only runs after the loop exits).
         strategy = _step_strategy(loop)
         await strategy.after_iteration()
     elif loop.run_state is not None and not result:
@@ -451,10 +448,8 @@ async def simple_mode(loop: AgentLoopState) -> bool:
     return bool(loop.run_state and loop.run_state.simple_mode)
 
 
-# STEP_BODY — node-driven step-loop body (shared with workflows.py and
-# chat_object.py): each task-loop iteration is ONE Step = ONE DAG node.
+# STEP_BODY - node-driven step-loop body (shared with workflows.py and chat_object.py): each task-loop iteration is ONE Step = ONE DAG node.
 NODE_INTRO, NODE_LEAVE = STEP_SLOT("node")
 
-# BREAK_LOOP cannot sit inside a NATIVE_IF branch (DFS scanner configures
-# loop-control nodes pre-expansion); plan completion lives in task_cond.
+# BREAK_LOOP cannot sit inside a NATIVE_IF branch (DFS scanner configures loop-control nodes pre-expansion); plan completion lives in task_cond.
 STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAVE

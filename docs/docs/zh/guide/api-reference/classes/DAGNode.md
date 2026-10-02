@@ -24,4 +24,4 @@ node = DAGNode(
 ## 相关
 
 - [AgentRunState](AgentRunState.md) —— 持有 `plan: list[DAGNode]`
-- [DecomposeDecision](DecomposeDecision.md) —— 产生 DAG 的 LLM 输出
+- `DecomposeDecision` —— 产生 DAG 的 LLM 输出

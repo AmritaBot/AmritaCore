@@ -64,7 +64,7 @@ containers. Examples:
 
 ### Other prefixes
 
-- `Base*` — abstract base classes (`BaseTokenizer`, `BaseReActAgentStrategy`)
+- `Base*` — abstract base classes (`BaseReActAgentStrategy`, `BaseModel`)
 - `Legacy*` — backward-compatible implementations (`LegacyBackend`)
 
 ## Glossary

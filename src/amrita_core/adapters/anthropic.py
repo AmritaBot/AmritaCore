@@ -26,6 +26,7 @@ from amrita_core.types import (
     UniResponse,
     UniResponseUsage,
 )
+from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import RequestMetadata
 from amrita_core.utils import model_dump
 
@@ -61,10 +62,48 @@ try:
         """Anthropic Protocol Adapter"""
 
         @staticmethod
+        def _split_inline_image(url: str) -> tuple[str, str] | None:
+            """Split an inline ``data:`` URI into ``(media_type, base64_data)``.
+
+            Returns ``None`` when ``url`` is not a data URI so the caller can
+            fall back to the external-URL source. A data URI that cannot be
+            expressed as an Anthropic ``base64`` source raises instead of being
+            dropped: the provider needs both a media type and a base64 payload,
+            and silently discarding the image would leave the model answering
+            about a picture it never received.
+            """
+            if not url.startswith("data:"):
+                return None
+            header, _, payload = url.partition(",")
+            meta = [part.strip() for part in header[len("data:") :].split(";")]
+            media_type = meta[0] if meta else ""
+            if not media_type:
+                raise ValueError(
+                    "Inline image data URI is missing its media type, expected "
+                    "the form `data:image/png;base64,<payload>`"
+                )
+            if not any(part.lower() == "base64" for part in meta[1:]):
+                raise ValueError(
+                    "Inline image data URI must be base64-encoded; the "
+                    "provider does not accept URL-encoded payloads"
+                )
+            if not payload:
+                raise ValueError("Inline image data URI carries no payload")
+            return media_type, payload
+
+        @staticmethod
         def _convert_content_to_blocks(
             content: str | list[dict] | None,
         ) -> list[dict]:
-            """Convert internal content to Anthropic content blocks"""
+            """Convert internal content to Anthropic content blocks.
+
+            Images arrive in the OpenAI shape (``image_url`` with a ``url``) and
+            are translated to the Anthropic ``image`` block. The provider takes
+            three source variants and the URL decides which one applies: an
+            inline ``data:`` URI becomes a ``base64`` source, anything else is
+            passed through as a ``url`` source. A data URI sent as a ``url``
+            source is rejected by the provider, so the split is not optional.
+            """
             if content is None:
                 return []
             if isinstance(content, str):
@@ -79,18 +118,35 @@ try:
                 if item_type == "text":
                     blocks.append({"type": "text", "text": item.get("text", "")})
                 elif item_type == "image_url":
-                    # Support Anthropic image blocks if needed (example)
-                    image_url = item.get("image_url", {}).get("url", "")
-                    blocks.append(
-                        {
-                            "type": "image",
-                            "source": {
-                                "type": "url",
-                                "url": image_url,
-                            },
-                        }
+                    raw_source = item.get("image_url") or {}
+                    image_url = (
+                        raw_source.get("url", "")
+                        if isinstance(raw_source, dict)
+                        else str(raw_source)
                     )
-                # Other types are ignored for now
+                    if inline := AnthropicAdapter._split_inline_image(image_url):
+                        media_type, data = inline
+                        blocks.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": data,
+                                },
+                            }
+                        )
+                    else:
+                        blocks.append(
+                            {
+                                "type": "image",
+                                "source": {
+                                    "type": "url",
+                                    "url": image_url,
+                                },
+                            }
+                        )
+                # TODO: `FileContent` (type "file") is silently dropped here, so the model answers about a file it never received. The endpoint wants `source.type="file"` and the `anthropic-beta: files-api-2025-04-14` header, and the adapter has no way to inject that header yet. Until then this should at least raise instead of discarding.
             return blocks or [{"type": "text", "text": ""}]
 
         @staticmethod
@@ -237,7 +293,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(config.llm.max_tokens / 2),
+                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -258,7 +314,7 @@ try:
                 async with client.messages.stream(
                     model=preset.model,
                     messages=anthropic_msgs,
-                    max_tokens=config.llm.max_tokens,
+                    max_tokens=resolve_max_output(preset, config),
                     top_p=preset_config.top_p,
                     temperature=preset_config.temperature,
                     **kwargs,
@@ -303,7 +359,7 @@ try:
                 last_msg: Message = await client.messages.create(
                     model=preset.model,
                     messages=anthropic_msgs,
-                    max_tokens=config.llm.max_tokens,
+                    max_tokens=resolve_max_output(preset, config),
                     top_p=preset_config.top_p,
                     temperature=preset_config.temperature,
                     **kwargs,
@@ -367,7 +423,7 @@ try:
             ):
                 kwargs["thinking"] = {
                     "type": "enabled",
-                    "budget_tokens": int(config.llm.max_tokens / 2),
+                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
                 }
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
@@ -389,7 +445,7 @@ try:
             response: Message = await client.messages.create(
                 model=preset.model,
                 messages=anthropic_msgs,
-                max_tokens=config.llm.max_tokens,
+                max_tokens=resolve_max_output(preset, config),
                 top_p=preset_config.top_p,
                 temperature=preset_config.temperature,
                 tools=anthropic_tools,

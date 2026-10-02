@@ -25,7 +25,7 @@ from amrita_core import on_completion
 from amrita_core.hook.event import CompletionEvent
 
 
-@on_completion
+@on_completion().handle()
 async def handle_completion(event: CompletionEvent):
     response = event.get_model_response()
     print(f"Model replied: {response}")

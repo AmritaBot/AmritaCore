@@ -83,7 +83,7 @@ Mark the event as failed and terminate the retry process.
 
 **Raises**:
 
-- [`FallbackFailed`](../exceptions/FallbackFailed.md): Always raises this exception to terminate the fallback process.
+- `FallbackFailed`: Always raises this exception to terminate the fallback process.
 
 ### get_event_type() -> EventTypeEnum
 

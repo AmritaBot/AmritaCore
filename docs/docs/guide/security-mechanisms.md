@@ -5,9 +5,24 @@
 AmritaCore can detect sensitive cookie values in model responses and terminate
 the session to prevent data leakage:
 
-- **Activation**: `config.cookie.enable_cookie = True`
-- **Detection**: responses are scanned for configured cookie values
-- **Response**: on match, the session terminates with a generic error message
+- **Activation**: `config.cookie.enable_cookie = True` (the default)
+- **Detection**: the model's answer **and** its reasoning are scanned for the
+  configured cookie value. Reasoning is part of the model's output and reaches
+  consumers as `reasoning_chunk` events, so scanning only the answer would let a
+  model that quotes the cookie while thinking pass the check
+- **Response**: on match, the run terminates with a generic error message and the
+  event's response and reasoning are replaced, so the value is not stored on the
+  response object or in the conversation history
+
+The guard watches for **system-prompt leakage**: the canary lives inside the
+system prompt, so any run that reproduces it has leaked system content into
+model output, whether that came from a prompt-injection attempt or from the model
+quoting the marker on its own. Firing on reasoning is deliberate — reasoning is
+streamed to consumers just like the answer.
+
+> Chunks already handed to a streaming consumer cannot be retracted. The error
+> payload appended to the stream is what marks the run as failed, so consumers
+> that render `reasoning_chunk` events should stop on an `error` event.
 
 ```python
 from amrita_core.config import AmritaConfig
@@ -22,9 +37,9 @@ config.cookie.enable_cookie = True
 Tool results and peer messages enter the model context as text. Treat them as
 untrusted:
 
-- **Built-in strategies** store tool results in `ToolResult` pairs; the
-  XML-rendering style of the deprecated `HybridReActAgentStrategy` carried
-  higher injection risk (plain-text results).
+- **Built-in strategies** store tool results in paired `ToolResult` messages
+  rather than inlining them as plain text, keeping untrusted output out of the
+  instruction-carrying text stream.
 - **Peer messages** (`send_to_producer`) are appended with the `[peer message]`
   marker — design your system prompt to treat that marker as data, not
   instructions.
@@ -34,8 +49,8 @@ untrusted:
 ## Sensitive Data in Contexts
 
 - Strategies hold `chat_object` as a lifecycle handle — do not log it
-- `StateContext` (deprecated accessor, removed in **v0.14.0**) exposes session id /
-  memory / ability — treat it as sensitive when serializing
+- `MemoryModel` carries the full conversation plus billing records — treat it as
+  sensitive when serializing
 
 ## Template Safety
 

@@ -29,4 +29,4 @@ Persist conversation memory for a given session.
 
 ## Built-in Implementation
 
-- [`LegacyBackend`](LegacyBackend.md): Default in-process implementation that stores memory in a `StateContext` container
+- [`LegacyBackend`](LegacyBackend.md): Default in-process implementation that keeps memory in a plain `MemoryModel` field

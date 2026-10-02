@@ -36,6 +36,7 @@ from amrita_core.types import (
     UniResponse,
     UniResponseUsage,
 )
+from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import STOP_REASON, RequestMetadata
 from amrita_core.utils import model_dump
 
@@ -103,7 +104,7 @@ class OpenAIAdapter(ModelAdapter):
         completion = await client.chat.completions.create(
             model=preset.model,
             messages=messages,
-            max_tokens=config.llm.max_tokens,
+            max_tokens=resolve_max_output(preset, config),
             top_p=preset_config.top_p,
             temperature=preset_config.temperature,
             stream=stream,
@@ -119,8 +120,7 @@ class OpenAIAdapter(ModelAdapter):
         # Process streaming response
         if self.preset.config.stream and isinstance(completion, openai.AsyncStream):
             async with completion as completion:
-                # Provider-specific request/trace ids: OpenAI uses
-                # ``x-request-id``; DeepSeek uses ``x-ds-trace-id``/``eo-log-uuid``.
+                # Provider-specific request/trace ids: OpenAI uses ``x-request-id``; DeepSeek uses ``x-ds-trace-id``/``eo-log-uuid``.
                 headers = completion.response.headers
                 req_id: str | None = (
                     headers.get("x-request-id")

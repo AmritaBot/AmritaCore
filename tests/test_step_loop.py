@@ -21,7 +21,7 @@ from amrita_core.builtins.agent.state import (
 )
 from amrita_core.builtins.workflows import STEP_BODY, STEP_REACT_BLOCK
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig
-from amrita_core.types import Function, Message, SendMessageWrap
+from amrita_core.types import Function, Message, ModelPreset, SendMessageWrap
 
 # AgentRunState
 
@@ -62,8 +62,7 @@ class TestAgentRunState:
         # 1 recorded -> still below trigger-1 window.
         assert rs.would_stall("search(1)", trigger) is False
         rs.record_tool_call("search(1)")
-        # 2 recorded (= trigger-1) and all identical -> recording a 3rd
-        # identical signature would trip the detector.
+        # 2 recorded (= trigger-1) and all identical -> recording a 3rd identical signature would trip the detector.
         assert rs.would_stall("search(1)", trigger) is True
         # A different signature does not trip it.
         assert rs.would_stall("search(2)", trigger) is False
@@ -192,11 +191,14 @@ def strategy():
 
     chat_obj = MagicMock(spec=ChatObject)
     chat_obj.session_id = "test-session"
-    chat_obj.preset = "default-preset"
+    chat_obj.preset = ModelPreset(
+        model="test-model", name="default-preset", api_key="fake-key"
+    )
     chat_obj.config = config
     chat_obj.io_stream = MagicMock()
     chat_obj.io_stream.yield_response = AsyncMock()
     chat_obj.io_stream.set_queue_done = AsyncMock()
+    chat_obj._di_resp.usage = None
 
     train_msg = Message(role="system", content="Test system message")
     user_msg = Message(role="user", content="test user input")
@@ -218,8 +220,7 @@ def strategy():
 
 class TestStrategyStepLifecycle:
     def test_intro_step_advances_state(self, strategy):
-        # Node-driven: in simple mode intro_step uses the implicit "execute"
-        # Step regardless of the phase argument.
+        # Node-driven: in simple mode intro_step uses the implicit "execute" Step regardless of the phase argument.
         asyncio_run(strategy.intro_step("analyze"))
         rs = strategy.run_state
         assert rs is not None
@@ -436,8 +437,7 @@ class TestStrategyStepLifecycle:
         assert rs.stall_injected is False
         assert rs.exec_finished is False
 
-        # Second identical signature crosses the trigger -> give-up injected
-        # and the loop termination flags are set.
+        # Second identical signature crosses the trigger -> give-up injected and the loop termination flags are set.
         strategy._record_tool_signature(
             ToolCall(
                 id="t1",
@@ -485,7 +485,9 @@ class TestStrategyStepLifecycle:
             reasoning_content="thinking about the search",
         )
         asyncio_run(
-            strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+            strategy._append_tool_results_batch(
+                response_msg, [(tool_call, "result", None)]
+            )
         )
         msgs = strategy.ctx.message.unwrap(exclude_system=True)
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
@@ -503,7 +505,9 @@ class TestStrategyStepLifecycle:
         )
         response_msg = UniResponse(content=None, tool_calls=[tool_call])
         asyncio_run(
-            strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+            strategy._append_tool_results_batch(
+                response_msg, [(tool_call, "result", None)]
+            )
         )
         msgs = strategy.ctx.message.unwrap(exclude_system=True)
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
@@ -593,12 +597,54 @@ class TestStrategyStepLifecycle:
             reasoning_signature="sig-abc123",
         )
         asyncio_run(
-            strategy._append_tool_result_to_context(tool_call, "result", response_msg)
+            strategy._append_tool_results_batch(
+                response_msg, [(tool_call, "result", None)]
+            )
         )
         msgs = strategy.ctx.message.unwrap(exclude_system=True)
         assistant_msgs = [m for m in msgs if m.role == "assistant"]
         assert assistant_msgs[-1].reasoning_content == "thinking about the search"
         assert assistant_msgs[-1].reasoning_signature == "sig-abc123"
+
+    def test_append_tool_results_batch_keeps_concurrent_calls_together(self, strategy):
+        """Concurrent calls stay in ONE assistant message followed by results.
+
+        Splitting a concurrent batch into one assistant message per call (a)
+        drops the model's reasoning from all but one of them and (b) makes the
+        provider see an assistant ``tool_calls`` message without its matching
+        tool results. Context coherence wins over message-count tidiness.
+        """
+        from amrita_core.types import ToolCall, UniResponse
+
+        asyncio_run(strategy.intro_step("execute"))
+        calls = [
+            ToolCall(
+                id=f"t{i}",
+                function={"name": "search", "arguments": "{}"},  # pyright: ignore[reportArgumentType]
+            )
+            for i in (1, 2, 3)
+        ]
+        response_msg = UniResponse(
+            content=None,
+            tool_calls=calls,
+            reasoning_content="I need all three at once",
+        )
+        asyncio_run(
+            strategy._append_tool_results_batch(
+                response_msg, [(tc, f"r{i}", None) for i, tc in enumerate(calls, 1)]
+            )
+        )
+        msgs = strategy.ctx.message.unwrap(exclude_system=True)
+        assistant = [m for m in msgs if m.role == "assistant"]
+        assert len(assistant) == 1, (
+            f"expected one assistant message, got {len(assistant)}"
+        )
+        assert [tc.id for tc in assistant[0].tool_calls or []] == ["t1", "t2", "t3"]
+        assert assistant[0].reasoning_content == "I need all three at once"
+        # The three results follow immediately, in call order, with no gap.
+        tail = msgs[msgs.index(assistant[0]) + 1 :][:3]
+        assert [m.role for m in tail] == ["tool", "tool", "tool"]
+        assert [m.tool_call_id for m in tail] == ["t1", "t2", "t3"]
 
     def test_exec_one_error_append_carries_reasoning_signature(self, strategy):
         """A raising tool must round-trip the signature and keep args verbatim.
@@ -688,8 +734,7 @@ class TestStrategyStepLifecycle:
         # The failure is marked only by the ERR: ToolResult content.
         assert "ERR: Tool think_and_reason execution failed" in tool_msgs[0].content
 
-    # Concurrent results must NOT be split: ONE assistant message with all
-    # tool_calls (verbatim fields), then ALL ToolResults in input order.
+    # Concurrent results must NOT be split: ONE assistant message with all tool_calls (verbatim fields), then ALL ToolResults in input order.
 
     def test_concurrent_tool_calls_not_split(self, strategy):
         """Concurrent tool calls stay together: one assistant message, all
@@ -816,11 +861,14 @@ class TestStepLifecycleEvents:
 
         chat_obj = MagicMock(spec=ChatObject)
         chat_obj.session_id = "test-session"
-        chat_obj.preset = "default-preset"
+        chat_obj.preset = ModelPreset(
+            model="test-model", name="default-preset", api_key="fake-key"
+        )
         chat_obj.config = config
         chat_obj.io_stream = MagicMock()
         chat_obj.io_stream.yield_response = AsyncMock()
         chat_obj.io_stream.set_queue_done = AsyncMock()
+        chat_obj._di_resp.usage = None
 
         train_msg = Message(role="system", content="Test system message")
         user_msg = Message(role="user", content="test user input")
@@ -1177,11 +1225,13 @@ class TestPeerInputDrain:
 
         chat_obj = MagicMock(spec=ChatObject)
         chat_obj.session_id = "test-session"
-        chat_obj.preset = "default-preset"
+        chat_obj.preset = ModelPreset(
+            model="test-model", name="default-preset", api_key="fake-key"
+        )
         chat_obj.config = config
-        # Real bidirectional stream: yield_response buffers internally
-        # (no consumer attached) and the reverse channel stays usable.
+        # Real bidirectional stream: yield_response buffers internally (no consumer attached) and the reverse channel stays usable.
         chat_obj.io_stream = SuspendObjectStream()
+        chat_obj._di_resp.usage = None
 
         train_msg = Message(role="system", content="Test system message")
         user_msg = Message(role="user", content="test user input")
@@ -1345,15 +1395,17 @@ class TestBetweenStepCompression:
             ),
             Message(role="user", content="old turn 2"),
         ]
-        strategy.config.llm.memory_abstract_threshold = 100
+        # Threshold = preset.max_context * compaction_trigger_ratio = 100.
+        strategy.preset.max_context = 100
+        strategy.config.llm.compaction_trigger_ratio = 1.0
         return strategy
 
     @staticmethod
     def _bind_ledger(strategy, stream_id="compress-test"):
-        """Register a real run ledger and return its proxy for the strategy."""
-        from amrita_core.usage import UsageRegistry
+        """Bind a real run ledger and return its proxy for the strategy."""
+        from amrita_core.usage import SessionUsageProxy
 
-        strategy.ctx.usage = UsageRegistry.register(stream_id)
+        strategy.ctx.usage = SessionUsageProxy("compress-test", stream_id)
         return strategy.ctx.usage
 
     def test_noop_below_threshold(self, strategy_with_history):
@@ -1370,27 +1422,21 @@ class TestBetweenStepCompression:
             UniResponseUsage(prompt_tokens=50, completion_tokens=0, total_tokens=50)
         )
 
-        async def fake_generator():
-            raise AssertionError("LLM must not be called below threshold")
-
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
-            return_value=fake_generator(),
+            "amrita_core.components.compaction.call_completion",
+            side_effect=AssertionError("LLM must not be called below threshold"),
         ):
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4  # untouched
-        from amrita_core.usage import UsageRegistry
 
-        UsageRegistry.unregister(st.ctx.usage.stream_id)
-
-    def test_noop_when_threshold_disabled(self, strategy_with_history):
-        """memory_abstract_threshold=-1 (disabled) -> never compresses."""
+    def test_noop_when_compaction_disabled(self, strategy_with_history):
+        """llm.enable_compaction=False -> never compresses."""
         from unittest.mock import patch
 
         from amrita_core.types import UniResponseUsage
 
         st = strategy_with_history
-        st.config.llm.memory_abstract_threshold = -1
+        st.config.llm.enable_compaction = False
         rs = st._init_run_state()
         proxy = self._bind_ledger(st)
         rs.step_started_ts = 1000.0
@@ -1400,27 +1446,23 @@ class TestBetweenStepCompression:
             )
         )
 
-        async def fake_generator():
-            raise AssertionError("LLM must not be called with threshold disabled")
-
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
-            return_value=fake_generator(),
+            "amrita_core.components.compaction.call_completion",
+            side_effect=AssertionError(
+                "LLM must not be called with compaction disabled"
+            ),
         ):
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4  # untouched
-        from amrita_core.usage import UsageRegistry
 
-        UsageRegistry.unregister(st.ctx.usage.stream_id)
-
-    def test_noop_when_threshold_zero(self, strategy_with_history):
-        """memory_abstract_threshold=0 is treated as disabled too."""
+    def test_noop_when_window_very_large(self, strategy_with_history):
+        """A window far above the prompt size behaves like disabled."""
         from unittest.mock import patch
 
         from amrita_core.types import UniResponseUsage
 
         st = strategy_with_history
-        st.config.llm.memory_abstract_threshold = 0
+        st.preset.max_context = 10**9
         rs = st._init_run_state()
         proxy = self._bind_ledger(st)
         rs.step_started_ts = 1000.0
@@ -1430,48 +1472,12 @@ class TestBetweenStepCompression:
             )
         )
 
-        async def fake_generator():
-            raise AssertionError("LLM must not be called with threshold 0")
-
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
-            return_value=fake_generator(),
-        ):
-            asyncio_run(st._compress_history_between_steps())
-        assert len(st.ctx.message.memory) == 4  # untouched
-        from amrita_core.usage import UsageRegistry
-
-        UsageRegistry.unregister(st.ctx.usage.stream_id)
-
-    def test_noop_when_threshold_very_large(self, strategy_with_history):
-        """An extremely large threshold behaves like compression disabled."""
-        from unittest.mock import patch
-
-        from amrita_core.types import UniResponseUsage
-
-        st = strategy_with_history
-        st.config.llm.memory_abstract_threshold = 10**9
-        rs = st._init_run_state()
-        proxy = self._bind_ledger(st)
-        rs.step_started_ts = 1000.0
-        proxy.record(
-            UniResponseUsage(
-                prompt_tokens=10**6, completion_tokens=0, total_tokens=10**6
-            )
-        )
-
-        async def fake_generator():
-            raise AssertionError("LLM must not be called without threshold")
-
-        with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
-            return_value=fake_generator(),
+            "amrita_core.components.compaction.call_completion",
+            side_effect=AssertionError("LLM must not be called below the threshold"),
         ):
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4
-        from amrita_core.usage import UsageRegistry
-
-        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_compresses_history_and_resets_baseline(self, strategy_with_history):
         """Above threshold -> LLM summary replaces the folded prefix.
@@ -1502,7 +1508,7 @@ class TestBetweenStepCompression:
             )
 
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
+            "amrita_core.components.compaction.call_completion",
             return_value=fake_generator(),
         ):
             asyncio_run(st._compress_history_between_steps())
@@ -1511,12 +1517,8 @@ class TestBetweenStepCompression:
         assert len(memory) == 2
         assert "[Summary of previous steps]" in memory[0].content
         assert memory[1].content == "old turn 2"
-        # The summary LLM call usage is recorded by libchat's gateway layer;
-        # the baseline prompt window is reset after compression.
+        # The summary LLM call usage is recorded by libchat's gateway layer; the baseline prompt window is reset after compression.
         assert rs.tokens.prompt_tokens == 0
-        from amrita_core.usage import UsageRegistry
-
-        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_budget_survives_baseline_reset(self, strategy_with_history):
         """reset() keeps the configured budget — exhausted stays live."""
@@ -1541,7 +1543,7 @@ class TestBetweenStepCompression:
             )
 
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
+            "amrita_core.components.compaction.call_completion",
             return_value=fake_generator(),
         ):
             asyncio_run(st._compress_history_between_steps())
@@ -1550,9 +1552,6 @@ class TestBetweenStepCompression:
         # The next Step can still hit the budget.
         rs.tokens.prompt_tokens = 200
         assert rs.tokens.exhausted is True
-        from amrita_core.usage import UsageRegistry
-
-        UsageRegistry.unregister(st.ctx.usage.stream_id)
 
     def test_fold_keeps_tool_pairing_intact(self, strategy_with_history):
         """The kept tail must stay well-formed: no dangling tool message."""
@@ -1567,9 +1566,11 @@ class TestBetweenStepCompression:
 
         st = strategy_with_history
         wrap = st.ctx.message
-        # Tail: assistant(tool_calls) + its ToolResult (must be kept together).
+        # Tail starts at a user message so the assistant(tool_calls) below keeps its ToolResult; the older turn is what gets folded.
         wrap.memory = [
             Message(role="user", content="old turn"),
+            Message(role="assistant", content="old answer"),
+            Message(role="user", content="current turn"),
             Message(
                 role="assistant",
                 content=None,
@@ -1599,19 +1600,17 @@ class TestBetweenStepCompression:
             )
 
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
+            "amrita_core.components.compaction.call_completion",
             return_value=fake_generator(),
         ):
             asyncio_run(st._compress_history_between_steps())
         memory = st.ctx.message.memory
-        # Summary + assistant(tool_calls) + ToolResult — pairing preserved.
-        assert len(memory) == 3
+        # Summary + current turn + assistant(tool_calls) + ToolResult.
+        assert len(memory) == 4
         assert memory[0].role == "user"
-        assert memory[1].tool_calls is not None
-        assert memory[2].role == "tool"
-        from amrita_core.usage import UsageRegistry
-
-        UsageRegistry.unregister(st.ctx.usage.stream_id)
+        assert memory[1].content == "current turn"
+        assert memory[2].tool_calls is not None
+        assert memory[3].role == "tool"
 
     def test_empty_summary_keeps_history(self, strategy_with_history):
         """LLM returns empty -> history untouched, baseline reset (no retry loop)."""
@@ -1627,7 +1626,7 @@ class TestBetweenStepCompression:
             yield UniResponse(content="", tool_calls=None, usage=None)
 
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
+            "amrita_core.components.compaction.call_completion",
             return_value=fake_generator(),
         ):
             asyncio_run(st._compress_history_between_steps())

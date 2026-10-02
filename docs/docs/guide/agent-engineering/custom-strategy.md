@@ -19,7 +19,7 @@ gives you:
 - `self.chat_object` — the lifecycle-manager handle
 - `self.tools_manager` — the tools manager
 - convenience properties: `self.preset`, `self.config`, `self.io_stream`,
-  `self.train_content`, `self.stream_id`, `self.resp_extra_usage`
+  `self.train_content`, `self.stream_id`, `self.usage`
 
 > `StrategyLikedObject.__call__` must call `super().__call__(ctx)` first when
 > overridden. `AgentStrategy` binds in `__init__`.
@@ -160,28 +160,36 @@ from amrita_core.types import ToolCall, UniResponse
 
 
 class MyReActStrategy(BaseReActAgentStrategy):
-    async def _append_tool_result_to_context(
+    async def _append_tool_results_batch(
         self,
-        tool_call: ToolCall,
-        func_response: str,
         response_msg: UniResponse[None, list[ToolCall] | None],
-    ):
-        # Custom pairing — e.g. add a marker to the result text.
+        results: list[tuple[ToolCall, str, BaseException | None]],
+    ) -> None:
+        # One assistant message for the whole round, then one result per call.
         self.ctx.message.append(
-            Message(role="assistant", content=None, tool_calls=[tool_call])
-        )
-        self.ctx.message.append(
-            ToolResult(
-                role="tool",
-                name=tool_call.function.name,
-                content=f"[custom] {func_response}",
-                tool_call_id=tool_call.id,
+            Message(
+                role="assistant",
+                content=response_msg.content,
+                tool_calls=[tc for tc, _, _ in results],
             )
         )
+        for tool_call, func_response, _exc in results:
+            self.ctx.message.append(
+                ToolResult(
+                    role="tool",
+                    name=tool_call.function.name,
+                    content=f"[custom] {func_response}",
+                    tool_call_id=tool_call.id,
+                )
+            )
 ```
 
-Key template methods: `_append_tool_result_to_context`,
-`_handle_error_append`, `_append_reasoning`, `_build_stop_response_and_append`.
+`_append_reasoning` is the only abstract method; `_append_tool_results_batch`
+and `_handle_error_append` ship with working defaults. Keep the calls of one
+round in a **single** assistant message — splitting them would drop the
+reasoning from all but one message and leave the provider with a `tool_calls`
+message whose results are missing.
+
 Override `single_execute` for full control (see the built-in
 `ReActAgentStrategy` in `react_comm.py`).
 
