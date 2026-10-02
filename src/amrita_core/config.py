@@ -232,9 +232,11 @@ class LLMConfig(BaseModel):
     )
     enable_overflow_recovery: bool = Field(
         default=True,
-        description="Whether to compact and retry once when the provider "
-        "rejects a request for exceeding the context window. Ignored when "
-        "`context_strategy` is `none`, which never rewrites history.",
+        description="Whether to shrink the history and retry once when the "
+        "provider rejects a request for exceeding the context window. The "
+        "shrink follows `context_strategy`, like the between-turn path. "
+        "Ignored when `context_strategy` is `none`, which never rewrites "
+        "history.",
     )
     enable_multi_modal: bool = Field(
         default=True,
