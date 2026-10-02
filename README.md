@@ -11,7 +11,7 @@
     <a href="LICENSE">
       <img src="https://img.shields.io/github/license/AmritaBot/AmritaCore?style=flat-square" alt="License">
     </a>
-    <img src="https://img.shields.io/badge/AmritaCore-Soma-blue?style=flat-square" alt="AmritaCore">
+    <img src="https://img.shields.io/badge/AmritaCore-Nous-blue?style=flat-square" alt="AmritaCore">
     <a href="https://discord.gg/byAD3sbjjj">
       <img src="https://img.shields.io/badge/Discord-Project.Amrita-blue?logo=discord&style=flat-square" alt="Discord">
     </a>
