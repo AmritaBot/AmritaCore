@@ -10,8 +10,8 @@ The MemoryModel class stores conversation history and context.
 
 - `messages` (list): List of messages in the conversation
 - `time` (float): Timestamp
-- `abstract` (str): Summary produced by history compaction. Rendered into the system instruction by the train template when `LLMConfig.enable_compaction` is on
-- `usage` (`UniResponseUsage` | None): The usage the provider reported for the most recent request. Drives the compaction trigger, and is cleared after each fold
+- `abstract` (str): Summary produced by history compaction. Rendered into the system instruction by the train template when `LLMConfig.context_strategy` is `"compact"`
+- `usage` (`UniResponseUsage` | None): The usage the provider reported for the most recent request. Drives the history-management trigger, and is cleared after each trim
 - `billing` (list[[BillingRecord](BillingRecord.md)]): Per-request billing records accumulated for this session. This is the default persistence path for cost data
 - `dirty_exclude__` (`tuple[str, ...]`): Names of fields the dirty tracker must ignore; defaults to `("model_config",)`
 

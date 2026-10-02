@@ -92,8 +92,8 @@ budget = resolve_max_output(preset, config)
 
 ## 3. 压缩取代记忆摘要
 
-`enable_memory_abstract` 改名为 `enable_compaction`。原先的
-比例/阈值组合被“窗口比例 + 消息条数兜底”取代：
+`enable_memory_abstract` 现在叫 `context_strategy`（中间曾短暂叫
+`enable_compaction`）。原先的比例/阈值组合被“窗口比例 + 消息条数兜底”取代：
 
 ```python
 # 之前
@@ -102,8 +102,9 @@ config.llm.memory_abstract_proportion = 0.5
 config.llm.memory_abstract_threshold = 4000
 
 # 之后
-config.llm.enable_compaction = True
+config.llm.context_strategy = "compact"  # "compact" | "slide" | "none"
 config.llm.compaction_trigger_ratio = 0.9  # 占注意力窗口的比例
+config.llm.slide_target_ratio = 0.7  # "slide" 下裁剪回这个比例
 config.llm.memory_length_limit = 200  # 消息条数兜底，0 = 关闭
 config.llm.enable_overflow_recovery = True  # 溢出时压缩并重试
 ```

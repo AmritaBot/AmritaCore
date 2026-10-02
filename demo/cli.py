@@ -107,7 +107,7 @@ async def main():
         # agent_mcp_server_scripts=[],
     )
     llm = LLMConfig(
-        enable_compaction=True,
+        context_strategy="compact",
     )
     config = AmritaConfig(
         function_config=func,

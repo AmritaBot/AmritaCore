@@ -97,10 +97,12 @@ logs: `Empty decomposition response (request_id=..., thinking_content=True)`.
 **Checklist**:
 
 - `function_config.agent_tool_call_limit` — hard cap per run
-- `llm.enable_compaction` + `llm.compaction_trigger_ratio` — fold long history
-  into a summary instead of resending it
-- Compaction triggers — the token trigger fires when the prompt the provider
-  reported reaches `llm.compaction_trigger_ratio` × the preset's `max_context`
+- `llm.context_strategy` + `llm.compaction_trigger_ratio` — `"compact"` folds
+  long history into a summary instead of resending it, `"slide"` drops the
+  oldest messages outright
+- History management triggers — the token trigger fires when the prompt the
+  provider reported reaches `llm.compaction_trigger_ratio` × the preset's
+  `max_context`
   (falling back to `llm.session_tokens_windows`, default 64k); the
   `llm.memory_length_limit` fallback (default 200) fires on message count
   alone, and exists for gateways that report no usage. Rule of thumb:

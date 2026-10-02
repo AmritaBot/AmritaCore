@@ -8,9 +8,9 @@ import pytest
 from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.backends import LegacyBackend
 from amrita_core.components.compaction import (
-    COMPACT,
+    MANAGE_CONTEXT,
     ContextCompactor,
-    should_compact,
+    should_manage_context,
     split_history,
 )
 from amrita_core.components.llm import LLM_COMPLETION
@@ -129,19 +129,27 @@ class TestThreshold:
         compactor = ContextCompactor(config=config, preset=_preset())
         assert compactor.threshold == 800
 
-    def test_enabled_tracks_the_config_switch(self):
+    def test_enabled_tracks_the_strategy(self):
         config = AmritaConfig()
         assert ContextCompactor(config=config).enabled is True
-        config.llm.enable_compaction = False
+        config.llm.context_strategy = "slide"
+        assert ContextCompactor(config=config).enabled is True
+        config.llm.context_strategy = "none"
         assert ContextCompactor(config=config).enabled is False
 
-    def test_should_compact_needs_a_measurement(self):
+    def test_strategy_reads_the_config(self):
+        config = AmritaConfig()
+        assert ContextCompactor(config=config).strategy == "compact"
+        config.llm.context_strategy = "slide"
+        assert ContextCompactor(config=config).strategy == "slide"
+
+    def test_needs_management_needs_a_measurement(self):
         config = AmritaConfig()
         config.llm.compaction_trigger_ratio = 1.0
         config.llm.memory_length_limit = 0
         compactor = ContextCompactor(config=config, preset=_preset(max_context=100))
-        assert compactor.should_compact(None) is False
-        assert compactor.should_compact(MemoryModel()) is False
+        assert compactor.needs_management(None) is False
+        assert compactor.needs_management(MemoryModel()) is False
 
     def test_message_limit_reads_the_config(self):
         config = AmritaConfig()
@@ -183,7 +191,7 @@ class TestMessageLimitFallback:
 
     def test_disabled_compaction_wins_over_the_fallback(self):
         config = AmritaConfig()
-        config.llm.enable_compaction = False
+        config.llm.context_strategy = "none"
         config.llm.memory_length_limit = 2
         compactor = ContextCompactor(config=config, preset=_preset(max_context=10**6))
         assert compactor.should_compact(self._history(10)) is False
@@ -200,7 +208,10 @@ class TestMessageLimitFallback:
         config.llm.memory_length_limit = 4
         ability = _ability(config, _preset(max_context=10**6))
         memory = self._history(4)
-        assert should_compact.func(ability=ability, mem=MemoryContext(memory)) is True
+        assert (
+            should_manage_context.func(ability=ability, mem=MemoryContext(memory))
+            is True
+        )
 
     @pytest.mark.asyncio
     async def test_fallback_compacts_and_clears_usage(self):
@@ -214,7 +225,7 @@ class TestMessageLimitFallback:
             "summarize",
             new=AsyncMock(return_value="folded"),
         ):
-            await COMPACT.func(  # pyright: ignore[reportGeneralTypeIssues]
+            await MANAGE_CONTEXT.func(  # pyright: ignore[reportGeneralTypeIssues]
                 ability=ability, mem=mem, resp=RespState()
             )
         assert memory.abstract == "folded"
@@ -285,7 +296,10 @@ class TestShouldCompact:
             ],
             usage=_usage(100),
         )
-        assert should_compact.func(ability=ability, mem=MemoryContext(memory)) is True
+        assert (
+            should_manage_context.func(ability=ability, mem=MemoryContext(memory))
+            is True
+        )
 
     def test_false_below_the_threshold(self):
         config = AmritaConfig()
@@ -299,18 +313,24 @@ class TestShouldCompact:
             ],
             usage=_usage(99),
         )
-        assert should_compact.func(ability=ability, mem=MemoryContext(memory)) is False
+        assert (
+            should_manage_context.func(ability=ability, mem=MemoryContext(memory))
+            is False
+        )
 
     def test_false_without_a_measurement(self):
         ability = _ability(None, _preset(max_context=1))
         memory = MemoryModel(
             messages=[Message(role="user", content="u1")],
         )
-        assert should_compact.func(ability=ability, mem=MemoryContext(memory)) is False
+        assert (
+            should_manage_context.func(ability=ability, mem=MemoryContext(memory))
+            is False
+        )
 
     def test_false_when_disabled(self):
         config = AmritaConfig()
-        config.llm.enable_compaction = False
+        config.llm.context_strategy = "none"
         ability = _ability(config, _preset(max_context=1))
         memory = MemoryModel(
             messages=[
@@ -320,14 +340,20 @@ class TestShouldCompact:
             ],
             usage=_usage(10**6),
         )
-        assert should_compact.func(ability=ability, mem=MemoryContext(memory)) is False
+        assert (
+            should_manage_context.func(ability=ability, mem=MemoryContext(memory))
+            is False
+        )
 
     def test_false_when_there_is_nothing_to_fold(self):
         ability = _ability(None, _preset(max_context=1))
         memory = MemoryModel(
             messages=[Message(role="user", content="u1")], usage=_usage(10**6)
         )
-        assert should_compact.func(ability=ability, mem=MemoryContext(memory)) is False
+        assert (
+            should_manage_context.func(ability=ability, mem=MemoryContext(memory))
+            is False
+        )
 
 
 class TestCompact:
@@ -349,7 +375,7 @@ class TestCompact:
             new=AsyncMock(return_value="a short summary"),
         ):
             # `Node.func` is typed sync-or-async, so the await cannot be proven.
-            await COMPACT.func(  # pyright: ignore[reportGeneralTypeIssues]
+            await MANAGE_CONTEXT.func(  # pyright: ignore[reportGeneralTypeIssues]
                 ability=_ability(), mem=mem, resp=RespState()
             )
         assert memory.abstract == "a short summary"
@@ -373,7 +399,7 @@ class TestCompact:
             "summarize",
             new=AsyncMock(return_value=""),
         ):
-            await COMPACT.func(  # pyright: ignore[reportGeneralTypeIssues]
+            await MANAGE_CONTEXT.func(  # pyright: ignore[reportGeneralTypeIssues]
                 ability=_ability(), mem=mem, resp=RespState()
             )
         assert memory.messages == before
@@ -391,7 +417,7 @@ class TestCompact:
             "summarize",
             new=AsyncMock(side_effect=AssertionError("must not summarize")),
         ):
-            await COMPACT.func(  # pyright: ignore[reportGeneralTypeIssues]
+            await MANAGE_CONTEXT.func(  # pyright: ignore[reportGeneralTypeIssues]
                 ability=_ability(), mem=mem, resp=RespState()
             )
         assert len(memory.messages) == 1
@@ -400,9 +426,246 @@ class TestCompact:
     @pytest.mark.asyncio
     async def test_missing_memory_raises(self):
         with pytest.raises(RuntimeError, match="LOAD_STATE"):
-            await COMPACT.func(  # pyright: ignore[reportGeneralTypeIssues]
+            await MANAGE_CONTEXT.func(  # pyright: ignore[reportGeneralTypeIssues]
                 ability=_ability(), mem=MemoryContext(None), resp=RespState()
             )
+
+
+class TestSlide:
+    """The `slide` policy: drop the oldest messages instead of summarizing."""
+
+    @staticmethod
+    def _history(turns: int, body: str = "x" * 40) -> MemoryModel:
+        messages: CONTENT_LIST_TYPE = []
+        for index in range(turns):
+            messages.append(Message(role="user", content=f"u{index} {body}"))
+            messages.append(Message(role="assistant", content=f"a{index} {body}"))
+        return MemoryModel(messages=messages)
+
+    @staticmethod
+    def _compactor(
+        *,
+        window: int = 1000,
+        trigger: float = 1.0,
+        target: float = 0.5,
+    ) -> ContextCompactor:
+        config = AmritaConfig()
+        config.llm.compaction_trigger_ratio = trigger
+        config.llm.slide_target_ratio = target
+        return ContextCompactor(config=config, preset=_preset(max_context=window))
+
+    def test_slide_target_sits_below_the_threshold(self):
+        compactor = self._compactor(window=1000, trigger=1.0, target=0.5)
+        assert compactor.threshold == 1000
+        assert compactor.slide_target == 500
+
+    def test_estimate_sums_back_to_the_reported_total(self):
+        memory = self._history(3)
+        compactor = self._compactor(window=10**6)
+        estimates = compactor._estimate(memory.messages, 900)
+        assert len(estimates) == len(memory.messages)
+        # Weighted shares are normalized against the reported total, so the
+        # only error is in how the total is distributed.
+        assert sum(estimates) == 900
+
+    def test_estimate_weights_long_messages_higher(self):
+        memory = MemoryModel(
+            messages=[
+                Message(role="user", content="short"),
+                Message(role="assistant", content="y" * 400),
+            ]
+        )
+        compactor = self._compactor(window=10**6)
+        small, large = compactor._estimate(memory.messages, 1000)
+        assert large > small
+
+    def test_slide_drops_the_oldest_messages(self):
+        memory = self._history(4)
+        compactor = self._compactor(window=1000, trigger=1.0, target=0.5)
+        dropped = compactor.slide(memory.messages, 1000)
+        assert dropped > 0
+        # Whatever survives starts a clean turn.
+        assert memory.messages[0].role == "user"
+        assert len(memory.messages) == len(self._history(4).messages) - dropped
+
+    def test_slide_is_a_noop_below_the_threshold(self):
+        memory = self._history(4)
+        before = list(memory.messages)
+        compactor = self._compactor(window=1000, trigger=1.0)
+        assert compactor.slide(memory.messages, 10) == 0
+        assert memory.messages == before
+
+    def test_slide_never_empties_the_history(self):
+        memory = self._history(3)
+        compactor = self._compactor(window=1000, trigger=1.0, target=0.001)
+        compactor.slide(memory.messages, 10**6)
+        assert memory.messages
+
+    def test_safe_cut_retreats_to_the_previous_turn(self):
+        """A cut landing mid-turn must retreat so tool pairs stay together."""
+        messages: CONTENT_LIST_TYPE = [
+            Message(role="user", content="u1"),
+            Message(role="assistant", content="a1"),
+            Message(role="user", content="u2"),
+            Message(role="assistant", content="a2"),
+            Message(role="user", content="u3"),
+        ]
+        compactor = self._compactor()
+        # Cutting at index 3 would strip the question but keep the answer.
+        assert compactor._safe_cut(messages, 2) == 2
+        assert compactor._safe_cut(messages, 3) == 2
+
+    def test_safe_cut_advances_when_retreating_would_drop_nothing(self):
+        """An oversized first turn must not make the cut a silent no-op."""
+        messages: CONTENT_LIST_TYPE = [
+            Message(role="user", content="u1"),
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(id="c1", function=Function(name="f", arguments="{}"))
+                ],
+            ),
+            ToolResult(role="tool", name="f", content="r1", tool_call_id="c1"),
+            Message(role="user", content="u2"),
+        ]
+        compactor = self._compactor()
+        # Index 1 and 2 sit inside the first turn; retreating would be index 0.
+        assert compactor._safe_cut(messages, 1) == 3
+        assert compactor._safe_cut(messages, 2) == 3
+
+    def test_safe_cut_skips_a_dangling_tool_result(self):
+        """A history that arrives broken must not be sent on broken.
+
+        The assistant that declared ``c1`` is gone, so the orphaned result at
+        the head is invalid wherever the turn boundary sits — it has to be
+        stepped over.
+        """
+        messages: CONTENT_LIST_TYPE = [
+            # The assistant that declared c1 was dropped by an older version.
+            ToolResult(role="tool", name="f", content="orphan", tool_call_id="c1"),
+            Message(role="user", content="u1"),
+            Message(role="assistant", content="a1"),
+        ]
+        compactor = self._compactor()
+        assert compactor._safe_cut(messages, 0) == 1
+
+    def test_safe_cut_keeps_a_paired_tool_result(self):
+        """A result whose call survives is valid and must not be skipped."""
+        messages: CONTENT_LIST_TYPE = [
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(id="c1", function=Function(name="f", arguments="{}"))
+                ],
+            ),
+            ToolResult(role="tool", name="f", content="r1", tool_call_id="c1"),
+            Message(role="user", content="u1"),
+        ]
+        compactor = self._compactor()
+        assert compactor._safe_cut(messages, 0) == 0
+
+    def test_slide_keeps_tool_pairs_intact(self):
+        messages: CONTENT_LIST_TYPE = [
+            Message(role="user", content="u1 " + "x" * 100),
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(id="c1", function=Function(name="f", arguments="{}"))
+                ],
+            ),
+            ToolResult(role="tool", name="f", content="r1", tool_call_id="c1"),
+            Message(role="assistant", content="a1"),
+            Message(role="user", content="u2"),
+            Message(role="assistant", content="a2"),
+        ]
+        memory = MemoryModel(messages=messages)
+        compactor = self._compactor(window=1000, trigger=1.0, target=0.5)
+        compactor.slide(memory.messages, 1000)
+        declared = {
+            tc.id
+            for msg in memory.messages
+            if isinstance(msg, Message) and msg.tool_calls
+            for tc in msg.tool_calls
+        }
+        for msg in memory.messages:
+            if isinstance(msg, ToolResult):
+                assert msg.tool_call_id in declared
+
+    def test_payload_stays_valid_after_slide(self):
+        """The gateway validator is the oracle: a slid payload must pass it.
+
+        ``libchat._validate_msg_list`` is exactly what every outbound request
+        goes through, so round-tripping the survivors through it proves the
+        cut cannot produce an orphaned tool result or a dangling call.
+        """
+        from amrita_core.libchat import _validate_msg_list
+
+        messages: CONTENT_LIST_TYPE = [
+            Message(role="user", content="u1 " + "x" * 200),
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(id="c1", function=Function(name="f", arguments="{}")),
+                    ToolCall(id="c2", function=Function(name="g", arguments="{}")),
+                ],
+            ),
+            ToolResult(role="tool", name="f", content="r1 " * 20, tool_call_id="c1"),
+            ToolResult(role="tool", name="g", content="r2 " * 20, tool_call_id="c2"),
+            Message(role="assistant", content="a1"),
+            Message(role="user", content="u2 " + "x" * 200),
+            Message(role="assistant", content="a2"),
+        ]
+        memory = MemoryModel(messages=messages)
+        compactor = self._compactor(window=1000, trigger=1.0, target=0.5)
+        dropped = compactor.slide(memory.messages, 1000)
+        assert dropped > 0
+
+        # Raises ValueError if any pairing invariant is broken.
+        validated = _validate_msg_list(
+            [Message(role="system", content="sys"), *memory.messages]
+        )
+        assert validated[0].role == "system"
+        # The surviving tail is untouched, in order.
+        assert [m.content for m in validated[1:]] == [
+            m.content for m in memory.messages
+        ]
+
+    def test_should_compact_is_false_under_slide(self):
+        """Sliding must never trigger a summary call."""
+        memory = self._history(4, body="x" * 200)
+        memory.usage = _usage(1000)
+        compactor = self._compactor(window=1000, trigger=1.0)
+        compactor.config.llm.context_strategy = "slide"
+        assert compactor.needs_management(memory) is True
+        assert compactor.should_compact(memory) is False
+
+    @pytest.mark.asyncio
+    async def test_node_dispatches_to_slide(self):
+        config = AmritaConfig()
+        config.llm.context_strategy = "slide"
+        config.llm.compaction_trigger_ratio = 1.0
+        config.llm.slide_target_ratio = 0.5
+        memory = self._history(4, body="x" * 200)
+        memory.usage = _usage(1000)
+        mem = MemoryContext(memory)
+        with patch.object(
+            ContextCompactor,
+            "summarize",
+            new=AsyncMock(side_effect=AssertionError("slide must not summarize")),
+        ):
+            await MANAGE_CONTEXT.func(  # pyright: ignore[reportGeneralTypeIssues]
+                ability=_ability(config, _preset(max_context=1000)),
+                mem=mem,
+                resp=RespState(),
+            )
+        assert memory.abstract == ""
+        assert memory.usage is None
+        assert memory.messages[0].role == "user"
+        assert len(memory.messages) < len(self._history(4, body="x" * 200).messages)
 
 
 class TestSummarize:

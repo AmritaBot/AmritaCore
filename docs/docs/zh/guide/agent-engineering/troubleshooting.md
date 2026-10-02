@@ -84,9 +84,9 @@ passed back"，非偶发——assistant 一旦产出推理，后续每次请求�
 **检查清单**：
 
 - `function_config.agent_tool_call_limit` —— 每次运行的硬上限
-- `llm.enable_compaction` + `llm.compaction_trigger_ratio` —— 把长历史折叠成
-  摘要，而不是反复重发
-- 压缩触发线 —— token 触发在 provider 上报的 prompt 达到
+- `llm.context_strategy` + `llm.compaction_trigger_ratio` —— `"compact"` 把长历史
+  折叠成摘要而不是反复重发，`"slide"` 则直接丢弃最旧的消息
+- 历史管理触发线 —— token 触发在 provider 上报的 prompt 达到
   `llm.compaction_trigger_ratio` × 预设 `max_context` 时生效（未声明时回退到
   `llm.session_tokens_windows`，默认 64k）；`llm.memory_length_limit` 兜底
   （默认 200）只看消息条数，是为不上报 usage 的网关准备的。经验换算：

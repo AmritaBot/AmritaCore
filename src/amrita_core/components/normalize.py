@@ -61,7 +61,7 @@ def NORMALIZE_MESSAGES(ability: AbilityState, mem: MemoryContext) -> None:
 
     Downstream:
         * JINJA2_RENDER / BUILD_MESSAGE — consume the flattened messages.
-        * COMPACT — summarizes text instead of raw blocks.
+        * MANAGE_CONTEXT — summarizes text instead of raw blocks.
     """
     if ability.config.llm.enable_multi_modal:
         return

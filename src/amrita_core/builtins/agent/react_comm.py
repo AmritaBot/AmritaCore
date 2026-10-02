@@ -474,15 +474,18 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
 
     async def _compress_history_between_steps(self) -> None:
-        """Between-Step compression: summarize completed-Step history when
-        the real API prompt-token usage exceeds the configured threshold.
+        """Between-Step history management when the real API prompt-token
+        usage exceeds the configured threshold.
 
         The threshold comes from the preset's attention window, the same source
-        the between-turn compaction uses, so one number describes one model.
-        The pairing is closed at Step boundaries, so folding the oldest prefix
-        into one summary message is safe here: the cut lands on a ``user``
-        message, keeping every assistant tool call next to its tool results.
-        The token baseline is reset after compression.
+        the between-turn handling uses, so one number describes one model.
+        The pairing is closed at Step boundaries, so dropping the oldest part
+        of the history is safe here: the cut lands on a ``user`` message,
+        keeping every assistant tool call next to its tool results.
+
+        Dispatches on ``context_strategy``. ``compact`` replaces the prefix
+        with one summary message; ``slide`` drops it outright. The token
+        baseline is reset either way.
         """
         rs = self._init_run_state()
         compactor = ContextCompactor(
@@ -496,12 +499,40 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         rs.tokens.refresh_window(self.usage, rs.step_started_ts)
         if rs.tokens.prompt_tokens <= compactor.threshold:
             return
-        logger.info(
-            f"Prompt tokens {rs.tokens.prompt_tokens} > threshold "
-            f"{compactor.threshold}; compressing history between Steps."
-        )
         trigger_tokens = rs.tokens.prompt_tokens
         msg_wrap = self.ctx.message
+
+        if compactor.strategy == "slide":
+            dropped = compactor.slide(msg_wrap.memory, trigger_tokens)
+            if dropped <= 0:
+                rs.tokens.reset()
+                rs.step_started_ts = time.time()
+                return
+            logger.info(
+                f"Prompt tokens {trigger_tokens} > threshold "
+                f"{compactor.threshold}; slid {dropped} messages out between Steps."
+            )
+            rs.tokens.reset()
+            rs.step_started_ts = time.time()
+            await self._emit_step_event(
+                content=(
+                    "[step] slide: prompt tokens "
+                    f"{trigger_tokens} > threshold {compactor.threshold}; "
+                    f"dropped the {dropped} oldest messages."
+                ),
+                metadata=AgentStepCompressMetadata(
+                    type="step",
+                    extra_type="compress",
+                    prompt_tokens=trigger_tokens,
+                    threshold=compactor.threshold,
+                ),
+            )
+            return
+
+        logger.info(
+            f"Prompt tokens {trigger_tokens} > threshold "
+            f"{compactor.threshold}; compressing history between Steps."
+        )
         try:
             result = await compactor.fold(msg_wrap.memory)
         except Exception as e:
@@ -666,7 +697,6 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         # Compression happens between Steps (pairing closed here); the auxiliary call usage is accounted via the ledger proxy.
         await self._compress_history_between_steps()
 
-    @override
     @override
     def _maybe_inject_tool_failure_hint(
         self, tool_call: ToolCall, func_response: str

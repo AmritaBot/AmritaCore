@@ -36,7 +36,7 @@ Your character setting is in the <SYSTEM_INSTRUCTIONS> tags, and the summary of 
 <SYSTEM_INSTRUCTIONS>
 {{ train.content }}
 </SYSTEM_INSTRUCTIONS>
-{% if memory.abstract and config.llm.enable_compaction %}
+{% if memory.abstract and config.llm.context_strategy == "compact" %}
 <SUMMARY>
 {{ memory.abstract }}
 </SUMMARY>

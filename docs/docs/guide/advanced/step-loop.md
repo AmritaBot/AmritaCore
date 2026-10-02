@@ -92,22 +92,23 @@ repeatly calling tool."`
 Matchers may mutate events or raise `StepAbortError` (control flow). Built-in
 tools (REASONING / UPDATE_STEP / STOP) do not fire events.
 
-## Between-Step Compression
+## Between-Step History Management
 
-The step loop folds completed-Step history when the prompt tokens the provider
-reported for the current Step exceed the compaction threshold
-(`ContextCompactor.threshold` = the preset's attention window ×
-`llm.compaction_trigger_ratio`). It is gated by the same
-`llm.enable_compaction` switch as between-turn compaction, and both read the
-threshold from one source, so one number describes one model.
+The step loop acts on the history when the prompt tokens the provider reported
+for the current Step exceed the threshold (`ContextCompactor.threshold` = the
+preset's attention window × `llm.compaction_trigger_ratio`). It reads the same
+`llm.context_strategy` as the between-turn handling, and both read the threshold
+from one source, so one number describes one model.
 
-On success the folded prefix is replaced by a single `user` message
-(`[Summary of previous steps]\n<summary>`) followed by the retained tail. The
-cut lands on a `user` message, so every `assistant(tool_calls)` stays next to
-its `ToolResult` and the remaining context is still well-formed. A failed or
-empty summary leaves the history untouched; either way the token baseline
-resets, so there is no retry loop. The `compress` step metadata carries the
-triggering token count and the threshold.
+Under `"compact"` the folded prefix is replaced by a single `user` message
+(`[Summary of previous steps]\n<summary>`) followed by the retained tail. Under
+`"slide"` the oldest messages are dropped outright and no model call is made.
+Either way the cut lands on a `user` message, so every `assistant(tool_calls)`
+stays next to its `ToolResult` and the remaining context is still well-formed. A
+failed or empty summary, or a slide that could not find a safe boundary, leaves
+the history untouched; either way the token baseline resets, so there is no
+retry loop. The `compress` step metadata carries the triggering token count and
+the threshold.
 
 ## Step Metadata
 

@@ -42,28 +42,31 @@ AmritaCore 本身**不存储**对话历史。它把 `session_id` 交给数据后
 复用同一个 id。如果你的后端在某个 id 下存了数据，第二次用该 id 的对话就会
 加载它；如果没存，就不会。
 
-## 3. 记忆摘要
+## 3. 历史管理
 
-长会话会撞上下文上限。开启自动压缩：
+长会话会撞上下文上限。选择最旧历史如何处理：
 
 ```python
 from amrita_core import minimal_init
 from amrita_core.config import AmritaConfig
 
 config = AmritaConfig()
-config.llm.enable_compaction = True
-config.llm.compaction_trigger_ratio = 0.9  # 窗口用到 90% 时折叠
+config.llm.context_strategy = "compact"  # "compact" | "slide" | "none"
+config.llm.compaction_trigger_ratio = 0.9  # 窗口用到 90% 时动手
 await minimal_init(config)
 ```
 
-压缩在两条触发线中先到者触发：
+`"compact"` 把最旧的轮次折叠成 LLM 摘要，要点得以保留，代价是每次裁剪多一次
+调用；`"slide"` 直接丢弃它们——更便宜，但丢掉的轮次彻底消失。
+
+两种策略都在两条触发线中先到者触发：
 
 - **token 触发**：provider 为上一次请求上报的 prompt 大小达到
   `compaction_trigger_ratio` × 预设的 `max_context`
 - **消息条数兜底**：历史达到 `llm.memory_length_limit`（默认 200）
 
-摘要存放在 `memory.abstract`，由模板渲染进系统指令，因此被折叠的轮次完全
-离开消息列表。（内置 step 策略还会执行 Step 间压缩——见
+`"compact"` 下摘要存放在 `memory.abstract`，由模板渲染进系统指令，因此被折叠
+的轮次完全离开消息列表。（内置 step 策略还会执行 Step 间历史管理——见
 [Step 循环](../advanced/step-loop.md)。）
 
 经验换算：一条消息约 300 tokens，64k 窗口约对应 200 条消息。只有当所有

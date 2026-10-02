@@ -64,11 +64,11 @@ independent — each can be enabled alone, and they solve different problems:
 | Mechanism             | Solves                                       | Runs when                           |
 | --------------------- | -------------------------------------------- | ----------------------------------- |
 | Content normalization | History carries blocks the model cannot read | `llm.enable_multi_modal` is **off** |
-| History compaction    | History is too long                          | A trigger threshold is reached      |
+| History management    | History is too long                          | A trigger threshold is reached      |
 | Overflow recovery     | The provider already rejected the request    | A `ContextOverflowError` is raised  |
 
 The default pipeline order is
-`LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT >> JINJA2_RENDER >> BUILD_MESSAGE`
+`LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_CONTEXT >> JINJA2_RENDER >> BUILD_MESSAGE`
 (see [Workflow Engine](../advanced/workflow-engine.md)).
 
 ### 1. Content Normalization
@@ -122,15 +122,15 @@ instead of being dropped: a missing media type, a non-base64 payload and an
 empty body all fail loudly rather than sending a request the model answers about
 a picture it never received.
 
-### 2. History Compaction
+### 2. History Management
 
-`LLMConfig.enable_compaction` turns on history folding. A
-[`ContextCompactor`](../api-reference/classes/ContextCompactor.md) reads the
+`LLMConfig.context_strategy` picks what happens when history outgrows the budget.
+A [`ContextCompactor`](../api-reference/classes/ContextCompactor.md) reads the
 attention window from the active preset (`max_context`, falling back to
-`LLMConfig.session_tokens_windows`) and forces a fold once the last measured
-prompt reaches `compaction_trigger_ratio` of it.
+`LLMConfig.session_tokens_windows`) and acts once the last measured prompt
+reaches `compaction_trigger_ratio` of it.
 
-Compaction fires on whichever trigger comes first:
+It fires on whichever trigger comes first:
 
 - **Token trigger** — the prompt size the provider reported for the previous
   request reaches the threshold. No local tokenizer is involved; the
@@ -140,11 +140,19 @@ Compaction fires on whichever trigger comes first:
   report usage; a gateway that reports none would otherwise let history grow
   without bound
 
-The fold cuts at the **newest `user` message**, so the surviving tail starts a
+What runs once a trigger fires:
+
+| `context_strategy` | Effect                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `"compact"`        | Folds the oldest prefix into an LLM summary stored on `MemoryModel.abstract`                                   |
+| `"slide"`          | Drops the oldest messages outright, down to `slide_target_ratio` × the window, with no extra model call        |
+| `"none"`           | Nothing — history grows until the provider rejects the request                                                 |
+
+Both active policies cut at a **`user` message**, so the surviving tail starts a
 clean turn and no assistant tool call is ever separated from its tool results.
-The summary is stored on `MemoryModel.abstract` and rendered back into the
-system instruction by the train template, so nothing is injected into the
-message list and provider message-ordering rules stay untouched.
+Under `"compact"` the summary is rendered back into the system instruction by
+the train template, so nothing is injected into the message list and provider
+message-ordering rules stay untouched.
 
 See [Tutorial 5 — Memory](../tutorials/memory.md) for a hands-on setup, and
 [Step Loop](../advanced/step-loop.md) for the between-Step variant the built-in
