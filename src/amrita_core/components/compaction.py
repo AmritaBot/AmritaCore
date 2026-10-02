@@ -364,37 +364,53 @@ class ContextCompactor:
 
         return cut
 
-    def slide(self, messages: CONTENT_LIST_TYPE, reported: int) -> int:
-        """Drop the oldest messages until the estimate falls to the target.
+    def slide(self, messages: CONTENT_LIST_TYPE, reported: int | None = None) -> int:
+        """Drop the oldest messages until the history fits again.
 
         The counterpart to :meth:`compact` under the ``slide`` policy: the
         tail survives verbatim and no extra model call is made, at the cost
         of losing the dropped turns outright.
 
-        ``reported`` is the prompt size the provider measured for the payload
-        these messages produced — the caller knows it (``memory.usage``
-        between turns, the Step token window inside the agent loop) and the
-        message list alone does not carry it.
+        Two ways in, one per trigger ``needs_management`` fires on:
 
-        The guard reads ``reported`` rather than ``sum(estimates)``: the
-        shares are rounded to integers, so their sum can land a token below
-        the measurement and read as "still fits" when the caller already
-        decided otherwise. ``>=`` triggers, matching ``needs_management``.
+        * a usable measurement at or above ``threshold`` — ``reported`` is the
+          prompt size the provider measured for the payload these messages
+          produced, and the oldest messages are dropped until the weighted
+          estimate falls to ``slide_target``;
+        * no usable measurement (``None``, or a figure below ``threshold``) —
+          the message-count ceiling is what triggered the call, so the history
+          is cut down to ``message_limit`` messages instead. Without this the
+          fallback fires the node and changes nothing on every request, which
+          is exactly the case it exists for: a gateway that reports no usage.
+
+        The caller knows ``reported`` (``memory.usage`` between turns, the
+        Step token window inside the agent loop) and the message list alone
+        does not carry it.
+
+        The token path reads ``reported`` rather than ``sum(estimates)`` for
+        its guard: the shares are rounded to integers, so their sum can land
+        a token below the measurement and read as "still fits" when the
+        caller already decided otherwise.
 
         Mutates ``messages`` in place. Returns the number of messages dropped
         (``0`` when nothing moved).
         """
-        if reported < self.threshold:
-            return 0
-
-        estimates = self._estimate(messages, reported)
-        total = sum(estimates)
-        need = total - self.slide_target
-        consumed = 0
-        cut = 0
-        while cut < len(messages) - 1 and consumed < need:
-            consumed += estimates[cut]
-            cut += 1
+        measured = reported if reported is not None and reported > 0 else None
+        if measured is not None and measured >= self.threshold:
+            estimates = self._estimate(messages, measured)
+            total = sum(estimates)
+            need = total - self.slide_target
+            consumed = 0
+            cut = 0
+            while cut < len(messages) - 1 and consumed < need:
+                consumed += estimates[cut]
+                cut += 1
+        else:
+            if self.message_limit <= 0:
+                return 0
+            cut = len(messages) - self.message_limit
+            if cut <= 0:
+                return 0
 
         cut = self._safe_cut(messages, cut)
         if cut <= 0:
@@ -453,7 +469,9 @@ async def MANAGE_CONTEXT(
         usage=resp.usage,
     )
     if compactor.strategy == "slide":
-        reported = memory.usage.prompt_tokens if memory.usage is not None else 0
+        #  `None` rather than 0: a missing measurement must fall through to the
+        #  message-count ceiling instead of reading as "far below the trigger".
+        reported = memory.usage.prompt_tokens if memory.usage is not None else None
         compactor.slide(memory.messages, reported)
         #  The measurement described a payload that no longer exists; clear it
         #  so the next request measures itself instead of re-triggering on a
