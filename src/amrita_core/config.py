@@ -4,7 +4,7 @@ import secrets
 import string
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from typing_extensions import LiteralString
 
 from amrita_core.types import BaseModel
@@ -240,6 +240,24 @@ class LLMConfig(BaseModel):
         default=True,
         description="Whether to enable multi-modal support (currently only supports image)",
     )
+
+    @model_validator(mode="after")
+    def _slide_target_stays_below_the_trigger(self) -> LLMConfig:
+        """Reject a `slide` target that sits at or above the trigger.
+
+        `slide` trims down to `slide_target_ratio` and `needs_management`
+        fires at `compaction_trigger_ratio`. If the target is not strictly
+        lower, the trimmed history lands back on the trigger and every
+        request slides again, dropping turns for nothing. The two numbers
+        are only meaningful as a pair, so the check belongs next to them
+        rather than in the docs.
+        """
+        if self.slide_target_ratio >= self.compaction_trigger_ratio:
+            raise ValueError(
+                "`slide_target_ratio` must stay below `compaction_trigger_ratio`: "
+                f"got {self.slide_target_ratio} and {self.compaction_trigger_ratio}"
+            )
+        return self
 
 
 class AmritaConfig(BaseModel):
