@@ -4,6 +4,7 @@ message normalization."""
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic import ValidationError
 
 from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.backends import LegacyBackend
@@ -13,9 +14,9 @@ from amrita_core.components.compaction import (
     should_manage_context,
     split_history,
 )
-from amrita_core.components.llm import LLM_COMPLETION
+from amrita_core.components.llm import LLM_COMPLETION, _shrink_context
 from amrita_core.components.normalize import NORMALIZE_MESSAGES, flatten_content
-from amrita_core.config import AmritaConfig
+from amrita_core.config import AmritaConfig, LLMConfig
 from amrita_core.contexts import (
     AbilityState,
     MemoryContext,
@@ -157,6 +158,25 @@ class TestThreshold:
         assert ContextCompactor(config=config).message_limit == 42
 
 
+class TestSlideTargetGuard:
+    """`slide_target_ratio` and `compaction_trigger_ratio` only mean anything
+    as a pair: a target at or above the trigger trims the history straight
+    back onto the trigger, so the ordering is enforced rather than documented.
+    """
+
+    def test_rejects_a_target_at_the_trigger(self):
+        with pytest.raises(ValidationError):
+            LLMConfig(compaction_trigger_ratio=0.5, slide_target_ratio=0.5)
+
+    def test_rejects_a_target_above_the_trigger(self):
+        with pytest.raises(ValidationError):
+            LLMConfig(compaction_trigger_ratio=0.4, slide_target_ratio=0.6)
+
+    def test_accepts_a_target_below_the_trigger(self):
+        config = LLMConfig(compaction_trigger_ratio=0.8, slide_target_ratio=0.6)
+        assert config.slide_target_ratio == 0.6
+
+
 class TestMessageLimitFallback:
     """The token trigger needs the provider to report usage; the message-count
     fallback covers gateways that report none."""
@@ -230,6 +250,65 @@ class TestMessageLimitFallback:
             )
         assert memory.abstract == "folded"
         assert len(memory.messages) == 2
+
+    def test_slide_trims_to_the_ceiling_without_any_usage(self):
+        """The fallback has to trim under `slide`, not merely fire the node.
+
+        A gateway that reports no usage is the case `memory_length_limit`
+        exists for; reporting `True` from `needs_management` and then doing
+        nothing leaves that history unbounded.
+        """
+        config = AmritaConfig()
+        config.llm.context_strategy = "slide"
+        config.llm.memory_length_limit = 4
+        compactor = ContextCompactor(config=config, preset=_preset(max_context=10**6))
+        memory = self._history(10)
+        assert memory.usage is None
+        assert compactor.needs_management(memory) is True
+        assert compactor.slide(memory.messages, None) == 6
+        assert len(memory.messages) == 4
+
+    def test_slide_trims_to_the_ceiling_below_the_token_trigger(self):
+        config = AmritaConfig()
+        config.llm.context_strategy = "slide"
+        config.llm.memory_length_limit = 4
+        compactor = ContextCompactor(config=config, preset=_preset(max_context=10**6))
+        memory = self._history(10)
+        memory.usage = _usage(10)
+        assert compactor.needs_management(memory) is True
+        assert compactor.slide(memory.messages, memory.usage.prompt_tokens) == 6
+        assert len(memory.messages) == 4
+
+    def test_slide_stays_put_below_the_ceiling(self):
+        config = AmritaConfig()
+        config.llm.context_strategy = "slide"
+        config.llm.memory_length_limit = 4
+        compactor = ContextCompactor(config=config, preset=_preset(max_context=10**6))
+        memory = self._history(2)
+        assert compactor.slide(memory.messages, None) == 0
+        assert len(memory.messages) == 2
+
+    def test_slide_ignores_the_ceiling_when_it_is_disabled(self):
+        config = AmritaConfig()
+        config.llm.context_strategy = "slide"
+        config.llm.memory_length_limit = 0
+        compactor = ContextCompactor(config=config, preset=_preset(max_context=10**6))
+        memory = self._history(50)
+        assert compactor.slide(memory.messages, None) == 0
+
+    @pytest.mark.asyncio
+    async def test_node_slides_on_the_fallback(self):
+        config = AmritaConfig()
+        config.llm.context_strategy = "slide"
+        config.llm.memory_length_limit = 4
+        ability = _ability(config, _preset(max_context=10**6))
+        mem = MemoryContext(self._history(10))
+        await MANAGE_CONTEXT.func(  # pyright: ignore[reportGeneralTypeIssues]
+            ability=ability, mem=mem, resp=RespState()
+        )
+        assert mem.memory is not None
+        assert len(mem.memory.messages) == 4
+        assert mem.memory.usage is None
 
 
 class TestSummaryOutputBudget:
@@ -667,6 +746,27 @@ class TestSlide:
         assert memory.messages[0].role == "user"
         assert len(memory.messages) < len(self._history(4, body="x" * 200).messages)
 
+    def test_safe_cut_refuses_a_stranded_result(self):
+        """A result whose declaring call sits in the dropped prefix is invalid
+        wherever the boundary lands, so no cut is taken: sending the payload
+        on would cost the whole request.
+        """
+        messages: CONTENT_LIST_TYPE = [
+            Message(role="user", content="u1"),
+            Message(
+                role="assistant",
+                content=None,
+                tool_calls=[
+                    ToolCall(id="c1", function=Function(name="f", arguments="{}"))
+                ],
+            ),
+            Message(role="user", content="u2"),
+            ToolResult(role="tool", name="f", content="r1", tool_call_id="c1"),
+            Message(role="assistant", content="a2"),
+        ]
+        compactor = self._compactor()
+        assert compactor._safe_cut(messages, 2) == 0
+
 
 class TestSummarize:
     @pytest.mark.asyncio
@@ -960,3 +1060,29 @@ class TestOverflowRecovery:
                 intp=self._intp(),
                 resp=RespState(),
             )
+
+    @pytest.mark.asyncio
+    async def test_slides_instead_of_folding_under_the_slide_policy(self):
+        """Overflow recovery follows the policy: `slide` never pays for a
+        summary call, and never rewrites a history it was told to keep
+        verbatim.
+        """
+        config = AmritaConfig()
+        config.llm.context_strategy = "slide"
+        wok = WorkingState(context_wrap=_wrap_with_history())
+        with patch(
+            "amrita_core.components.llm.ContextCompactor.fold", new=AsyncMock()
+        ) as folded:
+            recovered = await _shrink_context(
+                _ability(config, _preset(max_context=100000)), wok, RespState()
+            )
+        assert recovered is True
+        folded.assert_not_awaited()
+        wrap = wok.context_wrap
+        assert wrap is not None
+        assert len(wrap.memory) < 5
+        assert wrap.memory[0].role == "user"
+        assert not any(
+            str(message.content).startswith("[Summary of earlier conversation]")
+            for message in wrap.memory
+        )
