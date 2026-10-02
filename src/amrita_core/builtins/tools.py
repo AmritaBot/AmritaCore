@@ -38,7 +38,15 @@ STOP_TOOL = ToolFunctionSchema(
     function=FunctionDefinitionSchema(
         name="agent_stop",
         description="Call this tool to indicate that you have gathered enough information and are ready to formulate the final answer to the user.\n"
-        + " After calling this, you should NOT call any other tools, but directly provide the completion",
+        + " After calling this, you should NOT call any other tools, but directly provide the completion.\n"
+        + " When a multi-step plan is active (announced in the conversation as `[Plan status]`), "
+        + "finishing ONE step is not 'enough information': do NOT call this tool while any step is "
+        + "still `pending` or `current`, because it ends the whole task and discards every remaining "
+        + "step. To finish the current step, simply stop calling tools — the framework then advances "
+        + "to the next step automatically. If you believe the remaining steps are genuinely "
+        + "unnecessary, call update_step (remove_step / replan) to fix the plan first, instead of "
+        + "stopping here. Call this tool only once every step is `done`, or when you are abandoning "
+        + "the task entirely.",
         parameters=FunctionParametersSchema(
             type="object",
             properties={
