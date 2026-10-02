@@ -246,6 +246,50 @@ class TestStrategyStepLifecycle:
         assert rs.current_phase == "b"
         assert rs.current_step_id == "b"
 
+    def test_plan_status_snapshot_carries_dependencies(self, strategy):
+        """The snapshot must show each node's ``depends_on`` edges."""
+        rs = strategy._init_run_state()
+        rs.plan = [
+            DAGNode(id="a", description="first", depends_on=[]),
+            DAGNode(id="b", description="second", depends_on=["a"]),
+            DAGNode(id="c", description="third", depends_on=["a", "b"]),
+        ]
+        strategy._inject_plan_status()
+        content = strategy.ctx.message.end_messages[-1].content
+        assert "- a [pending]: first" in content
+        assert "- b [pending] (after: a): second" in content
+        assert "- c [pending] (after: a, b): third" in content
+
+    def test_replan_rewiring_edges_refreshes_the_snapshot(self, strategy):
+        """Rewiring only the edges must not be mistaken for 'no change'."""
+        rs = strategy._init_run_state()
+        rs.plan = [
+            DAGNode(id="a", description="first", depends_on=[]),
+            DAGNode(id="b", description="second", depends_on=["a"]),
+        ]
+        strategy._inject_plan_status()
+        assert len(strategy.ctx.message.end_messages) == 1
+
+        # Same ids and descriptions, different edges: a now depends on b.
+        rs.plan = [
+            DAGNode(id="a", description="first", depends_on=["b"]),
+            DAGNode(id="b", description="second", depends_on=[]),
+        ]
+        strategy._inject_plan_status()
+        assert len(strategy.ctx.message.end_messages) == 2
+        assert "(after: b): first" in strategy.ctx.message.end_messages[-1].content
+
+    def test_plan_status_is_injected_once_when_unchanged(self, strategy):
+        """A truly unchanged plan must not re-inject (keeps the context lean)."""
+        rs = strategy._init_run_state()
+        rs.plan = [
+            DAGNode(id="a", description="first", depends_on=[]),
+            DAGNode(id="b", description="second", depends_on=["a"]),
+        ]
+        strategy._inject_plan_status()
+        strategy._inject_plan_status()
+        assert len(strategy.ctx.message.end_messages) == 1
+
     def test_record_signature_and_stall(self, strategy):
         asyncio_run(strategy.intro_step("execute"))
         from amrita_core.types import ToolCall

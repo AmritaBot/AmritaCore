@@ -68,6 +68,8 @@ The Daily Conversation Mode is activated after obtaining the required informatio
 
 Calling the `agent_stop` tool indicates "information processing is complete, ready to organize the final response". Immediately after, switch to Daily Conversation Mode and provide the complete response directly, and not to call ANY other tool.
 
+<rule>When a multi-step plan is active — it is announced in the conversation as `[Plan status]` — finishing ONE step does NOT mean "information processing is complete". Do NOT call `agent_stop` while any step is still `pending` or `current`: it ends the entire task and discards every remaining step. Finish the current step simply by not calling any more tools; the framework then advances to the next step on its own. Call `agent_stop` only once every step is `done`, or when you are abandoning the task entirely.</rule>
+
 ## X-Powered-By
 AmritaCore (Agent framework, see at https://core.amritabot.com)
 AmritaSense (Workflow runtime, see at https://sense.amritabot.com)

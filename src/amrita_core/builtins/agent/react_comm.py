@@ -258,6 +258,18 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         or the task changed) — not for its own sake.  Normal step progress
         is handled automatically by the framework (``leave_step`` marks the
         node done), so ``mark_done`` is never needed from the model side.
+
+        The snapshot carries each node's dependencies as well as its id,
+        state and description.  The snapshot doubles as the change-detection
+        key, so a ``replan`` that rewires edges while keeping ids and
+        descriptions identical would otherwise look unchanged and the model
+        would keep following the stale dependency information.
+
+        The note also forbids ``agent_stop`` while steps remain.  That tool
+        ends the whole task loop (``task_cond`` returns ``False``), not just
+        the current Step, so calling it after finishing one Step silently
+        discards every remaining node — models routinely do this because
+        "I have enough to answer" is exactly how a Step feels when it ends.
         """
         rs = self._init_run_state()
         if rs.simple_mode or not rs.plan:
@@ -268,22 +280,35 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             state = "done" if node.id in done else "pending"
             if node.id == rs.current_step_id:
                 state = "current"
-            lines.append(f"- {node.id} [{state}]: {node.description}")
+            deps = f" (after: {', '.join(node.depends_on)})" if node.depends_on else ""
+            lines.append(f"- {node.id} [{state}]{deps}: {node.description}")
         snapshot = "[Plan status]\n" + "\n".join(lines)
         if snapshot == self._last_plan_snapshot:
             return
         self._last_plan_snapshot = snapshot
+        remaining = [
+            n.id for n in rs.plan if n.id not in done and n.id != rs.current_step_id
+        ]
+        current = next((n for n in rs.plan if n.id == rs.current_step_id), None)
         note = (
-            "\nThis plan is only a hint for structuring your work. "
-            "The framework advances it automatically as you complete steps. "
-            "Call update_step ONLY when the plan turns out to be wrong: a "
-            "step is redundant, missing, the task changed, or a step cannot "
-            "be completed because its tool keeps failing (persistent ERROR "
-            "results). Never revise for its own sake. When a tool fails, "
-            "retry at most once; if it keeps failing, revise the plan "
-            "(remove_step the broken step or replan) and answer with what "
-            "you have. Use remove_step / add_step / replan to fix it; do "
-            "NOT use mark_done (the framework marks steps done for you)."
+            (
+                f"\n[Current step] {current.id}: {current.description}\n"
+                if current is not None
+                else "\n[Current step] (none)\n"
+            )
+            + "Work on this step ONLY. Do not produce the final answer for the whole "
+            "task yet — the remaining steps cover the rest, and answering now makes "
+            "them look redundant.\n"
+            "You are executing this plan. NEVER call agent_stop while any step is still "
+            "`pending` or `current`"
+            + (f" (still pending: {', '.join(remaining)})" if remaining else "")
+            + ": it ends the entire task and discards every remaining step. A finished "
+            "step needs no signal — just stop calling tools and the framework advances "
+            "to the next step on its own. If a step turns out to be wrong, redundant, or "
+            "impossible (its tool keeps failing with persistent ERROR results), fix the "
+            "plan with update_step (remove_step / add_step / replan) and carry on; never "
+            "use agent_stop to escape the plan. When a tool fails, retry at most once. "
+            "Do NOT use mark_done — the framework marks steps done for you."
         )
         self.ctx.message.append(Message(role="user", content=snapshot + note))
         logger.debug(f"Plan status injected into context ({len(lines)} nodes).")
