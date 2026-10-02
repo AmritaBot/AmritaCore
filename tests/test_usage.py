@@ -143,6 +143,29 @@ class TestSessionUsageProxy:
         assert proxy.prompt_since(150.0) == 20
         assert proxy.prompt_since(0.0) == 30
 
+    def test_latest_prompt_since_takes_the_newest_record(self):
+        """The window reading: one request's payload, not a sum of them."""
+        proxy = SessionUsageProxy("s1", "r1")
+        proxy.record(_mk_usage(prompt=10))
+        proxy._records[0].ts = 100.0
+        proxy.record(_mk_usage(prompt=20))
+        proxy._records[1].ts = 200.0
+        assert proxy.latest_prompt_since(150.0) == 20
+        # The window holds both records; the reading is still the newest one.
+        assert proxy.latest_prompt_since(0.0) == 20
+        # Whereas the spend reading adds them up.
+        assert proxy.prompt_since(0.0) == 30
+
+    def test_latest_prompt_since_is_zero_outside_the_window(self):
+        proxy = SessionUsageProxy("s1", "r1")
+        proxy.record(_mk_usage(prompt=10))
+        proxy._records[0].ts = 100.0
+        assert proxy.latest_prompt_since(300.0) == 0
+
+    def test_latest_prompt_since_without_records(self):
+        proxy = SessionUsageProxy("s1", "r1")
+        assert proxy.latest_prompt_since(0.0) == 0
+
     def test_records_returns_copy(self):
         proxy = SessionUsageProxy("s1", "r1")
         proxy.record(_mk_usage())

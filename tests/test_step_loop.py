@@ -1407,6 +1407,30 @@ class TestTokenBudget:
         assert rs.tokens.budget == 200
         assert rs.tokens.exhausted is False
 
+    def test_window_takes_the_latest_request_not_the_sum(self, strategy):
+        """Several requests in one Step must not add up into the budget.
+
+        Every request reports the whole context it carried, so a Step that
+        made two 120-token calls against a 200-token budget used to read 240
+        and stop the loop a step early.
+        """
+        from amrita_core.types import UniResponseUsage
+        from amrita_core.usage import SessionUsageProxy
+
+        strategy.config.function_config.agent_step_token_budget = 200
+        rs = strategy._init_run_state()
+        proxy = SessionUsageProxy("budget-test", "budget-stream")
+        rs.step_started_ts = 1000.0
+        for _ in range(2):
+            proxy.record(
+                UniResponseUsage(
+                    prompt_tokens=120, completion_tokens=0, total_tokens=120
+                )
+            )
+        rs.tokens.refresh_window(proxy, rs.step_started_ts)
+        assert rs.tokens.prompt_tokens == 120
+        assert rs.tokens.exhausted is False
+
 
 # Between-Step history compression (real implementation)
 
@@ -1451,6 +1475,27 @@ class TestBetweenStepCompression:
 
         strategy.ctx.usage = SessionUsageProxy("compress-test", stream_id)
         return strategy.ctx.usage
+
+    def test_window_reads_the_latest_request(self, strategy_with_history):
+        """A Step's several requests each carry the whole context.
+
+        Summing them counts the same history once per call, which tripped the
+        between-Step threshold at a fraction of the real window.
+        """
+        from amrita_core.types import UniResponseUsage
+
+        st = strategy_with_history
+        rs = st._init_run_state()
+        proxy = self._bind_ledger(st)
+        rs.step_started_ts = 1000.0
+        for prompt in (150, 160, 170):
+            proxy.record(
+                UniResponseUsage(
+                    prompt_tokens=prompt, completion_tokens=0, total_tokens=prompt
+                )
+            )
+        rs.tokens.refresh_window(proxy, rs.step_started_ts)
+        assert rs.tokens.prompt_tokens == 170
 
     def test_noop_below_threshold(self, strategy_with_history):
         """Below the threshold -> no LLM call, history untouched."""
