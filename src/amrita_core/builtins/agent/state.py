@@ -59,13 +59,13 @@ class TokenBudget(BaseModel):
     """Per-run prompt-token budget (``<= 0`` = disabled / unlimited).
 
     Injected from ``config.function_config.agent_step_token_budget`` by the
-    strategy when the run state is created; ``exhausted`` compares the
-    accumulated ``prompt_tokens`` against it.
+    strategy when the run state is created; ``exhausted`` compares this Step's
+    prompt window against it.
     """
 
     @property
     def exhausted(self) -> bool:
-        """Whether the accumulated prompt tokens reached the budget.
+        """Whether this Step's prompt window reached the budget.
 
         ``False`` when the budget is disabled (``<= 0``).  The workflow
         iteration conditions consult this to stop the loop before burning
@@ -76,7 +76,12 @@ class TokenBudget(BaseModel):
         return self.prompt_tokens >= self.budget
 
     def update(self, usage: object | None) -> None:
-        """Accumulate tokens from a ``UniResponseUsage``-like object."""
+        """Accumulate tokens from a ``UniResponseUsage``-like object.
+
+        A spend-style reading: calling this once per request adds the whole
+        context again each time. Step windows must go through
+        :meth:`refresh_window`, which reads the latest request instead.
+        """
         if usage is None:
             return
         for attr in ("prompt_tokens", "completion_tokens", "total_tokens"):
@@ -88,18 +93,22 @@ class TokenBudget(BaseModel):
     def refresh_window(
         self, usage: SessionUsageProxy | None, since_ts: float | None
     ) -> None:
-        """Set this Step's prompt window from the ledger proxy (non-cumulative).
+        """Set this Step's prompt window from the ledger proxy.
 
-        The budget compares prompt tokens recorded since ``since_ts``, so a
-        single ``record`` per Step boundary replaces the old per-call
-        ``update`` accumulation.
+        The window is the size of the context the most recent request in the
+        Step sent — not the sum of everything recorded since ``since_ts``. A
+        Step issues one request per tool-call round plus its summary call, and
+        each reports the whole context it carried, so a sum counts the same
+        history once per request and reports a window several times its real
+        size. That inflated figure both triggers between-Step compression early
+        and makes ``slide`` trim far past its target.
         """
         if usage is None or since_ts is None:
             self.prompt_tokens = 0
             self.completion_tokens = 0
             self.total_tokens = 0
             return
-        self.prompt_tokens = usage.prompt_since(since_ts)
+        self.prompt_tokens = usage.latest_prompt_since(since_ts)
         self.completion_tokens = 0
         self.total_tokens = 0
 

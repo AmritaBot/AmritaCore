@@ -99,12 +99,31 @@ class SessionUsageProxy:
         )
 
     def prompt_since(self, since_ts: float) -> int:
-        """Prompt tokens recorded at or after ``since_ts``.
+        """Prompt tokens recorded at or after ``since_ts``, summed.
 
-        Used as the Step-window prompt count for budget checks and for the
-        between-Step compression threshold.
+        This is the *spend* reading: every request carries the whole context it
+        sent, so the sum answers "how much prompt did this run push through the
+        provider since ``since_ts``". It is not the size of the history — for
+        that see :meth:`latest_prompt_since`, which is what window and budget
+        checks want.
         """
         return sum(r.prompt_tokens for r in self._records if r.ts >= since_ts)
+
+    def latest_prompt_since(self, since_ts: float) -> int:
+        """Prompt tokens of the most recent request at or after ``since_ts``.
+
+        The window reading: one request reports the size of the context it
+        carried, so the latest record is how large the history has grown to,
+        while :meth:`prompt_since` is what the run has spent. A Step issues
+        several requests (one per tool-call round, plus its summary call), and
+        summing them would count the same history once per request.
+
+        Returns ``0`` when no request was recorded in the window.
+        """
+        for record in reversed(self._records):
+            if record.ts >= since_ts:
+                return record.prompt_tokens
+        return 0
 
     def flush_into(self, target: list[BillingRecord]) -> None:
         """Append records not yet flushed to ``target``.
