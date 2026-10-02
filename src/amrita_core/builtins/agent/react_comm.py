@@ -259,6 +259,12 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         is handled automatically by the framework (``leave_step`` marks the
         node done), so ``mark_done`` is never needed from the model side.
 
+        The snapshot carries each node's dependencies as well as its id,
+        state and description.  The snapshot doubles as the change-detection
+        key, so a ``replan`` that rewires edges while keeping ids and
+        descriptions identical would otherwise look unchanged and the model
+        would keep following the stale dependency information.
+
         The note also forbids ``agent_stop`` while steps remain.  That tool
         ends the whole task loop (``task_cond`` returns ``False``), not just
         the current Step, so calling it after finishing one Step silently
@@ -274,7 +280,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             state = "done" if node.id in done else "pending"
             if node.id == rs.current_step_id:
                 state = "current"
-            lines.append(f"- {node.id} [{state}]: {node.description}")
+            deps = f" (after: {', '.join(node.depends_on)})" if node.depends_on else ""
+            lines.append(f"- {node.id} [{state}]{deps}: {node.description}")
         snapshot = "[Plan status]\n" + "\n".join(lines)
         if snapshot == self._last_plan_snapshot:
             return
