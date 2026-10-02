@@ -111,10 +111,16 @@ def gather_usage(
     | UniResponseUsage[int | None]
     | None,
 ) -> UniResponseUsage[int]:
-    """Gather usages
+    """Add ``args`` into ``base`` in place and return it.
+
+    A spend-style sum, which is what a run's ledger wants — and not a context
+    size. Every request reports the whole context it carried, so adding one
+    request's ``prompt_tokens`` to a running total mixes the size of a single
+    payload with the cost of many. Callers that need the current context want
+    the latest request's usage instead.
 
     Args:
-        base(UniResponseUsage[int]): Base object of usage.
+        base(UniResponseUsage[int]): Base object of usage, mutated in place.
         *args: Usages to gather.
 
     Returns:
