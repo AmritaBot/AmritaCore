@@ -10,7 +10,7 @@ is opted into by passing `workflow=_step_workflow_rendered` (or
 ```mermaid
 flowchart LR
     A["LOAD_STATE"] --> N["NORMALIZE_MESSAGES"]
-    N --> Q["NATIVE_IF(should_compact)<br/>→ COMPACT"]
+    N --> Q["NATIVE_IF(should_manage_context)<br/>→ MANAGE_CONTEXT"]
     Q --> B["JINJA2_RENDER"]
     B --> C["BUILD_MESSAGE"]
     C --> D["_pre_runner (events)"]
@@ -25,9 +25,9 @@ flowchart LR
 
 Two of those steps exist to keep history inside the window, and their order is
 load-bearing: `NORMALIZE_MESSAGES` flattens content blocks first, so the
-summarizer reads text rather than raw blocks; `COMPACT` runs before
-`JINJA2_RENDER`, so the summary it produces reaches the system instruction of
-the very request it was computed for. Both are described in
+summarizer reads text rather than raw blocks; `MANAGE_CONTEXT` runs before
+`JINJA2_RENDER`, so the summary `compact` produces reaches the system
+instruction of the very request it was computed for. Both are described in
 [Data & Memory](../concepts/data-memory.md).
 
 The **agent block** is what changes by mode. The inline runner is not a
@@ -75,14 +75,14 @@ per family:
 
 | Pipeline                | Composition                                                                                                                                    |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `COMPACT_HISTORY`       | `NATIVE_IF(should_compact, COMPACT)`                                                                                                           |
+| `MANAGE_HISTORY`        | `NATIVE_IF(should_manage_context, MANAGE_CONTEXT)`                                                                                             |
 | `STEP_REACT_BLOCK`      | `STRATEGY_INIT >> AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS`                                                  |
-| `SIMPLE_STEP_REACT`     | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY` |
-| `STEP_REACT_ONLY`       | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                    |
+| `SIMPLE_STEP_REACT`     | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`  |
+| `STEP_REACT_ONLY`       | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                     |
 | `REACT_BLOCK` (legacy)  | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS`                                      |
-| `SIMPLE_REACT` (legacy) | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`      |
-| `REACT_ONLY` (legacy)   | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                         |
-| `SIMPLE_CHAT`           | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                     |
+| `SIMPLE_REACT` (legacy) | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`       |
+| `REACT_ONLY` (legacy)   | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                          |
+| `SIMPLE_CHAT`           | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                      |
 
 **How to choose**:
 

@@ -9,7 +9,7 @@
 ```mermaid
 flowchart LR
     A["LOAD_STATE"] --> N["NORMALIZE_MESSAGES"]
-    N --> Q["NATIVE_IF(should_compact)<br/>→ COMPACT"]
+    N --> Q["NATIVE_IF(should_manage_context)<br/>→ MANAGE_CONTEXT"]
     Q --> B["JINJA2_RENDER"]
     B --> C["BUILD_MESSAGE"]
     C --> D["_pre_runner（事件）"]
@@ -23,9 +23,9 @@ flowchart LR
 ```
 
 其中两步是为了把历史控制在窗口内，且顺序不能调换：`NORMALIZE_MESSAGES`
-先把内容块拍平，总结器读到的才是文本而非原始块；`COMPACT` 在
-`JINJA2_RENDER` 之前运行，因此它产出的摘要能进入它所计算的那次请求的系统
-指令。两者详见[数据与记忆](../concepts/data-memory.md)。
+先把内容块拍平，总结器读到的才是文本而非原始块；`MANAGE_CONTEXT` 在
+`JINJA2_RENDER` 之前运行，因此 `compact` 产出的摘要能进入它所计算的那次
+请求的系统指令。两者详见[数据与记忆](../concepts/data-memory.md)。
 
 **agent 块**按模式变化。内联运行器不是旁路特例：分派是两个带守卫的分支，
 各自在断言为假时被跳过。
@@ -69,14 +69,14 @@ STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAV
 
 | 管线                   | 组合                                                                                                                                           |
 | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `COMPACT_HISTORY`      | `NATIVE_IF(should_compact, COMPACT)`                                                                                                           |
+| `MANAGE_HISTORY`       | `NATIVE_IF(should_manage_context, MANAGE_CONTEXT)`                                                                                             |
 | `STEP_REACT_BLOCK`     | `STRATEGY_INIT >> AGENT_ENTRY >> NATIVE_DO(STEP_BODY).WHILE(task_cond) >> AGENT_POST_PROCESS`                                                  |
-| `SIMPLE_STEP_REACT`    | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY` |
-| `STEP_REACT_ONLY`      | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                    |
+| `SIMPLE_STEP_REACT`    | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`  |
+| `STEP_REACT_ONLY`      | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> STEP_REACT_BLOCK`                                     |
 | `REACT_BLOCK`（遗留）  | `STRATEGY_INIT >> AGENT_ENTRY >> WHILE(SINGLE_STRATEGY_CALL).ACTION(REACT_COUNTER) >> AGENT_POST_PROCESS`                                      |
-| `SIMPLE_REACT`（遗留） | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`      |
-| `REACT_ONLY`（遗留）   | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                         |
-| `SIMPLE_CHAT`          | `LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                     |
+| `SIMPLE_REACT`（遗留） | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK >> LLM_COMPLETION >> COMMIT_MEMORY`       |
+| `REACT_ONLY`（遗留）   | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> REACT_BLOCK`                                          |
+| `SIMPLE_CHAT`          | `LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_HISTORY >> JINJA2_RENDER >> BUILD_MESSAGE >> LLM_COMPLETION >> COMMIT_MEMORY`                      |
 
 **如何选择**：
 

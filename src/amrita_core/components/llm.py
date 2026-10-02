@@ -133,6 +133,10 @@ async def _shrink_context(
 
     Returns ``False`` when there is nothing to fold or the model produced no
     summary, which tells the caller to give up and surface the original error.
+
+    Also returns ``False`` when ``context_strategy`` is ``none``: the user
+    asked for history to be left alone, so the overflow surfaces as an error
+    rather than being silently papered over with a fold.
     """
     wrap = wok.context_wrap
     assert wrap is not None
@@ -141,6 +145,12 @@ async def _shrink_context(
         preset=ability.preset,
         usage=resp.usage,
     )
+    if not compactor.enabled:
+        logger.warning(
+            "Context overflow with `context_strategy = none`; "
+            "history is left untouched and the request will fail."
+        )
+        return False
     result = await compactor.fold(wrap.memory)
     if result is None:
         return False

@@ -34,7 +34,7 @@ from amrita_core.agent.strategy import (
 from amrita_core.base.backend import BackendSlots
 from amrita_core.builtins.agent import ReActAgentStrategy
 from amrita_core.builtins.backends import LegacyBackend
-from amrita_core.components.compaction import COMPACT, should_compact
+from amrita_core.components.compaction import MANAGE_CONTEXT, should_manage_context
 from amrita_core.components.llm import JINJA2_RENDER, LLM_COMPLETION
 from amrita_core.components.normalize import NORMALIZE_MESSAGES
 from amrita_core.components.process import BUILD_MESSAGE, COMMIT_MEMORY, LOAD_STATE
@@ -794,7 +794,7 @@ STEP_AGENT_BLOCK: NodeCompose = (
 _workflow: NodeCompose = (
     LOAD_STATE.as_compose()
     >> NORMALIZE_MESSAGES
-    >> NATIVE_IF(should_compact, COMPACT)
+    >> NATIVE_IF(should_manage_context, MANAGE_CONTEXT)
     >> JINJA2_RENDER
     >> BUILD_MESSAGE
     >> _pre_runner
@@ -811,7 +811,7 @@ _workflow_rendered = _workflow.render()
 _step_workflow: NodeCompose = (
     LOAD_STATE.as_compose()
     >> NORMALIZE_MESSAGES
-    >> NATIVE_IF(should_compact, COMPACT)
+    >> NATIVE_IF(should_manage_context, MANAGE_CONTEXT)
     >> JINJA2_RENDER
     >> BUILD_MESSAGE
     >> _pre_runner

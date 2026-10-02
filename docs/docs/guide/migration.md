@@ -31,6 +31,10 @@ use instead.
 | `BuiltinAgentConfig.agent_tool_call_notice`                       | (none — filter the stream)                                     |
 | `BuiltinAgentConfig.agent_reasoning_hide`                         | (none — filter the stream)                                     |
 
+> Upgrading from 1.1 too? `LLMConfig.enable_compaction` was replaced by
+> `LLMConfig.context_strategy` in 1.2, and `auto_retry` was removed. See
+> [Migration Guide: 1.1 → 1.2](migration-1.2.md) for that step.
+
 ## 1. The Tokenizer Is Gone
 
 AmritaCore no longer ships a tokenizer, and `jieba` is no longer an extra. Token
@@ -98,9 +102,9 @@ it on its own preset.
 
 ## 3. Compaction Replaces Memory Abstraction
 
-`enable_memory_abstract` is now `enable_compaction`. The proportion/threshold
-pair is replaced by a ratio of the model's window, plus a message-count
-fallback:
+`enable_memory_abstract` is now `context_strategy` (it was briefly called
+`enable_compaction`). The proportion/threshold pair is replaced by a ratio of the
+model's window, plus a message-count fallback:
 
 ```python
 # before
@@ -109,8 +113,9 @@ config.llm.memory_abstract_proportion = 0.5
 config.llm.memory_abstract_threshold = 4000
 
 # after
-config.llm.enable_compaction = True
+config.llm.context_strategy = "compact"  # "compact" | "slide" | "none"
 config.llm.compaction_trigger_ratio = 0.9  # fraction of the attention window
+config.llm.slide_target_ratio = 0.7  # under "slide", trim back down to this
 config.llm.memory_length_limit = 200  # message-count fallback, 0 = off
 config.llm.enable_overflow_recovery = True  # compact and retry on overflow
 ```

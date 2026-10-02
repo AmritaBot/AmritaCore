@@ -57,11 +57,11 @@ chat._di_memory.memory  # MemoryModel | None——LOAD_STATE 之后被设置
 | 机制       | 解决什么                     | 何时运行                            |
 | ---------- | ---------------------------- | ----------------------------------- |
 | 内容归一化 | 历史携带了模型读不懂的内容块 | `llm.enable_multi_modal` 为**关**时 |
-| 历史压缩   | 历史太长                     | 触发阈值达到时                      |
+| 历史管理   | 历史太长                     | 触发阈值达到时                      |
 | 溢出恢复   | provider 已经拒绝了请求      | 抛出 `ContextOverflowError` 时      |
 
 默认管线顺序是
-`LOAD_STATE >> NORMALIZE_MESSAGES >> COMPACT >> JINJA2_RENDER >> BUILD_MESSAGE`
+`LOAD_STATE >> NORMALIZE_MESSAGES >> MANAGE_CONTEXT >> JINJA2_RENDER >> BUILD_MESSAGE`
 （见[工作流引擎](../advanced/workflow-engine.md)）。
 
 ### 1. 内容归一化
@@ -109,15 +109,15 @@ ImageContent(
 media type、非 base64 载荷、空 body 三种情况都会响亮失败，而不是发出一个让模型
 对着它从未收到的图片作答的请求。
 
-### 2. 历史压缩
+### 2. 历史管理
 
-`LLMConfig.enable_compaction` 开启历史折叠。
+`LLMConfig.context_strategy` 决定历史超出预算后怎么做。
 [`ContextCompactor`](../api-reference/classes/ContextCompactor.md) 从当前预设
 读取注意力窗口（`max_context`，未声明时回退到
 `LLMConfig.session_tokens_windows`），当上次实测的 prompt 达到其
-`compaction_trigger_ratio` 时强制折叠。
+`compaction_trigger_ratio` 时动手。
 
-压缩在两条触发线中先到者触发：
+它在两条触发线中先到者触发：
 
 - **token 触发** —— provider 为上一次请求上报的 prompt 大小达到阈值。全程
   不涉及本地分词器；度量值就是 provider 自己的 usage 上报
@@ -125,8 +125,16 @@ media type、非 base64 载荷、空 body 三种情况都会响亮失败，而�
   该兜底存在的原因是 token 触发依赖 provider 上报 usage；从不上报的网关否则
   会让历史无界增长
 
-切点落在**最新的 `user` 消息**上，因此存活的尾部从干净的轮次开始，assistant
-的工具调用永远不会与其工具结果分离。摘要存放在 `MemoryModel.abstract`，由
+触发后跑什么：
+
+| `context_strategy` | 效果                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `"compact"`        | 把最旧的一段折叠成摘要，存放在 `MemoryModel.abstract`                                             |
+| `"slide"`          | 直接丢弃最旧的消息，裁剪到 `slide_target_ratio` × 窗口，不额外调用模型                             |
+| `"none"`           | 什么都不做——历史一直增长，直到 provider 拒绝请求                                                   |
+
+两种生效策略的切点都落在 **`user` 消息**上，因此存活的尾部从干净的轮次开始，
+assistant 的工具调用永远不会与其工具结果分离。`"compact"` 下摘要由
 train 模板渲染回系统指令，因此不会往消息列表里注入任何内容，provider 的消息
 顺序规则不受影响。
 

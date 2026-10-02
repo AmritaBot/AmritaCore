@@ -1473,14 +1473,14 @@ class TestBetweenStepCompression:
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4  # untouched
 
-    def test_noop_when_compaction_disabled(self, strategy_with_history):
-        """llm.enable_compaction=False -> never compresses."""
+    def test_noop_when_history_management_is_disabled(self, strategy_with_history):
+        """context_strategy="none" -> history is never touched."""
         from unittest.mock import patch
 
         from amrita_core.types import UniResponseUsage
 
         st = strategy_with_history
-        st.config.llm.enable_compaction = False
+        st.config.llm.context_strategy = "none"
         rs = st._init_run_state()
         proxy = self._bind_ledger(st)
         rs.step_started_ts = 1000.0
@@ -1493,11 +1493,39 @@ class TestBetweenStepCompression:
         with patch(
             "amrita_core.components.compaction.call_completion",
             side_effect=AssertionError(
-                "LLM must not be called with compaction disabled"
+                "LLM must not be called with history management disabled"
             ),
         ):
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4  # untouched
+
+    def test_slide_drops_between_steps_without_calling_the_model(
+        self, strategy_with_history
+    ):
+        """context_strategy="slide" -> drop messages, never summarize."""
+        from unittest.mock import patch
+
+        from amrita_core.types import UniResponseUsage
+
+        st = strategy_with_history
+        st.config.llm.context_strategy = "slide"
+        st.config.llm.compaction_trigger_ratio = 1.0
+        st.config.llm.slide_target_ratio = 0.5
+        st.config.llm.session_tokens_windows = 1000
+        rs = st._init_run_state()
+        proxy = self._bind_ledger(st)
+        rs.step_started_ts = 1000.0
+        proxy.record(
+            UniResponseUsage(prompt_tokens=1000, completion_tokens=0, total_tokens=1000)
+        )
+
+        with patch(
+            "amrita_core.components.compaction.call_completion",
+            side_effect=AssertionError("slide must not call the model"),
+        ):
+            asyncio_run(st._compress_history_between_steps())
+        assert len(st.ctx.message.memory) < 4
+        assert st.ctx.message.memory[0].role == "user"
 
     def test_noop_when_window_very_large(self, strategy_with_history):
         """A window far above the prompt size behaves like disabled."""

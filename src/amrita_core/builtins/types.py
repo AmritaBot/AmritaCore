@@ -193,13 +193,13 @@ class AgentStepStallMetadata(MessageMetadataPayload):
 
 
 class AgentStepCompressMetadata(MessageMetadataPayload):
-    """Metadata for between-Step history compression."""
+    """Metadata for between-Step history management."""
 
     prompt_tokens: int
-    """Real API prompt-token count that triggered the compression."""
+    """Real API prompt-token count that triggered the management."""
 
     threshold: int
-    """Prompt-token threshold that triggered the compression.
+    """Prompt-token threshold that triggered the management.
 
     Derived from the active preset's ``max_context`` and
     ``llm.compaction_trigger_ratio``.

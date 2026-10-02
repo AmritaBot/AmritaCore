@@ -22,7 +22,7 @@ from amrita_core.config import (
 
 config = AmritaConfig(
     function_config=FunctionConfig(use_minimal_context=False),
-    llm=LLMConfig(enable_compaction=True),
+    llm=LLMConfig(context_strategy="compact"),
     cookie=CookieConfig(enable_cookie=True),
     builtin=BuiltinAgentConfig(tool_calling_mode="agent"),
 )

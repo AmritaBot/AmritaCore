@@ -4,7 +4,7 @@ from amrita_sense.instructions.native import (
     NATIVE_IF,
 )
 
-from amrita_core.components.compaction import COMPACT, should_compact
+from amrita_core.components.compaction import MANAGE_CONTEXT, should_manage_context
 from amrita_core.components.llm import JINJA2_RENDER, LLM_COMPLETION
 from amrita_core.components.normalize import NORMALIZE_MESSAGES
 from amrita_core.components.process import BUILD_MESSAGE, COMMIT_MEMORY, LOAD_STATE
@@ -18,8 +18,8 @@ from amrita_core.components.react import (
     task_cond,
 )
 
-#: Compact before rendering so the folded summary reaches the system instruction of the request it was computed for.
-COMPACT_HISTORY = NATIVE_IF(should_compact, COMPACT)
+#: Manage history before rendering so a new summary reaches the system instruction of the request it was computed for.
+MANAGE_HISTORY = NATIVE_IF(should_manage_context, MANAGE_CONTEXT)
 
 REACT_BLOCK = (
     STRATEGY_INIT
@@ -40,7 +40,7 @@ STEP_REACT_BLOCK = (
 SIMPLE_REACT = (
     LOAD_STATE
     >> NORMALIZE_MESSAGES
-    >> COMPACT_HISTORY
+    >> MANAGE_HISTORY
     >> JINJA2_RENDER
     >> BUILD_MESSAGE
     >> REACT_BLOCK
@@ -51,7 +51,7 @@ SIMPLE_REACT = (
 SIMPLE_STEP_REACT = (
     LOAD_STATE
     >> NORMALIZE_MESSAGES
-    >> COMPACT_HISTORY
+    >> MANAGE_HISTORY
     >> JINJA2_RENDER
     >> BUILD_MESSAGE
     >> STEP_REACT_BLOCK
@@ -62,7 +62,7 @@ SIMPLE_STEP_REACT = (
 REACT_ONLY = (
     LOAD_STATE
     >> NORMALIZE_MESSAGES
-    >> COMPACT_HISTORY
+    >> MANAGE_HISTORY
     >> JINJA2_RENDER
     >> BUILD_MESSAGE
     >> REACT_BLOCK
@@ -70,7 +70,7 @@ REACT_ONLY = (
 STEP_REACT_ONLY = (
     LOAD_STATE
     >> NORMALIZE_MESSAGES
-    >> COMPACT_HISTORY
+    >> MANAGE_HISTORY
     >> JINJA2_RENDER
     >> BUILD_MESSAGE
     >> STEP_REACT_BLOCK
@@ -79,7 +79,7 @@ STEP_REACT_ONLY = (
 SIMPLE_CHAT = (
     LOAD_STATE
     >> NORMALIZE_MESSAGES
-    >> COMPACT_HISTORY
+    >> MANAGE_HISTORY
     >> JINJA2_RENDER
     >> BUILD_MESSAGE
     >> LLM_COMPLETION

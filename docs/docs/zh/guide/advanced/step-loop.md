@@ -86,19 +86,21 @@ flowchart LR
 Matcher 可修改事件或抛 `StepAbortError`（控制流）。内置工具
 （REASONING / UPDATE_STEP / STOP）不触发事件。
 
-## Step 间压缩
+## Step 间历史管理
 
-当 provider 为当前 Step 上报的 prompt token 超过压缩阈值时，step 循环会折叠
-已完成的 Step 历史（`ContextCompactor.threshold` = 预设注意力窗口 ×
-`llm.compaction_trigger_ratio`）。它与轮边界压缩受同一个
-`llm.enable_compaction` 开关控制，且两者从同一处读取阈值，因此一个数字就
+当 provider 为当前 Step 上报的 prompt token 超过阈值时，step 循环会处理
+历史（`ContextCompactor.threshold` = 预设注意力窗口 ×
+`llm.compaction_trigger_ratio`）。它与轮边界处理读同一个
+`llm.context_strategy`，且两者从同一处读取阈值，因此一个数字就
 描述了一个模型。
 
-成功后，被折叠的前缀由一条 `user` 消息（`[Summary of previous steps]\n<summary>`）
-加保留的尾部替代。切点落在 `user` 消息上，因此每个
-`assistant(tool_calls)` 都紧邻其 `ToolResult`，剩余上下文依然形态良好。
-摘要失败或为空时历史保持不变；两种情况都会重置 token 基线，因此不存在
-重试循环。`compress` step 元数据携带触发时的 token 数与阈值。
+`"compact"` 下，被折叠的前缀由一条 `user` 消息
+（`[Summary of previous steps]\n<summary>`）加保留的尾部替代；`"slide"` 下
+最旧的消息被直接丢弃，不发起任何模型调用。两种情况切点都落在 `user` 消息上，
+因此每个 `assistant(tool_calls)` 都紧邻其 `ToolResult`，剩余上下文依然形态良好。
+摘要失败或为空、或 slide 找不到安全切点时，历史保持不变；两种情况都会重置
+token 基线，因此不存在重试循环。`compress` step 元数据携带触发时的 token
+数与阈值。
 
 ## Step 元数据
 

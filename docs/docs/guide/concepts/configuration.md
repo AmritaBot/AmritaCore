@@ -31,19 +31,20 @@ agent = create_agent(..., config=config)  # or per-agent
 
 ## Key Settings for Agent Behavior
 
-| Setting                                   | Default   | Effect                                                                       |
-| ----------------------------------------- | --------- | ---------------------------------------------------------------------------- |
-| `function_config.agent_tool_call_limit`   | `10`      | Hard cap on tool rounds per run                                              |
-| `function_config.agent_step_token_budget` | `-1`      | Per-Step prompt-token budget (`<= 0` = disabled/unlimited)                   |
-| `builtin.tool_calling_mode`               | `"agent"` | `"agent"` / `"rag"` / `"none"`                                               |
-| `builtin.agent_thought_mode`              | `"chat"`  | `"reasoning"` / `"chat"` / `"reasoning-required"` / `"reasoning-optional"`   |
-| `builtin.loop_reasoning_trigger`          | `5`       | Stall detection: N identical tool signatures → give up                       |
-| `llm.enable_compaction`                   | `True`    | Fold long history into a summary instead of resending it                     |
-| `llm.compaction_trigger_ratio`            | `0.9`     | Fraction of the attention window at which compaction fires                   |
-| `preset.max_context`                      | `None`    | Per-model input budget; falls back to `llm.session_tokens_windows` (64k)     |
-| `preset.max_output`                       | `28000`   | Per-model response reservation; `llm.max_tokens` (10000) is the last resort  |
-| `llm.memory_length_limit`                 | `200`     | Message-count fallback that fires even when no usage is reported (`0` = off) |
-| `llm.enable_overflow_recovery`            | `True`    | Compact and retry once when the provider rejects an oversized request        |
+| Setting                                   | Default     | Effect                                                                       |
+| ----------------------------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `function_config.agent_tool_call_limit`   | `10`        | Hard cap on tool rounds per run                                              |
+| `function_config.agent_step_token_budget` | `-1`        | Per-Step prompt-token budget (`<= 0` = disabled/unlimited)                   |
+| `builtin.tool_calling_mode`               | `"agent"`   | `"agent"` / `"rag"` / `"none"`                                               |
+| `builtin.agent_thought_mode`              | `"chat"`    | `"reasoning"` / `"chat"` / `"reasoning-required"` / `"reasoning-optional"`   |
+| `builtin.loop_reasoning_trigger`          | `5`         | Stall detection: N identical tool signatures → give up                       |
+| `llm.context_strategy`                    | `"compact"` | How an oversized history is handled: `"compact"` / `"slide"` / `"none"`      |
+| `llm.compaction_trigger_ratio`            | `0.9`       | Fraction of the attention window at which history management fires           |
+| `llm.slide_target_ratio`                  | `0.7`       | Under `"slide"`, the fraction of the window history is trimmed down to       |
+| `preset.max_context`                      | `None`      | Per-model input budget; falls back to `llm.session_tokens_windows` (64k)     |
+| `preset.max_output`                       | `28000`     | Per-model response reservation; `llm.max_tokens` (10000) is the last resort  |
+| `llm.memory_length_limit`                 | `200`       | Message-count fallback that fires even when no usage is reported (`0` = off) |
+| `llm.enable_overflow_recovery`            | `True`      | Compact and retry once when the provider rejects an oversized request        |
 
 ## Presets
 

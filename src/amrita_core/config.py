@@ -184,9 +184,6 @@ class LLMConfig(BaseModel):
         ge=1,
         description="API request timeout duration (seconds)",
     )
-    auto_retry: bool = Field(
-        default=True, description="Automatically retry on request failure"
-    )
     max_retries: int = Field(
         default=3,
         ge=0,
@@ -197,33 +194,47 @@ class LLMConfig(BaseModel):
         ge=1,
         description="Maximum number of preset fallbacks",
     )
-    enable_compaction: bool = Field(
-        default=True,
-        description="Whether to fold long history into a summary. The summary "
-        "is stored on `MemoryModel.abstract` and rendered into the system "
-        "instruction by the train template.",
+    context_strategy: Literal["compact", "slide", "none"] = Field(
+        default="compact",
+        description="How history that outgrows the budget is handled. "
+        "`compact` folds the oldest prefix into an LLM summary (an extra "
+        "call, but the gist survives); `slide` drops the oldest messages by "
+        "weighted token estimate (no extra call, the tail stays verbatim, "
+        "the dropped content is gone); `none` leaves history unbounded and "
+        "lets the provider reject the request once the window is exceeded.",
     )
     compaction_trigger_ratio: float = Field(
         default=0.9,
         gt=0,
         le=1,
         description="Fraction of the preset's `max_context` at which history "
-        "compaction is forced. Kept below 1.0 to absorb the lag between the "
-        "last measured prompt size and the next request's actual size.",
+        "management is forced. Kept below 1.0 to absorb the lag between the "
+        "last measured prompt size and the next request's actual size. "
+        "Applies to both `compact` and `slide`.",
+    )
+    slide_target_ratio: float = Field(
+        default=0.7,
+        gt=0,
+        le=1,
+        description="Fraction of the preset's `max_context` that `slide` "
+        "trims the history down to. Must stay below "
+        "`compaction_trigger_ratio`, otherwise sliding would land back on "
+        "the trigger and re-run on every request.",
     )
     memory_length_limit: int = Field(
         default=200,
         ge=0,
-        description="Message-count fallback that forces compaction regardless "
-        "of token accounting. Needed because the token trigger relies on the "
-        "provider reporting usage: a gateway that reports none would let "
-        "history grow without bound. Set 0 to disable the fallback and rely "
-        "on the token trigger alone.",
+        description="Message-count ceiling for the retained history, applied "
+        "regardless of token accounting. Needed because the token trigger "
+        "relies on the provider reporting usage: a gateway that reports none "
+        "would let history grow without bound. Set 0 to disable the fallback "
+        "and rely on the token trigger alone.",
     )
     enable_overflow_recovery: bool = Field(
         default=True,
         description="Whether to compact and retry once when the provider "
-        "rejects a request for exceeding the context window.",
+        "rejects a request for exceeding the context window. Ignored when "
+        "`context_strategy` is `none`, which never rewrites history.",
     )
     enable_multi_modal: bool = Field(
         default=True,
