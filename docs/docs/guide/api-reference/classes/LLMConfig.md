@@ -13,9 +13,9 @@ The LLMConfig class defines configuration parameters for LLM calls and memory ma
 - `max_fallbacks` (int): Default `5`. Maximum number of preset fallbacks (must be `>= 1`; `0` would make every request fail immediately)
 - `context_strategy` (Literal): Default `"compact"`. How history that outgrows the budget is handled — `"compact"`, `"slide"` or `"none"`. See [History Policies](#history-policies)
 - `compaction_trigger_ratio` (float): Default `0.9`. Fraction of the attention window at which history management is forced (must be in `(0, 1]`). Kept below `1.0` to absorb the lag between the last measured prompt size and the next request's actual size
-- `slide_target_ratio` (float): Default `0.7`. Fraction of the attention window that `"slide"` trims history down to (must be in `(0, 1]`, and below `compaction_trigger_ratio` so a trim cannot land back on the trigger)
+- `slide_target_ratio` (float): Default `0.7`. Fraction of the attention window that `"slide"` trims history down to (must be in `(0, 1]`; a validator rejects a value at or above `compaction_trigger_ratio`, since a trim that lands back on the trigger re-runs on every request)
 - `memory_length_limit` (int): Default `200`. Message-count fallback that forces history management regardless of token accounting (must be `>= 0`; `0` disables the fallback)
-- `enable_overflow_recovery` (bool): Default `True`. Whether to compact and retry once when the provider rejects a request for exceeding the context window (ignored under `"none"`)
+- `enable_overflow_recovery` (bool): Default `True`. Whether to shrink the history and retry once when the provider rejects a request for exceeding the context window. The shrink follows `context_strategy`, like the between-turn path (ignored under `"none"`)
 - `enable_multi_modal` (bool): Default `True`. Whether to enable multi-modal support (currently only supports image)
 
 ## Attention Window and History Policies
@@ -25,7 +25,7 @@ The attention window comes from the model, not from a global number. Each [`Mode
 History management fires on whichever trigger comes first:
 
 - **Token trigger**: the prompt size the provider reported for the previous request reaches `compaction_trigger_ratio` × `max_context`. No local tokenizer is involved — the provider's own usage report is the measurement
-- **Message-count fallback**: the history reaches `memory_length_limit` messages. This exists because the token trigger needs the provider to report usage; a gateway that reports none would otherwise let history grow without bound
+- **Message-count fallback**: the history reaches `memory_length_limit` messages. This exists because the token trigger needs the provider to report usage; a gateway that reports none would otherwise let history grow without bound. Under `"slide"` this ceiling is also the trim target when no measurement is available
 
 A typical agent message (including tool calls and their results) costs roughly 300 tokens, so a 64k window is around 200 messages. Set `memory_length_limit` to `0` only if every provider you use reports usage.
 
@@ -36,7 +36,7 @@ A typical agent message (including tool calls and their results) costs roughly 3
 | Value       | Behavior                                                                                                                                                                                                           |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `"compact"` | Folds the oldest prefix into an LLM summary stored on [`MemoryModel.abstract`](MemoryModel.md), rendered back into the system instruction by the train template. Costs one extra model call, but the gist survives |
-| `"slide"`   | Drops the oldest messages outright, down to `slide_target_ratio` × `max_context`. No extra call; the tail stays verbatim, but the dropped content is gone for good                                                 |
+| `"slide"`   | Drops the oldest messages outright, down to `slide_target_ratio` × `max_context`, or to `memory_length_limit` messages when no measurement is available. No extra call; the tail stays verbatim, but the dropped content is gone for good                                                 |
 | `"none"`    | Leaves history untouched and unbounded, and lets the provider reject the request once the window is exceeded                                                                                                       |
 
 `"slide"` estimates each message's share of the reported prompt size, so it needs no tokenizer either: the weights are normalized so they sum back to the measurement. It never cuts mid-turn and never strands a tool result whose declaring call it removed, so the trimmed payload still passes the gateway validator.
@@ -57,6 +57,6 @@ llm_config = LLMConfig(
     compaction_trigger_ratio=0.85,  # Act once 85% of the window is in use
     slide_target_ratio=0.7,  # Under "slide", trim back down to 70%
     memory_length_limit=200,  # Message-count fallback
-    enable_overflow_recovery=True,  # Compact and retry on a provider overflow error
+    enable_overflow_recovery=True,  # Shrink and retry on a provider overflow error
 )
 ```

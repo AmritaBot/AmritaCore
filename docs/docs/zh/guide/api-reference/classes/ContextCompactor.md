@@ -18,7 +18,7 @@
 | 取值        | 效果                                                                                             |
 | ----------- | ------------------------------------------------------------------------------------------------ |
 | `"compact"` | 把最旧的一段折叠成摘要，存放在 [`MemoryModel.abstract`](MemoryModel.md)                             |
-| `"slide"`   | 直接丢弃最旧的消息，裁剪到 `slide_target_ratio` × `budget`                                         |
+| `"slide"`   | 直接丢弃最旧的消息——裁到 `slide_target_ratio` × `budget`；没有可用测量值时裁到 `memory_length_limit` 条                                         |
 | `"none"`    | 完全不管理——历史一直增长，直到 provider 拒绝请求                                                   |
 
 `"compact"` 下摘要由 train 模板渲染回系统指令。不会向消息列表注入任何内容，因此 provider 的消息顺序规则不受影响。
@@ -65,7 +65,7 @@ flowchart LR
 
 ### `slide_target -> int`
 
-`int(budget * config.llm.slide_target_ratio)`。必须小于 `threshold`，否则裁剪后会立刻落回触发线上，每次请求都重新裁剪。
+`int(budget * config.llm.slide_target_ratio)`。必须小于 `threshold`，否则裁剪后会立刻落回触发线上，每次请求都重新裁剪。该约束由 [LLMConfig](LLMConfig.md) 的校验器强制，而非只写在文档里。
 
 ### `message_limit -> int`
 
@@ -100,9 +100,9 @@ flowchart LR
 
 就地折叠 `memory`。成功后前缀被丢弃、`abstract` 被替换、实测 usage 被清空，以便下次请求重新度量。返回是否发生了折叠。
 
-### `slide(messages, reported: int) -> int`
+### `slide(messages, reported: int | None = None) -> int`
 
-把最旧的消息丢到估算值降到 `slide_target` 为止。就地修改 `messages`，返回丢弃的条数（没动则为 `0`）。
+把最旧的消息丢到历史重新装得下为止。`reported`（provider 上报的 prompt 规模）可用且不低于 `threshold` 时裁到 `slide_target`；没有可用测量值——网关不上报 usage，或数值低于触发线——则按 `memory_length_limit` 条裁剪，因为这条触发线不依赖 provider。就地修改 `messages`，返回丢弃的条数（没动则为 `0`）。
 
 `reported` 是 provider 为这批消息产生的 payload 实测的 prompt 大小。全程不涉及分词器：每条消息在 `reported` 中的占比按渲染后文本长度归一化估算，因此权重求和会回到实测值。
 

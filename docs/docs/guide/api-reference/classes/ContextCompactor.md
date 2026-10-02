@@ -18,7 +18,7 @@ Two things consume it:
 | Value       | Effect                                                                                             |
 | ----------- | -------------------------------------------------------------------------------------------------- |
 | `"compact"` | Folds the oldest prefix into an LLM summary stored on [`MemoryModel.abstract`](MemoryModel.md)       |
-| `"slide"`   | Drops the oldest messages outright, down to `slide_target_ratio` × `budget`                         |
+| `"slide"`   | Drops the oldest messages outright — down to `slide_target_ratio` × `budget`, or to `memory_length_limit` messages when there is no usable measurement                         |
 | `"none"`    | No management at all — history grows until the provider rejects the request                         |
 
 Under `"compact"` the summary is rendered back into the system instruction by the train template. Nothing is injected into the message list, so provider message-ordering rules stay untouched.
@@ -65,7 +65,7 @@ Input-token budget: the preset's `max_context` via `resolve_max_context`, else `
 
 ### `slide_target -> int`
 
-`int(budget * config.llm.slide_target_ratio)`. Must stay below `threshold`, otherwise a trim would land back on the trigger and re-run on every request.
+`int(budget * config.llm.slide_target_ratio)`. Must stay below `threshold`, otherwise a trim would land back on the trigger and re-run on every request. Enforced by a validator on [LLMConfig](LLMConfig.md), not only documented.
 
 ### `message_limit -> int`
 
@@ -100,9 +100,9 @@ Summarize the foldable prefix and return the surviving history.
 
 Fold `memory` in place. On success the prefix is dropped, `abstract` is replaced, and the measured usage is cleared so the next request measures itself again. Returns whether the fold happened.
 
-### `slide(messages, reported: int) -> int`
+### `slide(messages, reported: int | None = None) -> int`
 
-Drop the oldest messages until the estimate falls to `slide_target`. Mutates `messages` in place and returns how many were dropped (`0` when nothing moved).
+Drop the oldest messages until the history fits again. A usable `reported` — the prompt size the provider measured, at or above `threshold` — trims to `slide_target`; without one (a gateway that reports no usage, or a figure below the trigger) the trim falls back to `memory_length_limit` messages, the trigger that needs nothing from the provider. Mutates `messages` in place and returns how many were dropped (`0` when nothing moved).
 
 `reported` is the prompt size the provider measured for the payload these messages produced. No tokenizer is involved: each message's share of `reported` is estimated by normalizing its rendered-text length, so the weights sum back to the measurement.
 

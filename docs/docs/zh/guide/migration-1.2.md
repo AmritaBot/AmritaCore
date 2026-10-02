@@ -39,6 +39,9 @@ config.llm.context_strategy = "compact"  # "compact" | "slide" | "none"
 `"none"` 同时会禁用溢出恢复——没有策略能缩小历史时，`ContextOverflowError` 之后
 重试只会以同样方式失败。
 
+溢出恢复跟随当前策略，而不是一律折叠：`"compact"` 把前缀折叠成摘要，
+`"slide"` 直接丢弃最旧的消息。
+
 ## 2. `slide` 不花钱，但会遗忘
 
 新的 `"slide"` 策略面向「早期轮次可以丢弃」的会话：长时间的工具调用运行中，
@@ -55,8 +58,12 @@ config.llm.slide_target_ratio = 0.7  # 必须小于 compaction_trigger_ratio
 切点不会落在轮次中间，也不会留下「声明它的调用已被删除」的游离工具结果，
 因此裁剪后的负载依然能通过网关校验。
 
-请让 `slide_target_ratio` 小于 `compaction_trigger_ratio`。两者相等会把历史裁剪回
-触发线上，于是每次请求都要重新裁剪。
+从不上报 usage 的网关没有任何可估算的数值，此时 `slide` 退回到按
+`memory_length_limit` 条裁剪——也就是 token 触发一直以来的那条兜底线。
+
+`slide_target_ratio` 必须小于 `compaction_trigger_ratio`。两者相等会把历史裁剪回
+触发线上，于是每次请求都要重新裁剪；这种组合会被 `LLMConfig` 在校验期直接拒绝，
+而不是只写在文档里。
 
 ## 3. `auto_retry` 已移除
 

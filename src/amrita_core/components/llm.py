@@ -129,9 +129,14 @@ async def _shrink_context(
     wok: WorkingState,
     resp: RespState,
 ) -> bool:
-    """Fold the oldest run context into a summary so a retry fits the window.
+    """Shrink the oldest run context so a retry fits the window.
 
-    Returns ``False`` when there is nothing to fold or the model produced no
+    Dispatches on ``context_strategy``: ``compact`` folds the prefix into one
+    summary message, ``slide`` drops the oldest messages outright — the same
+    split the between-turn node makes, so an overflow cannot quietly rewrite a
+    history the user asked to keep verbatim.
+
+    Returns ``False`` when there is nothing to shrink or the model produced no
     summary, which tells the caller to give up and surface the original error.
 
     Also returns ``False`` when ``context_strategy`` is ``none``: the user
@@ -151,6 +156,19 @@ async def _shrink_context(
             "history is left untouched and the request will fail."
         )
         return False
+    if compactor.strategy == "slide":
+        #  No fresh measurement is available: the request that just overflowed
+        #  is the only evidence, and the window it overflowed is a lower bound
+        #  on the payload. Estimating from the window and cutting to the target
+        #  removes the same share the between-turn path aims for, without
+        #  paying for the summary call this policy exists to avoid.
+        dropped = compactor.slide(wrap.memory, compactor.budget)
+        if dropped <= 0:
+            return False
+        logger.warning(
+            f"Context overflow; slid the {dropped} oldest messages out, retrying once."
+        )
+        return True
     result = await compactor.fold(wrap.memory)
     if result is None:
         return False
@@ -218,7 +236,7 @@ async def LLM_COMPLETION(
                 raise
             logger.warning(
                 "Provider rejected the request for exceeding its context "
-                f"window ({e!s}); compacting and retrying once."
+                f"window ({e!s}); shrinking the history and retrying once."
             )
             if not await _shrink_context(ability, wok, resp):
                 raise

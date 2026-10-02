@@ -311,90 +311,129 @@ class ContextCompactor:
             return []
         return [max(1, round(w / total * reported)) for w in weights]
 
+    @staticmethod
+    def _tail_is_paired(messages: CONTENT_LIST_TYPE, cut: int) -> bool:
+        """Whether every tool result from ``cut`` on still has its call.
+
+        ``libchat._validate_msg_list`` rejects a payload holding a tool result
+        whose ``tool_call_id`` no assistant before it declared, so a cut that
+        strands one is not a cut the provider will accept.
+        """
+        declared: set[str] = set()
+        for msg in messages[cut:]:
+            if isinstance(msg, Message):
+                if msg.tool_calls:
+                    declared.update(call.id for call in msg.tool_calls)
+            elif msg.tool_call_id not in declared:
+                return False
+        return True
+
     def _safe_cut(self, messages: CONTENT_LIST_TYPE, cut: int) -> int:
         """Move ``cut`` to a position the provider's validator will accept.
 
         ``libchat._validate_msg_list`` enforces two invariants on every
-        payload, and dropping a prefix can break both:
+        payload, and dropping a prefix can break the first of them:
 
         1. every ``tool`` result must follow an assistant message that
            declared its ``tool_call_id``;
         2. every ``tool_call_id`` an assistant declared must have a result.
 
-        The first pass retreats to the newest ``user`` message. A turn is
-        self-contained — ``user`` → ``assistant(tool_calls)`` → ``tool``* →
-        ``assistant`` — so a turn boundary satisfies both invariants by
-        construction, and this is the path taken in practice. When the retreat
-        lands on index 0 there is nothing to drop, so the second pass walks
-        *forward* to the next boundary instead; without it an over-budget
-        history whose first turn is oversized would slide forever and never
-        shrink.
+        A turn is self-contained — ``user`` → ``assistant(tool_calls)`` →
+        ``tool``* → ``assistant`` — so a turn boundary satisfies both by
+        construction, and that is where the cut is placed: at the newest
+        ``user`` message at or before the request, or, when that leaves
+        nothing to drop, at the next boundary after it. Without the forward
+        pass an over-budget history whose first turn is oversized would slide
+        forever and never shrink.
 
-        The third pass covers a history that was already inconsistent when
-        it arrived (folded by an older version, or written straight to the
-        store). A head made of orphaned ``tool`` results is invalid no matter
-        where the turn boundary sits, so those are stepped over. Advancing
-        changes which assistant messages count as "before the cut", so the
-        declared set is rebuilt and the test re-run — hence a loop rather
-        than a single check.
+        A history that was already inconsistent when it arrived — folded by an
+        older version, or written straight to the store — can strand a tool
+        result whose declaring call sat in the dropped prefix even at a turn
+        boundary. The orphan can sit anywhere in the surviving tail rather
+        than only at its head, so every candidate boundary is checked against
+        the pairing rule and the nearest one that holds wins. Returns ``0``
+        when no boundary holds, which leaves the history alone rather than
+        sending a payload the provider would reject outright; a request of
+        ``0`` still steps over a head of orphaned tool results, since those
+        are invalid wherever the boundary sits.
         """
-        requested = cut
-        while cut > 0 and messages[cut].role != "user":
-            cut -= 1
-        if cut == 0 and requested > 0:
-            cut = requested
-            while cut < len(messages) - 1 and messages[cut].role != "user":
-                cut += 1
-            if messages[cut].role != "user":
-                return 0
+        if cut >= len(messages):
+            return 0
+        if cut <= 0:
+            #  Nothing was asked for, but a head made of tool results is
+            #  invalid wherever the boundary sits: nothing precedes index 0, so
+            #  no assistant can have declared them. Step over those, which
+            #  cannot lose a call that is still around.
+            index = 0
+            while index < len(messages) and isinstance(messages[index], ToolResult):
+                index += 1
+            #  Sweeping the whole head matters: stopping a message short leaves
+            #  the last orphan in place and the payload invalid anyway. When
+            #  that consumes the entire history there is no boundary left to
+            #  keep, and returning one would empty ``memory.messages`` — the
+            #  wrap rebuilt from an empty list has no last message to read the
+            #  user query from — so the history is left alone instead.
+            return 0 if index >= len(messages) else index
+        boundaries = [
+            index
+            for index in range(1, len(messages))
+            if messages[index].role == "user" and self._tail_is_paired(messages, index)
+        ]
+        backward = [index for index in boundaries if index <= cut]
+        if backward:
+            return backward[-1]
+        forward = [index for index in boundaries if index > cut]
+        if forward:
+            return forward[0]
+        return 0
 
-        while cut < len(messages):
-            msg = messages[cut]
-            if not isinstance(msg, ToolResult):
-                break
-            declared = {
-                tc.id
-                for prev in messages[:cut]
-                if isinstance(prev, Message) and prev.tool_calls
-                for tc in prev.tool_calls
-            }
-            if msg.tool_call_id in declared:
-                break
-            cut += 1
-
-        return cut
-
-    def slide(self, messages: CONTENT_LIST_TYPE, reported: int) -> int:
-        """Drop the oldest messages until the estimate falls to the target.
+    def slide(self, messages: CONTENT_LIST_TYPE, reported: int | None = None) -> int:
+        """Drop the oldest messages until the history fits again.
 
         The counterpart to :meth:`compact` under the ``slide`` policy: the
         tail survives verbatim and no extra model call is made, at the cost
         of losing the dropped turns outright.
 
-        ``reported`` is the prompt size the provider measured for the payload
-        these messages produced — the caller knows it (``memory.usage``
-        between turns, the Step token window inside the agent loop) and the
-        message list alone does not carry it.
+        Two ways in, one per trigger ``needs_management`` fires on:
 
-        The guard reads ``reported`` rather than ``sum(estimates)``: the
-        shares are rounded to integers, so their sum can land a token below
-        the measurement and read as "still fits" when the caller already
-        decided otherwise. ``>=`` triggers, matching ``needs_management``.
+        * a usable measurement at or above ``threshold`` — ``reported`` is the
+          prompt size the provider measured for the payload these messages
+          produced, and the oldest messages are dropped until the weighted
+          estimate falls to ``slide_target``;
+        * no usable measurement (``None``, or a figure below ``threshold``) —
+          the message-count ceiling is what triggered the call, so the history
+          is cut down to ``message_limit`` messages instead. Without this the
+          fallback fires the node and changes nothing on every request, which
+          is exactly the case it exists for: a gateway that reports no usage.
+
+        The caller knows ``reported`` (``memory.usage`` between turns, the
+        Step token window inside the agent loop) and the message list alone
+        does not carry it.
+
+        The token path reads ``reported`` rather than ``sum(estimates)`` for
+        its guard: the shares are rounded to integers, so their sum can land
+        a token below the measurement and read as "still fits" when the
+        caller already decided otherwise.
 
         Mutates ``messages`` in place. Returns the number of messages dropped
         (``0`` when nothing moved).
         """
-        if reported < self.threshold:
-            return 0
-
-        estimates = self._estimate(messages, reported)
-        total = sum(estimates)
-        need = total - self.slide_target
-        consumed = 0
-        cut = 0
-        while cut < len(messages) - 1 and consumed < need:
-            consumed += estimates[cut]
-            cut += 1
+        measured = reported if reported is not None and reported > 0 else None
+        if measured is not None and measured >= self.threshold:
+            estimates = self._estimate(messages, measured)
+            total = sum(estimates)
+            need = total - self.slide_target
+            consumed = 0
+            cut = 0
+            while cut < len(messages) - 1 and consumed < need:
+                consumed += estimates[cut]
+                cut += 1
+        else:
+            if self.message_limit <= 0:
+                return 0
+            cut = len(messages) - self.message_limit
+            if cut <= 0:
+                return 0
 
         cut = self._safe_cut(messages, cut)
         if cut <= 0:
@@ -453,7 +492,9 @@ async def MANAGE_CONTEXT(
         usage=resp.usage,
     )
     if compactor.strategy == "slide":
-        reported = memory.usage.prompt_tokens if memory.usage is not None else 0
+        #  `None` rather than 0: a missing measurement must fall through to the
+        #  message-count ceiling instead of reading as "far below the trigger".
+        reported = memory.usage.prompt_tokens if memory.usage is not None else None
         compactor.slide(memory.messages, reported)
         #  The measurement described a payload that no longer exists; clear it
         #  so the next request measures itself instead of re-triggering on a
