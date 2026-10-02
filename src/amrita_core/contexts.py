@@ -79,6 +79,9 @@ class StrategyPayload:
 class RespState:
     response: UniResponse | None = None
     usage: SessionUsageProxy | None = None
+    #  The run's spend, filled in at the run boundary: every request this run
+    #  made, added up. `response.usage` is the other reading — the size of the
+    #  payload the last request carried — so the two must not be summed.
     extra_usage: UniResponseUsage[int] = field(
         default_factory=lambda: UniResponseUsage(
             prompt_tokens=0, completion_tokens=0, total_tokens=0
