@@ -42,6 +42,9 @@ history reaching `memory_length_limit` messages.
 `"none"` also disables overflow recovery — with no policy to shrink history,
 retrying after a `ContextOverflowError` would fail identically.
 
+Overflow recovery follows the active policy rather than always folding:
+`"compact"` folds the prefix into a summary, `"slide"` drops the oldest messages.
+
 ## 2. `slide` Costs Nothing but Forgets
 
 The new `"slide"` policy is for sessions whose early turns are disposable: a long
@@ -60,8 +63,14 @@ config.llm.slide_target_ratio = 0.7  # must stay below compaction_trigger_ratio
 The cut never lands mid-turn and never strands a tool result whose declaring call
 it removed, so the trimmed payload still passes the gateway validator.
 
-Keep `slide_target_ratio` below `compaction_trigger_ratio`. Equal values would
-trim history straight back onto the trigger and re-run on every request.
+A gateway that reports no usage leaves nothing to estimate from, so `slide` falls
+back to trimming at `memory_length_limit` messages — the same ceiling the token
+trigger has always had.
+
+`slide_target_ratio` must stay below `compaction_trigger_ratio`. Equal values
+would trim history straight back onto the trigger and re-run on every request;
+`LLMConfig` rejects that combination at validation time rather than leaving it to
+the docs.
 
 ## 3. `auto_retry` Is Gone
 
