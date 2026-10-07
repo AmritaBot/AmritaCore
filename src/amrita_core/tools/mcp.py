@@ -14,7 +14,7 @@ import aiologic
 from amrita_sense.logging import logger
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
-from mcp.types import TextContent
+from mcp_types import TextContent
 from typing_extensions import Self
 
 from amrita_core.utils import _did_you_mean_hint

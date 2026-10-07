@@ -284,8 +284,9 @@ class TestClientManager:
 class TestToolModelCompat:
     """Tool models must round-trip across MCP SDK v1 and v2.
 
-    fastmcp 4.x moved to MCP SDK v2, which renamed ``Tool`` fields to
-    snake_case (``input_schema``) and kept the camelCase spellings as aliases.
+    fastmcp 4.x moved to MCP SDK v2, whose types now live in the
+    ``mcp-types`` package, renaming ``Tool`` fields to snake_case
+    (``input_schema``) while keeping the camelCase spellings as aliases.
     Dumping without ``by_alias`` therefore drops ``inputSchema`` and breaks
     tool registration.
     """
@@ -293,9 +294,9 @@ class TestToolModelCompat:
     @pytest.mark.asyncio
     @patch("amrita_core.tools.mcp.Client")
     async def test_refresh_tools_from_sdk_tool_model(self, mock_client_class):
-        from mcp.types import Tool
+        from mcp_types import Tool
 
-        # Build via model_validate: mcp 1.x names the field ``inputSchema`` while mcp 2.x renamed it to ``input_schema`` and kept the camelCase spelling as an alias, so no single keyword spelling type-checks on both SDK lines.
+        # Build via model_validate: MCP SDK v1 named the field ``inputSchema`` while v2 (shipped by ``mcp-types``) renamed it to ``input_schema`` and kept the camelCase spelling as an alias, so no single keyword spelling type-checks on both SDK lines.
         tool = Tool.model_validate(
             {
                 "name": "echo",

@@ -119,12 +119,12 @@ def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
     has_array = "array" in non_null_types
 
     if has_object:
-        # Object type requires recursive conversion of its properties
+        # Object type requires recursive conversion of its properties; an empty dict is emitted for free-form objects (for example `{"type": "object", "additionalProperties": {...}}`), because FunctionPropertySchema requires properties to be present when the type is object.
+        obj_properties: dict[str, FunctionPropertySchema] = {}
         if effective_prop.properties:
-            obj_properties = {}
             for key, sub_prop in effective_prop.properties.items():
                 obj_properties[key] = _convert_single_property(sub_prop)
-            base_params["properties"] = obj_properties
+        base_params["properties"] = obj_properties
         if effective_prop.required:
             base_params["required"] = effective_prop.required
         if effective_prop.additionalProperties is not None:

@@ -1,6 +1,6 @@
 [project]
 name = "amrita_core"
-version = "1.2.1"
+version = "1.2.2"
 description = "High performance, flexible, lightweight agent framework."
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
@@ -9,11 +9,11 @@ dependencies = [
     "aiohttp>=3.13.3",
     "aiologic>=0.16.0",
     "amrita-sense>=1.1.0",  # 2026-10-01: bump for Sense 1.0.0 instruction-set rename (GOTO->JMP)
-    "fastmcp-slim[client]>=3.4.4,<5.0",
+    "fastmcp-slim[client]>=4.0.0,<5.0",
     "filetype>=1.2.0",
     "httpx>=0.28.1",
     "jinja2>=3.1.6",
-    "mcp>=1.24.0",
+    "mcp-types>=2.2.0",
     "openai>=2.16.0",
     "pydantic>=2.12.5",
     "pytz>=2025.2",
@@ -33,7 +33,7 @@ constraint-dependencies = ["anthropic<1.0"]
 dev = [
     "ruff>=0.12.8",
     "pytest>=8.4.1",
-    "py-spy>=0.4.1",
+    #"py-spy>=0.4.1",
     "pyright>=1.1.407",
     "anthropic>=0.84.0,<1.0",
     "pytest-asyncio>=1.3.0",

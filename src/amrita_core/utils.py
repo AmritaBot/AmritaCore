@@ -197,8 +197,8 @@ def load_and_notice(module: ModuleType, name: str):
     logger.info(f"Loading {name}......")
     for item in side_effect_import(module, False):
         if isinstance(item, BaseException):
-            logger.opt(raw=True, exception=item, colors=True).warning(
-                f"[{name}] Failed to import because {item}"
+            logger.opt(raw=True, exception=item).warning(
+                f"[{name}] Failed to import because `{item}`#{type(item).__name__}\n"
             )
         else:
             logger.debug(f"[{name}] Imported {item.__name__}")
