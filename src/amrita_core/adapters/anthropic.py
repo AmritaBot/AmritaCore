@@ -505,9 +505,14 @@ try:
             return ("anthropic", "claude")
 
     __all__ = ["AnthropicAdapter", "AnthropicFunctionSchema"]
-except ModuleNotFoundError:
-    logger.info(
-        "Anthropic SDK not found, this isn't a bug or crash. Install it by `amrita-core[anthropic]` then AnthropicAdapter will be available."
-    )
+except ModuleNotFoundError as exc:
+    # Schema is SDK-free; don't re-raise.
+    if exc.name == "anthropic":
+        logger.info(
+            "Anthropic SDK not found, this isn't a bug or crash. Install it by `amrita-core[anthropic]` then AnthropicAdapter will be available."
+        )
+    else:
+        logger.warning(
+            f"Anthropic SDK is installed but failed to import because `{exc}`, so AnthropicAdapter will not be available."
+        )
     __all__ = ["AnthropicFunctionSchema"]
-    raise

@@ -33,7 +33,14 @@ from typing import (
     get_type_hints,
 )
 
-from pydantic import BaseModel, ConfigDict, Field, create_model
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    create_model,
+)
 from pydantic.functional_validators import AfterValidator
 from pydantic_core import PydanticUndefined
 
@@ -41,6 +48,8 @@ from .models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
     FunctionPropertySchema,
+    MCPProperty,
+    cast_mcp_property_to_amrita,
 )
 
 # Projection: Python type hints -> JSON Schema
@@ -486,6 +495,59 @@ def _union(parts: Sequence[Any]) -> Any:
     return reduce(or_, parts)
 
 
+def _extra_value_annotation(additional: Mapping[str, Any]) -> Any | None:
+    """Compile the schema an object declares for its extra values.
+
+    MCP servers routinely describe a free-form map as ``{"type": "object",
+    "additionalProperties": {"type": "string"}}``. That schema is compiled the
+    same way as a named property, so a value of the wrong type in an extra key
+    is rejected here instead of being forwarded to the server.
+
+    Returns ``None`` when the schema constrains nothing an annotation could
+    express: ``{}`` accepts every value, and so do the annotation-only keywords
+    (``title``, ``description``, ``default``). Such a schema must not fall
+    through to the ``string`` default used for a missing type, because that
+    would reject extras the server is willing to take.
+    """
+    schema = MCPProperty.model_validate(additional)
+    if (
+        schema.type is None
+        and schema.enum is None
+        and schema.const is None
+        and not (schema.anyOf or schema.oneOf or schema.allOf)
+    ):
+        return None
+    return _annotation_for(cast_mcp_property_to_amrita(schema))
+
+
+def _check_extra_value(adapter: TypeAdapter[Any], key: str, value: Any) -> None:
+    """Reject a single extra value that does not match the declared schema."""
+    try:
+        adapter.validate_python(value)
+    except ValidationError as exc:
+        raise ValueError(
+            f"additional property {key!r} does not match the declared "
+            f"schema: {exc}"
+        ) from exc
+
+
+def _extra_value_checker(annotation: Any) -> Callable[[Any], Any]:
+    """Build an after-validator rejecting extra values that miss ``annotation``.
+
+    Pydantic's ``extra="allow"`` has no way to type the values it collects, so
+    the declared schema is applied to ``__pydantic_extra__`` once the object has
+    been validated.
+    """
+    adapter = TypeAdapter(annotation)
+
+    def _check(model: Any) -> Any:
+        for key, value in (model.__pydantic_extra__ or {}).items():
+            _check_extra_value(adapter, key, value)
+        return model
+
+    return _check
+
+
 def _object_annotation(prop: FunctionPropertySchema) -> Any:
     required = set(prop.required or ())
     fields: dict[str, Any] = {}
@@ -495,10 +557,23 @@ def _object_annotation(prop: FunctionPropertySchema) -> Any:
             fields[name] = (annotation, ...)
         else:
             fields[name] = (annotation | None, sub.default)
-    extra = "forbid" if prop.additionalProperties is False else "allow"
-    return create_model(
-        "ToolArgumentObject", __config__=ConfigDict(extra=extra), **fields
+
+    additional = prop.additionalProperties
+    if additional is False:
+        return create_model(
+            "ToolArgumentObject", __config__=ConfigDict(extra="forbid"), **fields
+        )
+
+    model = create_model(
+        "ToolArgumentObject", __config__=ConfigDict(extra="allow"), **fields
     )
+    if not isinstance(additional, Mapping):
+        return model
+
+    extra_annotation = _extra_value_annotation(additional)
+    if extra_annotation is None:
+        return model
+    return Annotated[model, AfterValidator(_extra_value_checker(extra_annotation))]
 
 
 def _array_annotation(prop: FunctionPropertySchema) -> Any:

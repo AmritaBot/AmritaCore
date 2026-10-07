@@ -353,6 +353,39 @@ class TestMcpConversion:
             "metadata": {"any": 1}
         }
 
+    def test_schema_valued_additional_properties_are_enforced(self):
+        converted = cast_mcp_properties_to_amrita(
+            {
+                "metadata": MCPProperty.model_validate(
+                    {"type": "object", "additionalProperties": {"type": "string"}}
+                )
+            }
+        )
+        params = FunctionParametersSchema(
+            type="object", properties=converted, required=["metadata"]
+        )
+        assert validate_arguments(params, {"metadata": {"a": "x"}}) == {
+            "metadata": {"a": "x"}
+        }
+        with pytest.raises(ValidationError):
+            validate_arguments(params, {"metadata": {"a": 1}})
+
+    def test_empty_additional_properties_schema_accepts_any_value(self):
+        converted = cast_mcp_properties_to_amrita(
+            {
+                "metadata": MCPProperty.model_validate(
+                    {"type": "object", "additionalProperties": {}}
+                )
+            }
+        )
+        params = FunctionParametersSchema(
+            type="object", properties=converted, required=["metadata"]
+        )
+        payload = {"a": [1, 2], "b": None, "c": {"nested": True}}
+        assert validate_arguments(params, {"metadata": payload}) == {
+            "metadata": payload
+        }
+
 
 class TestSimpleToolStillWorks:
     """The signature path keeps its behaviour after moving to the shared module."""

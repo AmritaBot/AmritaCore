@@ -169,6 +169,17 @@ def _convert_single_property(mcp_prop: MCPProperty) -> FunctionPropertySchema:
     return FunctionPropertySchema(**base_params)
 
 
+def cast_mcp_property_to_amrita(property: MCPProperty) -> FunctionPropertySchema:
+    """Convert a single MCPProperty to a FunctionPropertySchema.
+
+    The singular counterpart of :func:`cast_mcp_properties_to_amrita`, for the
+    standalone schema a free-form object may declare in its
+    ``additionalProperties``. The input is copied first so conversion never
+    mutates the schema it was handed.
+    """
+    return _convert_single_property(deepcopy(property))
+
+
 class MCPProperty(BaseModel):
     """Flexible MCP/JSON Schema property model supporting the full JSON Schema specification.
 
