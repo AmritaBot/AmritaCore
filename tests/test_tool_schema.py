@@ -326,6 +326,66 @@ class TestMcpConversion:
         )
         assert converted["payload"].additionalProperties is False
 
+    def test_free_form_object_without_properties(self):
+        converted = cast_mcp_properties_to_amrita(
+            {
+                "metadata": MCPProperty.model_validate(
+                    {
+                        "type": "object",
+                        "description": "Free-form map",
+                        "additionalProperties": {"type": "string"},
+                    }
+                )
+            }
+        )
+        assert converted["metadata"].properties == {}
+        assert converted["metadata"].required == []
+        assert converted["metadata"].additionalProperties == {"type": "string"}
+
+    def test_free_form_object_is_usable(self):
+        converted = cast_mcp_properties_to_amrita(
+            {"metadata": MCPProperty.model_validate({"type": "object"})}
+        )
+        params = FunctionParametersSchema(
+            type="object", properties=converted, required=["metadata"]
+        )
+        assert validate_arguments(params, {"metadata": {"any": 1}}) == {
+            "metadata": {"any": 1}
+        }
+
+    def test_schema_valued_additional_properties_are_enforced(self):
+        converted = cast_mcp_properties_to_amrita(
+            {
+                "metadata": MCPProperty.model_validate(
+                    {"type": "object", "additionalProperties": {"type": "string"}}
+                )
+            }
+        )
+        params = FunctionParametersSchema(
+            type="object", properties=converted, required=["metadata"]
+        )
+        assert validate_arguments(params, {"metadata": {"a": "x"}}) == {
+            "metadata": {"a": "x"}
+        }
+        with pytest.raises(ValidationError):
+            validate_arguments(params, {"metadata": {"a": 1}})
+
+    def test_empty_additional_properties_schema_accepts_any_value(self):
+        converted = cast_mcp_properties_to_amrita(
+            {
+                "metadata": MCPProperty.model_validate(
+                    {"type": "object", "additionalProperties": {}}
+                )
+            }
+        )
+        params = FunctionParametersSchema(
+            type="object", properties=converted, required=["metadata"]
+        )
+        payload = {"a": [1, 2], "b": None, "c": {"nested": True}}
+        assert validate_arguments(params, {"metadata": payload}) == {
+            "metadata": payload
+        }
+
 
 class TestSimpleToolStillWorks:
     """The signature path keeps its behaviour after moving to the shared module."""

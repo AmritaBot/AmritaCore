@@ -3,7 +3,6 @@ from collections.abc import AsyncGenerator, Iterable
 from io import StringIO
 
 from amrita_sense.logging import logger
-from anthropic.types import Message
 from pydantic import BaseModel, Field
 from typing_extensions import override
 
@@ -47,6 +46,7 @@ class AnthropicFunctionSchema(BaseModel):
 try:
     import anthropic
     from anthropic.types import (
+        Message,
         MessageParam,
         TextBlock,
         ToolChoiceAnyParam,
@@ -505,8 +505,14 @@ try:
             return ("anthropic", "claude")
 
     __all__ = ["AnthropicAdapter", "AnthropicFunctionSchema"]
-except ImportError | NameError:
-    logger.info(
-        "Anthropic SDK not found. Install it by `amrita_core[anthropic]` AnthropicAdapter will not be available."
-    )
+except ModuleNotFoundError as exc:
+    # Schema is SDK-free; don't re-raise.
+    if exc.name == "anthropic":
+        logger.info(
+            "Anthropic SDK not found, this isn't a bug or crash. Install it by `amrita-core[anthropic]` then AnthropicAdapter will be available."
+        )
+    else:
+        logger.warning(
+            f"Anthropic SDK is installed but failed to import because `{exc}`, so AnthropicAdapter will not be available."
+        )
     __all__ = ["AnthropicFunctionSchema"]

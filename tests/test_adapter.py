@@ -1,4 +1,7 @@
 # type: ignore
+import importlib.util
+import sys
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -13,6 +16,7 @@ from openai.types.chat.chat_completion_message_tool_call import (
     Function as ToolCallFunction,
 )
 
+from amrita_core.adapters import anthropic as anthropic_module
 from amrita_core.adapters.anthropic import AnthropicAdapter
 from amrita_core.adapters.openai import OpenAIAdapter
 from amrita_core.config import AmritaConfig
@@ -343,6 +347,37 @@ class TestOpenAIAdapter:
             assert isinstance(result, UniResponse)
             assert result.content is None
             assert result.tool_calls is None
+
+
+class TestAnthropicModuleImport:
+    """The module must import even when the optional Anthropic SDK is unusable.
+
+    ``AnthropicFunctionSchema`` is declared before the SDK import and does not
+    depend on it, so losing the SDK must cost only the adapter, not the schema.
+    """
+
+    @staticmethod
+    def _load(blocked: dict[str, None]):
+        spec = importlib.util.spec_from_file_location(
+            "amrita_core.adapters._anthropic_probe",
+            Path(anthropic_module.__file__),
+        )
+        assert spec is not None
+        assert spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        with patch.dict(sys.modules, blocked):
+            spec.loader.exec_module(module)
+        return module
+
+    def test_schema_is_importable_without_the_sdk(self):
+        module = self._load({"anthropic": None})
+        assert getattr(module, "AnthropicFunctionSchema", None) is not None
+        assert not hasattr(module, "AnthropicAdapter")
+
+    def test_broken_sdk_installation_still_imports(self):
+        module = self._load({"anthropic.types": None})
+        assert getattr(module, "AnthropicFunctionSchema", None) is not None
+        assert not hasattr(module, "AnthropicAdapter")
 
 
 class TestAnthropicAdapter:
