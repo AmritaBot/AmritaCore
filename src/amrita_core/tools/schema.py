@@ -526,8 +526,7 @@ def _check_extra_value(adapter: TypeAdapter[Any], key: str, value: Any) -> None:
         adapter.validate_python(value)
     except ValidationError as exc:
         raise ValueError(
-            f"additional property {key!r} does not match the declared "
-            f"schema: {exc}"
+            f"additional property {key!r} does not match the declared schema: {exc}"
         ) from exc
 
 
