@@ -117,7 +117,7 @@ class MCPClient:
                 ]
                 return "".join([f"{i.text}\n\n" for i in ct])
         except Exception as e:
-            logger.opt(raw=True, exception=e, colors=True).error(
+            logger.opt(exception=e).error(
                 f"Failed to call tool:{tool_name}, because {e}."
             )
             return json.dumps({"success": False, "error": str(e)})
@@ -396,7 +396,7 @@ class MultiClientManager:
         except Exception as e:
             if fail_then_raise:
                 raise
-            logger.opt(raw=True, exception=e, colors=True).error(
+            logger.opt(exception=e).error(
                 f"Failed to connect to MCP Server@{client.server_script}: {e}"
             )
         else:
