@@ -1272,7 +1272,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         Returns:
             Error message string
         """
-        logger.opt(raw=True, exception=err, colors=True).error(
+        logger.opt(exception=err).error(
             f"Function {function_name} execution failed: {err}"
         )
         config = self.config
