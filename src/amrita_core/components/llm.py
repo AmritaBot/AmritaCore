@@ -226,6 +226,8 @@ async def LLM_COMPLETION(
     Suspend Point:
         `SuspendEnum.LLM_CALL` — intercepted during the LLM call.
     """
+    if resp.response is None and wok.final_response is not None:
+        resp.response = wok.final_response
     if resp.response is not None:
         # The agentic loop already streamed this turn's answer. Asking again
         # here would duplicate it, and asking without tools is what made the

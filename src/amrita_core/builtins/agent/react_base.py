@@ -153,12 +153,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         be downgraded to ``"auto"`` to avoid provider errors.
         """
         preset = self.preset
-        return (
-            preset is not None
-            and not isinstance(preset, str)
-            and preset.thinking_config is not None
-            and preset.thinking_config.thinking_type == "enabled"
-        )
+        if preset is None or isinstance(preset, str):
+            return False
+        thinking = preset.thinking_config
+        if thinking is None:
+            return False
+        # ``enable_thinking`` on its own also puts the provider in thinking
+        # mode, and those providers reject forced tool_choice just the same.
+        return thinking.thinking_type == "enabled" or bool(thinking.enable_thinking)
 
     def _resolve_tool_choice(self, desired: ToolChoice) -> ToolChoice:
         """Resolve the *actual* ``tool_choice`` to send to the provider.
@@ -195,6 +197,18 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
             self._agentic_warned = True
         return False
+
+    def _store_final_response(self, response: UniResponse) -> None:
+        """Hand the turn's answer to the workflow.
+
+        ``LLM_COMPLETION`` reads the workflow's ``WorkingState``, which the
+        strategy cannot reach directly, so the answer travels through the
+        strategy context and ``AGENT_POST_PROCESS`` copies it across. The
+        chat-object handle is kept in step for callers that read it directly.
+        """
+        self.ctx.final_response = response
+        if self.chat_object is not None:
+            self.chat_object._di_resp.response = response
 
     async def _model_round(
         self,
@@ -1178,8 +1192,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 # answer: hand it to the workflow and skip the separate
                 # tool-less completion, which is what made the model leak a
                 # tool call as plain text.
-                if self.chat_object is not None:
-                    self.chat_object._di_resp.response = response_msg
+                self._store_final_response(response_msg)
             return False
 
         if self._budget_exhausted:
@@ -1187,25 +1200,28 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             # pairing stays valid and the model is pushed to answer with what it
             # already has. Dropping tools here is what used to make it leak the
             # call into the content as plain text.
-            self._refusal_rounds += 1
-            await self._append_tool_results_batch(
-                response_msg, [(tc, TOOL_BUDGET_REFUSAL, None) for tc in tool_calls]
-            )
             if (
                 self._refusal_rounds
-                > self.config.function_config.agent_tool_refusal_rounds
+                >= self.config.function_config.agent_tool_refusal_rounds
             ):
+                # Close before appending: nothing is left half-answered, so no
+                # assistant message ends up without its tool results.
                 logger.warning(
                     "Model kept requesting tools after the budget was spent;"
                     " closing the turn with a notice."
                 )
-                if self.chat_object is not None:
-                    self.chat_object._di_resp.response = UniResponse(
+                self._store_final_response(
+                    UniResponse(
                         role="assistant",
                         content=TOOL_BUDGET_NOTICE,
                         tool_calls=None,
                     )
+                )
                 return False
+            self._refusal_rounds += 1
+            await self._append_tool_results_batch(
+                response_msg, [(tc, TOOL_BUDGET_REFUSAL, None) for tc in tool_calls]
+            )
             return True
 
         # Built-in tools last so their side-effects don't race with regular tools.

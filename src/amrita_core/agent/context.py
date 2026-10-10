@@ -11,7 +11,9 @@ if TYPE_CHECKING:
     from amrita_core.chatmanager import ChatObject
     from amrita_core.config import AmritaConfig
     from amrita_core.tools.manager import MultiToolsManager
+    from amrita_core.types import ToolCall
     from amrita_core.types.preset import ModelPreset
+    from amrita_core.types.response import UniResponse
     from amrita_core.usage import SessionUsageProxy
 
 
@@ -62,6 +64,11 @@ class StrategyContext:
 
     user_input: USER_INPUT
     original_context: SendMessageWrap
+
+    #: Set by the agentic loop when the model ended the turn itself.
+    #: AGENT_POST_PROCESS copies it onto the workflow's WorkingState so
+    #: LLM_COMPLETION can skip its own request.
+    final_response: UniResponse[str, list[ToolCall] | None] | None = None
 
     # Lifecycle-manager handle for the current conversation (core unit).
     chat_object: ChatObject | None = None

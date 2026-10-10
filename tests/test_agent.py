@@ -233,6 +233,45 @@ async def test_agent_strategy_on_limited(mock_strategy_context):
     mock_strategy_context.chat_object.io_stream.yield_response.assert_called_once()
 
 
+def test_native_thinking_detected_from_enable_thinking(mock_strategy_context):
+    """enable_thinking alone still means the provider is in thinking mode."""
+    from amrita_core.types import ModelPreset
+    from amrita_core.types.preset import ThinkingConfig
+
+    strategy = ReActAgentStrategy(mock_strategy_context)
+
+    strategy.ctx.preset = ModelPreset(
+        thinking_config=ThinkingConfig(enable_thinking=True)
+    )
+    assert strategy._is_native_thinking_enabled() is True
+
+    strategy.ctx.preset = ModelPreset(
+        thinking_config=ThinkingConfig(thinking_type="enabled")
+    )
+    assert strategy._is_native_thinking_enabled() is True
+
+    strategy.ctx.preset = ModelPreset(
+        thinking_config=ThinkingConfig(thinking_type="disabled")
+    )
+    assert strategy._is_native_thinking_enabled() is False
+
+    strategy.ctx.preset = ModelPreset()
+    assert strategy._is_native_thinking_enabled() is False
+
+
+def test_store_final_response_reaches_context(mock_strategy_context):
+    """The answer travels on the strategy context so the workflow can skip its own call."""
+    from amrita_core.types import UniResponse
+
+    strategy = ReActAgentStrategy(mock_strategy_context)
+    response = UniResponse(role="assistant", content="done", tool_calls=None)
+
+    strategy._store_final_response(response)
+
+    assert strategy.ctx.final_response is response
+    assert mock_strategy_context.chat_object._di_resp.response is response
+
+
 @pytest.mark.asyncio
 async def test_agent_strategy_on_exception(mock_strategy_context):
     """Test AgentStrategy.on_exception method."""
