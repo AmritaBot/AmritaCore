@@ -406,6 +406,175 @@ try:
             )
 
         @override
+        async def agentic_call_api(
+            self,
+            messages: Iterable,
+            tools: list[ToolFunctionSchema] | None = None,
+            tool_choice: ToolChoice | None = None,
+            **kwargs,
+        ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
+            """Stream text *and* tool calls from a single request.
+
+            ``call_api`` handles text only and ``call_tools`` is non-streaming,
+            so neither can drive an agent loop. Tool-use blocks are assembled
+            from ``input_json_delta`` fragments; empty ``tool_calls`` means the
+            model produced the final answer instead of another tool round.
+            """
+            preset: ModelPreset = self.preset
+            preset_config: ModelConfig = preset.config
+            config: AmritaConfig = self.config
+            if (
+                preset.thinking_config
+                and preset.thinking_config.thinking_type == "enabled"
+            ):
+                kwargs["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
+                }
+            client = anthropic.AsyncAnthropic(
+                api_key=preset.api_key,
+                base_url=preset.base_url,
+                timeout=config.llm.llm_timeout,
+                max_retries=config.llm.max_retries,
+            )
+
+            internal_msgs = list(messages)
+            anthropic_msgs: list[MessageParam] = self._convert_messages(internal_msgs)
+            request_kwargs: dict = {
+                "model": preset.model,
+                "messages": anthropic_msgs,
+                "max_tokens": resolve_max_output(preset, config),
+                "top_p": preset_config.top_p,
+                "temperature": preset_config.temperature,
+            }
+            if tools:
+                request_kwargs["tools"] = self._convert_tools(tools)
+                request_kwargs["tool_choice"] = self._convert_tool_choice(tool_choice)
+            request_kwargs.update(kwargs)
+
+            text_resp = StringIO()
+            reasoning = ""
+            reasoning_signature = ""
+            blocks: dict[int, dict] = {}
+
+            if preset_config.stream:
+                async with client.messages.stream(**request_kwargs) as resp:
+                    async for event in resp:
+                        if event.type == "content_block_start":
+                            block = getattr(event, "content_block", None)
+                            if (
+                                block is not None
+                                and getattr(block, "type", None) == "tool_use"
+                            ):
+                                blocks[event.index] = {
+                                    "id": block.id,
+                                    "type": "function",
+                                    "function": {"name": block.name, "arguments": ""},
+                                }
+                        elif event.type == "content_block_delta":
+                            delta = event.delta
+                            if delta.type == "thinking_delta":
+                                reasoning += delta.thinking
+                                yield MessageWithMetadata(
+                                    content=delta.thinking,
+                                    metadata=MessageMetadataPayload(
+                                        type="reasoning_chunk",
+                                        extra_type="thinking_delta",
+                                    ),
+                                )
+                            elif delta.type == "signature_delta":
+                                reasoning_signature += delta.signature
+                            elif delta.type == "text_delta":
+                                text_resp.write(delta.text)
+                                yield delta.text
+                            elif delta.type == "input_json_delta":
+                                slot = blocks.setdefault(
+                                    event.index,
+                                    {
+                                        "id": None,
+                                        "type": "function",
+                                        "function": {"name": None, "arguments": ""},
+                                    },
+                                )
+                                slot["function"]["arguments"] += delta.partial_json
+                    last_msg = await resp.get_final_message()
+                    metadata = RequestMetadata(
+                        original_request_id=getattr(resp, "request_id", None),
+                        stop_sequence=getattr(last_msg, "stop_sequence", None),
+                        stop_reason=getattr(last_msg, "stop_reason", None),
+                        model=getattr(last_msg, "model", "__NOT_GIVEN__"),
+                    )
+                    usage: UniResponseUsage[int] = UniResponseUsage[int](
+                        prompt_tokens=last_msg.usage.input_tokens,
+                        completion_tokens=last_msg.usage.output_tokens,
+                        total_tokens=last_msg.usage.input_tokens
+                        + last_msg.usage.output_tokens,
+                        cache_creation=getattr(
+                            last_msg.usage, "cache_creation_input_tokens", None
+                        ),
+                        cache_hit=getattr(
+                            last_msg.usage, "cache_read_input_tokens", None
+                        ),
+                    )
+            else:
+                last_msg: Message = await client.messages.create(**request_kwargs)
+                metadata = RequestMetadata(
+                    original_request_id=getattr(last_msg, "_request_id", None),
+                    stop_sequence=getattr(last_msg, "stop_sequence", None),
+                    stop_reason=getattr(last_msg, "stop_reason", None),
+                    model=getattr(last_msg, "model", "__NOT_GIVEN__"),
+                )
+                usage = UniResponseUsage[int](
+                    prompt_tokens=last_msg.usage.input_tokens,
+                    completion_tokens=last_msg.usage.output_tokens,
+                    total_tokens=last_msg.usage.input_tokens
+                    + last_msg.usage.output_tokens,
+                    cache_creation=getattr(
+                        last_msg.usage, "cache_creation_input_tokens", None
+                    ),
+                    cache_hit=getattr(last_msg.usage, "cache_read_input_tokens", None),
+                )
+                for block_idx, block in enumerate(last_msg.content):
+                    if isinstance(block, ToolUseBlock):
+                        blocks[block_idx] = {
+                            "id": block.id,
+                            "type": "function",
+                            "function": {
+                                "name": block.name,
+                                "arguments": json.dumps(block.input, ensure_ascii=False),
+                            },
+                        }
+                    elif isinstance(block, TextBlock):
+                        text_resp.write(block.text)
+                    elif hasattr(block, "thinking"):
+                        reasoning += block.thinking  # pyright: ignore[reportAttributeAccessIssue]
+                        if hasattr(block, "signature"):
+                            reasoning_signature = block.signature  # pyright: ignore[reportAttributeAccessIssue]
+                        yield MessageWithMetadata(
+                            content=block.thinking,  # pyright: ignore[reportAttributeAccessIssue]
+                            metadata=MessageMetadataPayload(
+                                type="reasoning_chunk", extra_type="thinking"
+                            ),
+                        )
+                if text_resp.getvalue():
+                    yield text_resp.getvalue()
+
+            tool_calls = [
+                ToolCall.model_validate(blocks[i])
+                for i in sorted(blocks)
+                if blocks[i].get("id") and blocks[i]["function"].get("name")
+            ]
+            yield UniResponse(
+                role="assistant",
+                content=text_resp.getvalue(),
+                usage=usage,
+                tool_calls=tool_calls or None,
+                reasoning_content=reasoning or None,
+                reasoning_signature=reasoning_signature or None,
+                metadata=metadata,
+            )
+
+        @override
         async def call_tools(
             self,
             messages: Iterable,
@@ -499,6 +668,8 @@ try:
                 reasoning_signature=reasoning_signature or None,
                 metadata=metadata,
             )
+
+        supports_agentic_call = True
 
         @staticmethod
         def get_adapter_protocol() -> tuple[str, str]:
