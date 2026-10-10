@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
+from amrita_core.base.adapter import AdapterManager, MessageContent
 from amrita_core.builtins.agent.events import (
     StepAbortError,
     StepToolCallEvent,
@@ -30,6 +31,7 @@ from amrita_core.builtins.agent.events import (
 from amrita_core.builtins.agent.state import AgentRunState, DAGNode
 from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
 from amrita_core.libchat import (
+    agentic_call_completion,
     call_completion,
     get_last_response,
     tools_caller,
@@ -158,6 +160,56 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if desired == "required" or isinstance(desired, ToolFunctionSchema):
             return "auto"
         return desired  # "auto" | "none" pass through unchanged
+
+    def _use_agentic_path(self) -> bool:
+        """Whether this run uses the streaming agentic gateway.
+
+        Only native-thinking presets on adapters that implement
+        ``agentic_call_api`` take it; everything else keeps the legacy tool
+        round plus a separate completion, so behaviour is unchanged elsewhere.
+        """
+        if not self._is_native_thinking_enabled():
+            return False
+        adapter_class = AdapterManager().safe_get_adapter(self.preset.protocol)
+        return bool(adapter_class and adapter_class.supports_agentic_call)
+
+    async def _model_round(
+        self,
+        messages: list[CONTENT_LIST_TYPE_ITEM],
+        tools: list[ToolFunctionSchema],
+        tool_choice: ToolChoice | None = None,
+    ) -> UniResponse[None, list[ToolCall] | None]:
+        """Run one model round, streaming text live on the agentic path.
+
+        The legacy path only ever asks for tool calls; the agentic path gets
+        text and tool calls out of the same stream, so the answer reaches the
+        user while it is produced instead of after a second, tool-less request.
+        """
+        if not self._use_agentic_path():
+            return await tools_caller(
+                messages,
+                tools,
+                tool_choice=tool_choice,
+                preset=self.preset,
+                usage=self.usage,
+            )
+        response: UniResponse[str, None] | None = None
+        async for chunk in agentic_call_completion(
+            messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            preset=self.preset,
+            config=self.config,
+            usage=self.usage,
+        ):
+            if isinstance(chunk, UniResponse):
+                response = chunk
+            elif isinstance(chunk, (str, MessageContent)):
+                await self.io_stream.yield_response(chunk)
+        if response is None:
+            raise RuntimeError("No final response from agentic call.")
+        return cast(UniResponse[None, list[ToolCall] | None], response)
+
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -1092,6 +1144,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             True if execution should continue, False if it should stop.
         """
         if not (tool_calls := response_msg.tool_calls):
+            if self._use_agentic_path():
+                # The model ended the turn itself, so this response is the
+                # answer: hand it to the workflow and skip the separate
+                # tool-less completion, which is what made the model leak a
+                # tool call as plain text.
+                if self.chat_object is not None:
+                    self.chat_object._di_resp.response = response_msg
             return False
 
         # Built-in tools last so their side-effects don't race with regular tools.

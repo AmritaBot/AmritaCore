@@ -100,13 +100,19 @@ def _normalize_message_content(msg: Message) -> None:
 def _register_assistant_tool_calls(msg: Message, tool_pairs: dict[str, str]) -> None:
     """Register tool_call_id -> function_name pairs from an assistant message.
 
+    Pairs are registered whenever ``tool_calls`` is present, even alongside
+    content: providers may return both in one message, and dropping the pairs
+    in that case makes the following tool messages look unmatched.
+
     Raises ValueError if the message is assistant with no content and no tool_calls.
     """
-    if msg.role != "assistant" or msg.content is not None:
+    if msg.role != "assistant":
         return
-    if msg.tool_calls is None:
+    if msg.tool_calls:
+        tool_pairs.update({tc.id: tc.function.name for tc in msg.tool_calls})
+        return
+    if msg.content is None:
         raise ValueError("Assistant message must have content or tool_calls")
-    tool_pairs.update({tc.id: tc.function.name for tc in msg.tool_calls})
 
 
 _MAX_PAYLOAD_CHARS = 500
