@@ -38,6 +38,9 @@ class _StrategyBase(ABC):
     chat_object: ChatObject  # lifecycle-manager handle, resolved from StrategyContext
     ctx: StrategyContext
 
+    #: Set once the native-thinking-without-agentic-gateway warning has fired.
+    _agentic_warned: bool = False
+
     # Convenience properties - prefer StrategyContext DI fields, fall back to chat_object for backward compatibility.
 
     @property

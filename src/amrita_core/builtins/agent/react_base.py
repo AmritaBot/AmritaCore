@@ -171,7 +171,18 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if not self._is_native_thinking_enabled():
             return False
         adapter_class = AdapterManager().safe_get_adapter(self.preset.protocol)
-        return bool(adapter_class and adapter_class.supports_agentic_call)
+        if adapter_class and adapter_class.supports_agentic_call:
+            return True
+        if not self._agentic_warned:
+            logger.warning(
+                f"Preset `{self.preset.name}` runs native thinking on adapter"
+                f" `{self.preset.protocol}`, which does not implement"
+                " agentic_call_api; falling back to the legacy tool round plus a"
+                " separate completion. A tool call the model still wants at that"
+                " point can surface as plain text instead of a tool_call."
+            )
+            self._agentic_warned = True
+        return False
 
     async def _model_round(
         self,
