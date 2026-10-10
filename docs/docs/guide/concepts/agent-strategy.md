@@ -71,6 +71,18 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 
 Full details: [Advanced → Step Loop](../advanced/step-loop.md).
 
+## The Agentic Call Path
+
+A strategy does not have to ask for tool calls and for text in two separate requests. When the preset enables native thinking **and** its protocol adapter implements [`agentic_call_api()`](../api-reference/classes/ModelAdapter.md#agentic_call_api), the built-in ReAct strategy takes the **agentic path**: every round is a single request that streams the model's text as it is produced and hands back that round's tool calls at the end.
+
+Three properties matter:
+
+- **Tools stay declared on every request.** The tool definitions ride along on each round, including the one that produces the final answer. A request whose history carries `tool_calls` while the request itself declares no `tools` is what makes a provider either reject the payload or let the model write the call out as plain text instead of a structured call.
+- **The round that returns no tool calls is the final answer.** Its content has already been streamed, and the workflow skips the separate tool-less completion. No second request is made to produce the reply.
+- **`tool_choice` stays `auto`.** Native-thinking providers reject forced values, so `required` is downgraded before it is sent.
+
+When the adapter cannot do it, or thinking is off, the strategy keeps the legacy path: a tool round through `tools_caller()` followed by a separate completion. That combination logs a warning, because the last request on that path carries no tool definitions.
+
 ## Other Built-in Strategies
 
 | Strategy                | Category   | Use case                   |
