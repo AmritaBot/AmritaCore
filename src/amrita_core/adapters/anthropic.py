@@ -541,7 +541,9 @@ try:
                             "type": "function",
                             "function": {
                                 "name": block.name,
-                                "arguments": json.dumps(block.input, ensure_ascii=False),
+                                "arguments": json.dumps(
+                                    block.input, ensure_ascii=False
+                                ),
                             },
                         }
                     elif isinstance(block, TextBlock):

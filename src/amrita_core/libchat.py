@@ -599,10 +599,10 @@ async def agentic_call_completion(
             async for chunk in _attempt(preset):
                 yield chunk
             return
-        except NotImplementedError:
-            # Not a provider failure: swapping presets cannot add support.
-            raise
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
+            if isinstance(e, NotImplementedError):
+                # Not a provider failure: swapping presets cannot add support.
+                raise
             if is_context_overflow_error(e):
                 raise ContextOverflowError(str(e)) from e
             logger.warning(

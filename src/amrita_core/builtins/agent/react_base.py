@@ -77,6 +77,7 @@ def _resolve_tool_name(tool: ToolFunctionSchema | dict) -> str:
         return tool.get("function", {}).get("name", "")
     return tool.function.name
 
+
 #: Result handed back for a tool call made after the budget is spent.
 TOOL_BUDGET_REFUSAL = (
     "Refused: the tool call budget for this run is spent. Answer the user with"
@@ -238,7 +239,6 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if response is None:
             raise RuntimeError("No final response from agentic call.")
         return cast(UniResponse[None, list[ToolCall] | None], response)
-
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)

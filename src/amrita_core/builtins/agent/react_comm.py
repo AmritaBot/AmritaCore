@@ -877,7 +877,9 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 f" ahead of {len(others)} others"
             )
 
-        response_msg: UniResponse[None, list[ToolCall] | None] = await self._model_round(
+        response_msg: UniResponse[
+            None, list[ToolCall] | None
+        ] = await self._model_round(
             msg_list.unwrap(),
             tools,
             self._resolve_tool_choice(
