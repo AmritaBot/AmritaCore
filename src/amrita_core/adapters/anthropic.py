@@ -208,6 +208,12 @@ try:
                                 "signature": msg["reasoning_signature"],
                             }
                         )
+                    # Text the model produced alongside the call stays in
+                    # the history; dropping it loses context for later rounds.
+                    if content:
+                        blocks.extend(
+                            AnthropicAdapter._convert_content_to_blocks(content)
+                        )
                     if tool_calls:
                         for tc in tool_calls:
                             # tc may be a dict or ToolCall object
@@ -221,10 +227,6 @@ try:
                                     "input": json.loads(func.get("arguments", "{}")),
                                 }
                             )
-                    else:
-                        blocks.extend(
-                            AnthropicAdapter._convert_content_to_blocks(content)
-                        )
                     converted.append({"role": "assistant", "content": blocks})
 
                 elif role == "tool":

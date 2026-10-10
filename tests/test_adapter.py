@@ -562,6 +562,37 @@ class TestAnthropicAdapter:
         expected = [{"role": "system", "content": "You are an AI assistant."}]
         assert converted == expected
 
+    def test_convert_messages_assistant_text_with_tool_calls(self):
+        """Text produced alongside a tool call must survive conversion"""
+        messages = [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "hi"},
+            {
+                "role": "assistant",
+                "content": "Let me look that up.",
+                "tool_calls": [
+                    {
+                        "id": "call_1",
+                        "type": "function",
+                        "function": {"name": "lookup", "arguments": '{"q": "x"}'},
+                    }
+                ],
+            },
+            {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "name": "lookup",
+                "content": "42",
+            },
+        ]
+
+        converted = AnthropicAdapter._convert_messages(messages)
+
+        assistant = next(m for m in converted if m["role"] == "assistant")
+        assert [b["type"] for b in assistant["content"]] == ["text", "tool_use"]
+        assert assistant["content"][0]["text"] == "Let me look that up."
+        assert assistant["content"][1]["name"] == "lookup"
+
     def test_convert_messages_user_text(self):
         """Test _convert_messages with user text message"""
         messages = [{"role": "user", "content": "Hello!"}]
