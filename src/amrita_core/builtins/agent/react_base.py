@@ -216,7 +216,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 preset=self.preset,
                 usage=self.usage,
             )
-        response: UniResponse[str, None] | None = None
+        response: UniResponse[str, list[ToolCall] | None] | None = None
         stream = agentic_call_completion(
             messages,
             tools=tools,
@@ -228,7 +228,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         try:
             async for chunk in stream:
                 if isinstance(chunk, UniResponse):
-                    response = chunk
+                    response = cast(UniResponse[str, list[ToolCall] | None], chunk)
                 elif isinstance(chunk, (str, MessageContent)):
                     await self.io_stream.yield_response(chunk)
         finally:

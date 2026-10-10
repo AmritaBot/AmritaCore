@@ -19,6 +19,7 @@ from openai.types.chat.chat_completion_tool_choice_option_param import (
 from typing_extensions import override
 
 from amrita_core.base.adapter import (
+    AGENTIC_RETURNING,
     COMPLETION_RETURNING,
     ModelAdapter,
 )
@@ -225,7 +226,7 @@ class OpenAIAdapter(ModelAdapter):
         tool_choice: ToolChoice | None = None,
         stop: str | list[str] | None = None,
         **kwargs,
-    ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
+    ) -> AsyncGenerator[AGENTIC_RETURNING, None]:
         """Stream text *and* tool calls from a single request.
 
         ``call_api`` streams text only and ``call_tools`` returns tool calls
@@ -392,13 +393,14 @@ class OpenAIAdapter(ModelAdapter):
                     completion.usage, from_attributes=True
                 )
             for idx, tc in enumerate(msg.tool_calls or []):
+                fn = getattr(tc, "function", None)
+                if fn is None:
+                    # Custom tool calls carry no function payload.
+                    continue
                 pending[idx] = {
                     "id": tc.id,
                     "type": tc.type,
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
+                    "function": {"name": fn.name, "arguments": fn.arguments},
                 }
         else:
             raise RuntimeError("Received unexpected response type")

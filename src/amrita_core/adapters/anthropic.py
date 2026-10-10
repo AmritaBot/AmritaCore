@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 from typing_extensions import override
 
 from amrita_core.base.adapter import (
+    AGENTIC_RETURNING,
     COMPLETION_RETURNING,
     ModelAdapter,
 )
@@ -412,7 +413,7 @@ try:
             tools: list[ToolFunctionSchema] | None = None,
             tool_choice: ToolChoice | None = None,
             **kwargs,
-        ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
+        ) -> AsyncGenerator[AGENTIC_RETURNING, None]:
             """Stream text *and* tool calls from a single request.
 
             ``call_api`` handles text only and ``call_tools`` is non-streaming,

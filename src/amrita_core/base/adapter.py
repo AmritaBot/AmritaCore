@@ -34,8 +34,9 @@ class MessageContent(ABC):
 
 
 COMPLETION_RETURNING = MessageContent | str | UniResponse[str, None]
-AGENTIC_RETURNING = MessageContent | str | UniResponse[str, list[ToolCall] | None]
-# The trailing UniResponse from agentic_call_api may also carry tool_calls.
+# agentic_call_api additionally carries the round's tool calls, so its trailing
+# UniResponse is typed wider than call_api's.
+AGENTIC_RETURNING = COMPLETION_RETURNING | UniResponse[str, list[ToolCall] | None]
 ADAPTER_TYPE = Literal[
     "text-gen",
     "embed",

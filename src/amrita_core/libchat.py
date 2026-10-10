@@ -10,6 +10,7 @@ from amrita_sense.streaming import SuspendObjectStream
 from pydantic import ValidationError
 
 from amrita_core.base.adapter import (
+    AGENTIC_RETURNING,
     COMPLETION_RETURNING,
     AdapterManager,
     MessageContent,
@@ -445,7 +446,7 @@ async def call_completion(
             adapter: ModelAdapter,
         ) -> Callable[
             [],
-            AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any],
+            AsyncGenerator[COMPLETION_RETURNING, typing.Any],
         ]:
             if (
                 "text-gen" != adapter.get_type()
@@ -514,7 +515,7 @@ async def agentic_call_completion(
     config: AmritaConfig | None = None,
     usage: SessionUsageProxy | None = None,
     **kwargs,
-) -> AsyncGenerator[COMPLETION_RETURNING, None]:
+) -> AsyncGenerator[AGENTIC_RETURNING, None]:
     """Stream text and tool calls from one request.
 
     Same contract as :func:`call_completion` (preset fallback, usage
@@ -541,7 +542,7 @@ async def agentic_call_completion(
 
     async def _attempt(
         current_preset: ModelPreset,
-    ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
+    ) -> AsyncGenerator[AGENTIC_RETURNING, None]:
         validated = _validate_msg_list(
             messages, thinking_config=current_preset.thinking_config
         )
@@ -550,7 +551,7 @@ async def agentic_call_completion(
             adapter: ModelAdapter,
         ) -> Callable[
             [],
-            AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any],
+            AsyncGenerator[AGENTIC_RETURNING, typing.Any],
         ]:
             if not adapter.supports_agentic_call:
                 raise NotImplementedError(
