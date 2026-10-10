@@ -45,6 +45,18 @@ class ModelAdapter:
 - **Description**: Whether to allow overriding existing adapters with the same protocol. Set to `True` to replace an already registered adapter.
 - **Default**: `False`
 
+### `supports_agentic_call`
+
+- **Type**: `bool`
+- **Description**: Whether this adapter implements [`agentic_call_api()`](#agentic_call_api). Declared as a `ClassVar`, so it stays a capability flag on the class rather than a dataclass field on each instance. Adapters that can stream text and tool calls out of one request set it to `True`.
+- **Default**: `False`
+
+### `supports_agentic_call`
+
+- **Type**: `bool`
+- **Description**: Whether this adapter implements [`agentic_call_api()`](#agentic_call_api). Declared as a `ClassVar`, so it stays a capability flag on the class rather than a dataclass field on each instance. Adapters that can stream text and tool calls out of one request set it to `True`.
+- **Default**: `False`
+
 ## Methods
 
 ### get*adapter_protocol() *(Abstract)\_
@@ -122,6 +134,76 @@ async def call_api(self, messages: Iterable, **kwargs):
     # Yield final response
     yield UniResponse(content=full_response, usage=usage_info)
 ```
+
+### agentic_call_api()
+
+Call the model once and get back both streamed text and structured tool calls.
+
+[`call_api()`](#call_api) streams text only, and [`call_tools()`](#call_tools) returns tool calls without streaming, so neither can drive an agent loop that has to show output while still accepting another tool round. This method does both in a single request: text deltas are yielded as they arrive, and the trailing `UniResponse` carries the assembled `tool_calls`. An empty `tool_calls` means the model produced the final answer instead of another tool round.
+
+This is an **optional capability**. The base implementation raises `NotImplementedError`, and callers fall back to the legacy `call_api()` + `call_tools()` pair. An adapter that implements it must also set `supports_agentic_call = True`.
+
+**Parameters**:
+
+- `messages` (`Iterable`): List of messages to send to the model
+- `tools` (`list[ToolFunctionSchema] | None`): Tool definitions to expose; `None` or empty means a plain text turn
+- `tool_choice` (`ToolChoice | None`): How the provider should select tools
+- `**kwargs`: Additional keyword arguments forwarded to the provider
+
+**Returns**: `AsyncGenerator[COMPLETION_RETURNING, None]` - The same shape as [`call_api()`](#call_api), except the final `UniResponse` may also carry `tool_calls`.
+
+**Raises**: `NotImplementedError` - If the adapter does not implement it
+
+**Example**:
+
+```python
+final = None
+async for chunk in adapter.agentic_call_api(messages, tools=tools, tool_choice="auto"):
+    if isinstance(chunk, UniResponse):
+        final = chunk
+    else:
+        print(chunk, end="")
+
+if final.tool_calls:
+    ...  # run another tool round
+```
+
+> **Note**: Tool-call arguments arrive as fragments while streaming. The built-in adapters accumulate them by `index` and emit one complete `ToolCall` per call, so callers never see a half-built call.
+
+### agentic_call_api()
+
+Call the model once and get back both streamed text and structured tool calls.
+
+[`call_api()`](#call_api) streams text only, and [`call_tools()`](#call_tools) returns tool calls without streaming, so neither can drive an agent loop that has to show output while still accepting another tool round. This method does both in a single request: text deltas are yielded as they arrive, and the trailing `UniResponse` carries the assembled `tool_calls`. An empty `tool_calls` means the model produced the final answer instead of another tool round.
+
+This is an **optional capability**. The base implementation raises `NotImplementedError`, and callers fall back to the legacy `call_api()` + `call_tools()` pair. An adapter that implements it must also set `supports_agentic_call = True`.
+
+**Parameters**:
+
+- `messages` (`Iterable`): List of messages to send to the model
+- `tools` (`list[ToolFunctionSchema] | None`): Tool definitions to expose; `None` or empty means a plain text turn
+- `tool_choice` (`ToolChoice | None`): How the provider should select tools
+- `**kwargs`: Additional keyword arguments forwarded to the provider
+
+**Returns**: `AsyncGenerator[COMPLETION_RETURNING, None]` - The same shape as [`call_api()`](#call_api), except the final `UniResponse` may also carry `tool_calls`.
+
+**Raises**: `NotImplementedError` - If the adapter does not implement it
+
+**Example**:
+
+```python
+final = None
+async for chunk in adapter.agentic_call_api(messages, tools=tools, tool_choice="auto"):
+    if isinstance(chunk, UniResponse):
+        final = chunk
+    else:
+        print(chunk, end="")
+
+if final.tool_calls:
+    ...  # run another tool round
+```
+
+> **Note**: Tool-call arguments arrive as fragments while streaming. The built-in adapters accumulate them by `index` and emit one complete `ToolCall` per call, so callers never see a half-built call.
 
 ### call_tools()
 
