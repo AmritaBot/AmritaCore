@@ -182,9 +182,13 @@ async def REACT_COUNTER(loop: AgentLoopState, ab: AbilityState):
     max_times: int = ab.config.function_config.agent_tool_call_limit + 1
     if loop.called_count > max_times:
         await loop.strategy.on_limited()
-        raise BreakLoop(
-            f"Counter has reached the maximum limit of {max_times}, reset loop.called_count to 0 to continue"
-        )
+        if not getattr(loop.strategy, "budget_exhausted", False):
+            raise BreakLoop(
+                f"Counter has reached the maximum limit of {max_times},"
+                " reset loop.called_count to 0 to continue"
+            )
+        # Budget spent: run the wind-down round instead of breaking out;
+        # the model answers with what it has, tools still declared.
     loop.called_count += 1
 
 

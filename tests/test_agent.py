@@ -208,12 +208,16 @@ async def test_agent_strategy_on_limited(mock_strategy_context):
     # Call on_limited
     await strategy.on_limited()
 
+    # The budget is spent and the run winds down instead of terminating.
+    assert strategy.budget_exhausted is True
+
     # Verify message was appended to context
     assert len(mock_strategy_context.original_context.end_messages) == 1
     appended_message = mock_strategy_context.original_context.end_messages[0]
     assert isinstance(appended_message, Message)
     assert appended_message.role == "user"
-    assert "Too much tools called occurred" in appended_message.content
+    assert "used up the tool call budget" in appended_message.content
+    assert "Do not call any more" in appended_message.content
 
     # Verify response was yielded
     mock_strategy_context.chat_object.io_stream.yield_response.assert_called_once()
@@ -221,10 +225,12 @@ async def test_agent_strategy_on_limited(mock_strategy_context):
         mock_strategy_context.chat_object.io_stream.yield_response.call_args[0][0]
     )
     assert isinstance(yielded_response, MessageWithMetadata)
-    assert (
-        "[AmritaAgent] Too many tool calls! Workflow terminated!"
-        in yielded_response.content
-    )
+    assert "Tool call limit reached" in yielded_response.content
+
+    # A second call must neither append nor notify again.
+    await strategy.on_limited()
+    assert len(mock_strategy_context.original_context.end_messages) == 1
+    mock_strategy_context.chat_object.io_stream.yield_response.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -335,6 +341,70 @@ async def test_amrita_agent_strategy_single_execute_with_tool_calls(
             result = await strategy.single_execute()
             assert result is True
             assert strategy.call_count == 2  # Should be incremented
+        finally:
+            strategy.tools_manager.get_tool = fun
+
+
+@pytest.mark.asyncio
+async def test_amrita_agent_strategy_refuses_tools_after_budget(
+    mock_strategy_context, mock_config
+):
+    """Past the budget the run winds down: calls are refused, never executed."""
+    from amrita_core.builtins.agent.react_base import TOOL_BUDGET_REFUSAL
+    from amrita_core.types import ToolCall, UniResponse
+
+    mock_config.builtin.tool_calling_mode = "agent"
+    mock_config.builtin.agent_thought_mode = "none"
+    mock_config.llm.require_tools = False
+    mock_strategy_context.chat_object.config = mock_config
+
+    mock_response = UniResponse(
+        content=None,
+        tool_calls=[
+            ToolCall(
+                id="tool1",
+                function={"name": "test_tool", "arguments": '{"param": "value"}'},  # pyright: ignore[reportArgumentType]
+            )
+        ],
+        usage=None,
+    )
+
+    with patch(
+        "amrita_core.builtins.agent.react_base.tools_caller", return_value=mock_response
+    ):
+        strategy = ReActAgentStrategy(mock_strategy_context)
+        fun = strategy.tools_manager.get_tool
+        try:
+            strategy.tools = [
+                ToolFunctionSchema.model_validate(
+                    {
+                        "function": {
+                            "name": "test_tool",
+                            "description": "Test tool",
+                            "parameters": {"type": "object", "properties": {}},
+                        }
+                    }
+                )
+            ]
+            mock_tool_data = MagicMock()
+            mock_tool_data.custom_run = False
+            mock_tool_data.func = AsyncMock(return_value="Tool result")
+            strategy.tools_manager.get_tool = MagicMock(return_value=mock_tool_data)
+            strategy._budget_exhausted = True
+
+            assert await strategy.single_execute() is True
+            mock_tool_data.func.assert_not_awaited()
+
+            appended = mock_strategy_context.original_context.end_messages
+            tool_results = [m for m in appended if getattr(m, "role", None) == "tool"]
+            assert tool_results, "the refusal must be recorded as a tool result"
+            assert tool_results[-1].content == TOOL_BUDGET_REFUSAL
+            assert tool_results[-1].tool_call_id == "tool1"
+
+            # Bounded: one more refusal round, then the turn closes instead of
+            # looping on forever.
+            assert await strategy.single_execute() is True
+            assert await strategy.single_execute() is False
         finally:
             strategy.tools_manager.get_tool = fun
 

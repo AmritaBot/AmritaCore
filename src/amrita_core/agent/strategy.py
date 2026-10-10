@@ -41,6 +41,16 @@ class _StrategyBase(ABC):
     #: Set once the native-thinking-without-agentic-gateway warning has fired.
     _agentic_warned: bool = False
 
+    #: Tool budget spent: later tool calls are refused instead of executed.
+    _budget_exhausted: bool = False
+    #: Rounds spent calling tools after the budget ran out.
+    _refusal_rounds: int = 0
+
+    @property
+    def budget_exhausted(self) -> bool:
+        """Whether the tool budget is spent and the run is winding down."""
+        return self._budget_exhausted
+
     # Convenience properties - prefer StrategyContext DI fields, fall back to chat_object for backward compatibility.
 
     @property
@@ -223,12 +233,16 @@ class _StrategyBase(ABC):
             This method is used by 'agent' and 'agent-mixed' category strategies.
             'rag' and 'workflow' category strategies should implement run() instead.
         """
+        if self._budget_exhausted:
+            return
+        self._budget_exhausted = True
         await self.io_stream.yield_response(
             MessageWithMetadata(
-                content="[AmritaAgent] Too many tool calls! Workflow terminated!",
+                content="[AmritaAgent] Tool call limit reached; winding down with"
+                " the information gathered so far.",
                 metadata=MessageMetadataPayloadSystem(
                     type="system",
-                    message="[AmritaAgent] Too many tool calls! Workflow terminated!",
+                    message="[AmritaAgent] Tool call limit reached.",
                     extra_type="tool_call_limit",
                 ),
             )
@@ -236,8 +250,9 @@ class _StrategyBase(ABC):
         self.ctx.original_context.append(
             Message(
                 role="user",
-                content="Too much tools called occurred,please call later or follow user's instruction."
-                + "Now please continue to completion and NOT to call ANY tools.",
+                content="You have used up the tool call budget. Do not call any more"
+                " tools; answer the user now with the information you already have,"
+                " and say plainly what is still missing.",
             )
         )
 

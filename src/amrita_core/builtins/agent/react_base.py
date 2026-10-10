@@ -77,6 +77,19 @@ def _resolve_tool_name(tool: ToolFunctionSchema | dict) -> str:
         return tool.get("function", {}).get("name", "")
     return tool.function.name
 
+#: Result handed back for a tool call made after the budget is spent.
+TOOL_BUDGET_REFUSAL = (
+    "Refused: the tool call budget for this run is spent. Answer the user with"
+    " the information you already have, and say plainly what is still missing."
+)
+#: How many refusal rounds to allow before closing the turn outright.
+MAX_REFUSAL_ROUNDS = 2
+#: Closing message when the model keeps calling tools past the refusals.
+TOOL_BUDGET_NOTICE = (
+    "[AmritaAgent] Tool call budget exhausted; the model kept requesting tools,"
+    " so the run was closed with the information gathered so far."
+)
+
 
 class BaseReActAgentStrategy(AgentStrategy, ABC):
     """
@@ -1170,6 +1183,29 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 if self.chat_object is not None:
                     self.chat_object._di_resp.response = response_msg
             return False
+
+        if self._budget_exhausted:
+            # Budget spent: refuse instead of executing, so the assistant/tool
+            # pairing stays valid and the model is pushed to answer with what it
+            # already has. Dropping tools here is what used to make it leak the
+            # call into the content as plain text.
+            self._refusal_rounds += 1
+            await self._append_tool_results_batch(
+                response_msg, [(tc, TOOL_BUDGET_REFUSAL, None) for tc in tool_calls]
+            )
+            if self._refusal_rounds > MAX_REFUSAL_ROUNDS:
+                logger.warning(
+                    "Model kept requesting tools after the budget was spent;"
+                    " closing the turn with a notice."
+                )
+                if self.chat_object is not None:
+                    self.chat_object._di_resp.response = UniResponse(
+                        role="assistant",
+                        content=TOOL_BUDGET_NOTICE,
+                        tool_calls=None,
+                    )
+                return False
+            return True
 
         # Built-in tools last so their side-effects don't race with regular tools.
         tool_calls.sort(
