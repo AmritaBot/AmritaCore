@@ -483,12 +483,19 @@ async def call_completion(
                         )
                 yield resp
 
+    emitted = False
     for i in range(1, config.llm.max_fallbacks + 1):
         try:
             async for chunk in _attempt(preset):
+                if not isinstance(chunk, UniResponse):
+                    emitted = True
                 yield chunk
             return
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
+            if emitted:
+                # Chunks already reached the caller; retrying would stack a
+                # second answer on top of the partial one.
+                raise
             if is_context_overflow_error(e):
                 # Another preset cannot shrink the request, so surface it instead of burning the whole fallback budget on it.
                 raise ContextOverflowError(str(e)) from e
@@ -595,12 +602,19 @@ async def agentic_call_completion(
                         )
                 yield resp
 
+    emitted = False
     for i in range(1, config.llm.max_fallbacks + 1):
         try:
             async for chunk in _attempt(preset):
+                if not isinstance(chunk, UniResponse):
+                    emitted = True
                 yield chunk
             return
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
+            if emitted:
+                # Chunks already reached the caller; retrying would stack a
+                # second answer on top of the partial one.
+                raise
             if isinstance(e, NotImplementedError):
                 # Not a provider failure: swapping presets cannot add support.
                 raise
