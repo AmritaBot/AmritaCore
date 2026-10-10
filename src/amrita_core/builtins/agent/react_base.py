@@ -205,18 +205,25 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 usage=self.usage,
             )
         response: UniResponse[str, None] | None = None
-        async for chunk in agentic_call_completion(
+        stream = agentic_call_completion(
             messages,
             tools=tools,
             tool_choice=tool_choice,
             preset=self.preset,
             config=self.config,
             usage=self.usage,
-        ):
-            if isinstance(chunk, UniResponse):
-                response = chunk
-            elif isinstance(chunk, (str, MessageContent)):
-                await self.io_stream.yield_response(chunk)
+        )
+        try:
+            async for chunk in stream:
+                if isinstance(chunk, UniResponse):
+                    response = chunk
+                elif isinstance(chunk, (str, MessageContent)):
+                    await self.io_stream.yield_response(chunk)
+        finally:
+            # Close deterministically: an abandoned generator is otherwise closed
+            # at GC time, tearing the live HTTP stream down from under the event
+            # loop and logging "generator didn't stop after athrow()".
+            await stream.aclose()
         if response is None:
             raise RuntimeError("No final response from agentic call.")
         return cast(UniResponse[None, list[ToolCall] | None], response)
