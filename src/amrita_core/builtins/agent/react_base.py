@@ -82,8 +82,6 @@ TOOL_BUDGET_REFUSAL = (
     "Refused: the tool call budget for this run is spent. Answer the user with"
     " the information you already have, and say plainly what is still missing."
 )
-#: How many refusal rounds to allow before closing the turn outright.
-MAX_REFUSAL_ROUNDS = 2
 #: Closing message when the model keeps calling tools past the refusals.
 TOOL_BUDGET_NOTICE = (
     "[AmritaAgent] Tool call budget exhausted; the model kept requesting tools,"
@@ -1193,7 +1191,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             await self._append_tool_results_batch(
                 response_msg, [(tc, TOOL_BUDGET_REFUSAL, None) for tc in tool_calls]
             )
-            if self._refusal_rounds > MAX_REFUSAL_ROUNDS:
+            if (
+                self._refusal_rounds
+                > self.config.function_config.agent_tool_refusal_rounds
+            ):
                 logger.warning(
                     "Model kept requesting tools after the budget was spent;"
                     " closing the turn with a notice."

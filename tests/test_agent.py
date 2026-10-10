@@ -391,6 +391,8 @@ async def test_amrita_agent_strategy_refuses_tools_after_budget(
             mock_tool_data.func = AsyncMock(return_value="Tool result")
             strategy.tools_manager.get_tool = MagicMock(return_value=mock_tool_data)
             strategy._budget_exhausted = True
+            # Configurable: allow exactly one more refusal round than the budget.
+            mock_config.function_config.agent_tool_refusal_rounds = 1
 
             assert await strategy.single_execute() is True
             mock_tool_data.func.assert_not_awaited()
@@ -401,9 +403,8 @@ async def test_amrita_agent_strategy_refuses_tools_after_budget(
             assert tool_results[-1].content == TOOL_BUDGET_REFUSAL
             assert tool_results[-1].tool_call_id == "tool1"
 
-            # Bounded: one more refusal round, then the turn closes instead of
-            # looping on forever.
-            assert await strategy.single_execute() is True
+            # Bounded by config: the one allowed refusal round is already spent,
+            # so the next call closes the turn instead of looping on forever.
             assert await strategy.single_execute() is False
         finally:
             strategy.tools_manager.get_tool = fun
