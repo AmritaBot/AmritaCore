@@ -18,7 +18,7 @@ trying — classic ReAct failure.
 | ------------------------ | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | **Stall detection**      | `builtin.loop_reasoning_trigger = N`    | After N identical tool signatures, a give-up prompt is injected and the Step ends                                              |
 | **Pre-execution cancel** | same trigger                            | The N-th identical call is cancelled _before_ running and returns `"Cancelled: Reach the max limit of repeatly calling tool."` |
-| **Hard call limit**      | `function_config.agent_tool_call_limit` | The loop stops after this many rounds regardless                                                                               |
+| **Tool-round budget**    | `function_config.agent_tool_call_limit` | The loop winds down instead of stopping mid-call (see below)                                                                   |
 
 Where detection runs matters. Stall detection is a **per-iteration hook**
 (`after_iteration`, called after every `STEP_EXEC` round) — it must live
@@ -28,6 +28,15 @@ after the loop exits: a model stuck calling one tool never reached
 step loop also carries a hard cap in `iter_cond` (`called_count > max_times`)
 so an inner-loop stall can't outlive the budget. `leave_step` keeps a
 stall check as an idempotent backstop.
+
+Reaching the tool-round budget is a **wind-down**, not a hard stop.
+`on_limited()` marks the run as budget-exhausted and tells the model to answer
+with what it has; tools stay declared on every request, and a call the model
+still makes is answered with a refusal tool result instead of being executed.
+`function_config.agent_tool_refusal_rounds` bounds how many such refusal rounds
+are allowed before the turn closes. Cutting the loop outright instead used to
+leave the run with no answer, so the workflow fell back to a request without
+tools — which is how a tool call ends up written into the content (see §12).
 
 **Tuning**: if your task legitimately repeats a tool (e.g. polling), raise
 `loop_reasoning_trigger`; if the agent still loops, lower `agent_tool_call_limit`.
@@ -211,6 +220,27 @@ AgentStepXxxMetadata)` raises `TypeError` — discriminate with
 **Fix**: use the step-loop workflow, keep the plan visible, and rely on the
 `ERROR`-prefix convention for hard failures — the framework turns a failing
 tool into an explicit revision instruction deterministically.
+
+## 12. A Tool Call Shows Up as Text in the Reply
+
+**Symptom**: the reply contains the provider's tool-call markup — a block naming
+a function and its arguments — instead of an answer, and no tool ran. It shows up
+most often on the last request of a run.
+
+**Root cause**: the request carried a history with `tool_calls` in it but
+declared no `tools`. The model still wanted a tool; with no structured channel
+open, it wrote the call into the message content instead. The framework saw no
+`tool_calls` and treated that text as the final answer.
+
+**Fix**: never send a request whose history references `tool_calls` without also
+declaring the tools. The built-in agent loop does this on both paths; a custom
+strategy or a hand-built workflow has to do the same. `tool_choice="none"` is
+**not** a substitute — providers accept it and the call still comes back as text.
+
+**Related**: the same shape of request can also be rejected outright with
+`insufficient tool messages following tool_calls message` (see §3) or with the
+thinking-mode error in §2. All three come from one place: the tool-calling
+trajectory and the request no longer agree with each other.
 
 ## Next
 
