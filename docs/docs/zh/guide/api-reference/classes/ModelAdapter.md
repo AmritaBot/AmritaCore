@@ -51,12 +51,6 @@ class ModelAdapter:
 - **描述**：该适配器是否实现了 [`agentic_call_api()`](#agentic_call_api)。声明为 `ClassVar`，因此它是类上的能力标记，而不是每个实例上的 dataclass 字段。能在一次请求里同时流出文本与工具调用的适配器应设为 `True`。
 - **默认**：`False`
 
-### `supports_agentic_call`
-
-- **类型**：`bool`
-- **描述**：该适配器是否实现了 [`agentic_call_api()`](#agentic_call_api)。声明为 `ClassVar`，因此它是类上的能力标记，而不是每个实例上的 dataclass 字段。能在一次请求里同时流出文本与工具调用的适配器应设为 `True`。
-- **默认**：`False`
-
 ## 方法
 
 ### get*adapter_protocol() *(抽象)\_
@@ -134,43 +128,6 @@ async def call_api(self, messages: Iterable, **kwargs):
     # Yield final response
     yield UniResponse(content=full_response, usage=usage_info)
 ```
-
-### agentic_call_api()
-
- __mcp_status=0; printf 
-__MCP_CMD_4a563f8c__%d
- 0 2>/dev/null || __MCP_CMD_4a563f8c__0 echo
-
-[`call_api()`](#call_api) 只流式输出文本，[`call_tools()`](#call_tools) 返回工具调用但不流式，两者都无法驱动一个既要实时显示输出、又要继续接受下一轮工具调用的 agent 循环。本方法在一次请求里同时做到：文本分片边到边发，末尾的 `UniResponse` 携带聚合完成的 `tool_calls`。`tool_calls` 为空表示模型直接给出了终答，而不是又要发起一轮工具调用。
-
-/root/AmritaCore/**可选能力**。基类实现直接抛 `NotImplementedError`，调用方会回退到传统的 `call_api()` + `call_tools()` 组合。实现它的适配器必须同时把 `supports_agentic_call` 置为 `True`。
-
-**参数**：
-
-- `messages` (`Iterable`)：发送给模型的消息列表
-- `tools` (`list[ToolFunctionSchema] | None`)：要暴露的工具定义；`None` 或空表示纯文本轮次
-- `tool_choice` (`ToolChoice | None`)：provider 如何选择工具
-- `**kwargs`：透传给 provider 的额外关键字参数
-
-**返回**：`AsyncGenerator[COMPLETION_RETURNING, None]` —— 与 [`call_api()`](#call_api) 形态一致，只是末尾的 `UniResponse` 可能同时携带 `tool_calls`。
-
-**抛出**：`NotImplementedError` —— 适配器未实现时
-
-**示例**：
-
-```python
-final = None
-async for chunk in adapter.agentic_call_api(messages, tools=tools, tool_choice="auto"):
-    if isinstance(chunk, UniResponse):
-        final = chunk
-    else:
-        print(chunk, end="")
-
-if final.tool_calls:
-    ...  # 再跑一轮工具
-```
-
-> **注意**：流式模式下工具调用的参数是分片到达的。内置适配器按 `index` 聚合，每次调用只产出一个完整的 `ToolCall`，调用方不会看到半成品。
 
 ### agentic_call_api()
 
