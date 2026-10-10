@@ -188,8 +188,7 @@ async def REACT_COUNTER(loop: AgentLoopState, ab: AbilityState):
                 f"Counter has reached the maximum limit of {max_times},"
                 " reset loop.called_count to 0 to continue"
             )
-        # Budget spent: run the wind-down round instead of breaking out;
-        # the model answers with what it has, tools still declared.
+        # Budget spent: wind down instead of breaking out.
     loop.called_count += 1
 
 
@@ -403,8 +402,7 @@ async def task_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
         await loop.strategy.on_limited()
         if not getattr(loop.strategy, "budget_exhausted", False):
             return False
-        # Budget spent: fall through so the wind-down round runs and the
-        # loop ends on the strategy's own terms.
+        # Budget spent: let the wind-down round run.
     if getattr(loop.strategy, "_suggested_stop", False):
         return False
     if loop.run_state is None:
@@ -440,8 +438,7 @@ async def iter_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
         await loop.strategy.on_limited()
         if not getattr(loop.strategy, "budget_exhausted", False):
             return False
-        # Budget spent: fall through so the wind-down round runs and the
-        # loop ends on the strategy's own terms.
+        # Budget spent: let the wind-down round run.
     if rs.stall_injected:
         return False
     if rs.step_started_ts is not None:

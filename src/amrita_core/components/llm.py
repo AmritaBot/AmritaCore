@@ -229,9 +229,7 @@ async def LLM_COMPLETION(
     if resp.response is None and wok.final_response is not None:
         resp.response = wok.final_response
     if resp.response is not None:
-        # The agentic loop already streamed this turn's answer. Asking again
-        # here would duplicate it, and asking without tools is what made the
-        # model leak a tool call into the content in the first place.
+        # Answer already streamed by the agentic loop; re-asking leaks a tool call.
         if mem.memory is not None and resp.response.usage is not None:
             mem.memory.usage = resp.response.usage
         return

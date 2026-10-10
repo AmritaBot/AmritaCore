@@ -246,9 +246,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 elif isinstance(chunk, (str, MessageContent)):
                     await self.io_stream.yield_response(chunk)
         finally:
-            # Close deterministically: an abandoned generator is otherwise closed
-            # at GC time, tearing the live HTTP stream down from under the event
-            # loop and logging "generator didn't stop after athrow()".
+            # Close now: a GC-time close tears the live HTTP stream down.
             await stream.aclose()
         if response is None:
             raise RuntimeError("No final response from agentic call.")
@@ -1188,24 +1186,17 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         """
         if not (tool_calls := response_msg.tool_calls):
             if self._use_agentic_path():
-                # The model ended the turn itself, so this response is the
-                # answer: hand it to the workflow and skip the separate
-                # tool-less completion, which is what made the model leak a
-                # tool call as plain text.
+                # The model ended the turn: this is the answer, skip completion.
                 self._store_final_response(response_msg)
             return False
 
         if self._budget_exhausted:
-            # Budget spent: refuse instead of executing, so the assistant/tool
-            # pairing stays valid and the model is pushed to answer with what it
-            # already has. Dropping tools here is what used to make it leak the
-            # call into the content as plain text.
+            # Refuse rather than execute: keeps the pairing valid, drops no tools.
             if (
                 self._refusal_rounds
                 >= self.config.function_config.agent_tool_refusal_rounds
             ):
-                # Close before appending: nothing is left half-answered, so no
-                # assistant message ends up without its tool results.
+                # Close before appending: no assistant message left unanswered.
                 logger.warning(
                     "Model kept requesting tools after the budget was spent;"
                     " closing the turn with a notice."

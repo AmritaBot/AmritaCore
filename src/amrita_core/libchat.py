@@ -493,8 +493,7 @@ async def call_completion(
             return
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
             if emitted:
-                # Chunks already reached the caller; retrying would stack a
-                # second answer on top of the partial one.
+                # Chunks already reached the caller; a retry would stack a second answer.
                 raise
             if is_context_overflow_error(e):
                 # Another preset cannot shrink the request, so surface it instead of burning the whole fallback budget on it.
@@ -612,8 +611,7 @@ async def agentic_call_completion(
             return
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
             if emitted:
-                # Chunks already reached the caller; retrying would stack a
-                # second answer on top of the partial one.
+                # Chunks already reached the caller; a retry would stack a second answer.
                 raise
             if isinstance(e, NotImplementedError):
                 # Not a provider failure: swapping presets cannot add support.

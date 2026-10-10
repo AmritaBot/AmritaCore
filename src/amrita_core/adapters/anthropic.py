@@ -208,8 +208,7 @@ try:
                                 "signature": msg["reasoning_signature"],
                             }
                         )
-                    # Text the model produced alongside the call stays in
-                    # the history; dropping it loses context for later rounds.
+                    # Keep text produced alongside the call; dropping it loses context.
                     if content:
                         blocks.extend(
                             AnthropicAdapter._convert_content_to_blocks(content)
