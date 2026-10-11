@@ -264,6 +264,10 @@ export default withMermaid({
                 text: "Migration Guide: 1.1 → 1.2",
                 link: "/guide/migration-1.2",
               },
+              {
+                text: "Migration Guide: 1.2 → 1.3",
+                link: "/guide/migration-1.3",
+              },
             ],
           },
           {
@@ -650,6 +654,7 @@ export default withMermaid({
             items: [
               { text: "迁移指南：0.13 → 1.0", link: "/zh/guide/migration" },
               { text: "迁移指南：1.1 → 1.2", link: "/zh/guide/migration-1.2" },
+              { text: "迁移指南：1.2 → 1.3", link: "/zh/guide/migration-1.3" },
             ],
           },
           {
