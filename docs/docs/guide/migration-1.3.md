@@ -40,7 +40,9 @@ The run now winds down:
 2. The next round still declares tools.
 3. A call the model still makes is answered with a refusal tool result rather
    than executed, so the assistant/tool pairing stays valid.
-4. After `agent_tool_refusal_rounds` such rounds, the turn closes with a notice.
+4. If the model is still asking for tools after `agent_tool_refusal_rounds`
+   such rounds, the turn closes with a notice. An answer is always accepted
+   whenever it arrives — the notice is the fallback, not the normal ending.
 
 A custom strategy that overrides `on_limited()` should either call `super()` or
 set `_budget_exhausted` itself — `budget_exhausted` is the property the workflow

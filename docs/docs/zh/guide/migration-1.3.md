@@ -29,7 +29,8 @@ step 循环的 `task_cond` 与 `iter_cond` 用同一套算法，两条工作流�
 1. `on_limited()` 标记预算用尽，并要求模型用已有信息作答。
 2. 下一轮仍然声明工具。
 3. 模型若继续发起调用，会以拒绝型工具结果作答而不真正执行，assistant/tool 配对始终合法。
-4. 经过 `agent_tool_refusal_rounds` 这样的轮次后，本轮以一条提示结束。
+4. 若在 `agent_tool_refusal_rounds` 这样的轮次之后模型仍在索要工具，本轮才以一条提示结束。
+   模型一旦给出答案就会被采纳——那条提示是兜底，不是常态。
 
 若自定义策略覆盖了 `on_limited()`，请调用 `super()` 或自行置 `_budget_exhausted`——工作流读取的是 `budget_exhausted` 这个属性，用它决定是否放行收尾轮。
 
