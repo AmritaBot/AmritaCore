@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 
 from amrita_core.agent.context import StrategyContext
 from amrita_core.agent.strategy import AgentStrategy
+from amrita_core.base.adapter import AdapterManager, MessageContent
 from amrita_core.builtins.agent.events import (
     StepAbortError,
     StepToolCallEvent,
@@ -30,6 +31,7 @@ from amrita_core.builtins.agent.events import (
 from amrita_core.builtins.agent.state import AgentRunState, DAGNode
 from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
 from amrita_core.libchat import (
+    agentic_call_completion,
     call_completion,
     get_last_response,
     tools_caller,
@@ -74,6 +76,18 @@ def _resolve_tool_name(tool: ToolFunctionSchema | dict) -> str:
     if isinstance(tool, dict):
         return tool.get("function", {}).get("name", "")
     return tool.function.name
+
+
+#: Result handed back for a tool call made after the budget is spent.
+TOOL_BUDGET_REFUSAL = (
+    "Refused: the tool call budget for this run is spent. Answer the user with"
+    " the information you already have, and say plainly what is still missing."
+)
+#: Closing message when the model keeps calling tools past the refusals.
+TOOL_BUDGET_NOTICE = (
+    "[AmritaAgent] Tool call budget exhausted; the model kept requesting tools,"
+    " so the run was closed with the information gathered so far."
+)
 
 
 class BaseReActAgentStrategy(AgentStrategy, ABC):
@@ -139,12 +153,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         be downgraded to ``"auto"`` to avoid provider errors.
         """
         preset = self.preset
-        return (
-            preset is not None
-            and not isinstance(preset, str)
-            and preset.thinking_config is not None
-            and preset.thinking_config.thinking_type == "enabled"
-        )
+        if preset is None or isinstance(preset, str):
+            return False
+        thinking = preset.thinking_config
+        if thinking is None:
+            return False
+        # ``enable_thinking`` on its own also puts the provider in thinking
+        # mode, and those providers reject forced tool_choice just the same.
+        return thinking.thinking_type == "enabled" or bool(thinking.enable_thinking)
 
     def _resolve_tool_choice(self, desired: ToolChoice) -> ToolChoice:
         """Resolve the *actual* ``tool_choice`` to send to the provider.
@@ -158,6 +174,83 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if desired == "required" or isinstance(desired, ToolFunctionSchema):
             return "auto"
         return desired  # "auto" | "none" pass through unchanged
+
+    def _use_agentic_path(self) -> bool:
+        """Whether this run uses the streaming agentic gateway.
+
+        Only native-thinking presets on adapters that implement
+        ``agentic_call_api`` take it; everything else keeps the legacy tool
+        round plus a separate completion, so behaviour is unchanged elsewhere.
+        """
+        if not self._is_native_thinking_enabled():
+            return False
+        adapter_class = AdapterManager().safe_get_adapter(self.preset.protocol)
+        if adapter_class and adapter_class.supports_agentic_call:
+            return True
+        if not self._agentic_warned:
+            logger.warning(
+                f"Preset `{self.preset.name}` runs native thinking on adapter"
+                f" `{self.preset.protocol}`, which does not implement"
+                " agentic_call_api; falling back to the legacy tool round plus a"
+                " separate completion. A tool call the model still wants at that"
+                " point can surface as plain text instead of a tool_call."
+            )
+            self._agentic_warned = True
+        return False
+
+    def _store_final_response(self, response: UniResponse) -> None:
+        """Hand the turn's answer to the workflow.
+
+        ``LLM_COMPLETION`` reads the workflow's ``WorkingState``, which the
+        strategy cannot reach directly, so the answer travels through the
+        strategy context and ``AGENT_POST_PROCESS`` copies it across. The
+        chat-object handle is kept in step for callers that read it directly.
+        """
+        self.ctx.final_response = response
+        if self.chat_object is not None:
+            self.chat_object._di_resp.response = response
+
+    async def _model_round(
+        self,
+        messages: list[CONTENT_LIST_TYPE_ITEM],
+        tools: list[ToolFunctionSchema],
+        tool_choice: ToolChoice | None = None,
+    ) -> UniResponse[None, list[ToolCall] | None]:
+        """Run one model round, streaming text live on the agentic path.
+
+        The legacy path only ever asks for tool calls; the agentic path gets
+        text and tool calls out of the same stream, so the answer reaches the
+        user while it is produced instead of after a second, tool-less request.
+        """
+        if not self._use_agentic_path():
+            return await tools_caller(
+                messages,
+                tools,
+                tool_choice=tool_choice,
+                preset=self.preset,
+                usage=self.usage,
+            )
+        response: UniResponse[str, list[ToolCall] | None] | None = None
+        stream = agentic_call_completion(
+            messages,
+            tools=tools,
+            tool_choice=tool_choice,
+            preset=self.preset,
+            config=self.config,
+            usage=self.usage,
+        )
+        try:
+            async for chunk in stream:
+                if isinstance(chunk, UniResponse):
+                    response = cast(UniResponse[str, list[ToolCall] | None], chunk)
+                elif isinstance(chunk, (str, MessageContent)):
+                    await self.io_stream.yield_response(chunk)
+        finally:
+            # Close now: a GC-time close tears the live HTTP stream down.
+            await stream.aclose()
+        if response is None:
+            raise RuntimeError("No final response from agentic call.")
+        return cast(UniResponse[None, list[ToolCall] | None], response)
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -1092,7 +1185,35 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             True if execution should continue, False if it should stop.
         """
         if not (tool_calls := response_msg.tool_calls):
+            if self._use_agentic_path():
+                # The model ended the turn: this is the answer, skip completion.
+                self._store_final_response(response_msg)
             return False
+
+        if self._budget_exhausted:
+            # Refuse rather than execute: keeps the pairing valid, drops no tools.
+            if (
+                self._refusal_rounds
+                >= self.config.function_config.agent_tool_refusal_rounds
+            ):
+                # Close before appending: no assistant message left unanswered.
+                logger.warning(
+                    "Model kept requesting tools after the budget was spent;"
+                    " closing the turn with a notice."
+                )
+                self._store_final_response(
+                    UniResponse(
+                        role="assistant",
+                        content=TOOL_BUDGET_NOTICE,
+                        tool_calls=None,
+                    )
+                )
+                return False
+            self._refusal_rounds += 1
+            await self._append_tool_results_batch(
+                response_msg, [(tc, TOOL_BUDGET_REFUSAL, None) for tc in tool_calls]
+            )
+            return True
 
         # Built-in tools last so their side-effects don't race with regular tools.
         tool_calls.sort(

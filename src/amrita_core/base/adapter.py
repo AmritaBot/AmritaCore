@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from amrita_sense.logging import logger
 
@@ -34,6 +34,9 @@ class MessageContent(ABC):
 
 
 COMPLETION_RETURNING = MessageContent | str | UniResponse[str, None]
+# agentic_call_api additionally carries the round's tool calls, so its trailing
+# UniResponse is typed wider than call_api's.
+AGENTIC_RETURNING = COMPLETION_RETURNING | UniResponse[str, list[ToolCall] | None]
 ADAPTER_TYPE = Literal[
     "text-gen",
     "embed",
@@ -48,6 +51,8 @@ class ModelAdapter:
     preset: ModelPreset
     config: AmritaConfig = field(default_factory=get_config)
     __override__: bool = False  # Whether to allow overriding existing adapters
+    #: Whether this adapter implements ``agentic_call_api`` (streaming text + tool calls).
+    supports_agentic_call: ClassVar[bool] = False
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
@@ -72,6 +77,24 @@ class ModelAdapter:
         **kwargs,
     ) -> UniResponse[None, list[ToolCall] | None]:
         raise NotImplementedError
+
+    async def agentic_call_api(
+        self,
+        messages: Iterable,
+        tools: list[ToolFunctionSchema] | None = None,
+        tool_choice: ToolChoice | None = None,
+        **kwargs,
+    ) -> AsyncGenerator[AGENTIC_RETURNING, None]:
+        """Stream text *and* tool calls from a single request.
+
+        Optional capability: adapters that can drive an agent loop set
+        :attr:`supports_agentic_call` and implement this. The default raises so
+        callers fall back to the legacy ``call_api`` + ``call_tools`` path.
+        """
+        if TYPE_CHECKING:
+            yield ""
+        else:
+            raise NotImplementedError
 
     async def call_embed(
         self, texts: Sequence[str], **kwargs

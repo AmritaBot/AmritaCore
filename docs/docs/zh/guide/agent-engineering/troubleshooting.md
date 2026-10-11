@@ -11,11 +11,11 @@ AmritaCore 的真实执行机制，而非道听途说。
 
 **修复**（AmritaCore 已内置）：
 
-| 机制             | 配置 / 触发                             | 效果                                                                                               |
+| 机制               | 配置 / 触发                                 | 效果                                                                                                 |
 | ---------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| **停滞检测**     | `builtin.loop_reasoning_trigger = N`    | N 个相同工具签名后注入 give-up prompt 并结束 Step                                                  |
-| **执行前取消**   | 同一触发                                | 第 N 个相同调用在*运行前*被取消，返回 `"Cancelled: Reach the max limit of repeatly calling tool."` |
-| **硬性调用上限** | `function_config.agent_tool_call_limit` | 循环到达该轮数后无论如何停止                                                                       |
+| **停滞检测**         | `builtin.loop_reasoning_trigger = N`    | N 个相同工具签名后注入 give-up prompt 并结束 Step                                                               |
+| **执行前取消**        | 同一触发                                    | 第 N 个相同调用在*运行前*被取消，返回 `"Cancelled: Reach the max limit of repeatly calling tool."`                 |
+| **工具轮次预算**       | `function_config.agent_tool_call_limit` | 达到后进入收尾，而不是中途硬性停止（见下）                                                                              |
 
 检测位置很关键。停滞检测是**每次迭代钩子**（`after_iteration`，在每轮
 `STEP_EXEC` 之后调用）——必须活在循环*内部*。旧设计只在 `leave_step`
@@ -23,6 +23,13 @@ AmritaCore 的真实执行机制，而非道听途说。
 `leave_step`，停滞永不触发、token 无限燃烧。step 循环的 `iter_cond` 还带
 硬上限（`called_count > max_times`），内层停滞无法超出预算。
 `leave_step` 保留停滞检查作为幂等兜底。
+
+达到工具轮次预算是一次**收尾**，而不是硬性中止。
+`on_limited()` 会把本轮标记为预算用尽，并让模型用已有信息作答；每次请求都仍然声明工具，
+模型若继续发起调用，会以拒绝型工具结果作答而不真正执行。
+`function_config.agent_tool_refusal_rounds` 限定这类拒绝轮次最多几轮，之后本轮结束。
+反过来，直接掐断循环会让本轮没有答案，工作流于是回退到一次不带工具的请求——
+工具调用被写进正文就是这么来的（见 §12）。
 
 **调参**：任务合法重复工具（如轮询）时调高 `loop_reasoning_trigger`；
 仍循环则调低 `agent_tool_call_limit`。
@@ -183,6 +190,23 @@ AgentStepXxxMetadata)` 抛 `TypeError`——用
 
 **修复**：使用 step 循环工作流、保持计划可见，并依赖 `ERROR` 前缀约定
 表示硬失败——框架会把失败工具确定性地变成明确的修订指令。
+
+## 12. 回复里出现了文本化的工具调用
+
+**现象**：回复里是 provider 的工具调用标记——一段写明函数名和参数的内容——而不是答案，
+并且没有任何工具真正执行。最常见于一轮运行的最后一次请求。
+
+**根因**：请求携带的历史里有 `tool_calls`，但请求本身没有声明 `tools`。
+模型仍然想调工具，而结构化通道没开，于是把调用写进了消息正文。
+框架看到 `tool_calls` 为空，就把这段文本当成了终答。
+
+**修复**：绝不要发送“历史里有 `tool_calls`、却不声明 tools”的请求。
+内置 agent 循环在两条路径上都会声明；自定义策略或手搭工作流也必须做到。
+`tool_choice="none"` **不是**替代方案——provider 会接受它，调用依然以文本形式返回。
+
+**相关**：同样形态的请求还可能直接被拒绝，报
+`insufficient tool messages following tool_calls message`（见 §3），
+或报 §2 里那条 thinking 模式的错误。三者同源：工具调用轨迹与请求本身不再自洽。
 
 ## 下一步
 

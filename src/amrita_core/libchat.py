@@ -10,6 +10,7 @@ from amrita_sense.streaming import SuspendObjectStream
 from pydantic import ValidationError
 
 from amrita_core.base.adapter import (
+    AGENTIC_RETURNING,
     COMPLETION_RETURNING,
     AdapterManager,
     MessageContent,
@@ -100,13 +101,19 @@ def _normalize_message_content(msg: Message) -> None:
 def _register_assistant_tool_calls(msg: Message, tool_pairs: dict[str, str]) -> None:
     """Register tool_call_id -> function_name pairs from an assistant message.
 
+    Pairs are registered whenever ``tool_calls`` is present, even alongside
+    content: providers may return both in one message, and dropping the pairs
+    in that case makes the following tool messages look unmatched.
+
     Raises ValueError if the message is assistant with no content and no tool_calls.
     """
-    if msg.role != "assistant" or msg.content is not None:
+    if msg.role != "assistant":
         return
-    if msg.tool_calls is None:
+    if msg.tool_calls:
+        tool_pairs.update({tc.id: tc.function.name for tc in msg.tool_calls})
+        return
+    if msg.content is None:
         raise ValueError("Assistant message must have content or tool_calls")
-    tool_pairs.update({tc.id: tc.function.name for tc in msg.tool_calls})
 
 
 _MAX_PAYLOAD_CHARS = 500
@@ -439,7 +446,7 @@ async def call_completion(
             adapter: ModelAdapter,
         ) -> Callable[
             [],
-            AsyncGenerator[MessageContent | str | UniResponse[str, None], typing.Any],
+            AsyncGenerator[COMPLETION_RETURNING, typing.Any],
         ]:
             if (
                 "text-gen" != adapter.get_type()
@@ -476,14 +483,140 @@ async def call_completion(
                         )
                 yield resp
 
+    emitted = False
     for i in range(1, config.llm.max_fallbacks + 1):
         try:
             async for chunk in _attempt(preset):
+                if not isinstance(chunk, UniResponse):
+                    emitted = True
                 yield chunk
             return
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
+            if emitted:
+                # Chunks already reached the caller; a retry would stack a second answer.
+                raise
             if is_context_overflow_error(e):
                 # Another preset cannot shrink the request, so surface it instead of burning the whole fallback budget on it.
+                raise ContextOverflowError(str(e)) from e
+            logger.warning(
+                f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_fallbacks})..."
+            )
+            preset = await _fire_fallback(
+                preset,
+                e,
+                config,
+                i,
+                lambda p, exc, term: CompletionFallbackContext(
+                    p, exc, config, messages, term
+                ),
+            )
+    raise FallbackFailed("Max preset fallbacks retries exceeded.")
+
+
+async def agentic_call_completion(
+    messages: CONTENT_LIST_TYPE,
+    tools: list[ToolFunctionSchema] | None = None,
+    tool_choice: ToolChoice | None = None,
+    preset: ModelPreset | None = None,
+    config: AmritaConfig | None = None,
+    usage: SessionUsageProxy | None = None,
+    **kwargs,
+) -> AsyncGenerator[AGENTIC_RETURNING, None]:
+    """Stream text and tool calls from one request.
+
+    Same contract as :func:`call_completion` (preset fallback, usage
+    accounting, thinking-content filtering), except the trailing
+    ``UniResponse`` may also carry ``tool_calls`` and text keeps streaming while
+    they are assembled. Adapters without ``supports_agentic_call`` fail fast
+    with ``NotImplementedError`` before any request is sent, so callers can fall
+    back to the legacy tool-calling path.
+
+    Args:
+        messages: List of messages to send to the model
+        tools: Tool definitions to expose; ``None``/empty means a plain text turn
+        tool_choice: How to select tools
+        preset: Model preset to use (uses default if not provided)
+        config: Configuration to use (uses default if not provided)
+        usage: Optional run-scoped usage proxy; the trailing ``UniResponse``
+            (by convention the last yielded value) is recorded when given.
+
+    Yields:
+        Individual response parts as strings or UniResponse objects
+    """
+    preset = preset or PresetManager().get_default_preset()
+    config = config or get_config()
+
+    async def _attempt(
+        current_preset: ModelPreset,
+    ) -> AsyncGenerator[AGENTIC_RETURNING, None]:
+        validated = _validate_msg_list(
+            messages, thinking_config=current_preset.thinking_config
+        )
+
+        async def _call_api(
+            adapter: ModelAdapter,
+        ) -> Callable[
+            [],
+            AsyncGenerator[AGENTIC_RETURNING, typing.Any],
+        ]:
+            if not adapter.supports_agentic_call:
+                raise NotImplementedError(
+                    f"Model adapter {adapter.get_type()} does not support"
+                    " agentic_call_api"
+                )
+            if (
+                "text-gen" != adapter.get_type()
+                and "text-gen" not in adapter.get_type()
+            ):
+                raise ValueError(
+                    f"Model adapter {adapter.get_type()} does not support text-gen"
+                )
+            return lambda: adapter.agentic_call_api(
+                [(i.model_dump()) for i in validated],
+                tools=tools,
+                tool_choice=tool_choice,
+                **kwargs,
+            )
+
+        response = await _call_with_reflection(current_preset, _call_api, config)
+        is_thinking = False
+        async for resp in response():
+            if current_preset.config.cot_model:
+                if isinstance(resp, str):
+                    if "<think>" in resp:
+                        is_thinking = True
+                        continue
+                    elif "</think>" in resp:
+                        is_thinking = False
+                        continue
+            if not is_thinking:
+                if isinstance(resp, UniResponse) and usage is not None:
+                    if resp.usage is not None:
+                        usage.record(
+                            resp.usage,
+                            model=resp.metadata.model,
+                            preset_name=current_preset.name,
+                            rate=current_preset.rate,
+                            request_id=resp.metadata.original_request_id,
+                        )
+                yield resp
+
+    emitted = False
+    for i in range(1, config.llm.max_fallbacks + 1):
+        try:
+            async for chunk in _attempt(preset):
+                if not isinstance(chunk, UniResponse):
+                    emitted = True
+                yield chunk
+            return
+        except Exception as e:  # noqa: PERF203 -- fallback loop must retry the stream on failure
+            if emitted:
+                # Chunks already reached the caller; a retry would stack a second answer.
+                raise
+            if isinstance(e, NotImplementedError):
+                # Not a provider failure: swapping presets cannot add support.
+                raise
+            if is_context_overflow_error(e):
                 raise ContextOverflowError(str(e)) from e
             logger.warning(
                 f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_fallbacks})..."

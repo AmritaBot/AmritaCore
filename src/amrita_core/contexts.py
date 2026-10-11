@@ -25,6 +25,7 @@ from amrita_core.types import (
     MemoryModel,
     Message,
     SendMessageWrap,
+    ToolCall,
 )
 from amrita_core.types.content import USER_INPUT
 from amrita_core.types.preset import ModelPreset
@@ -68,6 +69,8 @@ class GeneralInput:
 @dataclass
 class WorkingState:
     context_wrap: SendMessageWrap | None = None  # Be set in runtime
+    #: Answer the agentic loop already produced, if any.
+    final_response: UniResponse[str, list[ToolCall] | None] | None = None
 
 
 @dataclass

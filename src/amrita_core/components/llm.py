@@ -226,6 +226,14 @@ async def LLM_COMPLETION(
     Suspend Point:
         `SuspendEnum.LLM_CALL` — intercepted during the LLM call.
     """
+    if resp.response is None and wok.final_response is not None:
+        resp.response = wok.final_response
+    if resp.response is not None:
+        # Answer already streamed by the agentic loop; re-asking leaks a tool call.
+        if mem.memory is not None and resp.response.usage is not None:
+            mem.memory.usage = resp.response.usage
+        return
+
     logger.debug("Calling chat model..")
     recoveries = 1 if ability.config.llm.enable_overflow_recovery else 0
     for attempt in range(recoveries + 1):

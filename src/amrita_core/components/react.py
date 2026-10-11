@@ -146,6 +146,7 @@ async def AGENT_POST_PROCESS(loop: AgentLoopState, wok: WorkingState):
     await loop.strategy.on_post_process()
     assert wok.context_wrap is not None, "Context wrap is not set"
     wok.context_wrap.extend(loop.strategy.ctx.original_context.end_messages)
+    wok.final_response = loop.strategy.ctx.final_response
 
 
 @Node(SuspendEnum.ADVANCE_COUNTER, False)
@@ -179,12 +180,15 @@ async def REACT_COUNTER(loop: AgentLoopState, ab: AbilityState):
         `SuspendEnum.ADVANCE_COUNTER` — intercepted after increment.
     """
     assert loop.strategy is not None
-    max_times: int = ab.config.function_config.agent_tool_call_limit + 1
-    if loop.called_count > max_times:
+    max_times: int = ab.config.function_config.agent_tool_call_limit
+    if loop.called_count >= max_times:
         await loop.strategy.on_limited()
-        raise BreakLoop(
-            f"Counter has reached the maximum limit of {max_times}, reset loop.called_count to 0 to continue"
-        )
+        if not getattr(loop.strategy, "budget_exhausted", False):
+            raise BreakLoop(
+                f"Counter has reached the maximum limit of {max_times},"
+                " reset loop.called_count to 0 to continue"
+            )
+        # Budget spent: wind down instead of breaking out.
     loop.called_count += 1
 
 
@@ -393,10 +397,12 @@ async def task_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
     detected and the give-up prompt injected.
     """
     assert loop.strategy is not None
-    max_times: int = ab.config.function_config.agent_tool_call_limit + 1
-    if loop.called_count > max_times:
+    max_times: int = ab.config.function_config.agent_tool_call_limit
+    if loop.called_count >= max_times:
         await loop.strategy.on_limited()
-        return False
+        if not getattr(loop.strategy, "budget_exhausted", False):
+            return False
+        # Budget spent: let the wind-down round run.
     if getattr(loop.strategy, "_suggested_stop", False):
         return False
     if loop.run_state is None:
@@ -427,10 +433,12 @@ async def iter_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
     rs = loop.run_state
     if rs is None:
         return False
-    max_times: int = ab.config.function_config.agent_tool_call_limit + 1
-    if loop.called_count > max_times:
+    max_times: int = ab.config.function_config.agent_tool_call_limit
+    if loop.called_count >= max_times:
         await loop.strategy.on_limited()
-        return False
+        if not getattr(loop.strategy, "budget_exhausted", False):
+            return False
+        # Budget spent: let the wind-down round run.
     if rs.stall_injected:
         return False
     if rs.step_started_ts is not None:

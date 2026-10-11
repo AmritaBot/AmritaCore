@@ -66,6 +66,18 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 
 完整细节：[进阶 → Step 循环](../advanced/step-loop.md)。
 
+## Agentic 调用路径
+
+策略不必把"要工具调用"和"要文本"拆成两次请求。当 preset 开启了原生思考**且**它的协议适配器实现了 [`agentic_call_api()`](../api-reference/classes/ModelAdapter.md#agentic_call_api) 时，内置 ReAct 策略会走 **agentic 路径**：每一轮都是一次请求，边生成边流出文本，并在末尾交出该轮的工具调用。
+
+有三点关键：
+
+- **每次请求都声明工具。** 工具定义随每一轮一起发送，包括产生终答的那一轮。历史里带着 `tool_calls`、而请求本身却不声明 `tools`，正是让 provider 要么拒绝该 payload、要么让模型把调用写成纯文本而不是结构化调用的原因。
+- **不返回工具调用的那一轮就是终答。** 它的内容已经流出去了，工作流会跳过那次独立的、不带工具的 completion。不会再发第二次请求来生成回复。
+- **`tool_choice` 保持 `auto`。** 原生思考的 provider 会拒绝强制值，因此 `required` 会在发送前被降级。
+
+当适配器不具备该能力，或思考关闭时，策略走传统路径：先用 `tools_caller()` 跑工具轮，再单独发一次 completion。这条组合会记录一条 warning，因为该路径上最后一次请求不携带工具定义。
+
 ## 其他内置策略
 
 | 策略                    | 类别       | 用途             |

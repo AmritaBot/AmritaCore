@@ -6,6 +6,7 @@ FunctionConfig 类定义 Agent 运行时的功能行为配置。
 
 - `use_minimal_context` (bool)：默认 `False`。是否使用最简上下文（即系统提示 + 用户最后一条消息）。禁用此选项会在 Agent 工作流执行期间使用消息列表中的所有上下文，可能消耗大量 Token；启用可有效减少 token 用量
 - `agent_tool_call_limit` (int)：默认 `10`。调用工具时的工具调用限制（必须 `>= 1`）
+- `agent_tool_refusal_rounds` (int)：默认 `2`。达到 `agent_tool_call_limit` 之后、本轮结束之前，还允许 Agent 继续索要工具的最大轮数（必须 `>= 1`）。这类轮次里的每个调用都会以拒绝型工具结果作答而不真正执行，模型仍可用已有信息作答
 - `validate_tool_arguments` (bool)：默认 `True`。是否在工具运行前，把模型产生的参数与工具的参 schema 做校验。校验失败会以 `ERR:` 工具结果回传给模型，让它自行纠正；关闭则原样传递参数
 - `agent_step_token_budget` (int)：默认 `-1`。内置 step 循环的每 Step prompt-token 预算（`<= 0` = 禁用，即不限）。当该 Step 累计 prompt token 达到预算时，迭代循环停止
 - `agent_middle_message` (bool)：默认 `True`。是否允许 Agent 在工具调用期间向用户发送中间消息

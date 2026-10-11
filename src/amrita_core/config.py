@@ -41,6 +41,14 @@ class FunctionConfig(BaseModel):
         ge=1,
         description="Tool call limit in calling tools.",
     )
+    agent_tool_refusal_rounds: int = Field(
+        default=2,
+        ge=1,
+        description="How many rounds the agent may keep asking for tools after "
+        "`agent_tool_call_limit` is reached before the turn is closed. Each such "
+        "round answers every requested call with a refusal tool result instead "
+        "of running it, so the model can still answer with what it has.",
+    )
     validate_tool_arguments: bool = Field(
         default=True,
         description="Whether to check the arguments the model produced against "

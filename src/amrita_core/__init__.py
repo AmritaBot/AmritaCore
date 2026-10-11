@@ -68,6 +68,7 @@ from .hook.event import (
 )
 from .hook.on import on_completion, on_event, on_precompletion
 from .libchat import (
+    agentic_call_completion,
     call_completion,
     get_last_response,
     text_generator,
@@ -164,6 +165,7 @@ __all__ = [
     "UniResponse",
     "UniResponseUsage",
     "adapters",
+    "agentic_call_completion",
     "call_completion",
     "create_agent",
     "debug_log",

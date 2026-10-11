@@ -25,7 +25,6 @@ from amrita_core.components.compaction import ContextCompactor
 from amrita_core.libchat import (
     call_completion,
     get_last_response,
-    tools_caller,
 )
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import (
@@ -878,16 +877,16 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
                 f" ahead of {len(others)} others"
             )
 
-        response_msg: UniResponse[None, list[ToolCall] | None] = await tools_caller(
+        response_msg: UniResponse[
+            None, list[ToolCall] | None
+        ] = await self._model_round(
             msg_list.unwrap(),
             tools,
-            tool_choice=self._resolve_tool_choice(
+            self._resolve_tool_choice(
                 "required"
                 if (config.llm.require_tools and not self._suggested_stop)
                 else "auto"
             ),
-            preset=self.preset,
-            usage=self.usage,
         )
 
         # Use template method for common execution flow
