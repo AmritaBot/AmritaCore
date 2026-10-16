@@ -105,7 +105,7 @@ logs: `Empty decomposition response (request_id=..., thinking_content=True)`.
 
 **Checklist**:
 
-- `function_config.agent_tool_call_limit` — hard cap per run
+- `function_config.agent_tool_call_limit` — tool-round budget per run (the loop winds down, it is not a hard cap)
 - `llm.context_strategy` + `llm.compaction_trigger_ratio` — `"compact"` folds
   long history into a summary instead of resending it, `"slide"` drops the
   oldest messages outright

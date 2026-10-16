@@ -117,7 +117,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     ## Class Attributes
 
     - `agent_last_step`: Tracks the last reasoning step or action taken
-    - `call_count`: Counter for tool call iterations
+    - `call_count`: Executed tool calls plus one; not the round budget counter
     - `tools`: List of available tools for the agent
     - `origin_msg`: Original user message content
     - `origin_instruction`: System instruction from training context
