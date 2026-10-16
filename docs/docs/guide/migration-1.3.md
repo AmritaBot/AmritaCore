@@ -1,7 +1,7 @@
 # Migration Guide: 1.2 → 1.3
 
-AmritaCore 1.3 changes **how an agent turn ends**. The tool-round budget is now
-exact, the loop winds down instead of being cut off, and a native-thinking run
+AmritaCore 1.3 changes **how an agent turn ends**. The tool-round budget now
+counts rounds rather than tool calls, the loop winds down instead of being cut off, and a native-thinking run
 no longer finishes with a second request that declares no tools. The checklist at
 the end lists what to re-check in your own code.
 
@@ -19,7 +19,8 @@ the end lists what to re-check in your own code.
 
 `agent_tool_call_limit` used to allow two more rounds than its name said: the
 guard compared `called_count > limit + 1`. It is now `called_count >= limit`, so
-a limit of `10` means ten tool rounds.
+a limit of `10` means ten budgeted tool rounds; wind-down and refusal rounds come
+on top of that, and a run that finishes early spends fewer.
 
 The step loop's `task_cond` and `iter_cond` use the same arithmetic, so both
 workflows agree.

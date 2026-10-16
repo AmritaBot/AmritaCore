@@ -90,7 +90,7 @@ passed back"，非偶发——assistant 一旦产出推理，后续每次请求�
 
 **检查清单**：
 
-- `function_config.agent_tool_call_limit` —— 每次运行的硬上限
+- `function_config.agent_tool_call_limit` —— 每次运行的工具轮次预算（用尽后进入收尾，不是硬性中止）
 - `llm.context_strategy` + `llm.compaction_trigger_ratio` —— `"compact"` 把长历史
   折叠成摘要而不是反复重发，`"slide"` 则直接丢弃最旧的消息
 - 历史管理触发线 —— token 触发在 provider 上报的 prompt 达到

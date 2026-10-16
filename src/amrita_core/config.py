@@ -39,7 +39,15 @@ class FunctionConfig(BaseModel):
     agent_tool_call_limit: int = Field(
         default=10,
         ge=1,
-        description="Tool call limit in calling tools.",
+        description="Tool-calling round budget for one run. A round is one model "
+        "response that may request tools, so a round asking for three tools "
+        "spends one unit, and a run may finish before the budget is spent. When "
+        "the budget is spent the built-in strategies wind down instead of "
+        "stopping mid-call, which lets the model still answer with what it has; "
+        "`agent_tool_refusal_rounds` bounds that wind-down. A custom strategy "
+        "that overrides `on_limited()` must call `super()` or set "
+        "`_budget_exhausted` itself, otherwise the run breaks without a "
+        "wind-down.",
     )
     agent_tool_refusal_rounds: int = Field(
         default=2,
