@@ -53,11 +53,14 @@ from amrita_core.config import AmritaConfig
 config = AmritaConfig()
 config.llm.context_strategy = "compact"  # "compact" | "slide" | "none"
 config.llm.compaction_trigger_ratio = 0.9  # 窗口用到 90% 时动手
+config.llm.slide_target_ratio = 0.7  # slide 裁剪到的位置
 await minimal_init(config)
 ```
 
 `"compact"` 把最旧的轮次折叠成 LLM 摘要，要点得以保留，代价是每次裁剪多一次
-调用；`"slide"` 直接丢弃它们——更便宜，但丢掉的轮次彻底消失。
+调用；`"slide"` 按加权 token 估算丢弃最旧的消息——不额外调用、尾部原样保留，
+但丢掉的轮次彻底消失；`"none"` 让历史无限增长，等 provider 在超出窗口时直接
+拒绝请求。
 
 两种策略都在两条触发线中先到者触发：
 
@@ -66,13 +69,31 @@ await minimal_init(config)
 - **消息条数兜底**：历史达到 `llm.memory_length_limit`（默认 200）
 
 `"compact"` 下摘要存放在 `memory.abstract`，由模板渲染进系统指令，因此被折叠
-的轮次完全离开消息列表。（内置 step 策略还会执行 Step 间历史管理——见
-[Step 循环](../advanced/step-loop.md)。）
+的轮次完全离开消息列表。`"slide"` 下不渲染任何东西——存活下来的尾部原样发出去。
+（内置 step 策略还会执行 Step 间历史管理——见[Step 循环](../advanced/step-loop.md)。）
 
-经验换算：一条消息约 300 tokens，64k 窗口约对应 200 条消息。只有当所有
-provider 都会上报 usage 时，才将 `memory_length_limit` 设为 `0`。
+## 4. 容易踩的地方
 
-## 4. 刚才发生了什么
+- **`slide_target_ratio` 必须严格低于 `compaction_trigger_ratio`。** 触发线决定
+  何时裁剪，目标值决定裁到哪。如果目标值等于或高于触发线，裁完的历史又落回
+  触发线上，于是每次请求都再 slide 一次，白白丢轮次。配置在加载时就会拒绝这
+  一对数值——会话每轮都在缩水，就是要找的症状。
+- **token 触发完全依赖 provider 的 usage 上报。** 它读的是 provider 为*上一次*
+  请求返回的数字，网关什么都不报，这条线就一直哑着。此时消息条数兜底是唯一
+  的网：只有当所有在用的 provider 都上报 usage，才把 `memory_length_limit`
+  设为 `0`。
+- **切点不能把 tool call 变成孤儿。** 历史是一串 `tool_calls` / `tool` 配对，
+  按任意下标切开就会留下一个找不到对应调用的 tool 消息，provider 会回
+  `insufficient tool messages following tool_calls message`。内置 slide 挑的是
+  安全切点而不是原始下标，并且在一整段都是孤儿时退化为保留尾部。如果你自己裁
+  历史（自定义后端、自定义策略），这份账得你自己算。
+- **`enable_overflow_recovery` 是兜底而不是方案。** provider 因超出窗口拒绝请求
+  时，AmritaCore 按 `context_strategy` 收缩历史并重试一次。`"none"` 下该项被
+  忽略，因为它从不重写历史。
+
+经验换算：一条消息约 300 tokens，64k 窗口约对应 200 条消息。
+
+## 5. 刚才发生了什么
 
 - `session_id` 是一次对话的**唯一标识符**——只负责命名
 - **数据后端**决定历史存在哪里、能存活多久

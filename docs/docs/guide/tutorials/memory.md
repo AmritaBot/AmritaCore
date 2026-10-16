@@ -57,12 +57,15 @@ from amrita_core.config import AmritaConfig
 config = AmritaConfig()
 config.llm.context_strategy = "compact"  # "compact" | "slide" | "none"
 config.llm.compaction_trigger_ratio = 0.9  # act once 90% of the window is in use
+config.llm.slide_target_ratio = 0.7  # slide trims down to here
 await minimal_init(config)
 ```
 
 `"compact"` folds the oldest turns into an LLM summary, which survives as a
-gist at the cost of one extra call per trim. `"slide"` drops them outright —
-cheaper, but the dropped turns are gone for good.
+gist at the cost of one extra call per trim. `"slide"` drops the oldest messages
+by weighted token estimate — no extra call and the tail stays verbatim, but the
+dropped turns are gone for good. `"none"` leaves history unbounded and lets the
+provider reject the request once the window is exceeded.
 
 Either policy fires on whichever of two triggers comes first:
 
@@ -73,14 +76,39 @@ Either policy fires on whichever of two triggers comes first:
 
 Under `"compact"` the summary is stored on `memory.abstract` and rendered into
 the system instruction, so the folded turns leave the message list entirely.
+Under `"slide"` nothing is rendered — the surviving tail is sent as it is.
 (The built-in step strategy additionally performs between-Step history
 management — see [Step Loop](../advanced/step-loop.md).)
 
-Rule of thumb: ~300 tokens per message, so a 64k window pairs with ~200
-messages. Set `memory_length_limit` to `0` only if every provider you use
-reports usage.
+## 4. Where This Bites
 
-## 4. What Just Happened
+- **Keep `slide_target_ratio` strictly below `compaction_trigger_ratio`.** The
+  trigger decides when to trim, the target decides how far. If the target sits
+  at or above the trigger, the trimmed history lands right back on the trigger
+  and every request slides again, dropping turns for nothing. The config
+  rejects that pair at load time — a session that keeps shrinking every turn is
+  the symptom to look for.
+- **The token trigger is only as good as the provider's usage report.** It reads
+  the number the provider sent back for the _previous_ request, so a gateway
+  that reports nothing leaves the trigger silent. The message-count fallback is
+  then your only net: set `memory_length_limit` to `0` only if every provider
+  you use reports usage.
+- **A cut must not orphan a tool call.** History is a sequence of
+  `tool_calls` / `tool` pairs, and slicing it at an arbitrary index strands a
+  tool message whose call is gone — the provider answers
+  `insufficient tool messages following tool_calls message`. The built-in slide
+  picks a safe cut point instead of a raw index, and keeps the tail when every
+  turn would be an orphan. Trim history yourself — a custom backend, a custom
+  strategy — and that bookkeeping is on you.
+- **`enable_overflow_recovery` is a fallback, not a plan.** When the provider
+  rejects a request for exceeding the window, AmritaCore shrinks the history
+  along `context_strategy` and retries once. It is ignored under `"none"`,
+  which never rewrites history.
+
+Rule of thumb: ~300 tokens per message, so a 64k window pairs with ~200
+messages.
+
+## 5. What Just Happened
 
 - `session_id` is a **unique identifier** for a conversation — naming only
 - The **data backend** decides where history lives and what survives
