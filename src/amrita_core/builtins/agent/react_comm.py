@@ -836,7 +836,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             return False
 
         logger.info(
-            "Starting tool round; tool calls executed so far: "
+            "Starting tool round; completed tool-call batches so far: "
             f"{self.call_count - 1}, current message count: {len(msg_list)}"
         )
         if (

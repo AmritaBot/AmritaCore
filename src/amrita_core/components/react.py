@@ -163,10 +163,12 @@ async def REACT_COUNTER(loop: AgentLoopState, ab: AbilityState):
     ```
 
     `max_times` is a round budget: `called_count` advances once per strategy
-    round, so a run gets exactly `agent_tool_call_limit` rounds. On the round
-    that reaches the budget, `on_limited()` marks the budget exhausted and the
-    loop continues so the model can answer with what it has; `BreakLoop` is
-    only raised for strategies that do not implement that wind-down.
+    round, and a run may finish before the budget is spent. On the round that
+    reaches the budget, `on_limited()` marks the budget exhausted and the loop
+    continues so the model can answer with what it has; those wind-down rounds,
+    and the refusal rounds `agent_tool_refusal_rounds` allows, are extra
+    model-response rounds on top of the budget. `BreakLoop` is raised instead
+    when a strategy does not implement that wind-down.
 
     Context Dependencies:
         * AgentLoopState — reads/writes `called_count`; needs strategy.
@@ -395,9 +397,10 @@ def STEP_SLOT(phase: "Phase"):
 async def task_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
     """Task-loop condition (single ``Node[bool]``).
 
-    Stops when the round budget is spent, the strategy suggests stop,
-    the strategy finished calling tools (``exec_finished``), or a stall was
-    detected and the give-up prompt injected.
+    Stops when the round budget is spent and the strategy declines the
+    wind-down, the strategy suggests stop, the strategy finished calling tools
+    (``exec_finished``), or a stall was detected and the give-up prompt
+    injected.
     """
     assert loop.strategy is not None
     max_times: int = ab.config.function_config.agent_tool_call_limit
@@ -428,9 +431,10 @@ async def iter_cond(loop: AgentLoopState, ab: AbilityState) -> bool:
     exhausted, the strategy has not finished calling tools and has not
     suggested stopping.
 
-    Hard stop: the round budget (``agent_tool_call_limit``) is enforced
-    here as well — the inner iteration loop must never run more rounds than
-    configured, regardless of what the strategy decides.
+    Hard stop: the round budget (``agent_tool_call_limit``) is enforced here as
+    well — once the budget is spent, the inner iteration loop only continues for
+    the wind-down the strategy opted into, regardless of what the strategy would
+    otherwise decide.
     """
     assert loop.strategy is not None
     rs = loop.run_state
