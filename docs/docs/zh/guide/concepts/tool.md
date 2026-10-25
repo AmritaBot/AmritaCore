@@ -18,7 +18,8 @@
 | `@on_tools(schema)`                  | 显式 `FunctionDefinitionSchema` | 全局（模块加载） |
 | `ToolsManager` / `MultiToolsManager` | 手动                            | 每会话、运行时   |
 
-handler 接收已解析的参数 `dict` 并返回 `str`（模型看到的结果）。
+handler 接收已解析的参数 `dict` 并返回 `str`——需要携带图片时改返回内容块列表
+（模型看到的结果）。见[多模态工具结果](#多模态工具结果)。
 
 ## Schema 与校验
 
@@ -126,6 +127,66 @@ flowchart LR
 内置工具与 MCP 工具始终按不安全处理：前者直接改写消息列表或输出流，后者的 schema
 里没有可信的读写提示。标错方向的代价是不必要的串行，而不是竞态——分类器抛错、返回
 非字面 `True`、参数无法解析、工具未注册或已禁用，都会落到不安全一侧。
+
+## 多模态工具结果
+
+handler 可以返回内容块而非字符串，于是工具能在文本之外交给模型一张图——截图、
+渲染出的图表等。返回类型是 `TOOL_RESULT_CONTENT`：`str` 或 `list[Content]`。
+
+```python
+from amrita_core import simple_tool
+from amrita_core.types import Content, ImageContent, ImageUrl, TextContent
+
+
+@simple_tool
+async def screenshot(url: str) -> list[Content]:
+    """Render a page and return it as an image.
+
+    Args:
+        url (str): page to capture
+    """
+    png = await capture(url)  # 你自己的实现
+    return [
+        TextContent(text=f"captured {url}"),
+        ImageContent(image_url=ImageUrl(url=f"data:image/png;base64,{png}")),
+    ]
+```
+
+`simple_tool` 会把 `list[Content]` 原样透传。其余返回值仍会被 JSON 编码成字符串，
+因此已有工具不受影响。
+
+`ToolResult.content` 原样保存这个列表，`.text` 给出纯文本视图——非文本块折算成
+`<image>` / `<file:name>` 占位：
+
+```python
+result = ToolResult(
+    role="tool", name="screenshot", content=blocks, tool_call_id=call.id
+)
+result.text  # "captured https://...<image>"
+```
+
+日志、`ERR:` 判错与历史压缩读的都是这个文本视图；内容块本身只在请求里离开进程。
+需要纯文本形态时用 `content_text()` 或 `result.text`，不要自己去翻那个列表。
+
+### 并非每个适配器都能携带每种块
+
+一个块能否发出去是**协议**的属性，不是模型的属性，因此由适配器在 `features`
+（`FeatureFlag`）里声明：
+
+| 字段                     | 含义                                       |
+| ------------------------ | ------------------------------------------ |
+| `input_multimodal`       | 非文本块可否出现在 `user` / `system` 内容里 |
+| `tool_result_multimodal` | 非文本块可否出现在 `tool` 消息内容里        |
+
+`anthropic` 两项都为真：它的 `tool_result` 块原生接收内容数组。
+`openai` 的 `tool_result_multimodal` 为 `False`，因为 Chat Completions 的 `tool`
+消息只承载文本——那里的图片得另发一条 `user` 消息，框架不会代劳。
+
+网关在每次请求前读这些标记。发不出去的块会在消息的**副本**上换成文本说明
+——`<image omitted: the current adapter cannot carry it>`——并按协议各记一条
+warning。存储侧的历史保持原样，因此后续回退到更强的适配器时，原始块还在。
+
+preset 回退时每次尝试都会重新协商，因为替换后的 preset 可能说的是另一种协议。
 
 ## 进阶：`custom_run` 与 `ToolContext`
 
