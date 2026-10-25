@@ -102,6 +102,51 @@ when you are sure the tool never rewrites the parent session, shared files, or
 other state that concurrent calls can observe — a wrong call here costs a race,
 not just speed.
 
+## Returning Images from a Tool
+
+`custom_run` handlers may return blocks too, which is how a tool streams progress
+and hands back a rendered result in the same call:
+
+```python
+from amrita_core.types import Content, ImageContent, ImageUrl, TextContent
+
+
+async def render_chart(tool_ctx: ToolContext) -> list[Content]:
+    await tool_ctx.ctx.io_stream.yield_response("Rendering...")
+    png = await chart(tool_ctx.data["query"])
+    return [
+        TextContent(text="chart ready"),
+        ImageContent(image_url=ImageUrl(url=png)),
+    ]
+```
+
+Both handler shapes accept `TOOL_RESULT_CONTENT` (`str | list[Content]`). A
+`list[Content]` is passed through; anything else is JSON-encoded into a string,
+so a handler returning a `dict` or a number behaves exactly as before.
+
+Returning `None` from a `custom_run` handler still yields
+`"(this tool returned no content)"`.
+
+Two rules worth knowing:
+
+- **The protocol decides, not you.** Whether the image actually reaches the model
+  depends on the adapter's `features.tool_result_multimodal`. On an adapter
+  without it, the gateway replaces the block with a text notice on the outgoing
+  copy — your stored history keeps the original block, so nothing is lost if a
+  fallback later reaches a stronger protocol.
+- **Keep a text part.** Include a `TextContent` with what the image shows. The
+  text view (`content_text()` / `ToolResult.text`) is what logs, the `ERR:`
+  check and history compaction see; a result that is nothing but an image
+  collapses to `<image>` there, which is useless to all three.
+
+### Text-only adapters
+
+Chat Completions cannot carry an image inside a `tool` message — that is why
+`openai` declares `tool_result_multimodal=False`. If your deployment is
+OpenAI-only and the image matters, do not rely on the gateway: send it yourself
+as a follow-up `user` message, or have the tool return a URL that the next turn
+fetches.
+
 ## Validation Constraints
 
 `FunctionPropertySchema` supports the full JSON Schema constraint set:
