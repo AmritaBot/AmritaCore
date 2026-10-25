@@ -14,6 +14,7 @@ from amrita_core.tools.manager import MultiToolsManager
 from amrita_core.tools.models import ToolContext
 from amrita_core.tools.schema import validate_arguments
 from amrita_core.types import Message, ToolCall
+from amrita_core.types.tool import TOOL_RESULT_CONTENT
 
 if TYPE_CHECKING:
     from amrita_sense.streaming import SuspendObjectStream
@@ -171,7 +172,7 @@ class _StrategyBase(ABC):
         """
         raise NotImplementedError
 
-    async def call_tool(self, tool_call: ToolCall) -> str:
+    async def call_tool(self, tool_call: ToolCall) -> TOOL_RESULT_CONTENT:
         """Execute a single tool call without modifying the agent's context.
 
         This is a one-step tool execution that processes the given tool call
@@ -186,7 +187,9 @@ class _StrategyBase(ABC):
             RuntimeError: If the requested tool is not found in the tools manager
 
         Returns:
-            str: The string response from the tool execution, or a default message if the tool returns None
+            The tool's response: plain text, or a content-block list when the tool
+            returns multimodal output. A default message is returned when the
+            tool yields ``None``.
         """
         function_name = tool_call.function.name
         function_args: dict[str, Any] = json.loads(tool_call.function.arguments)
@@ -196,13 +199,13 @@ class _StrategyBase(ABC):
                     tool_data.data.function.parameters, function_args
                 )
             if not tool_data.custom_run:
-                func_response: str | None = await typing.cast(
-                    Callable[[dict[str, Any]], Awaitable[str]],
+                func_response: TOOL_RESULT_CONTENT | None = await typing.cast(
+                    Callable[[dict[str, Any]], Awaitable[TOOL_RESULT_CONTENT]],
                     tool_data.func,
                 )(function_args)
             elif (
                 func_response := await typing.cast(
-                    Callable[[ToolContext], Awaitable[str | None]],
+                    Callable[[ToolContext], Awaitable[TOOL_RESULT_CONTENT | None]],
                     tool_data.func,
                 )(
                     ToolContext(

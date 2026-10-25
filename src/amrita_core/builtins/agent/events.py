@@ -23,6 +23,8 @@ from typing import TYPE_CHECKING
 
 from amrita_sense.hook.event import ConstructableEvent
 
+from amrita_core.types.tool import TOOL_RESULT_CONTENT
+
 if TYPE_CHECKING:
     from amrita_core.builtins.agent.state import AgentRunState
 
@@ -191,7 +193,8 @@ class StepToolReturnEvent(ConstructableEvent):
     phase: str | None
     tool_name: str
     tool_id: str
-    result: str = ""
+    #: 工具返回内容：纯文本，或内容块列表（多模态工具）
+    result: TOOL_RESULT_CONTENT = ""
     # Mutable: handlers may set this to skip writing the result back.
     skip_append: bool = False
 
@@ -208,7 +211,7 @@ class StepToolReturnEvent(ConstructableEvent):
         rs: "AgentRunState",
         tool_name: str,
         tool_id: str,
-        result: str,
+        result: TOOL_RESULT_CONTENT,
     ) -> "StepToolReturnEvent":
         """Build the event from the run state and tool result (abstract ``constructor``)."""
         return cls(
