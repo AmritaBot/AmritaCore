@@ -9,7 +9,7 @@ from pydantic import ConfigDict, Field, model_validator
 from typing_extensions import Self
 
 from amrita_core.types.base import BaseModel
-from amrita_core.types.content import CT_MAP, USER_INPUT
+from amrita_core.types.content import USER_INPUT, coerce_content
 from amrita_core.types.tool import ToolCall, ToolResult
 
 if TYPE_CHECKING:
@@ -41,24 +41,7 @@ class Message(BaseModel, Generic[_T]):
     def validate_content(cls, data: Any) -> Any:
         """Validate and properly deserialize content based on its structure."""
         if isinstance(data, dict) and "content" in data:
-            content = data["content"]
-            if isinstance(content, list):
-                validated_content = []
-                for item in content:
-                    if isinstance(item, dict):
-                        if "type" not in item:
-                            raise ValueError("Content item is missing 'type' field")
-                        content_type = item["type"]
-                        if content_type in CT_MAP:
-                            validated_item = CT_MAP[content_type].model_validate(item)
-                            validated_content.append(validated_item)
-                        else:
-                            raise ValueError(
-                                f"Unknown content type: `{content_type}`, please register it by calling `register_content` first."
-                            )
-                    else:
-                        validated_content.append(item)
-                data["content"] = validated_content
+            data["content"] = coerce_content(data["content"])
         return data
 
     @model_validator(mode="after")
