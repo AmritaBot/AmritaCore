@@ -45,11 +45,56 @@ class ModelAdapter:
 - **Description**: Whether to allow overriding existing adapters with the same protocol. Set to `True` to replace an already registered adapter.
 - **Default**: `False`
 
+### `features`
+
+- **Type**: [`FeatureFlag`](#featureflag)
+- **Description**: What this adapter can put on the wire. Declared as a `ClassVar`, so it is a capability flag on the class rather than a dataclass field on each instance. The gateway reads it before every request to decide whether a payload can go out as-is.
+- **Default**: `FeatureFlag()` — every flag off
+
 ### `supports_agentic_call`
 
+> **Deprecated since 1.4.** Read `features.agentic_call` instead. The field still
+> works: an adapter that declares only `supports_agentic_call` has it translated
+> into `features` at class creation, and the old attribute is kept in sync with
+> the new one so third-party readers never see a stale value.
+
 - **Type**: `bool`
-- **Description**: Whether this adapter implements [`agentic_call_api()`](#agentic_call_api). Declared as a `ClassVar`, so it is a capability flag on the class rather than a dataclass field on each instance. Adapters that can stream text and tool calls out of one request set it to `True`.
+- **Description**: Whether this adapter implements [`agentic_call_api()`](#agentic_call_api). Adapters that can stream text and tool calls out of one request set it to `True`.
 - **Default**: `False`
+
+## FeatureFlag
+
+A frozen dataclass describing **wire-level** capability: whether a kind of
+content may appear in a request sent to this protocol. It deliberately says
+nothing about what the model understands — that cannot be determined reliably,
+while the wire format can.
+
+```python
+from amrita_core.base.adapter import FeatureFlag, ModelAdapter
+
+
+class MyAdapter(ModelAdapter):
+    features = FeatureFlag(
+        agentic_call=True,
+        input_multimodal=True,
+        tool_result_multimodal=False,
+    )
+```
+
+| Field                    | Meaning                                                       |
+| ------------------------ | ------------------------------------------------------------- |
+| `agentic_call`           | implements `agentic_call_api()` (text + tool calls, one request) |
+| `input_multimodal`       | non-text blocks allowed in `user` / `system` content           |
+| `tool_result_multimodal` | non-text blocks allowed in `tool` message content              |
+
+Assign the **whole object** on a subclass; the dataclass is frozen, so mutating
+a field is not possible anyway.
+
+What the gateway does with it: a non-text block that the target protocol cannot
+carry is replaced by a text notice on a copy of the message
+(`<image omitted: the current adapter cannot carry it>`), leaving stored history
+untouched. The notice uses the same labels as `ToolResult.text`. One warning per
+(protocol, payload kind) is logged.
 
 ## Methods
 
@@ -135,7 +180,14 @@ Call the model once and get back both streamed text and structured tool calls.
 
 [`call_api()`](#call_api) streams text only, and [`call_tools()`](#call_tools) returns tool calls without streaming, so neither can drive an agent loop that has to show output while still accepting another tool round. This method does both in a single request: text deltas are yielded as they arrive, and the trailing `UniResponse` carries the assembled `tool_calls`. An empty `tool_calls` means the model produced the final answer instead of another tool round.
 
-This is an **optional capability**. The base implementation raises `NotImplementedError` and callers fall back to the legacy `call_api()` + `call_tools()` pair. An adapter that implements it must also set `supports_agentic_call = True`.
+This is an **optional capability**. The base implementation raises `NotImplementedError` and callers fall back to the legacy `call_api()` + `call_tools()` pair. An adapter that implements it must also declare it in `features`:
+
+```python
+features = FeatureFlag(agentic_call=True, ...)
+```
+
+`supports_agentic_call = True` still works (it is translated at class creation),
+but it is deprecated since 1.4.
 
 **Parameters**:
 
