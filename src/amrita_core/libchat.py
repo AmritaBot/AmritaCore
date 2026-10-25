@@ -13,6 +13,7 @@ from amrita_core.base.adapter import (
     AGENTIC_RETURNING,
     COMPLETION_RETURNING,
     AdapterManager,
+    FeatureFlag,
     MessageContent,
     ModelAdapter,
 )
@@ -32,18 +33,98 @@ from .config import AmritaConfig, get_config
 from .tools.models import ToolChoice, ToolFunctionSchema
 from .types import (
     CONTENT_LIST_TYPE,
+    Content,
     EmbeddingChunk,
     Message,
     ModelPreset,
+    TextContent,
     ThinkingConfig,
     ToolCall,
     ToolResult,
     UniResponse,
 )
+from .types.tool import block_label
 
 T = typing.TypeVar("T")
 
 RESPONSE_TYPE: typing.TypeAlias = str | MessageContent
+
+#  已经告警过的降级原因，避免同一原因在每轮请求里刷屏
+_DEGRADE_WARNED: set[tuple[str, str]] = set()
+#  非文本块被降级后留下的说明：让模型知道自己少看到了东西，而不是凭空编
+_DEGRADED_BLOCK_NOTE = "<{kind} omitted: the current adapter cannot carry it>"
+
+
+def _warn_degrade_once(protocol: str, kind: str) -> None:
+    """按 (协议, 载荷种类) 去重地提示一次降级。"""
+    key = (protocol, kind)
+    if key in _DEGRADE_WARNED:
+        return
+    _DEGRADE_WARNED.add(key)
+    logger.warning(
+        f"Adapter `{protocol}` declares no {kind} support; non-text blocks in this"
+        " turn are replaced with a text placeholder in the outgoing payload."
+        " The stored history is left untouched."
+    )
+
+
+def _degrade_blocks(content: list[Content]) -> list[Content]:
+    """把非文本块换成文本说明；文本块原样保留。
+
+    标签走 :func:`block_label`，与 :func:`content_text` 保持同一套叫法——模型在这
+    一轮读到 ``<image omitted…>``、下一轮读到 ``<image_url omitted…>``，会把同一张
+    图当成两种东西。
+    """
+    degraded: list[Content] = []
+    for block in content:
+        if isinstance(block, TextContent):
+            degraded.append(block)
+        else:
+            degraded.append(
+                TextContent(text=_DEGRADED_BLOCK_NOTE.format(kind=block_label(block)))
+            )
+    return degraded
+
+
+def _prepare_payload(
+    messages: CONTENT_LIST_TYPE, preset: ModelPreset
+) -> CONTENT_LIST_TYPE:
+    """按目标适配器的能力声明整理出这一轮要发出去的载荷。
+
+    网关是适配器的直接消费者，能力协商只发生在这里；策略层与存储层始终只处理标准
+    数据模型。降级作用在副本上：``MemoryModel`` 里的历史保持原样，否则同一份历史
+    回退到更强的适配器时，被裁掉的图片就永久丢了。
+    """
+    adapter_cls = AdapterManager().safe_get_adapter(preset.protocol)
+    features = adapter_cls.features if adapter_cls else FeatureFlag()
+    if features.input_multimodal and features.tool_result_multimodal:
+        return messages
+
+    prepared: CONTENT_LIST_TYPE = []
+    for item in messages:
+        is_tool_result = isinstance(item, ToolResult)
+        supported = (
+            features.tool_result_multimodal
+            if is_tool_result
+            else features.input_multimodal
+        )
+        if supported or not isinstance(item.content, list):
+            prepared.append(item)
+            continue
+        needs_degrade = any(
+            not isinstance(block, TextContent) for block in item.content
+        )
+        if not needs_degrade:
+            prepared.append(item)
+            continue
+        _warn_degrade_once(
+            preset.protocol,
+            "tool_result_multimodal" if is_tool_result else "input_multimodal",
+        )
+        prepared.append(
+            item.model_copy(update={"content": _degrade_blocks(item.content)})
+        )
+    return prepared
 
 
 def text_generator(
@@ -387,12 +468,16 @@ async def tools_caller(
     async def _attempt(
         current_preset: ModelPreset,
     ) -> UniResponse[None, list[ToolCall] | None]:
-        _validate_msg_list(messages, thinking_config=current_preset.thinking_config)
+        validated = _validate_msg_list(
+            messages, thinking_config=current_preset.thinking_config
+        )
+        #  每轮 attempt 都要重新协商：回退会换 preset，而不同 preset 的协议可能不同
+        payload = _prepare_payload(validated, current_preset)
 
         async def _call_tools(
             adapter: ModelAdapter,
         ):
-            return await adapter.call_tools(messages, tools, tool_choice)
+            return await adapter.call_tools(payload, tools, tool_choice)
 
         resp = await _call_with_reflection(current_preset, _call_tools, config)
         if usage is not None and resp.usage is not None:
@@ -441,6 +526,7 @@ async def call_completion(
         validated = _validate_msg_list(
             messages, thinking_config=current_preset.thinking_config
         )
+        payload = _prepare_payload(validated, current_preset)
 
         async def _call_api(
             adapter: ModelAdapter,
@@ -456,7 +542,7 @@ async def call_completion(
                     f"Model adapter {adapter.get_type()} does not support text-gen"
                 )
             return lambda: adapter.call_api(
-                [(i.model_dump()) for i in validated], **kwargs
+                [(i.model_dump()) for i in payload], **kwargs
             )
 
         # Call adapter to get chat response
@@ -527,7 +613,7 @@ async def agentic_call_completion(
     Same contract as :func:`call_completion` (preset fallback, usage
     accounting, thinking-content filtering), except the trailing
     ``UniResponse`` may also carry ``tool_calls`` and text keeps streaming while
-    they are assembled. Adapters without ``supports_agentic_call`` fail fast
+    they are assembled. Adapters whose ``features.agentic_call`` is unset fail fast
     with ``NotImplementedError`` before any request is sent, so callers can fall
     back to the legacy tool-calling path.
 
@@ -552,6 +638,7 @@ async def agentic_call_completion(
         validated = _validate_msg_list(
             messages, thinking_config=current_preset.thinking_config
         )
+        payload = _prepare_payload(validated, current_preset)
 
         async def _call_api(
             adapter: ModelAdapter,
@@ -559,7 +646,7 @@ async def agentic_call_completion(
             [],
             AsyncGenerator[AGENTIC_RETURNING, typing.Any],
         ]:
-            if not adapter.supports_agentic_call:
+            if not adapter.features.agentic_call:
                 raise NotImplementedError(
                     f"Model adapter {adapter.get_type()} does not support"
                     " agentic_call_api"
@@ -572,7 +659,7 @@ async def agentic_call_completion(
                     f"Model adapter {adapter.get_type()} does not support text-gen"
                 )
             return lambda: adapter.agentic_call_api(
-                [(i.model_dump()) for i in validated],
+                [(i.model_dump()) for i in payload],
                 tools=tools,
                 tool_choice=tool_choice,
                 **kwargs,
