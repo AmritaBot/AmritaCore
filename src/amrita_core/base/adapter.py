@@ -43,6 +43,31 @@ ADAPTER_TYPE = Literal[
 ]
 
 
+@dataclass(frozen=True, slots=True)
+class FeatureFlag:
+    """适配器出口能力的静态声明。
+
+    读点集中在网关层：网关是所有适配器的直接消费者，由它决定这一轮请求的载荷能
+    不能原样发出去。框架层（策略、上下文、存储）不读这些标记——它只处理标准数据
+    模型，不该知道哪家协议支持什么。
+
+    语义是 **wire 级别**的：字段描述的是「这类内容能否出现在发给该协议的请求里」，
+    而不是「该模型能否理解这类内容」。后者无法可靠判定，前者可以。
+    """
+
+    agentic_call: bool = field(default=False)
+    """是否实现 ``agentic_call_api``（同一请求里流式产出文本与工具调用）。"""
+
+    input_multimodal: bool = field(default=False)
+    """非文本块能否出现在 ``user`` / ``system`` 消息的内容里。"""
+
+    tool_result_multimodal: bool = field(default=False)
+    """非文本块能否出现在 ``tool`` 消息（工具返回值）的内容里。"""
+
+
+_DEFAULT_FEATURES = FeatureFlag()
+
+
 @dataclass
 class ModelAdapter:
     """Base class for model adapter"""
@@ -50,15 +75,35 @@ class ModelAdapter:
     preset: ModelPreset
     config: AmritaConfig = field(default_factory=get_config)
     __override__: bool = False  # Whether to allow overriding existing adapters
-    # Whether this adapter implements ``agentic_call_api`` (streaming text + tool calls).
+    # 适配器出口能力声明。子类覆盖整个对象，而不是就地改字段——`FeatureFlag`
+    # 是 frozen 的，改字段本身就不允许。
+    features: ClassVar[FeatureFlag] = _DEFAULT_FEATURES
+    # 兼容旧字段：子类若只声明了它，`__init_subclass__` 会搬进 `features`。
     supports_agentic_call: ClassVar[bool] = False
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
+        cls._sync_legacy_features()
         if not getattr(cls, "__abstract__", False) and not getattr(
             cls, "__no_register__", False
         ):
             AdapterManager().register_adapter(cls)
+
+    @classmethod
+    def _sync_legacy_features(cls) -> None:
+        """把旧式 ``supports_agentic_call`` 翻译进 :attr:`features`。
+
+        第三方适配器只写了旧字段的情况必须继续生效，否则 ``agentic_call_api``
+        会静默不再被调用，而症状只是一个「怎么没走流式」的疑问，极难定位。
+        """
+        if "features" in cls.__dict__:
+            # 显式声明了新标记，以它为准；旧字段跟着同步，外部读取方不会读到过期值
+            cls.supports_agentic_call = cls.features.agentic_call
+            return
+        legacy = cls.__dict__.get("supports_agentic_call")
+        if legacy is None:
+            return
+        cls.features = FeatureFlag(agentic_call=bool(legacy))
 
     async def call_api(
         self, messages: Iterable, **kwargs
