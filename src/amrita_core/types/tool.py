@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import typing
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, SerializeAsAny, model_validator
 
 from amrita_core.types.base import BaseModel
+from amrita_core.types.content import (
+    Content,
+    FileContent,
+    TextContent,
+    coerce_content,
+)
 
 
 class Function(BaseModel):
@@ -31,8 +38,64 @@ class ToolCall(BaseModel):
     """The type of the tool. Currently, only `function` is supported."""
 
 
+TOOL_RESULT_CONTENT = str | SerializeAsAny[list[Content]]
+"""工具返回内容的形状：纯文本，或内容块列表（可含图片等非文本块）。"""
+
+#  非文本块在纯文本视图里的占位：日志、判错前缀摘要压缩都只关心文本
+_BLOCK_PLACEHOLDER = "<{label}>"
+
+#  内部 ``type`` 与对外标签不一致的块；未列出的直接沿用 ``type``
+_BLOCK_LABELS: dict[str, str] = {"image_url": "image"}
+
+
+def block_label(block: Content) -> str:
+    """内容块的短标签，供纯文本视图与降级说明共用。
+
+    降级说明与 :func:`content_text` 必须产出同一套标签：否则模型会在一轮里看到
+    ``<image>``、在另一轮里看到 ``<image_url>``，把同一个被省略的图片当成两种东西。
+    """
+    label: str = _BLOCK_LABELS.get(block.type, block.type) or str(block.type)
+    if isinstance(block, FileContent):
+        name = block.file.filename or block.file.file_id or ""
+        if name:
+            return f"{label}:{name}"
+    return label
+
+
+def content_text(value: TOOL_RESULT_CONTENT | None) -> str:
+    """把工具返回内容折算成纯文本。
+
+    :attr:`ToolResult.content` 允许携带图片等非文本块，而日志、``ERR:`` 判错前缀、
+    摘要压缩都只处理文本。非文本块折算成占位标记，不会把整个载荷丢掉。
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    parts: list[str] = []
+    for block in value:
+        if isinstance(block, TextContent):
+            parts.append(block.text)
+        else:
+            parts.append(_BLOCK_PLACEHOLDER.format(label=block_label(block)))
+    return "".join(parts)
+
+
 class ToolResult(BaseModel):
     role: typing.Literal["tool"] = Field(..., description="Role")
     name: str = Field(..., description="Tool name")
-    content: str = Field(..., description="Tool return content")
+    content: TOOL_RESULT_CONTENT = Field(..., description="Tool return content")
     tool_call_id: str = Field(..., description="Tool call ID")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_content(cls, data: Any) -> Any:
+        """按 ``type`` 字段把内容块 dict 还原成已注册的 ``Content`` 模型。"""
+        if isinstance(data, dict) and "content" in data:
+            data["content"] = coerce_content(data["content"])
+        return data
+
+    @property
+    def text(self) -> str:
+        """内容的纯文本视图，见 :func:`content_text`。"""
+        return content_text(self.content)

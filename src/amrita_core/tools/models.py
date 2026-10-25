@@ -9,6 +9,7 @@ from amrita_sense.logging import logger
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
+from amrita_core.types.tool import TOOL_RESULT_CONTENT
 from amrita_core.utils import on_none
 
 if TYPE_CHECKING:
@@ -628,8 +629,8 @@ class ToolData(BaseModel):
 
     data: ToolFunctionSchema = Field(..., description="Tool metadata")
     func: (
-        Callable[[dict[str, Any]], Awaitable[str]]
-        | Callable[[ToolContext], Awaitable[str | None]]
+        Callable[[dict[str, Any]], Awaitable[TOOL_RESULT_CONTENT]]
+        | Callable[[ToolContext], Awaitable[TOOL_RESULT_CONTENT | None]]
     ) = Field(..., description="Tool function")
     custom_run: bool = Field(
         default=False,

@@ -114,3 +114,27 @@ def register_content(cls: type[Content]):
 
 
 USER_INPUT = Sequence[Content] | str | None
+
+
+def coerce_content(value: object) -> object:
+    """把原始 ``content`` 载荷里的 dict 项转成已注册的 ``Content`` 模型。
+
+    ``Message`` 与 ``ToolResult`` 共用这一份逻辑：两处各写一遍的话，以后新增
+    ``Content`` 子类时总有一边会漏掉。
+    """
+    if not isinstance(value, list):
+        return value
+    validated: list[object] = []
+    for item in value:
+        if isinstance(item, dict):
+            if "type" not in item:
+                raise ValueError("Content item is missing 'type' field")
+            content_type = item["type"]
+            if content_type not in CT_MAP:
+                raise ValueError(
+                    f"Unknown content type: `{content_type}`, please register it by calling `register_content` first."
+                )
+            validated.append(CT_MAP[content_type].model_validate(item))
+        else:
+            validated.append(item)
+    return validated
