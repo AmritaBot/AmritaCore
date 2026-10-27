@@ -78,12 +78,12 @@ def _resolve_tool_name(tool: ToolFunctionSchema | dict) -> str:
     return tool.function.name
 
 
-#: Result handed back for a tool call made after the budget is spent.
+# Result handed back for a tool call made after the budget is spent.
 TOOL_BUDGET_REFUSAL = (
     "Refused: the tool call budget for this run is spent. Answer the user with"
     " the information you already have, and say plainly what is still missing."
 )
-#: Closing message when the model keeps calling tools past the refusals.
+# Closing message when the model keeps calling tools past the refusals.
 TOOL_BUDGET_NOTICE = (
     "[AmritaAgent] Tool call budget exhausted; the model kept requesting tools,"
     " so the run was closed with the information gathered so far."
@@ -161,8 +161,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         thinking = preset.thinking_config
         if thinking is None:
             return False
-        # ``enable_thinking`` on its own also puts the provider in thinking
-        # mode, and those providers reject forced tool_choice just the same.
+        # ``enable_thinking`` alone also puts the provider in thinking mode, and those providers reject forced tool_choice just the same.
         return thinking.thinking_type == "enabled" or bool(thinking.enable_thinking)
 
     def _resolve_tool_choice(self, desired: ToolChoice) -> ToolChoice:

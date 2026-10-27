@@ -18,7 +18,7 @@ from amrita_core.components.react import (
     task_cond,
 )
 
-#: Manage history before rendering so a new summary reaches the system instruction of the request it was computed for.
+# Manage history before rendering so a new summary reaches the system instruction of the request it was computed for.
 MANAGE_HISTORY = NATIVE_IF(should_manage_context, MANAGE_CONTEXT)
 
 REACT_BLOCK = (

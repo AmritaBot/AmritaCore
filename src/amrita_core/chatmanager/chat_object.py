@@ -776,14 +776,14 @@ async def _post_runner(chat_obj: ChatObject):
 # pre-compile workflows — component nodes + retained local nodes
 _single_call = SINGLE_STRATEGY_CALL(fallback_on_fail=False)
 
-#: Legacy single-call agent loop (one ``single_execute`` per iteration).
+# Legacy single-call agent loop (one ``single_execute`` per iteration).
 AGENT_BLOCK: NodeCompose = (
     AGENT_ENTRY.as_compose()
     >> WHILE(_single_call).ACTION(REACT_COUNTER)
     >> AGENT_POST_PROCESS
 )
 
-#: Native step loop: one task iteration is one Step, driven by ``STEP_BODY``.
+# Native step loop: one task iteration is one Step, driven by ``STEP_BODY``.
 STEP_AGENT_BLOCK: NodeCompose = (
     AGENT_ENTRY.as_compose()
     >> NATIVE_DO(STEP_BODY).WHILE(task_cond)

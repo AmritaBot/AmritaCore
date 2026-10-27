@@ -442,8 +442,7 @@ async def test_amrita_agent_strategy_refuses_tools_after_budget(
             assert tool_results[-1].content == TOOL_BUDGET_REFUSAL
             assert tool_results[-1].tool_call_id == "tool1"
 
-            # Bounded by config: the one allowed refusal round is already spent,
-            # so the next call closes the turn instead of looping on forever.
+            # Bounded by config: the one allowed refusal round is spent, so the next call closes the turn.
             assert await strategy.single_execute() is False
         finally:
             strategy.tools_manager.get_tool = fun

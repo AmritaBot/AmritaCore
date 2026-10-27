@@ -34,8 +34,7 @@ class MessageContent(ABC):
 
 
 COMPLETION_RETURNING = MessageContent | str | UniResponse[str, None]
-# agentic_call_api additionally carries the round's tool calls, so its trailing
-# UniResponse is typed wider than call_api's.
+# agentic_call_api additionally carries the round's tool calls, so its trailing UniResponse is typed wider than call_api's.
 AGENTIC_RETURNING = COMPLETION_RETURNING | UniResponse[str, list[ToolCall] | None]
 ADAPTER_TYPE = Literal[
     "text-gen",
@@ -51,7 +50,7 @@ class ModelAdapter:
     preset: ModelPreset
     config: AmritaConfig = field(default_factory=get_config)
     __override__: bool = False  # Whether to allow overriding existing adapters
-    #: Whether this adapter implements ``agentic_call_api`` (streaming text + tool calls).
+    # Whether this adapter implements ``agentic_call_api`` (streaming text + tool calls).
     supports_agentic_call: ClassVar[bool] = False
 
     def __init_subclass__(cls) -> None:

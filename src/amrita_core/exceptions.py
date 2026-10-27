@@ -17,7 +17,7 @@ class ContextOverflowError(RuntimeError):
     """Raised when a provider rejects a request for exceeding its context window."""
 
 
-#: Providers report this in prose rather than a machine-readable code, so the check is a pattern match over the message.
+# Providers report this in prose rather than a machine-readable code, so the check is a pattern match over the message.
 _OVERFLOW_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     re.compile(pattern, re.IGNORECASE)
     for pattern in (

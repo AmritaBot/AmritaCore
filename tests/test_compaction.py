@@ -543,8 +543,7 @@ class TestSlide:
         compactor = self._compactor(window=10**6)
         estimates = compactor._estimate(memory.messages, 900)
         assert len(estimates) == len(memory.messages)
-        # Weighted shares are normalized against the reported total, so the
-        # only error is in how the total is distributed.
+        # Weighted shares are normalized against the reported total, so the only error is in how the total is distributed.
         assert sum(estimates) == 900
 
     def test_estimate_weights_long_messages_higher(self):

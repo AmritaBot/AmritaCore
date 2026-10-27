@@ -28,7 +28,7 @@ from amrita_core.agent.strategy import (
 from amrita_core.contexts import AgentLoopState, StrategyPayload, WorkingState
 from amrita_core.enums import SuspendEnum
 
-#: Categories whose strategies are driven by the agent loop block.
+# Categories whose strategies are driven by the agent loop block.
 AGENT_CATEGORIES = ("agent", "agent-mixed")
 
 
