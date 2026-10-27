@@ -70,6 +70,24 @@ async def report_progress(tool_ctx: ToolContext) -> str:
 开关——它**不会**从 handler 签名推断模式，因此未开启该开关却写了 `ToolContext`
 参数的工具，实际收到的会是参数 dict。
 
+## 并发安全声明
+
+同一条模型响应里的多个工具调用会被调度器分组执行。`concurrency_safe` 是注册时的
+声明，保存在 `ToolData` 上，默认 `True`：
+
+```python
+@on_tools(WRITE_FILE_DEFINITION, concurrency_safe=False)
+async def write_file(arguments: dict) -> str: ...
+
+@on_tools(QUERY_DEFINITION, concurrency_safe=lambda args: args.get("op") == "read")
+async def query(arguments: dict) -> str: ...
+```
+
+传 `False` 表示这个工具的调用必须独占执行，并成为同轮前后调用之间的屏障；传一个
+可调用对象则按每次调用的参数判定，返回字面 `True` 才算安全。只有在你确定工具不会
+改写父会话、共享文件或其他并发可见状态时才保留默认的 `True`——标错方向的代价是
+竞态，而不是变慢。
+
 ## 校验约束
 
 `FunctionPropertySchema` 支持完整 JSON Schema 约束集：

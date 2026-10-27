@@ -114,7 +114,7 @@ flowchart LR
 ### Concurrent Tool Calls
 
 The model may return several `tool_call`s in one response. Regular tools run
-concurrently (`asyncio.gather`), but the context stays in one piece:
+concurrently, but the context stays in one piece:
 
 - **One assistant message** carries every `tool_call` of the round, in the order
   the model emitted them, with the provider's `reasoning_content` /
@@ -132,6 +132,20 @@ an assistant `tool_calls` message whose results are missing.
 Built-in flow-control tools (`think_and_reason`, `update_step`, `agent_stop`) are
 ordered **after** regular tools and may append their own messages, so their side
 effects never race with the batched results.
+
+Concurrency is not unconditional. Every `ToolData` carries a `concurrency_safe`
+flag (`bool`, or a `Callable` receiving the parsed arguments), default `True`. A
+round is scanned in model order: consecutive safe calls share one pool, while each
+unsafe call becomes a pool of one and a barrier between the calls around it. How
+many calls of a pool may be in flight is capped by
+`function_config.agent_tool_parallel_limit` (default `0` = unlimited, `1` = serial),
+and a settled call immediately makes room for the next one.
+
+Built-in tools and MCP tools always count as unsafe: the former rewrite the message
+list or the output stream directly, the latter carry no trustworthy read/write
+hint. A misclassification costs unnecessary serialisation rather than a race —
+a raising classifier, a non-literal `True` return, unparseable arguments, and an
+unregistered or disabled tool all fall on the unsafe side.
 
 ## Advanced: `custom_run` and `ToolContext`
 

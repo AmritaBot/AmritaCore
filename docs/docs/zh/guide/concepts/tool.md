@@ -101,8 +101,7 @@ flowchart LR
 
 ### 并发工具调用
 
-模型可能在一个响应里返回多个 `tool_call`。常规工具并发执行
-（`asyncio.gather`），但上下文始终是完整的一块：
+模型可能在一个响应里返回多个 `tool_call`。常规工具并发执行，但上下文始终是完整的一块：
 
 - **一条 assistant 消息**承载该轮的**全部** `tool_call`，顺序与模型发出的一致，
   并把 provider 的 `reasoning_content` / `reasoning_signature` 及任何额外字段原样
@@ -117,6 +116,16 @@ flowchart LR
 
 内置控制流工具（`think_and_reason`、`update_step`、`agent_stop`）排在常规工具
 **之后**，它们可以追加自己的消息，因此其副作用永远不会与成批结果竞争。
+
+并发不是无条件的。每个 `ToolData` 带一个 `concurrency_safe` 标记（`bool`，或接收
+已解析参数的 `Callable`），默认 `True`。调度时按模型顺序扫描这一轮调用：连续的
+安全调用归一池，每个不安全的调用单独成池，并成为它前后调用之间的屏障。池内同时在飞
+的调用数由 `function_config.agent_tool_parallel_limit` 限制（默认 `0` = 不限，
+`1` 即串行），一个调用结算就立即补入下一个。
+
+内置工具与 MCP 工具始终按不安全处理：前者直接改写消息列表或输出流，后者的 schema
+里没有可信的读写提示。标错方向的代价是不必要的串行，而不是竞态——分类器抛错、返回
+非字面 `True`、参数无法解析、工具未注册或已禁用，都会落到不安全一侧。
 
 ## 进阶：`custom_run` 与 `ToolContext`
 
