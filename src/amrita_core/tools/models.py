@@ -638,3 +638,28 @@ class ToolData(BaseModel):
         default=lambda: True,
         description="Whether to enable this tool",
     )
+    concurrency_safe: bool | Callable[[dict[str, Any]], bool] = Field(
+        default=True,
+        description="Whether this tool may run alongside sibling calls of the "
+        "same tool round. A callable receives the parsed arguments, so one tool "
+        "can keep read-only calls parallel and isolate mutating ones; anything "
+        "other than a literal True, including a raised exception, is unsafe.",
+    )
+
+    def is_concurrency_safe(self, arguments: dict[str, Any]) -> bool:
+        """Resolve the concurrency flag for one call.
+
+        Args:
+            arguments: Parsed call arguments, passed to a callable flag.
+
+        Returns:
+            True only when the call may overlap its siblings. A callable that
+            raises, or returns anything but a literal True, is unsafe.
+        """
+        flag = self.concurrency_safe
+        if isinstance(flag, bool):
+            return flag
+        try:
+            return flag(arguments) is True
+        except Exception:
+            return False

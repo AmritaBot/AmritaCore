@@ -390,6 +390,8 @@ class MultiClientManager:
                         ToolData(
                             data=tool,
                             func=self._tools_wrapper(origin_name),
+                            # MCP tools carry no trustworthy read/write hint, so every remote call runs on its own.
+                            concurrency_safe=False,
                         )
                     )
 

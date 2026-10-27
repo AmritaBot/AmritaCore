@@ -1041,27 +1041,37 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         self,
         tool_calls: list[ToolCall],
     ) -> list[tuple[ToolCall, str, BaseException | None]]:
-        """Execute multiple tool calls concurrently via asyncio.gather.
+        """Execute one round of tool calls, overlapping the ones declared safe.
 
-        Built-in flow-control tools (REASONING, STOP) are dispatched to their
-        specialised handlers inside each coroutine.  Regular tools use
-        :meth:`call_tool`.  One failure does not cancel the others.
-        Results are returned in the same order as the input list.
+        Calls are scanned in model order and split into runs: consecutive
+        concurrency-safe calls form one pool, every unsafe call is a pool of
+        one that also acts as a barrier for the calls after it. Pools run one
+        after another; inside a pool at most
+        ``function_config.agent_tool_parallel_limit`` calls are in flight, and
+        a settled call immediately makes room for the next one. A limit of
+        ``0`` removes the cap and lets the whole pool overlap, which is the
+        historical behaviour.
+
+        Built-in flow-control tools (REASONING, STOP) keep their specialised
+        handlers, and are always unsafe, so they never overlap a sibling.
+        Regular tools use :meth:`call_tool`. One failure does not cancel the
+        others. Results are returned in the same order as the input list, no
+        matter which call settled first.
 
         Subclasses may override this to change the execution strategy (e.g. add
         throttling, retries, or switch to sequential fallback).
 
         Args:
-            tool_calls: ToolCall objects to execute concurrently.  Callers should
-                order them so that built-in tools appear **after** regular tools
-                so that the side-effects of built-in handlers do not race with
-                the context modifications produced by regular-tool result
+            tool_calls: ToolCall objects to execute. Callers should order them
+                so that built-in tools appear **after** regular tools so that
+                the side-effects of built-in handlers do not race with the
+                context modifications produced by regular-tool result
                 processing.
 
         Returns:
             List of ``(tool_call, result_string, original_exception)`` tuples.
             ``original_exception`` is the exception instance when an error
-            occurred, ``None`` otherwise.  On error ``result_string`` is
+            occurred, ``None`` otherwise. On error ``result_string`` is
             formatted as ``"ERR: Tool {name} execution failed\\n{error}"``.
         """
 
@@ -1167,7 +1177,114 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 error_content = await self._handle_tool_error_common(fn, e, tc.id)
                 return (tc, error_content, e)
 
-        return await asyncio.gather(*[_exec_one(tc) for tc in tool_calls])
+        results: list[tuple[ToolCall, str, BaseException | None] | None] = [None] * len(
+            tool_calls
+        )
+        for group in self._group_tool_calls(tool_calls):
+            await self._run_tool_pool(_exec_one, tool_calls, group, results)
+        return [cast(tuple[ToolCall, str, BaseException | None], r) for r in results]
+
+    def _tool_call_is_concurrency_safe(self, tool_call: ToolCall) -> bool:
+        """Tell whether one call may overlap its siblings in the same round.
+
+        Built-in flow-control tools are always unsafe: they mutate the message
+        list or the output stream directly. An unknown, disabled or
+        unparseable call is unsafe as well, so the scheduler isolates it rather
+        than letting it race.
+
+        Args:
+            tool_call: The call to classify.
+
+        Returns:
+            True only when the registration declares the call safe.
+        """
+        name = tool_call.function.name
+        if name in BUILTIN_TOOLS_NAME:
+            return False
+        try:
+            arguments: dict[str, Any] = json.loads(tool_call.function.arguments)
+        except json.JSONDecodeError:
+            # Malformed arguments: let the call run alone, its error is local.
+            return False
+        if not isinstance(arguments, dict):
+            return False
+        return self.tools_manager.is_concurrency_safe(name, arguments)
+
+    def _group_tool_calls(self, tool_calls: list[ToolCall]) -> list[list[int]]:
+        """Split one round into ordered pools of call indexes.
+
+        Consecutive safe calls share a pool; each unsafe call becomes its own
+        pool and therefore a barrier between the calls before and after it.
+
+        Args:
+            tool_calls: Calls in model order.
+
+        Returns:
+            Pools of indexes into ``tool_calls``, in execution order.
+        """
+        groups: list[list[int]] = []
+        current: list[int] = []
+        for index, tool_call in enumerate(tool_calls):
+            if self._tool_call_is_concurrency_safe(tool_call):
+                current.append(index)
+                continue
+            if current:
+                groups.append(current)
+                current = []
+            groups.append([index])
+        if current:
+            groups.append(current)
+        return groups
+
+    async def _run_tool_pool(
+        self,
+        exec_one: Callable[
+            [ToolCall], Awaitable[tuple[ToolCall, str, BaseException | None]]
+        ],
+        tool_calls: list[ToolCall],
+        group: list[int],
+        results: list[tuple[ToolCall, str, BaseException | None] | None],
+    ) -> None:
+        """Run one pool of calls with a rolling cap, writing results in place.
+
+        Slots are filled in model order up to the configured limit and
+        replenished as calls settle, so one slow call never idles the pool. A
+        failing worker propagates after the in-flight calls are cancelled,
+        mirroring ``asyncio.gather`` without a limit.
+
+        Args:
+            exec_one: Coroutine running a single call.
+            tool_calls: All calls of the round, indexed by ``group``.
+            group: Indexes of the calls in this pool.
+            results: Round-sized output list, written at each call's own index.
+        """
+        limit = self.config.function_config.agent_tool_parallel_limit
+        if limit <= 0 or limit >= len(group):
+            settled = await asyncio.gather(*[exec_one(tool_calls[i]) for i in group])
+            for index, outcome in zip(group, settled, strict=True):
+                results[index] = outcome
+            return
+
+        pending: list[int] = list(group)
+        in_flight: dict[
+            asyncio.Future[tuple[ToolCall, str, BaseException | None]], int
+        ] = {}
+        try:
+            while pending or in_flight:
+                while pending and len(in_flight) < limit:
+                    index = pending.pop(0)
+                    task = asyncio.ensure_future(exec_one(tool_calls[index]))
+                    in_flight[task] = index
+                done, _ = await asyncio.wait(
+                    in_flight, return_when=asyncio.FIRST_COMPLETED
+                )
+                for task in done:
+                    results[in_flight.pop(task)] = task.result()
+        except BaseException:
+            for task in in_flight:
+                task.cancel()
+            await asyncio.gather(*in_flight, return_exceptions=True)
+            raise
 
     async def _execute_tool_loop(
         self,

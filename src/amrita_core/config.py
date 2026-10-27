@@ -49,6 +49,17 @@ class FunctionConfig(BaseModel):
         "`_budget_exhausted` itself, otherwise the run breaks without a "
         "wind-down.",
     )
+    agent_tool_parallel_limit: int = Field(
+        default=0,
+        ge=0,
+        description="How many concurrency-safe tool calls of one tool round "
+        "may be in flight at once. A round is one model response asking for "
+        "tools, so this caps the calls inside a single round, not the round "
+        "budget (see `agent_tool_call_limit`). `0` keeps the historical "
+        "behaviour: every safe call of the round overlaps. `1` forces serial "
+        "execution. Calls a tool declares unsafe, and built-in flow-control "
+        "tools, run alone regardless of this limit.",
+    )
     agent_tool_refusal_rounds: int = Field(
         default=2,
         ge=1,
