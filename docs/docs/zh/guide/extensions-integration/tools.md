@@ -78,7 +78,11 @@ async def report_progress(tool_ctx: ToolContext) -> str:
 ```python
 @on_tools(WRITE_FILE_DEFINITION, concurrency_safe=False)
 async def write_file(arguments: dict) -> str: ...
+```
 
+按参数判定时传一个可调用对象：
+
+```python
 @on_tools(QUERY_DEFINITION, concurrency_safe=lambda args: args.get("op") == "read")
 async def query(arguments: dict) -> str: ...
 ```

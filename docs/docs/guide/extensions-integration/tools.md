@@ -81,7 +81,11 @@ is a registration-time declaration stored on `ToolData`, and defaults to `True`:
 ```python
 @on_tools(WRITE_FILE_DEFINITION, concurrency_safe=False)
 async def write_file(arguments: dict) -> str: ...
+```
 
+To decide per call, pass a callable instead:
+
+```python
 @on_tools(QUERY_DEFINITION, concurrency_safe=lambda args: args.get("op") == "read")
 async def query(arguments: dict) -> str: ...
 ```
