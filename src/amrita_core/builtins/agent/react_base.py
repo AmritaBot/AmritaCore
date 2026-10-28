@@ -1052,11 +1052,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         ``0`` removes the cap and lets the whole pool overlap, which is the
         historical behaviour.
 
-        Built-in flow-control tools (REASONING, STOP) keep their specialised
-        handlers, and are always unsafe, so they never overlap a sibling.
-        Regular tools use :meth:`call_tool`. One failure does not cancel the
-        others. Results are returned in the same order as the input list, no
-        matter which call settled first.
+        The stall guard and the pre-call event run in :meth:`_prepare_tool_calls`
+        before the round is grouped, so a call a matcher rewrites into a
+        state-mutating one is classified on the arguments it will actually
+        receive. Built-in flow-control tools keep their specialised handlers,
+        skip that event, and are always unsafe, so they never overlap a sibling.
+        Regular tools use :meth:`call_tool`. A failure in one call cancels the
+        calls still in flight, capped or not. Results are returned in the same
+        order as the input list, no matter which call settled first.
 
         Subclasses may override this to change the execution strategy (e.g. add
         throttling, retries, or switch to sequential fallback).
@@ -1077,16 +1080,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         async def _exec_one(tc: ToolCall) -> tuple[ToolCall, str, BaseException | None]:
             fn = tc.function.name
-            # Record the tool-call signature for per-Step stall detection (covers built-in and regular tools uniformly).
-            self._record_tool_signature(tc)
             try:
-                # Cancel the call before execution when it would trip the stall detector (explicit cancellation, not a normal result).
-                if self._should_cancel_tool_call(tc):
-                    return (
-                        tc,
-                        "Cancelled: Reach the max limit of repeatly calling tool.",
-                        None,
-                    )
                 if fn == REASONING_TOOL.function.name:
                     content: UniResponse[
                         str, None
@@ -1151,23 +1145,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                     result = self._build_stop_response(args)
                     return (tc, result, None)
 
-                # Regular tool: pre-call event (rewrite/cancel), execute, then post-call event (rewrite/skip append).
-                args_str, cancel = await self._trigger_tool_call_event(tc)
-                if cancel:
-                    return (
-                        tc,
-                        "Cancelled: Reach the max limit of repeatly calling tool.",
-                        None,
-                    )
-                # Apply any argument rewrite from the matcher.
-                if args_str != tc.function.arguments:
-                    tc = ToolCall(
-                        id=tc.id,
-                        function=Function(
-                            name=tc.function.name,
-                            arguments=args_str,
-                        ),
-                    )
+                # Regular tool: the pre-call event and its argument rewrite already ran in _prepare_tool_calls, so only execution and the post-call event are left here.
                 result = await self.call_tool(tc)
                 result, skip_append = await self._trigger_tool_return_event(tc, result)
                 if skip_append:
@@ -1180,9 +1158,73 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         results: list[tuple[ToolCall, str, BaseException | None] | None] = [None] * len(
             tool_calls
         )
-        for group in self._group_tool_calls(tool_calls):
-            await self._run_tool_pool(_exec_one, tool_calls, group, results)
+        prepared, cancelled = await self._prepare_tool_calls(tool_calls)
+        for index, reason in enumerate(cancelled):
+            if reason is not None:
+                results[index] = (tool_calls[index], reason, None)
+        runnable = [index for index, reason in enumerate(cancelled) if reason is None]
+        for group in self._group_tool_calls([prepared[index] for index in runnable]):
+            await self._run_tool_pool(
+                _exec_one, prepared, [runnable[offset] for offset in group], results
+            )
         return [cast(tuple[ToolCall, str, BaseException | None], r) for r in results]
+
+    async def _prepare_tool_calls(
+        self, tool_calls: list[ToolCall]
+    ) -> tuple[list[ToolCall], list[str | None]]:
+        """Run the per-call decisions a round needs before anything executes.
+
+        The stall guard and the pre-call event both ran inside the executor once,
+        which meant the concurrency decision was taken on arguments a matcher
+        could still rewrite: a call rewritten into a state-mutating one stayed in
+        a shared pool and raced its siblings. Both decisions are therefore taken
+        here, in model order, before the round is grouped, so classification sees
+        the arguments the tool will actually receive.
+
+        Built-in flow-control tools skip the event, exactly as they did when the
+        event ran inside the executor.
+
+        Args:
+            tool_calls: Calls of the round, in model order.
+
+        Returns:
+            The prepared calls, with any matcher rewrite applied, and a parallel
+            list holding the result text of a call cancelled before dispatch, or
+            ``None`` when the call proceeds.
+        """
+        prepared: list[ToolCall] = []
+        cancelled: list[str | None] = []
+        for tool_call in tool_calls:
+            # Record the signature for per-Step stall detection before the guard reads it, so a cancelled call counts like it used to.
+            self._record_tool_signature(tool_call)
+            if self._should_cancel_tool_call(tool_call):
+                prepared.append(tool_call)
+                cancelled.append(
+                    "Cancelled: Reach the max limit of repeatly calling tool."
+                )
+                continue
+            if tool_call.function.name in BUILTIN_TOOLS_NAME:
+                prepared.append(tool_call)
+                cancelled.append(None)
+                continue
+            args_str, cancel = await self._trigger_tool_call_event(tool_call)
+            if cancel:
+                prepared.append(tool_call)
+                cancelled.append(
+                    "Cancelled: Reach the max limit of repeatly calling tool."
+                )
+                continue
+            if args_str != tool_call.function.arguments:
+                tool_call = ToolCall(
+                    id=tool_call.id,
+                    function=Function(
+                        name=tool_call.function.name,
+                        arguments=args_str,
+                    ),
+                )
+            prepared.append(tool_call)
+            cancelled.append(None)
+        return prepared, cancelled
 
     def _tool_call_is_concurrency_safe(self, tool_call: ToolCall) -> bool:
         """Tell whether one call may overlap its siblings in the same round.
@@ -1203,8 +1245,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             return False
         try:
             arguments: dict[str, Any] = json.loads(tool_call.function.arguments)
-        except json.JSONDecodeError:
-            # Malformed arguments: let the call run alone, its error is local.
+        except (json.JSONDecodeError, RecursionError):
+            # Malformed or absurdly nested arguments: let the call run alone, so its own error handling reports it instead of aborting the round here.
             return False
         if not isinstance(arguments, dict):
             return False
@@ -1259,11 +1301,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             results: Round-sized output list, written at each call's own index.
         """
         limit = self.config.function_config.agent_tool_parallel_limit
-        if limit <= 0 or limit >= len(group):
-            settled = await asyncio.gather(*[exec_one(tool_calls[i]) for i in group])
-            for index, outcome in zip(group, settled, strict=True):
-                results[index] = outcome
-            return
+        # An unlimited pool is the same rolling loop with the cap lifted, so a failing worker cancels its siblings instead of leaving them running.
+        cap = len(group) if limit <= 0 else min(limit, len(group))
 
         pending: list[int] = list(group)
         in_flight: dict[
@@ -1271,7 +1310,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         ] = {}
         try:
             while pending or in_flight:
-                while pending and len(in_flight) < limit:
+                while pending and len(in_flight) < cap:
                     index = pending.pop(0)
                     task = asyncio.ensure_future(exec_one(tool_calls[index]))
                     in_flight[task] = index
@@ -1334,13 +1373,13 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
             return True
 
-        # Built-in tools last so their side-effects don't race with regular tools.
-        tool_calls.sort(
-            key=lambda tc: (
-                tc.function.name
-                in (REASONING_TOOL.function.name, STOP_TOOL.function.name)
-            )
-        )
+        # Every built-in flow-control tool goes last, not just the two with a
+        # dedicated handler here: process_message streams to the user, update_step
+        # rewrites the plan, and verify_reasoning reflects, so letting one of them
+        # run before a regular call would surface a side effect the later call
+        # contradicts. Results are still collected and appended in this order, so
+        # the model sees the same stable sequence as before.
+        tool_calls.sort(key=lambda tc: tc.function.name in BUILTIN_TOOLS_NAME)
 
         #  Notify "calling" for every tool, unconditionally: the stream carries structured `function_call` events and consumers decide whether to render them.
         for tc in tool_calls:

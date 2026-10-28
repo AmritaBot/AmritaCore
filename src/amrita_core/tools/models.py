@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Generic, Literal, TypeVar, Union, cast
 
+from amrita_sense.logging import logger
 from pydantic import BaseModel, Field, model_validator
 from typing_extensions import Self
 
@@ -662,4 +663,10 @@ class ToolData(BaseModel):
         try:
             return flag(arguments) is True
         except Exception:
+            # Fail closed, but say so: a classifier that always raises would
+            # otherwise show up only as calls quietly losing their overlap.
+            logger.opt(exception=True).warning(
+                f"Concurrency classifier of tool '{self.data.function.name}' "
+                "raised; treating the call as unsafe."
+            )
             return False

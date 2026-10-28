@@ -23,7 +23,7 @@ from amrita_core.builtins.tools import (
 from amrita_core.chatmanager import ChatObject
 from amrita_core.config import AmritaConfig, FunctionConfig, LLMConfig, set_config
 from amrita_core.contexts import AbilityContext
-from amrita_core.tools.manager import MultiToolsManager
+from amrita_core.tools.manager import MultiToolsManager, ToolsManager
 from amrita_core.tools.models import (
     FunctionDefinitionSchema,
     FunctionParametersSchema,
@@ -386,3 +386,147 @@ class TestDefaultRegistration:
         tool = manager.get_tool("serial")
         assert tool is not None
         assert tool.is_concurrency_safe({}) is False
+
+
+class TestReviewFollowUps:
+    """Cases raised in review: rewritten arguments, decoder limits, cleanup."""
+
+    @pytest.mark.asyncio
+    async def test_rewritten_arguments_are_reclassified(self, strategy):
+        """A matcher rewrite runs before grouping, so classification sees it."""
+        strategy.tools_manager.register_tool(
+            make_tool_data(
+                "query",
+                AsyncMock(return_value="ok"),
+                concurrency_safe=lambda args: args.get("op") == "read",
+            )
+        )
+        call = make_tool_call("query", arguments='{"op": "read"}')
+        assert strategy._tool_call_is_concurrency_safe(call) is True
+
+        async def rewrite(_tool_call):
+            return ('{"op": "write"}', False)
+
+        strategy._trigger_tool_call_event = rewrite  # type: ignore[method-assign]
+        prepared, cancelled = await strategy._prepare_tool_calls([call])
+
+        assert cancelled == [None]
+        assert prepared[0].function.arguments == '{"op": "write"}'
+        assert strategy._tool_call_is_concurrency_safe(prepared[0]) is False
+
+    @pytest.mark.asyncio
+    async def test_cancelled_call_is_reported_without_executing(self, strategy):
+        strategy.tools_manager.register_tool(
+            make_tool_data("safe_tool", AsyncMock(return_value="ran"))
+        )
+        call = make_tool_call("safe_tool")
+
+        async def cancel(_tool_call):
+            return ("{}", True)
+
+        strategy._trigger_tool_call_event = cancel  # type: ignore[method-assign]
+        results = await strategy._run_tool_calls_concurrently([call])
+
+        assert results[0][1].startswith("Cancelled:")
+        strategy.tools_manager.get_tool("safe_tool").func.assert_not_awaited()  # type: ignore[union-attr]
+
+    def test_deeply_nested_arguments_are_unsafe(self, strategy):
+        """A decoder recursion limit must not escape and abort the round."""
+        strategy.tools_manager.register_tool(
+            make_tool_data("safe_tool", AsyncMock(return_value="ok"))
+        )
+        nested = "[" * 4000 + "]" * 4000
+        call = make_tool_call("safe_tool", arguments=nested)
+        assert strategy._tool_call_is_concurrency_safe(call) is False
+
+    @pytest.mark.asyncio
+    async def test_unlimited_pool_cancels_siblings_on_failure(self, strategy):
+        """Without a cap, a failing worker still stops its siblings."""
+        strategy.config.function_config.agent_tool_parallel_limit = 0
+        cancelled = asyncio.Event()
+
+        async def exec_one(tool_call):
+            if tool_call.id == "boom":
+                raise RuntimeError("worker exploded")
+            try:
+                await asyncio.sleep(30)
+            except asyncio.CancelledError:
+                cancelled.set()
+                raise
+            return (tool_call, "late", None)
+
+        calls = [
+            make_tool_call("slow", call_id="slow"),
+            make_tool_call("x", "{}", "boom"),
+        ]
+        results: list[Any] = [None, None]
+        with pytest.raises(RuntimeError):
+            await asyncio.wait_for(
+                strategy._run_tool_pool(exec_one, calls, [0, 1], results), timeout=5
+            )
+        assert cancelled.is_set()
+
+    def test_simple_tool_forwards_concurrency_safe(self):
+        from amrita_core.tools.manager import simple_tool
+
+        @simple_tool(concurrency_safe=False)
+        def writes(a: int) -> int:
+            """Write something.
+
+            Args:
+                a (int): A number.
+            """
+            return a
+
+        tool = ToolsManager().get_tool("writes")
+        assert tool is not None
+        assert tool.is_concurrency_safe({"a": 1}) is False
+
+    def test_simple_tool_bare_form_still_defaults_safe(self):
+        from amrita_core.tools.manager import simple_tool
+
+        @simple_tool
+        def reads(a: int) -> int:
+            """Read something.
+
+            Args:
+                a (int): A number.
+            """
+            return a
+
+        tool = ToolsManager().get_tool("reads")
+        assert tool is not None
+        assert tool.concurrency_safe is True
+
+    @pytest.mark.asyncio
+    async def test_every_builtin_runs_after_regular_calls(self, strategy):
+        from amrita_core.contents import MessageWithMetadata  # noqa: F401
+        from amrita_core.types import UniResponse
+
+        strategy.tools_manager.register_tool(
+            make_tool_data("regular", AsyncMock(return_value="ok"))
+        )
+        seen: list[str] = []
+
+        async def capture(tool_calls):
+            seen.extend(tc.function.name for tc in tool_calls)
+            return [(tc, "ok", None) for tc in tool_calls]
+
+        strategy._run_tool_calls_concurrently = capture  # type: ignore[method-assign]
+        strategy._append_tool_results_batch = AsyncMock()  # type: ignore[method-assign]
+        calls = [
+            make_tool_call(PROCESS_MESSAGE.function.name, "{}", "1"),
+            make_tool_call("regular", "{}", "2"),
+            make_tool_call(UPDATE_STEP_TOOL.function.name, '{"action": "replan"}', "3"),
+        ]
+        response: UniResponse[None, list[ToolCall] | None] = UniResponse(
+            content=None, tool_calls=calls, usage=None
+        )
+
+        await strategy._execute_tool_loop(response)
+
+        assert seen == [
+            "regular",
+            PROCESS_MESSAGE.function.name,
+            UPDATE_STEP_TOOL.function.name,
+        ]

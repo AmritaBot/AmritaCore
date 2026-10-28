@@ -87,6 +87,13 @@ async def write_file(arguments: dict) -> str: ...
 async def query(arguments: dict) -> str: ...
 ```
 
+`@simple_tool` 也接受同名参数，裸写 `@simple_tool` 时保持默认的安全判定：
+
+```python
+@simple_tool(concurrency_safe=False)
+def write_file(path: str, data: str) -> str: ...
+```
+
 传 `False` 表示这个工具的调用必须独占执行，并成为同轮前后调用之间的屏障；传一个
 可调用对象则按每次调用的参数判定，返回字面 `True` 才算安全。只有在你确定工具不会
 改写父会话、共享文件或其他并发可见状态时才保留默认的 `True`——标错方向的代价是
