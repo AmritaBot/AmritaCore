@@ -6,7 +6,7 @@ import typing
 from asyncio import iscoroutinefunction
 from collections.abc import Awaitable, Callable
 from functools import wraps
-from typing import Any, cast, overload
+from typing import Any, overload
 
 from typing_extensions import Self
 
@@ -230,10 +230,8 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
 
 
 def simple_tool(
-    func: Callable[..., Any | Awaitable[Any]] | None = None,
-    *,
-    concurrency_safe: bool | Callable[[dict[str, Any]], bool] = True,
-) -> Callable[..., Any]:
+    func: Callable[..., Any | Awaitable[Any]],
+) -> Callable[[dict[str, Any]], Awaitable[str]]:
     """
     A decorator that creates a ToolData object based on the function signature and annotations.
     It automatically generates parameter descriptions and metadata.
@@ -253,9 +251,10 @@ def simple_tool(
 
     Concurrency:
 
-        Calls of a tool registered this way are treated as safe to overlap by
-        default. Pass ``concurrency_safe=False`` for a tool that mutates shared
-        state, or a callable for a tool whose safety depends on its arguments.
+        A tool registered this way is assumed stateless and therefore safe to
+        overlap with its siblings. The decorator has no way to carry a safety
+        declaration, so a tool that mutates shared state must be registered with
+        :func:`on_tools` and ``concurrency_safe=False`` instead.
 
     Example:
 
@@ -274,19 +273,13 @@ def simple_tool(
             return a + b
         ```
     """
-    if func is None:
-        # Bare ``@simple_tool(concurrency_safe=False)``: the decorator is applied with options first, so the function arrives here.
-        return lambda target: cast(
-            Callable[..., Any], simple_tool(target, concurrency_safe=concurrency_safe)
-        )
-
     signature: inspect.Signature = inspect.signature(func)
     func_desc, param_descriptions = _parse_google_docstring(func.__doc__)
     function_def = function_definition_from_signature(
         func, description=func_desc, parameter_descriptions=param_descriptions
     )
 
-    @on_tools(function_def, strict=True, concurrency_safe=concurrency_safe)
+    @on_tools(function_def, strict=True)
     @wraps(func)
     async def tool_wrapper(params: dict[str, Any]) -> str:
         bound_args: inspect.BoundArguments = signature.bind(**params)

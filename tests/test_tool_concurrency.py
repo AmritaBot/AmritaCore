@@ -466,23 +466,8 @@ class TestReviewFollowUps:
             )
         assert cancelled.is_set()
 
-    def test_simple_tool_forwards_concurrency_safe(self):
-        from amrita_core.tools.manager import simple_tool
-
-        @simple_tool(concurrency_safe=False)
-        def writes(a: int) -> int:
-            """Write something.
-
-            Args:
-                a (int): A number.
-            """
-            return a
-
-        tool = ToolsManager().get_tool("writes")
-        assert tool is not None
-        assert tool.is_concurrency_safe({"a": 1}) is False
-
-    def test_simple_tool_bare_form_still_defaults_safe(self):
+    def test_simple_tool_is_assumed_stateless(self):
+        """The decorator cannot carry a declaration, so its tools stay safe."""
         from amrita_core.tools.manager import simple_tool
 
         @simple_tool

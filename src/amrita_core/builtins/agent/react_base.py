@@ -1373,12 +1373,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
             return True
 
-        # Every built-in flow-control tool goes last, not just the two with a
-        # dedicated handler here: process_message streams to the user, update_step
-        # rewrites the plan, and verify_reasoning reflects, so letting one of them
-        # run before a regular call would surface a side effect the later call
-        # contradicts. Results are still collected and appended in this order, so
-        # the model sees the same stable sequence as before.
+        # Every built-in goes last: process_message streams to the user, update_step rewrites the plan, verify_reasoning reflects, so running one before a regular call would surface a side effect the later call contradicts.
         tool_calls.sort(key=lambda tc: tc.function.name in BUILTIN_TOOLS_NAME)
 
         #  Notify "calling" for every tool, unconditionally: the stream carries structured `function_call` events and consumers decide whether to render them.

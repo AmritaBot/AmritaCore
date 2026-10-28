@@ -90,12 +90,10 @@ To decide per call, pass a callable instead:
 async def query(arguments: dict) -> str: ...
 ```
 
-`@simple_tool` takes the same option; written bare it keeps the safe default:
-
-```python
-@simple_tool(concurrency_safe=False)
-def write_file(path: str, data: str) -> str: ...
-```
+`@simple_tool` is a plain decorator and cannot carry this declaration, so a tool
+registered that way is always treated as stateless and concurrency-safe. A tool
+that needs to declare otherwise has to go through
+`@on_tools(..., concurrency_safe=False)`.
 
 `False` means calls of this tool run alone and act as a barrier between the calls
 around them in the same round; a callable decides per call from its arguments and

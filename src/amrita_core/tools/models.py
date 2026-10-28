@@ -663,8 +663,7 @@ class ToolData(BaseModel):
         try:
             return flag(arguments) is True
         except Exception:
-            # Fail closed, but say so: a classifier that always raises would
-            # otherwise show up only as calls quietly losing their overlap.
+            # Fail closed, but say so: a classifier that always raises would otherwise show up only as calls quietly losing their overlap.
             logger.opt(exception=True).warning(
                 f"Concurrency classifier of tool '{self.data.function.name}' "
                 "raised; treating the call as unsafe."
