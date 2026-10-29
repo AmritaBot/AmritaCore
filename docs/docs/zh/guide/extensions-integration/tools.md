@@ -96,6 +96,47 @@ async def query(arguments: dict) -> str: ...
 改写父会话、共享文件或其他并发可见状态时才保留默认的 `True`——标错方向的代价是
 竞态，而不是变慢。
 
+## 让工具返回图片
+
+`custom_run` 的 handler 也可以返回内容块，于是同一个调用里既能流出进度，又能交回
+渲染结果：
+
+```python
+from amrita_core.types import Content, ImageContent, ImageUrl, TextContent
+
+
+async def render_chart(tool_ctx: ToolContext) -> list[Content]:
+    await tool_ctx.ctx.io_stream.yield_response("Rendering...")
+    png = await chart(tool_ctx.data["query"])
+    return [
+        TextContent(text="chart ready"),
+        ImageContent(image_url=ImageUrl(url=png)),
+    ]
+```
+
+两种 handler 形态都接受 `TOOL_RESULT_CONTENT`（`str | list[Content]`）。
+`list[Content]` 原样透传；其余返回值会被 JSON 编码成字符串，因此返回 `dict` 或
+数字的 handler 行为不变。
+
+`custom_run` 的 handler 返回 `None` 时，仍然得到
+`"(this tool returned no content)"`。
+
+两条值得记住的规则：
+
+- **决定权在协议，不在你。** 图片究竟能不能抵达模型，取决于适配器的
+  `features.tool_result_multimodal`。在声明为假的适配器上，网关会在发出去的副本里
+  把块换成文本说明——你存下的历史仍保留原始块，后续回退到更强协议时什么都不会丢。
+- **留一段文本。** 用一个 `TextContent` 说明这张图是什么。日志、`ERR:` 判错与历史
+  压缩看的都是文本视图（`content_text()` / `ToolResult.text`）；一个只有图片的
+  结果在那里会塌成 `<image>`，对这三者都没用。
+
+### 纯文本适配器
+
+Chat Completions 的 `tool` 消息装不下图片——这就是 `openai` 声明
+`tool_result_multimodal=False` 的原因。如果你的部署只有 OpenAI 且这张图很重要，
+别指望网关代劳：自己补一条 `user` 消息发过去，或者让工具返回一个 URL，下一轮再去
+取。
+
 ## 校验约束
 
 `FunctionPropertySchema` 支持完整 JSON Schema 约束集：

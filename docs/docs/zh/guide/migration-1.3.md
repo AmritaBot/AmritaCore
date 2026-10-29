@@ -10,7 +10,7 @@ AmritaCore 1.3 改变了**一轮 agent 如何结束**。工具轮次预算现在
 | `function_config.agent_tool_refusal_rounds`（新增） | 默认 `2`。预算用尽后、本轮结束前，还允许 Agent 继续索要工具的轮数。                                              |
 | `strategy.on_limited()`                           | 不再终止本轮。它会标记预算用尽，并要求模型用已有信息作答。                                                       |
 | 原生思考的运行                                    | 工具轮次中会边生成边流出文本，并跳过那次独立的 completion，回复在生成过程中就到达。                             |
-| `ModelAdapter.agentic_call_api()`（新增）          | 可选能力。实现它并把 `supports_agentic_call` 置为 `True`，适配器即可走新路径。                                   |
+| `ModelAdapter.agentic_call_api()`（新增）          | 可选能力。实现它并把 `supports_agentic_call` 置为 `True`，适配器即可走新路径。（1.4 起改用 `features`，见[1.3 → 1.4](migration-1.4.md)；旧字段仍可用。） |
 
 ## 1. 工具预算现在按轮计
 
@@ -44,4 +44,4 @@ step 循环的 `task_cond` 与 `iter_cond` 用同一套算法，两条工作流�
 
 - [ ] 如果当初是围着旧的超发量调 `agent_tool_call_limit` 的，请复查。
 - [ ] 如果覆盖了 `on_limited()`，确认它仍然标记预算用尽。
-- [ ] 如果自己发布适配器，实现 `agentic_call_api()` 并置 `supports_agentic_call = True` 以启用流式路径。
+- [ ] 如果自己发布适配器，实现 `agentic_call_api()` 并置 `supports_agentic_call = True` 以启用流式路径。1.4 起该字段迁移到 `features`，见[1.3 → 1.4](migration-1.4.md)。

@@ -21,6 +21,7 @@ from typing_extensions import override
 from amrita_core.base.adapter import (
     AGENTIC_RETURNING,
     COMPLETION_RETURNING,
+    FeatureFlag,
     ModelAdapter,
 )
 from amrita_core.config import AmritaConfig
@@ -63,7 +64,11 @@ class OpenAIAdapter(ModelAdapter):
     """
 
     __override__ = True
-    supports_agentic_call = True
+    features = FeatureFlag(
+        agentic_call=True,
+        input_multimodal=True,
+        tool_result_multimodal=False,  # tool 消息只收文本块
+    )
 
     @override
     async def call_api(

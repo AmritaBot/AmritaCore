@@ -46,6 +46,7 @@ from amrita_core.types import (
     ToolResult,
     UniResponse,
 )
+from amrita_core.types.tool import TOOL_RESULT_CONTENT, content_text
 
 from ..consts import (
     BUILTIN_TOOLS_NAME,
@@ -187,7 +188,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         if not self._is_native_thinking_enabled():
             return False
         adapter_class = AdapterManager().safe_get_adapter(self.preset.protocol)
-        if adapter_class and adapter_class.supports_agentic_call:
+        if adapter_class and adapter_class.features.agentic_call:
             return True
         if not self._agentic_warned:
             logger.warning(
@@ -448,8 +449,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         return (ev.arguments, ev.cancel)
 
     async def _trigger_tool_return_event(
-        self, tool_call: ToolCall, result: str
-    ) -> tuple[str, bool]:
+        self, tool_call: ToolCall, result: TOOL_RESULT_CONTENT
+    ) -> tuple[TOOL_RESULT_CONTENT, bool]:
         """Fire the post-call event for a regular tool.
 
         Returns ``(result, skip_append)`` — matchers may rewrite ``result``
@@ -517,7 +518,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         )
 
     def _maybe_inject_tool_failure_hint(
-        self, tool_call: ToolCall, func_response: str
+        self, tool_call: ToolCall, func_response: TOOL_RESULT_CONTENT
     ) -> None:
         """Optionally append failure guidance after a hard ``ERROR`` result.
 
@@ -1040,7 +1041,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _run_tool_calls_concurrently(
         self,
         tool_calls: list[ToolCall],
-    ) -> list[tuple[ToolCall, str, BaseException | None]]:
+    ) -> list[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]]:
         """Execute one round of tool calls, overlapping the ones declared safe.
 
         Calls are scanned in model order and split into runs: consecutive
@@ -1078,7 +1079,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             formatted as ``"ERR: Tool {name} execution failed\\n{error}"``.
         """
 
-        async def _exec_one(tc: ToolCall) -> tuple[ToolCall, str, BaseException | None]:
+        async def _exec_one(
+            tc: ToolCall,
+        ) -> tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]:
             fn = tc.function.name
             try:
                 if fn == REASONING_TOOL.function.name:
@@ -1155,9 +1158,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 error_content = await self._handle_tool_error_common(fn, e, tc.id)
                 return (tc, error_content, e)
 
-        results: list[tuple[ToolCall, str, BaseException | None] | None] = [None] * len(
-            tool_calls
-        )
+        results: list[
+            tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None] | None
+        ] = [None] * len(tool_calls)
         prepared, cancelled = await self._prepare_tool_calls(tool_calls)
         for index, reason in enumerate(cancelled):
             if reason is not None:
@@ -1167,7 +1170,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             await self._run_tool_pool(
                 _exec_one, prepared, [runnable[offset] for offset in group], results
             )
-        return [cast(tuple[ToolCall, str, BaseException | None], r) for r in results]
+        return [
+            cast(tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None], r)
+            for r in results
+        ]
 
     async def _prepare_tool_calls(
         self, tool_calls: list[ToolCall]
@@ -1281,11 +1287,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _run_tool_pool(
         self,
         exec_one: Callable[
-            [ToolCall], Awaitable[tuple[ToolCall, str, BaseException | None]]
+            [ToolCall],
+            Awaitable[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]],
         ],
         tool_calls: list[ToolCall],
         group: list[int],
-        results: list[tuple[ToolCall, str, BaseException | None] | None],
+        results: list[
+            tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None] | None
+        ],
     ) -> None:
         """Run one pool of calls with a rolling cap, writing results in place.
 
@@ -1306,7 +1315,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         pending: list[int] = list(group)
         in_flight: dict[
-            asyncio.Future[tuple[ToolCall, str, BaseException | None]], int
+            asyncio.Future[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]],
+            int,
         ] = {}
         try:
             while pending or in_flight:
@@ -1393,12 +1403,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             )
 
         concurrent_results: list[
-            tuple[ToolCall, str, BaseException | None]
+            tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]
         ] = await self._run_tool_calls_concurrently(tool_calls)
 
         # Collect results, then append ONE assistant message with every tool_call followed by all ToolResults (never split per call).
         result_msg_list: list[ToolResult] = []
-        collected: list[tuple[ToolCall, str, BaseException | None]] = []
+        collected: list[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]] = []
         should_continue = True  # default: keep looping (old `ret` semantics)
         for tc, func_response, exc in concurrent_results:
             function_name = tc.function.name
@@ -1406,12 +1416,12 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             is_stop = function_name == STOP_TOOL.function.name
 
             if is_reasoning:
-                if func_response.startswith("ERR:"):
+                if content_text(func_response).startswith("ERR:"):
                     # Reasoning generation failed (raised inside the concurrent runner); surface the error, don't swallow.
                     self.reasoning_pc = 0
                     await self._handle_error_append(
                         tc,
-                        func_response,
+                        content_text(func_response),
                         original_exception=exc,
                         response_msg=response_msg,
                     )
@@ -1422,7 +1432,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 continue
 
             if is_stop:
-                if not func_response:
+                if not content_text(func_response):
                     # Reflection failed — correction already injected, continue.
                     continue
                 # The STOP runner already reset reasoning_pc.
@@ -1430,7 +1440,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 self.reasoning_pc = 0
 
             collected.append((tc, func_response, exc))
-            logger.debug(f"Function {function_name} returned: {func_response}")
+            logger.debug(
+                f"Function {function_name} returned: {content_text(func_response)}"
+            )
             result_msg_list.append(
                 ToolResult(
                     role="tool",
@@ -1477,7 +1489,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _append_tool_results_batch(
         self,
         response_msg: UniResponse[None, list[ToolCall] | None],
-        results: list[tuple[ToolCall, str, BaseException | None]],
+        results: list[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]],
     ) -> None:
         """Append ONE assistant message with all tool_calls, then all results.
 

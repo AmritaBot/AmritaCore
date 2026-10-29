@@ -9,6 +9,7 @@ from typing_extensions import override
 from amrita_core.base.adapter import (
     AGENTIC_RETURNING,
     COMPLETION_RETURNING,
+    FeatureFlag,
     ModelAdapter,
 )
 from amrita_core.config import AmritaConfig
@@ -28,7 +29,32 @@ from amrita_core.types import (
 )
 from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import RequestMetadata
+from amrita_core.types.tool import DEGRADED_BLOCK_NOTE, block_label_of_type
 from amrita_core.utils import model_dump
+
+#: ``file`` 块送不出去时留在正文里的说明，与网关降级的写法保持一致
+_FILE_BLOCK_NOTE = "<file:{name} omitted: this adapter cannot carry file blocks>"
+
+
+def _system_block_text(item: object) -> str:
+    """``system`` 消息里单个块的纯文本折算。
+
+    ``text`` 块取正文，其余块换成降级说明——与网关的 ``<image omitted: ...>``
+    写法一致，避免同一份内容在两轮里被叫成两种东西。
+    """
+    if not isinstance(item, dict):
+        return str(item) if isinstance(item, str) else ""
+    if item.get("type") == "text":
+        return str(item.get("text") or "")
+    return DEGRADED_BLOCK_NOTE.format(kind=block_label_of_type(str(item.get("type"))))
+
+
+def _file_block_name(raw: object) -> str:
+    """从 ``file`` 块的载荷里取出文件名，取不到就留空。"""
+    if not isinstance(raw, dict):
+        return ""
+    name = raw.get("filename") or raw.get("file_id") or ""
+    return str(name)
 
 
 class AnthropicFunctionSchema(BaseModel):
@@ -147,7 +173,19 @@ try:
                                 },
                             }
                         )
-                # TODO: `FileContent` (type "file") is silently dropped here, so the model answers about a file it never received. The endpoint wants `source.type="file"` and the `anthropic-beta: files-api-2025-04-14` header, and the adapter has no way to inject that header yet. Until then this should at least raise instead of discarding.
+                elif item_type == "file":
+                    #  ``file`` 块要 ``source.type="file"`` 加 ``anthropic-beta:
+                    #  files-api-2025-04-14`` 头，适配器没有注入请求头的通道，所以送
+                    #  不出去。静默丢掉会让模型对着一份从未收到的文件作答；这里按网关
+                    #  降级的同一套做法换成文本说明，模型至少知道自己少了什么。
+                    blocks.append(
+                        {
+                            "type": "text",
+                            "text": _FILE_BLOCK_NOTE.format(
+                                name=_file_block_name(item.get("file"))
+                            ),
+                        }
+                    )
             return blocks or [{"type": "text", "text": ""}]
 
         @staticmethod
@@ -179,13 +217,12 @@ try:
 
                 if role == "system":
                     flush_tool_results()
-                    # System content may be str or list; extract plain text
+                    # System 只收纯文本，块要在这里摊平。摊平不能只挑 text 块——这个
+                    # 适配器声明了 input_multimodal，网关不会再替它补占位说明，静默
+                    # 丢掉就等于让模型对着一份没看到的东西作答。非文本块改用与网关
+                    # 同一句说明，模型至少知道自己少了什么。
                     if isinstance(content, list):
-                        text = "".join(
-                            item.get("text", "")
-                            for item in content
-                            if item.get("type") == "text"
-                        )
+                        text = "".join(_system_block_text(item) for item in content)
                     else:
                         text = content or ""
                     converted.append({"role": "system", "content": text})
@@ -230,19 +267,17 @@ try:
 
                 elif role == "tool":
                     tc_id = msg.get("tool_call_id", "")
-                    if isinstance(content, list):
-                        result_text = "".join(
-                            item.get("text", "")
-                            for item in content
-                            if item.get("type") == "text"
-                        )
-                    else:
-                        result_text = content or ""
+                    #  ``tool_result`` 原生支持内容块（含 image），不必先摊平成文本：
+                    #  摊平会把多模态工具返回的图片整块丢掉
                     temp_tool_results.append(
                         {
                             "type": "tool_result",
                             "tool_use_id": tc_id,
-                            "content": result_text,
+                            "content": (
+                                AnthropicAdapter._convert_content_to_blocks(content)
+                                if isinstance(content, list)
+                                else (content or "")
+                            ),
                         }
                     )
             flush_tool_results()
@@ -673,7 +708,11 @@ try:
                 metadata=metadata,
             )
 
-        supports_agentic_call = True
+        features = FeatureFlag(
+            agentic_call=True,
+            input_multimodal=True,
+            tool_result_multimodal=True,  # tool_result 原生支持内容块
+        )
 
         @staticmethod
         def get_adapter_protocol() -> tuple[str, str]:

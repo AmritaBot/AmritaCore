@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import typing
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, SerializeAsAny, model_validator
 
 from amrita_core.types.base import BaseModel
+from amrita_core.types.content import (
+    Content,
+    FileContent,
+    TextContent,
+    coerce_content,
+)
 
 
 class Function(BaseModel):
@@ -31,8 +38,102 @@ class ToolCall(BaseModel):
     """The type of the tool. Currently, only `function` is supported."""
 
 
+TOOL_RESULT_CONTENT = str | SerializeAsAny[list[Content]]
+"""工具返回内容的形状：纯文本，或内容块列表（可含图片等非文本块）。"""
+
+#  非文本块在纯文本视图里的占位：日志、判错前缀摘要压缩都只关心文本
+_BLOCK_PLACEHOLDER = "<{label}>"
+
+#  内部 ``type`` 与对外标签不一致的块；未列出的直接沿用 ``type``
+_BLOCK_LABELS: dict[str, str] = {"image_url": "image"}
+
+
+#: 块携带不了时留在正文里的说明。文案只有一份：网关降级与适配器自身的降级都要用它，
+#: 否则同一张图在两处会得到两种说法。
+DEGRADED_BLOCK_NOTE = "<{kind} omitted: the current adapter cannot carry it>"
+
+
+def block_label_of_type(type_name: str, name: str = "") -> str:
+    """按内容块的 ``type`` 取短标签，``name`` 非空时接在后面。
+
+    单列一份是因为标签要被三处共用：纯文本视图、网关降级说明、以及持有原始
+    ``dict`` 载荷、拿不到 ``Content`` 实例的调用点。映射只能有一份，否则同一个被
+    省略的图片会在不同轮次里被叫成 ``<image>`` 和 ``<image_url>``，模型会当成两种
+    东西。
+    """
+    label: str = _BLOCK_LABELS.get(type_name, type_name) or str(type_name)
+    return f"{label}:{name}" if name else label
+
+
+def block_label(block: Content) -> str:
+    """内容块的短标签，见 :func:`block_label_of_type`。"""
+    name = ""
+    if isinstance(block, FileContent):
+        name = block.file.filename or block.file.file_id or ""
+    return block_label_of_type(block.type, name)
+
+
+def content_text(value: TOOL_RESULT_CONTENT | None) -> str:
+    """把工具返回内容折算成纯文本。
+
+    :attr:`ToolResult.content` 允许携带图片等非文本块，而日志、``ERR:`` 判错前缀、
+    摘要压缩都只处理文本。非文本块折算成占位标记，不会把整个载荷丢掉。
+
+    入参放宽到原始载荷：``StepToolReturnEvent.result`` 是普通 dataclass 字段，不经
+    过 ``ToolResult`` 的校验，matcher 拿到的是 handler 原样写进去的东西——可能是
+    ``list[Content]``，也可能是没还原成模型的 ``list[dict]``。判错与日志都在这个函数
+    上，遇到后者直接抛 ``AttributeError`` 会把一次工具返回变成一次崩溃。
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    parts: list[str] = []
+    for block in value:
+        if isinstance(block, TextContent):
+            parts.append(block.text)
+        elif isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict):
+            item_type = str(block.get("type"))
+            if item_type == "text":
+                parts.append(str(block.get("text") or ""))
+            else:
+                parts.append(
+                    _BLOCK_PLACEHOLDER.format(
+                        label=block_label_of_type(
+                            item_type, _raw_file_block_name(block)
+                        )
+                    )
+                )
+        else:
+            parts.append(_BLOCK_PLACEHOLDER.format(label=block_label(block)))
+    return "".join(parts)
+
+
+def _raw_file_block_name(block: dict[str, Any]) -> str:
+    """从尚未还原成模型的 ``file`` 块里取文件名，取不到留空。"""
+    raw = block.get("file")
+    if not isinstance(raw, dict):
+        return ""
+    return str(raw.get("filename") or raw.get("file_id") or "")
+
+
 class ToolResult(BaseModel):
     role: typing.Literal["tool"] = Field(..., description="Role")
     name: str = Field(..., description="Tool name")
-    content: str = Field(..., description="Tool return content")
+    content: TOOL_RESULT_CONTENT = Field(..., description="Tool return content")
     tool_call_id: str = Field(..., description="Tool call ID")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_content(cls, data: Any) -> Any:
+        """按 ``type`` 字段把内容块 dict 还原成已注册的 ``Content`` 模型。"""
+        if isinstance(data, dict) and "content" in data:
+            data["content"] = coerce_content(data["content"])
+        return data
+
+    @property
+    def text(self) -> str:
+        """内容的纯文本视图，见 :func:`content_text`。"""
+        return content_text(self.content)
