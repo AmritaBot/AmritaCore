@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 from amrita_sense.logging import logger
@@ -95,6 +95,10 @@ class ModelAdapter:
 
         第三方适配器只写了旧字段的情况必须继续生效，否则 ``agentic_call_api``
         会静默不再被调用，而症状只是一个「怎么没走流式」的疑问，极难定位。
+
+        旧字段只描述流式这一种能力，所以它只能改这一个标记：在父类声明的副本上换掉
+        ``agentic_call``，其余标记原样继承。整块新建一个默认对象的话，一个只想关掉
+        流式的子类会顺手把父类的多模态声明一起清零，症状是「图怎么不发了」。
         """
         if "features" in cls.__dict__:
             # 显式声明了新标记，以它为准；旧字段跟着同步，外部读取方不会读到过期值
@@ -103,7 +107,10 @@ class ModelAdapter:
         legacy = cls.__dict__.get("supports_agentic_call")
         if legacy is None:
             return
-        cls.features = FeatureFlag(agentic_call=bool(legacy))
+        inherited = cls.features
+        if inherited.agentic_call == bool(legacy):
+            return
+        cls.features = replace(inherited, agentic_call=bool(legacy))
 
     async def call_api(
         self, messages: Iterable, **kwargs

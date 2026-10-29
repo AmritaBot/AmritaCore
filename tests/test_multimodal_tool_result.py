@@ -579,3 +579,95 @@ class TestBuiltinAdapterDeclarations:
         from amrita_core.adapters.openai import OpenAIAdapter
 
         assert OpenAIAdapter.supports_agentic_call is True
+
+
+class TestLegacyFlagKeepsInheritedFeatures:
+    """旧字段只描述流式，不该把父类声明的其它能力一起清零。"""
+
+    def test_child_disabling_agentic_call_keeps_multimodal(self):
+        from amrita_core.adapters.openai import OpenAIAdapter
+
+        class Child(OpenAIAdapter):
+            __no_register__ = True
+            __abstract__ = True
+            supports_agentic_call = False
+
+        assert Child.features.agentic_call is False
+        # 只想关流式的子类，多模态声明仍在
+        assert Child.features.input_multimodal is True
+
+    def test_child_without_the_legacy_field_shares_the_parent_flag(self):
+        from amrita_core.adapters.openai import OpenAIAdapter
+
+        class Child(OpenAIAdapter):
+            __no_register__ = True
+            __abstract__ = True
+
+        assert Child.features is OpenAIAdapter.features
+
+
+class TestContentTextToleratesRawPayloads:
+    """``StepToolReturnEvent.result`` 不经校验，文本视图不能因此抛异常。"""
+
+    def test_dict_blocks(self):
+        assert content_text([{"type": "text", "text": "hi"}]) == "hi"
+
+    def test_dict_image_block_uses_the_shared_label(self):
+        assert (
+            content_text([{"type": "image_url", "image_url": {"url": "https://e/a"}}])
+            == "<image>"
+        )
+
+    def test_dict_file_block_keeps_the_name(self):
+        assert content_text([{"type": "file", "file": {"filename": "a.pdf"}}]) == (
+            "<file:a.pdf>"
+        )
+
+    def test_bare_strings(self):
+        assert content_text(["a", "b"]) == "ab"
+
+    def test_event_result_round_trips_into_text(self):
+        from amrita_core.builtins.agent.events import StepToolReturnEvent
+
+        ev = StepToolReturnEvent(
+            step_index=0,
+            phase=None,
+            tool_name="t",
+            tool_id="i",
+            result=[{"type": "text", "text": "ok"}],
+        )
+        assert content_text(ev.result) == "ok"
+
+
+class TestAnthropicSystemBlocks:
+    """``system`` 只收纯文本，但摊平时不能把非文本块静默丢掉。"""
+
+    def test_system_image_leaves_a_note(self):
+        converted = AnthropicAdapter._convert_messages(
+            [
+                {
+                    "role": "system",
+                    "content": [
+                        {"type": "text", "text": "be nice"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": "https://e/a.png"},
+                        },
+                    ],
+                },
+                {"role": "user", "content": "hi"},
+            ]
+        )
+        assert converted[0]["role"] == "system"
+        assert "be nice" in converted[0]["content"]
+        assert "<image omitted" in converted[0]["content"]
+        assert "image_url" not in converted[0]["content"]
+
+    def test_plain_system_text_is_untouched(self):
+        converted = AnthropicAdapter._convert_messages(
+            [
+                {"role": "system", "content": "be nice"},
+                {"role": "user", "content": "hi"},
+            ]
+        )
+        assert converted[0]["content"] == "be nice"

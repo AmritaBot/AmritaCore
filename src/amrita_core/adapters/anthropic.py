@@ -29,10 +29,24 @@ from amrita_core.types import (
 )
 from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import RequestMetadata
+from amrita_core.types.tool import DEGRADED_BLOCK_NOTE, block_label_of_type
 from amrita_core.utils import model_dump
 
 #: ``file`` 块送不出去时留在正文里的说明，与网关降级的写法保持一致
 _FILE_BLOCK_NOTE = "<file:{name} omitted: this adapter cannot carry file blocks>"
+
+
+def _system_block_text(item: object) -> str:
+    """``system`` 消息里单个块的纯文本折算。
+
+    ``text`` 块取正文，其余块换成降级说明——与网关的 ``<image omitted: ...>``
+    写法一致，避免同一份内容在两轮里被叫成两种东西。
+    """
+    if not isinstance(item, dict):
+        return str(item) if isinstance(item, str) else ""
+    if item.get("type") == "text":
+        return str(item.get("text") or "")
+    return DEGRADED_BLOCK_NOTE.format(kind=block_label_of_type(str(item.get("type"))))
 
 
 def _file_block_name(raw: object) -> str:
@@ -203,13 +217,12 @@ try:
 
                 if role == "system":
                     flush_tool_results()
-                    # System content may be str or list; extract plain text
+                    # System 只收纯文本，块要在这里摊平。摊平不能只挑 text 块——这个
+                    # 适配器声明了 input_multimodal，网关不会再替它补占位说明，静默
+                    # 丢掉就等于让模型对着一份没看到的东西作答。非文本块改用与网关
+                    # 同一句说明，模型至少知道自己少了什么。
                     if isinstance(content, list):
-                        text = "".join(
-                            item.get("text", "")
-                            for item in content
-                            if item.get("type") == "text"
-                        )
+                        text = "".join(_system_block_text(item) for item in content)
                     else:
                         text = content or ""
                     converted.append({"role": "system", "content": text})

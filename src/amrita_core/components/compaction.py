@@ -37,8 +37,13 @@ from amrita_core.consts import ABSTRACT_INSTRUCTION
 from amrita_core.contexts import AbilityState, MemoryContext, RespState
 from amrita_core.enums import SuspendEnum
 from amrita_core.libchat import call_completion, get_last_response, text_generator
+from amrita_core.types.content import TextContent
 from amrita_core.types.memory import MemoryModel
-from amrita_core.types.message import CONTENT_LIST_TYPE, Message
+from amrita_core.types.message import (
+    CONTENT_LIST_TYPE,
+    CONTENT_LIST_TYPE_ITEM,
+    Message,
+)
 from amrita_core.types.preset import (
     ModelPreset,
     resolve_max_context,
@@ -46,6 +51,18 @@ from amrita_core.types.preset import (
 )
 from amrita_core.types.tool import ToolResult
 from amrita_core.usage import SessionUsageProxy
+
+#: 非文本块在权重里的名义字符数。一张图大约按千级 token 计费，纯文本视图里却贡献
+#: 零字符；折算成一个文本块量级的常量，让含图的消息按真实体量参与份额分配。
+_NON_TEXT_BLOCK_WEIGHT = 1000
+
+
+def _count_non_text_blocks(msg: CONTENT_LIST_TYPE_ITEM) -> int:
+    """数一个消息里有多少个非文本块。"""
+    content = getattr(msg, "content", None)
+    if not isinstance(content, list):
+        return 0
+    return sum(1 for block in content if not isinstance(block, TextContent))
 
 
 def split_history(
@@ -283,10 +300,23 @@ class ContextCompactor:
         slot in the payload, so the floor is 1 rather than 0 — a zero weight
         would let it be dropped for free while contributing nothing to the
         estimated total.
+
+        Non-text blocks are counted too, at :data:`_NON_TEXT_BLOCK_WEIGHT` each.
+        :func:`text_generator` only reads text, so a tool that returns a
+        screenshot contributes zero characters and would be weighted as if it
+        were free — yet the image is usually the largest thing in the payload,
+        billed at roughly a thousand tokens. The image would then be the last
+        message the estimate drops and the first reason the real prompt stays
+        over budget. The weight is a nominal proxy, not a measurement: the total
+        still comes from the provider, only the split between messages is
+        estimated here, and counting an image as a chunk of text keeps that
+        split in one unit.
         """
         return [
             max(
-                1, sum(len(chunk) for chunk in text_generator([msg], full_message=True))
+                1,
+                sum(len(chunk) for chunk in text_generator([msg], full_message=True))
+                + _NON_TEXT_BLOCK_WEIGHT * _count_non_text_blocks(msg),
             )
             for msg in messages
         ]

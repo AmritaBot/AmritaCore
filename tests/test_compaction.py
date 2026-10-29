@@ -546,6 +546,27 @@ class TestSlide:
         # Weighted shares are normalized against the reported total, so the only error is in how the total is distributed.
         assert sum(estimates) == 900
 
+    def test_estimate_counts_images_as_payload(self):
+        """纯文本视图里图片是零字符，但它在载荷里并不免费。"""
+        from amrita_core.types import ImageContent, ImageUrl
+
+        memory = MemoryModel(
+            messages=[
+                Message(role="user", content="look"),
+                Message(
+                    role="user",
+                    content=[
+                        TextContent(text="look"),
+                        ImageContent(image_url=ImageUrl(url="https://e/a.png")),
+                    ],
+                ),
+            ]
+        )
+        compactor = self._compactor(window=10**6)
+        text_only, with_image = compactor._estimate(memory.messages, 1000)
+        # 同样的正文，带图的消息要分到更大的份额
+        assert with_image > text_only
+
     def test_estimate_weights_long_messages_higher(self):
         memory = MemoryModel(
             messages=[
