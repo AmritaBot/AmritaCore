@@ -1158,9 +1158,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
                 error_content = await self._handle_tool_error_common(fn, e, tc.id)
                 return (tc, error_content, e)
 
-        results: list[tuple[ToolCall, str, BaseException | None] | None] = [None] * len(
-            tool_calls
-        )
+        results: list[
+            tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None] | None
+        ] = [None] * len(tool_calls)
         prepared, cancelled = await self._prepare_tool_calls(tool_calls)
         for index, reason in enumerate(cancelled):
             if reason is not None:
@@ -1170,7 +1170,10 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             await self._run_tool_pool(
                 _exec_one, prepared, [runnable[offset] for offset in group], results
             )
-        return [cast(tuple[ToolCall, str, BaseException | None], r) for r in results]
+        return [
+            cast(tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None], r)
+            for r in results
+        ]
 
     async def _prepare_tool_calls(
         self, tool_calls: list[ToolCall]
@@ -1284,11 +1287,14 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _run_tool_pool(
         self,
         exec_one: Callable[
-            [ToolCall], Awaitable[tuple[ToolCall, str, BaseException | None]]
+            [ToolCall],
+            Awaitable[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]],
         ],
         tool_calls: list[ToolCall],
         group: list[int],
-        results: list[tuple[ToolCall, str, BaseException | None] | None],
+        results: list[
+            tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None] | None
+        ],
     ) -> None:
         """Run one pool of calls with a rolling cap, writing results in place.
 
@@ -1309,7 +1315,8 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
         pending: list[int] = list(group)
         in_flight: dict[
-            asyncio.Future[tuple[ToolCall, str, BaseException | None]], int
+            asyncio.Future[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]],
+            int,
         ] = {}
         try:
             while pending or in_flight:
