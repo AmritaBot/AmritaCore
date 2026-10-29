@@ -65,9 +65,7 @@ class StrategyContext:
     user_input: USER_INPUT
     original_context: SendMessageWrap
 
-    #: Set by the agentic loop when the model ended the turn itself.
-    #: AGENT_POST_PROCESS copies it onto the workflow's WorkingState so
-    #: LLM_COMPLETION can skip its own request.
+    # Set by the agentic loop when the model ended the turn itself; AGENT_POST_PROCESS copies it onto the workflow's WorkingState so LLM_COMPLETION can skip its own request.
     final_response: UniResponse[str, list[ToolCall] | None] | None = None
 
     # Lifecycle-manager handle for the current conversation (core unit).

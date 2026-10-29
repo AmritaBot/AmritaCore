@@ -20,6 +20,7 @@ MultiToolsManager provides a registry of tools keyed by function name, with supp
 - `enable_tool(name: str) -> None`: Re-enable a disabled tool
 - `disable_tool(name: str) -> None`: Disable a tool; raises `ValueError` if it does not exist
 - `get_disabled_tools() -> list[str]`: Names of disabled tools
+- `is_concurrency_safe(name: str, arguments: dict[str, Any]) -> bool`: Tell whether one call may overlap its siblings in the same tool round. It reads the registry directly instead of going through `get_tool`, so `enable_if` is not evaluated a second time; an unregistered or disabled tool reports `False`, which makes the scheduler isolate the call.
 
 ## Example
 

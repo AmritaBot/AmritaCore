@@ -157,11 +157,7 @@ async def _shrink_context(
         )
         return False
     if compactor.strategy == "slide":
-        #  No fresh measurement is available: the request that just overflowed
-        #  is the only evidence, and the window it overflowed is a lower bound
-        #  on the payload. Estimating from the window and cutting to the target
-        #  removes the same share the between-turn path aims for, without
-        #  paying for the summary call this policy exists to avoid.
+        #  No fresh measurement: the window is a lower bound on the payload, so estimating from it cuts the same share without paying for a summary call.
         dropped = compactor.slide(wrap.memory, compactor.budget)
         if dropped <= 0:
             return False

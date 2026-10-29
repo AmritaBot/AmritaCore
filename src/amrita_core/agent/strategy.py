@@ -38,12 +38,12 @@ class _StrategyBase(ABC):
     chat_object: ChatObject  # lifecycle-manager handle, resolved from StrategyContext
     ctx: StrategyContext
 
-    #: Set once the native-thinking-without-agentic-gateway warning has fired.
+    # Set once the native-thinking-without-agentic-gateway warning has fired.
     _agentic_warned: bool = False
 
-    #: Tool budget spent: later tool calls are refused instead of executed.
+    # Tool budget spent: later tool calls are refused instead of executed.
     _budget_exhausted: bool = False
-    #: Rounds spent calling tools after the budget ran out.
+    # Rounds spent calling tools after the budget ran out.
     _refusal_rounds: int = 0
 
     @property

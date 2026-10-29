@@ -145,6 +145,27 @@ class MultiToolsManager:
     def get_disabled_tools(self) -> list[str]:
         return list(self._disabled_tools)
 
+    def is_concurrency_safe(self, name: str, arguments: dict[str, Any]) -> bool:
+        """Tell whether one call may run alongside its sibling calls.
+
+        Reads the registration directly instead of going through
+        :meth:`get_tool`, so an ``enable_if`` predicate with side effects or a
+        cost is not evaluated a second time at scheduling time. A tool that is
+        absent or disabled is reported unsafe: the scheduler then isolates the
+        call instead of letting it overlap.
+
+        Args:
+            name: Registered tool name.
+            arguments: Parsed call arguments.
+
+        Returns:
+            True only when the registration declares the call safe.
+        """
+        tool: ToolData | None = self._models.get(name)
+        if tool is None or name in self._disabled_tools:
+            return False
+        return tool.is_concurrency_safe(arguments)
+
 
 class ToolsManager(MultiToolsManager):
     _instance = None
@@ -228,6 +249,13 @@ def simple_tool(
     - Any or object types
     - Custom types not covered above
 
+    Concurrency:
+
+        A tool registered this way is assumed stateless and therefore safe to
+        overlap with its siblings. The decorator has no way to carry a safety
+        declaration, so a tool that mutates shared state must be registered with
+        :func:`on_tools` and ``concurrency_safe=False`` instead.
+
     Example:
 
         ```python
@@ -285,6 +313,7 @@ def on_tools(
     strict: bool = False,
     enable_if: Callable[[], bool] = lambda: True,
     bound_to: MultiToolsManager | None = None,
+    concurrency_safe: bool | Callable[[dict[str, Any]], bool] = True,
 ) -> Callable[[_ToolFunc], _ToolFunc]:
     """Tool registration decorator
 
@@ -294,6 +323,10 @@ def on_tools(
         strict (bool, optional): Whether to enable strict mode. Defaults to False.
         show_call (bool, optional): Whether to show tool call. Defaults to True.
         bound_to (MultiToolsManager | None, optional): Bound to tools manager. Defaults to None.
+        concurrency_safe (bool | Callable[[dict[str, Any]], bool], optional):
+            Whether calls of this tool may overlap sibling calls in one tool
+            round. A callable decides per call from its parsed arguments.
+            Defaults to True; declare False for tools that mutate shared state.
     """
 
     def decorator(func: _ToolFunc) -> _ToolFunc:
@@ -302,6 +335,7 @@ def on_tools(
             data=ToolFunctionSchema(function=data, type="function", strict=strict),
             custom_run=custom_run,
             enable_if=enable_if,
+            concurrency_safe=concurrency_safe,
         )
         tm = bound_to or ToolsManager()
         tm.register_tool(tool_data)

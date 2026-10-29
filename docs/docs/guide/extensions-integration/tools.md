@@ -73,6 +73,35 @@ that flag — it does **not** infer the mode from the handler's signature, so a
 `ToolContext` parameter on a tool registered without the flag would receive the
 argument dict instead.
 
+## Declaring Concurrency Safety
+
+Several tool calls of one model response are scheduled in pools. `concurrency_safe`
+is a registration-time declaration stored on `ToolData`, and defaults to `True`:
+
+```python
+@on_tools(WRITE_FILE_DEFINITION, concurrency_safe=False)
+async def write_file(arguments: dict) -> str: ...
+```
+
+To decide per call, pass a callable instead:
+
+```python
+@on_tools(QUERY_DEFINITION, concurrency_safe=lambda args: args.get("op") == "read")
+async def query(arguments: dict) -> str: ...
+```
+
+`@simple_tool` is a plain decorator and cannot carry this declaration, so a tool
+registered that way is always treated as stateless and concurrency-safe. A tool
+that needs to declare otherwise has to go through
+`@on_tools(..., concurrency_safe=False)`.
+
+`False` means calls of this tool run alone and act as a barrier between the calls
+around them in the same round; a callable decides per call from its arguments and
+must return a literal `True` to be treated as safe. Keep the default `True` only
+when you are sure the tool never rewrites the parent session, shared files, or
+other state that concurrent calls can observe — a wrong call here costs a race,
+not just speed.
+
 ## Validation Constraints
 
 `FunctionPropertySchema` supports the full JSON Schema constraint set:

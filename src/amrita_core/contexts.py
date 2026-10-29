@@ -69,7 +69,7 @@ class GeneralInput:
 @dataclass
 class WorkingState:
     context_wrap: SendMessageWrap | None = None  # Be set in runtime
-    #: Answer the agentic loop already produced, if any.
+    # Answer the agentic loop already produced, if any.
     final_response: UniResponse[str, list[ToolCall] | None] | None = None
 
 
@@ -82,9 +82,7 @@ class StrategyPayload:
 class RespState:
     response: UniResponse | None = None
     usage: SessionUsageProxy | None = None
-    #  The run's spend, filled in at the run boundary: every request this run
-    #  made, added up. `response.usage` is the other reading — the size of the
-    #  payload the last request carried — so the two must not be summed.
+    #  The run's spend, summed at the run boundary; `response.usage` measures the last payload instead, so the two must not be added.
     extra_usage: UniResponseUsage[int] = field(
         default_factory=lambda: UniResponseUsage(
             prompt_tokens=0, completion_tokens=0, total_tokens=0

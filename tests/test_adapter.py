@@ -23,8 +23,7 @@ from amrita_core.config import AmritaConfig
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import ModelPreset, ToolCall, UniResponse
 
-#: A real 16x16 solid-red PNG, base64-encoded. Small enough to inline in a test
-#: and verifiably an image, which keeps the data-URI cases honest.
+# A real 16x16 solid-red PNG, base64-encoded: small enough to inline, and verifiably an image.
 _PNG_B64 = (
     "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR4nGP4z8BAEiJN9aiGUQ1DSgMA"
     "kPn/Afnh+ngAAAAASUVORK5CYII="

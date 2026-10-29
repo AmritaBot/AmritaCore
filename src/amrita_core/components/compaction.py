@@ -360,19 +360,11 @@ class ContextCompactor:
         if cut >= len(messages):
             return 0
         if cut <= 0:
-            #  Nothing was asked for, but a head made of tool results is
-            #  invalid wherever the boundary sits: nothing precedes index 0, so
-            #  no assistant can have declared them. Step over those, which
-            #  cannot lose a call that is still around.
+            #  Nothing was asked for, but a head made of tool results is invalid wherever the boundary sits: nothing precedes index 0, so no assistant can have declared them.
             index = 0
             while index < len(messages) and isinstance(messages[index], ToolResult):
                 index += 1
-            #  Sweeping the whole head matters: stopping a message short leaves
-            #  the last orphan in place and the payload invalid anyway. When
-            #  that consumes the entire history there is no boundary left to
-            #  keep, and returning one would empty ``memory.messages`` — the
-            #  wrap rebuilt from an empty list has no last message to read the
-            #  user query from — so the history is left alone instead.
+            #  A partial sweep leaves the last orphan in place, and consuming the whole head would leave ``memory.messages`` empty, so the history is left alone.
             return 0 if index >= len(messages) else index
         boundaries = [
             index
@@ -492,13 +484,10 @@ async def MANAGE_CONTEXT(
         usage=resp.usage,
     )
     if compactor.strategy == "slide":
-        #  `None` rather than 0: a missing measurement must fall through to the
-        #  message-count ceiling instead of reading as "far below the trigger".
+        #  `None` rather than 0 so a missing measurement falls through to the message-count ceiling instead of reading as "far below the trigger".
         reported = memory.usage.prompt_tokens if memory.usage is not None else None
         compactor.slide(memory.messages, reported)
-        #  The measurement described a payload that no longer exists; clear it
-        #  so the next request measures itself instead of re-triggering on a
-        #  stale, larger number.
+        #  The measurement described a payload that no longer exists, so it is cleared for the next request.
         memory.usage = None
     else:
         await compactor.compact(memory)

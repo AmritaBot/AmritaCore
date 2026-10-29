@@ -20,6 +20,7 @@ MultiToolsManager 提供按函数名索引的工具注册表，支持启用/禁�
 - `enable_tool(name: str) -> None`：重新启用已禁用的工具
 - `disable_tool(name: str) -> None`：禁用工具
 - `get_disabled_tools() -> list[str]`：已禁用工具的名称列表
+- `is_concurrency_safe(name: str, arguments: dict[str, Any]) -> bool`：判定某次调用能否与同一轮的其他调用重叠执行。直接读注册表而不过 `get_tool`，因此 `enable_if` 不会被二次求值；工具未注册或已禁用时返回 `False`，让调度器把该调用隔离执行。
 
 ## 示例
 
