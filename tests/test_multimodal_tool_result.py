@@ -659,9 +659,11 @@ class TestAnthropicSystemBlocks:
             ]
         )
         assert converted[0]["role"] == "system"
-        assert "be nice" in converted[0]["content"]
-        assert "<image omitted" in converted[0]["content"]
-        assert "image_url" not in converted[0]["content"]
+        # system 摊平成纯文本，这里断言的是那段文本
+        text = typing.cast(str, converted[0]["content"])
+        assert "be nice" in text
+        assert "<image omitted" in text
+        assert "image_url" not in text
 
     def test_plain_system_text_is_untouched(self):
         converted = AnthropicAdapter._convert_messages(
