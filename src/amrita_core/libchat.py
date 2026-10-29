@@ -43,7 +43,7 @@ from .types import (
     ToolResult,
     UniResponse,
 )
-from .types.tool import block_label
+from .types.tool import DEGRADED_BLOCK_NOTE, block_label
 
 T = typing.TypeVar("T")
 
@@ -51,8 +51,6 @@ RESPONSE_TYPE: typing.TypeAlias = str | MessageContent
 
 #  已经告警过的降级原因，避免同一原因在每轮请求里刷屏
 _DEGRADE_WARNED: set[tuple[str, str]] = set()
-#  非文本块被降级后留下的说明：让模型知道自己少看到了东西，而不是凭空编
-_DEGRADED_BLOCK_NOTE = "<{kind} omitted: the current adapter cannot carry it>"
 
 
 def _warn_degrade_once(protocol: str, kind: str) -> None:
@@ -81,7 +79,7 @@ def _degrade_blocks(content: list[Content]) -> list[Content]:
             degraded.append(block)
         else:
             degraded.append(
-                TextContent(text=_DEGRADED_BLOCK_NOTE.format(kind=block_label(block)))
+                TextContent(text=DEGRADED_BLOCK_NOTE.format(kind=block_label(block)))
             )
     return degraded
 
