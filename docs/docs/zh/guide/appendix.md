@@ -13,7 +13,7 @@ DI 上下文。策略与钩子接收资源；ChatObject 把它们接线。这使
 ### Step 是提示词工程的单位
 
 内置 ReAct 循环把每个 **Step**（一个 DAG 节点）当作显式的提示词工程单位：
-进入 → 执行 → 摘要。没有硬编码的 planner 或 subagent 机制——LLM 分解为
+进入 -> 执行 -> 摘要。没有硬编码的 planner 或 subagent 机制——LLM 分解为
 **语义 DAG**，框架用 stdlib `graphlib` 按拓扑序走完它，执行保持线性。
 DAG 是提示层，不是并行图。
 
@@ -25,14 +25,14 @@ Matcher 修改事件；`StepAbortError` 是控制流逃生舱。停滞检测在*
 
 ### 框架管循环，策略管 Step
 
-`get_category()` 决定谁拥有循环：`agent`/`agent-mixed` → 框架循环并每轮调
-`single_execute()`；`rag`/`workflow` → 策略全权。这让自定义策略保持小巧，
+`get_category()` 决定谁拥有循环：`agent`/`agent-mixed` -> 框架循环并每轮调
+`single_execute()`；`rag`/`workflow` -> 策略全权。这让自定义策略保持小巧，
 而框架的保证（上限、回滚、事件）统一。
 
 ### 不重复 Sense 专属知识
 
 AmritaCore 在需要处内联回顾 AmritaSense 并外链其余。文档旅程镜像工程旅程：
-跑 → 用 → 理解 → 扩展 → 调优 → 深入。
+跑 -> 用 -> 理解 -> 扩展 -> 调优 -> 深入。
 
 ## 命名约定
 
@@ -64,7 +64,7 @@ Manager 类遵循一条简单规则：
 | ------------------------- | --------------------------------------------------- |
 | **Agent**                 | 调用工具达成目标的策略驱动执行器                    |
 | **ChatObject**            | 生命周期管理器——对话的基本单位                      |
-| **Step**                  | 内置 step 循环的一个 DAG 节点（进入 → 执行 → 离开） |
+| **Step**                  | 内置 step 循环的一个 DAG 节点（进入 -> 执行 -> 离开） |
 | **Stall**                 | Step 内重复相同的工具签名                           |
 | **`SuspendObjectStream`** | 工作流（producer）与调用方（consumer）之间的双向流  |
 | **DI Context**            | 注入工作流节点的类型化状态（如 `AgentLoopState`）   |

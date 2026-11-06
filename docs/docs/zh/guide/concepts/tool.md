@@ -33,8 +33,8 @@ handler 接收已解析的参数 `dict` 并返回 `str`——需要携带图片�
 
 | 方向 | 入口                                                                      | 用途                 |
 | ---- | ------------------------------------------------------------------------- | -------------------- |
-| 投影 | `function_definition_from_pydantic`、`function_definition_from_signature` | Python 类型 → schema |
-| 编译 | `compile_parameters_model`                                                | schema → 校验器      |
+| 投影 | `function_definition_from_pydantic`、`function_definition_from_signature` | Python 类型 -> schema |
+| 编译 | `compile_parameters_model`                                                | schema -> 校验器      |
 
 schema 是给**模型**读的；编译出的 Pydantic 模型负责校验**调用**。因为编译只从
 schema 出发，所以它对所有来源都成立——手写 schema、`@simple_tool` 的类型注解、
@@ -155,6 +155,10 @@ async def screenshot(url: str) -> list[Content]:
 `simple_tool` 会把 `list[Content]` 原样透传。其余返回值仍会被 JSON 编码成字符串，
 因此已有工具不受影响。
 
+通过 MCP 提供的工具也一样：`MCPClient` 会把服务端的 `image` / `audio` / 嵌入资源块
+转成 `image_url` / `file` / `text` 块，只有结果全是文本时才折回字符串。见
+[MCP 服务器](../extensions-integration/mcp-server.md#多模态结果)。
+
 `ToolResult.content` 原样保存这个列表，`.text` 给出纯文本视图——非文本块折算成
 `<image>` / `<file:name>` 占位：
 
@@ -182,11 +186,24 @@ result.text  # "captured https://...<image>"
 `openai` 的 `tool_result_multimodal` 为 `False`，因为 Chat Completions 的 `tool`
 消息只承载文本——那里的图片得另发一条 `user` 消息，框架不会代劳。
 
-网关在每次请求前读这些标记。发不出去的块会在消息的**副本**上换成文本说明
-——`<image omitted: the current adapter cannot carry it>`——并按协议各记一条
-warning。存储侧的历史保持原样，因此后续回退到更强的适配器时，原始块还在。
+网关在每次请求前读这些标记，两类内容的处理并不相同：
 
-preset 回退时每次尝试都会重新协商，因为替换后的 preset 可能说的是另一种协议。
+- **送不出去的工具返回直接抛 `UnsupportedContentError`**，请求根本不会发出去。
+  agent 循环接住它，在载荷的**副本**上把问题块换成该异常的 `notice` 并重试这一轮，
+  模型因此能读到媒体为什么不在，进而改让工具返回文本或换一个工具。把图片换成
+  「已省略」照常发送，等于让模型对着一份没收到的东西作答，而且它无从知道该重试。
+- **`user` / `system` 消息**仍然降级：块换成文本说明
+  （`<image omitted: the current adapter cannot carry it>`），并按协议各记一条
+  warning。输入已经发生，为它中断整轮对谁都没好处。
+
+两种情况都不动存储侧的历史，因此后续回退到更强的适配器时原始块还在。preset 回退
+每次尝试都会重新协商，因为替换后的 preset 可能说的是另一种协议；能力缺口不会被
+当成传输失败反复回退。
+
+如果你自己拼载荷——自定义策略、回放工具、测试——用
+`filter_multimodal(context, adapter)` 套用同一套规则。它返回一个新列表，把带不了的
+块换成 `TextContent(text="[Image Unsupported]")`；判定按消息种类分开：
+`tool` 结果看 `tool_result_multimodal`，其余看 `input_multimodal`。原始对象不会被改。
 
 ## 进阶：`custom_run` 与 `ToolContext`
 

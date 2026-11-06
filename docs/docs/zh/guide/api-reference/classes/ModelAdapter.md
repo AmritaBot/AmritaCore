@@ -83,12 +83,23 @@ class MyAdapter(ModelAdapter):
 | `agentic_call`           | 实现 `agentic_call_api()`（一次请求同时流出文本与工具调用） |
 | `input_multimodal`       | 非文本块可否出现在 `user` / `system` 内容里               |
 | `tool_result_multimodal` | 非文本块可否出现在 `tool` 消息内容里                      |
+| `fetch_models`           | 实现 `fetch_models()`（模型目录）                         |
 
 子类请**整个对象**赋值；该 dataclass 是 frozen 的，本来也改不了单个字段。
 
-网关据此做什么：目标协议携带不了的非文本块，会在消息的副本上换成文本说明
-（`<image omitted: the current adapter cannot carry it>`），存储侧历史保持原样。
-说明里的标签与 `ToolResult.text` 一致。每个 (协议, 载荷种类) 只记一条 warning。
+网关据此在每次请求前做两件事：
+
+- **工具返回**里带协议承载不了的块时，在请求发出前抛 `UnsupportedContentError`。
+  agent 循环在载荷的副本上把问题块换成该异常的 `notice` 并重试这一轮，模型因此
+  知道媒体缺失，可以改让工具返回文本；
+- **`user` / `system` 消息**降级：块在消息的副本上换成文本说明
+  （`<image omitted: the current adapter cannot carry it>`），每个
+  (协议, 载荷种类) 记一条 warning。
+
+两条路都不动存储侧历史，说明里的标签与 `ToolResult.text` 一致。
+
+适配器方法抛出的失败统一归一化为 `AdapterError`（或其子类），原始 SDK 异常保留在
+`.original`；见[适配器指南](../../extensions-integration/adapters.md#异常)。
 
 ## 方法
 
@@ -272,6 +283,22 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     return embeddings
 ```
 
+### fetch*models() \*(类方法)\_
+
+列出该协议在给定 preset 下可用的模型。
+
+**签名**：`async fetch_models(preset: ModelPreset) -> list[ModelInfo]`
+
+它是类方法，只吃 preset：端点和凭据都在 preset 里，不涉及会话状态。
+
+**返回**：`list[ModelInfo]`——`id` 必有；`name`、`owned_by`、`context_window`、
+`max_output_tokens` 以及输入/输出模态在供应商提供时填上。供应商返回的其他字段
+保留在模型上（`extra="allow"`）。
+
+未声明 `features.fetch_models` 的适配器抛 `NotImplementedError`，调用方可以先探测
+能力再问。供应商侧失败统一抛 `AdapterError`——没有模型端点的供应商（例如 DeepSeek
+的 Anthropic 入口）会抛 `AdapterRequestError`，404 原文在 `.original`。
+
 ### protocol _(属性)_
 
 获取模型协议适配器标识符。
@@ -311,16 +338,27 @@ AmritaCore 提供了若干内置适配器：
 ### OpenAIAdapter
 
 - **协议**：`"openai"`、`"__main__"`
-- **位置**：`amrita_core.builtins.adapter.OpenAIAdapter`
+- **位置**：`amrita_core.adapters.openai.OpenAIAdapter`
 - **特性**：
   - 同时支持流式和非流式模式
   - 通过 OpenAI 的函数调用 API 实现工具调用
   - 兼容任何 OpenAI 兼容的 API 端点
 
+### OpenAIResponsesAdapter
+
+- **协议**：`"openai-responses"`
+- **位置**：`amrita_core.adapters.openai_responses.OpenAIResponsesAdapter`
+- **特性**：
+  - 无状态：每次请求把完整对话放进 `input`，`store` 固定为 `False`，从不使用
+    `previous_response_id`
+  - 工具返回可以携带 `input_image` / `input_file` 块，因此
+    `tool_result_multimodal=True`
+  - 边流式输出 `output_text` 边组装独立的 `function_call` 条目
+
 ### AnthropicAdapter
 
 - **协议**：`"anthropic"`、`"claude"`
-- **位置**：`amrita_core.builtins.adapter.AnthropicAdapter`
+- **位置**：`amrita_core.adapters.anthropic.AnthropicAdapter`
 - **特性**：
   - 支持流式响应
   - 通过 Anthropic 的工具使用 API 提供完整的工具调用支持

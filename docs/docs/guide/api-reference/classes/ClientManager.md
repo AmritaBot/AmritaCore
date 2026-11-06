@@ -9,7 +9,7 @@ ClientManager is a **singleton class that extends [`MultiClientManager`](MultiCl
 ## Inheritance
 
 ```text
-ClientManager → MultiClientManager
+ClientManager -> MultiClientManager
 ```
 
 ClientManager inherits all methods and properties from MultiClientManager and adds:
@@ -24,8 +24,8 @@ _Inherited from [`MultiClientManager`](MultiClientManager.md):_
 - `clients` (list[MCPClient]): List of all registered MCP clients
 - `script_to_clients` (dict[str, MCPClient]): Mapping from server script paths to clients
 - `name_to_clients` (dict[str, MCPClient]): Mapping from tool names to their owning clients
-- `tools_remapping` (dict[str, str]): Tool name remapping (original → remapped)
-- `reversed_remappings` (dict[str, str]): Reverse remapping (remapped → original)
+- `tools_remapping` (dict[str, str]): Tool name remapping (original -> remapped)
+- `reversed_remappings` (dict[str, str]): Reverse remapping (remapped -> original)
 - `tools_manager` (MultiToolsManager): The tool manager where MCP tools are registered
 - `_is_initialized` (bool): Whether all clients have been initialized
 

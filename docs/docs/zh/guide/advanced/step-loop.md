@@ -41,7 +41,7 @@ flowchart LR
 | -------------- | --------------------------------------------------------------------------------------------------------------- |
 | **decompose**  | 首次 `intro_step`：LLM 决定 simple 还是 DAG `{needs_decomposition, dag, reason}`                                |
 | **intro_step** | 选取下一个就绪 DAG 节点（`graphlib.TopologicalSorter` 拓扑序）；消费 peer 消息；发出 `step_intro` 事件 + 元数据 |
-| **STEP_EXEC**  | 一轮 `single_execute()`：模型 → 工具 → 结果；`after_iteration()` 在*循环内*运行停滞检测                         |
+| **STEP_EXEC**  | 一轮 `single_execute()`：模型 -> 工具 -> 结果；`after_iteration()` 在*循环内*运行停滞检测                         |
 | **leave_step** | 摘要（主谓短语）、完成节点、压缩历史；发出 `step_leave` 事件 + 元数据                                           |
 
 ## 语义状态：`AgentRunState`
@@ -56,10 +56,10 @@ flowchart LR
 | `plan` / `completed_step_ids`       | 任务 DAG + 进度                                        |
 | `step_tool_signatures`              | 当前 Step 内的工具签名（停滞窗口）                     |
 | `stall_injected`                    | give-up prompt 已注入（每 Step 一次）                  |
-| `tool_error_hints`                  | 本 Step 中遇到的硬 ERROR 工具结果数（重试→改计划指引） |
+| `tool_error_hints`                  | 本 Step 中遇到的硬 ERROR 工具结果数（重试->改计划指引） |
 | `last_summary`                      | 前一个 Step 的主谓摘要                                 |
 | `tokens`                            | 真实 API token 统计（压缩触发）                        |
-| `exec_finished`                     | 策略完成工具调用 → 迭代循环结束                        |
+| `exec_finished`                     | 策略完成工具调用 -> 迭代循环结束                        |
 | `step_started_ts`                   | Step 的墙上时钟起点（token 预算窗口锚点）              |
 
 ## 停滞防护

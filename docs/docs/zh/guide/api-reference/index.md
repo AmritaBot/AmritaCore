@@ -248,7 +248,7 @@ def add(a: int, b: int) -> int:
 **支持的参数类型**：
 
 - 基本类型：`str`、`int`、`float`、`bool`
-- 字面量类型：`Literal["a", "b"]` → 自动生成 `string` + `enum` 约束；`Literal[1, 2, 3]` 同样支持 `integer` 枚举
+- 字面量类型：`Literal["a", "b"]` -> 自动生成 `string` + `enum` 约束；`Literal[1, 2, 3]` 同样支持 `integer` 枚举
 - 用于复杂嵌套结构的 Pydantic BaseModel 类
 - 容器类型：`List[T]`（仅支持单层）
 - 可选类型：`Optional[T]` 或 `T | None`
@@ -394,7 +394,7 @@ AmritaCore 提供了若干预定义类型以保持一致性：
 - [DAGNode](classes/DAGNode.md)：任务计划的子步骤
 - [StepLifecycleEvents](classes/StepLifecycleEvents.md)：可变 step 生命周期事件（`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`）与 `StepAbortError`
 
-完整机制见[进阶 → Step 循环](../advanced/step-loop.md)。
+完整机制见[进阶 -> Step 循环](../advanced/step-loop.md)。
 
 ### 异常类型
 

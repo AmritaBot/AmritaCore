@@ -10,13 +10,13 @@ is opted into by passing `workflow=_step_workflow_rendered` (or
 ```mermaid
 flowchart LR
     A["LOAD_STATE"] --> N["NORMALIZE_MESSAGES"]
-    N --> Q["NATIVE_IF(should_manage_context)<br/>→ MANAGE_CONTEXT"]
+    N --> Q["NATIVE_IF(should_manage_context)<br/>-> MANAGE_CONTEXT"]
     Q --> B["JINJA2_RENDER"]
     B --> C["BUILD_MESSAGE"]
     C --> D["_pre_runner (events)"]
     D --> P["_prepare_strategy"]
-    P --> E["NATIVE_IF(is_agent_category)<br/>→ agent block"]
-    P --> E2["NATIVE_IF(not_agent_category)<br/>→ RUN_INLINE_STRATEGY"]
+    P --> E["NATIVE_IF(is_agent_category)<br/>-> agent block"]
+    P --> E2["NATIVE_IF(not_agent_category)<br/>-> RUN_INLINE_STRATEGY"]
     E --> F["LLM_COMPLETION"]
     E2 --> F
     F --> G["_post_runner (events)"]

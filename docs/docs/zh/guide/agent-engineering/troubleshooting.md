@@ -75,7 +75,7 @@ passed back"，非偶发——assistant 一旦产出推理，后续每次请求�
 
 **根因**：部分供应商在思考时返回 `''`。
 
-**修复**：内置——空响应降级为回退而非崩溃（分解 → 直接运行；摘要 →
+**修复**：内置——空响应降级为回退而非崩溃（分解 -> 直接运行；摘要 ->
 `"Completed <phase>"`）。警告日志包含**原始请求 id**，可在供应商日志中
 定位：`Empty decomposition response (request_id=..., thinking_content=True)`。
 

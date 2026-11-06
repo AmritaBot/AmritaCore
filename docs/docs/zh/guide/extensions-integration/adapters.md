@@ -23,13 +23,44 @@ agent = create_agent(
 )
 ```
 
-`create_agent()` 总是构造默认协议（`"__main__"` → OpenAIAdapter）的 preset，
+`create_agent()` 总是构造默认协议（`"__main__"` -> OpenAIAdapter）的 preset，
 所以 OpenAI 兼容端点零协议配置即可使用——DeepSeek、Azure 等**不是**独立
 协议，只是不同的 `base_url`/`model` 取值。
 
 **供应商专属请求追踪**：适配器从 `x-request-id`（OpenAI）、
 `x-ds-trace-id` / `eo-log-uuid`（DeepSeek）读取请求 id——空响应警告会带上
 该 id，方便你在供应商日志中定位失败调用。
+
+### OpenAIResponsesAdapter
+
+说 OpenAI **Responses** API（`/v1/responses`）。注册协议：`"openai-responses"`。
+
+```python
+preset = ModelPreset(
+    name="responses",
+    protocol="openai-responses",
+    base_url="https://api.openai.com/v1",
+    api_key=os.environ["OPENAI_API_KEY"],
+    model="gpt-5",
+    config=ModelConfig(),
+)
+```
+
+与 Chat Completions 有两处线上格式不同，这也是它存在的理由：
+
+- 工具返回是一条 `function_call_output`，其 `output` 可以是
+  `input_text` / `input_image` / `input_file` 组成的列表，因此该适配器声明
+  `tool_result_multimodal=True`——截图以图片形态送到模型，而不是占位符；
+- 工具调用是独立的 `function_call` 条目，不再挂在 assistant 消息的字段上；
+  文本以 `output_text` 块返回。
+
+该适配器是**无状态**的：每次请求都把完整对话放在 `input` 里，`store` 固定为
+`False`，从不使用 `previous_response_id`。续接对话不依赖服务端任何状态，因此
+重试、preset 回退或进程重启的行为完全一致。
+
+reasoning item 会被回传：一轮产生推理时，适配器把 item 的 id 与加密内容存进
+`reasoning_signature`，下次请求原样带回——Responses API 对有工具调用的后续请求
+有此要求。
 
 ### AnthropicAdapter
 
@@ -71,9 +102,14 @@ agent = AgentRuntime(
 思考过滤器（`thinking_config.content_mode`）只为*请求负载*剥离它，
 不改动活动消息对象。
 
+思考是否开启由供应商默认决定：字段缺省表示「沿用默认」，因此关闭必须显式传值。
+设置 `ThinkingConfig(thinking_type="disabled")` 后，适配器会发送
+`thinking: {"type": "disabled"}`（Chat Completions、Anthropic）或
+`reasoning: {"effort": "none"}`（Responses）。
+
 ## 编写自定义适配器
 
-继承 `ModelAdapter`；它会**自动注册**（`__init_subclass__` →
+继承 `ModelAdapter`；它会**自动注册**（`__init_subclass__` ->
 `AdapterManager().register_adapter(cls)`）：
 
 ```python
@@ -128,3 +164,39 @@ agent = AgentRuntime(
 - 流式：产出 `UniResponse` chunk（content / reasoning / usage）
 - 对 thinking 供应商在 assistant 消息上返回 `reasoning_content`
 - 供应商发送追踪 id 时暴露 `metadata.original_request_id`
+
+## 列出模型
+
+`fetch_models(preset)` 是适配器上的类方法，模型选择器不用构造实例就能直接问端点：
+
+```python
+models = await OpenAIAdapter.fetch_models(preset)
+for model in models:
+    print(model.id, model.name, model.context_window, model.input_modalities)
+```
+
+`OpenAIAdapter` 与 `OpenAIResponsesAdapter` 读 `GET /models`；
+`AnthropicAdapter` 读 `GET /v1/models`。能力声明在 `features.fetch_models`，
+调用前先看它——兼容端点未必实现了该路由，失败会以 `AdapterRequestError` 抛出。
+
+## 异常
+
+适配器方法不会把 SDK 异常原样漏出去。所有失败都以
+`amrita_core.exceptions.AdapterError` 或其子类抛出：
+
+| 类型                       | 含义                             |
+| -------------------------- | -------------------------------- |
+| `AdapterAuthError`         | 凭据缺失、无效或权限不足         |
+| `AdapterRateLimitError`    | 被供应商限流                     |
+| `AdapterTimeoutError`      | 超过 `llm_timeout`               |
+| `AdapterConnectionError`   | 连不上供应商（DNS、TLS、socket） |
+| `AdapterRequestError`      | 供应商拒收请求（4xx/5xx）        |
+| `AdapterResponseError`     | 响应无法解析                     |
+| `UnsupportedContentError`  | 载荷含该协议无法承载的内容块     |
+
+原始 SDK 异常保留在 `.original`，HTTP 状态码在 `.status_code`，消息前缀带适配器名。
+第三方适配器给方法加上 `normalize_adapter_errors("<名字>")` 就能获得同样行为，
+协程与异步生成器都支持。
+
+`UnsupportedContentError` 在请求发出**之前**抛出，也不会被当成传输失败重试，
+详见[工具返回](../concepts/tool.md#并非每个适配器都能携带每种块)。

@@ -47,7 +47,7 @@ into a semantic DAG; the framework walks the DAG in topological order, one
 **Step** per node.
 
 ```
-intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
+intro_step -> [NATIVE_WHILE: single_execute -> after_iteration] -> leave_step
 ```
 
 - **decompose** — LLM returns `{needs_decomposition, dag, reason}`.
@@ -55,7 +55,7 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
   tool loop runs; it is just not step-driven (no DAG decomposition). Routine
   questions and simple tasks are assigned to this mode by default.
 - **Step** — one DAG node; may span multiple tool rounds
-- **stall detection** — repeated identical signatures → give-up prompt + cancel
+- **stall detection** — repeated identical signatures -> give-up prompt + cancel
 - **summarize** — each Step ends with a subject-predicate summary (event-overridable)
 - **lifecycle events** — `step_intro/leave/iteration`, `tool_call/return`
 - **update_step tool** — the agent can revise the plan mid-run
@@ -67,9 +67,9 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 > decomposition; pass `workflow=_step_workflow_rendered` (or
 > `SIMPLE_STEP_REACT`) to enable the loop above. See
 > [ChatObject](chat-object.md) and
-> [Advanced → Step Loop](../advanced/step-loop.md).
+> [Advanced -> Step Loop](../advanced/step-loop.md).
 
-Full details: [Advanced → Step Loop](../advanced/step-loop.md).
+Full details: [Advanced -> Step Loop](../advanced/step-loop.md).
 
 ## The Agentic Call Path
 

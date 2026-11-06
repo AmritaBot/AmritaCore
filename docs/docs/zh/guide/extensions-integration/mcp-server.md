@@ -110,6 +110,30 @@ result = await client.simple_call("list_files", {"path": "/tmp"})
 包裹调用——因此并行调用(如 agent 的工具 runner)绝不会互相拆掉连接。连接
 只在最后一个活跃调用退出后才被回收,再由 TTL 任务释放。
 
+## 多模态结果
+
+MCP 工具返回的不只是文本，也可能是媒体。`simple_call` 会把服务端的内容块转成框架
+的类型：
+
+| MCP 块              | 转换结果                                     |
+| ------------------- | -------------------------------------------- |
+| `text`              | `TextContent`                                |
+| `image`             | 带内联 `data:` URI 的 `ImageContent`         |
+| `audio`             | `FileContent`（按 MIME 生成 `audio.<扩展名>`）|
+| 嵌入 `resource`     | `TextContent`（文本）或 `FileContent`（二进制）|
+| `resource_link`     | 描述该链接的 `TextContent`                   |
+
+纯文本结果仍返回普通 `str`，已有服务器不受影响。含媒体时返回
+`list[Content]`，之后与本地工具的内容块走同一套能力协商——协议没有
+`tool_result_multimodal` 时会抛 `UnsupportedContentError`，而不是把图丢掉
+（见[工具返回](../concepts/tool.md#并非每个适配器都能携带每种块)）。
+
+## 工具名冲突
+
+如果 MCP 工具名在工具管理器里已经存在，它会被**重映射**为
+`referred_<n>_<name>`，旧工具被替换，并记一条 warning。用
+`get_client_by_tool_name(name)` 从（可能已重命名的）工具名反查客户端。
+
 ## 下一步
 
 [模型适配器](adapters.md)——切换 provider，或编写自己的适配器。

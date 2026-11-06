@@ -60,7 +60,7 @@ async def main() -> None:
         async for msg in chat.io_stream.get_response_generator():
             print(msg, end="", flush=True)
 
-    # 3. Same session → the agent remembers the previous turn.
+    # 3. Same session -> the agent remembers the previous turn.
     chat2 = agent.get_chatobject(
         "Double the number you just computed.",
         session_id="demo-session",
@@ -88,4 +88,4 @@ if __name__ == "__main__":
 ## Next
 
 Follow the [Tutorials](../tutorials/index.md) — they build up systematically:
-first agent → tools → streaming → hooks → memory.
+first agent -> tools -> streaming -> hooks -> memory.

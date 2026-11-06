@@ -1,4 +1,4 @@
-# Migration Guide: 0.13 → 1.0
+# Migration Guide: 0.13 -> 1.0
 
 AmritaCore 1.0 removes the local tokenizer and moves context management onto the
 model's own attention window. This page lists every breaking change and what to
@@ -33,7 +33,7 @@ use instead.
 
 > Upgrading from 1.1 too? `LLMConfig.enable_compaction` was replaced by
 > `LLMConfig.context_strategy` in 1.2, and `auto_retry` was removed. See
-> [Migration Guide: 1.1 → 1.2](migration-1.2.md) for that step.
+> [Migration Guide: 1.1 -> 1.2](migration-1.2.md) for that step.
 
 ## 1. The Tokenizer Is Gone
 

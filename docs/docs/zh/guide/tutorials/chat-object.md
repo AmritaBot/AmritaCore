@@ -102,7 +102,7 @@ from amrita_core.chatmanager import _step_workflow_rendered
 
 ## 刚才发生了什么
 
-- `minimal_init()` + `create_agent()` → 可以对话
+- `minimal_init()` + `create_agent()` -> 可以对话
 - `ChatObject` = 一次对话：工作流 + 流 + 会话
 - 默认工作流 = 简单对话（一次调用、一个回答）
 - Step 循环需要显式传 `workflow=_step_workflow_rendered`

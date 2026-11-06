@@ -39,7 +39,7 @@ agent = create_agent(..., config=config)  # 或按 agent
 | `function_config.agent_step_token_budget`   | `-1`        | 每 Step prompt-token 预算（`<= 0` = 禁用/不限）                            |
 | `builtin.tool_calling_mode`                 | `"agent"`   | `"agent"` / `"rag"` / `"none"`                                             |
 | `builtin.agent_thought_mode`                | `"chat"`    | `"reasoning"` / `"chat"` / `"reasoning-required"` / `"reasoning-optional"` |
-| `builtin.loop_reasoning_trigger`            | `5`         | 停滞检测：N 个相同工具签名 → 放弃                                          |
+| `builtin.loop_reasoning_trigger`            | `5`         | 停滞检测：N 个相同工具签名 -> 放弃                                          |
 | `llm.context_strategy`                      | `"compact"` | 历史超预算后的处理方式：`"compact"` / `"slide"` / `"none"`                 |
 | `llm.compaction_trigger_ratio`              | `0.9`       | 触发历史管理时占注意力窗口的比例                                           |
 | `llm.slide_target_ratio`                    | `0.7`       | `"slide"` 下将历史裁剪到的窗口比例                                         |

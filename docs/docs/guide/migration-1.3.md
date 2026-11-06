@@ -1,4 +1,4 @@
-# Migration Guide: 1.2 → 1.3
+# Migration Guide: 1.2 -> 1.3
 
 AmritaCore 1.3 changes **how an agent turn ends**. The tool-round budget now
 counts rounds rather than tool calls, the loop winds down instead of being cut off, and a native-thinking run
@@ -67,4 +67,4 @@ tool-less request described in §2.
 - [ ] If you override `on_limited()`, make sure it still marks the budget spent.
 - [ ] If you ship a custom adapter, implement `agentic_call_api()` and set
       `supports_agentic_call = True` to get the streaming path. In 1.4 this moves
-      to `features`; see [1.3 → 1.4](migration-1.4.md).
+      to `features`; see [1.3 -> 1.4](migration-1.4.md).

@@ -28,9 +28,9 @@ flowchart TD
 flowchart LR
     A["create / __init__"] --> B["begin()"]
     B --> C["_entry: 运行工作流"]
-    C --> D["LOAD_STATE → 渲染 → 构建"]
+    C --> D["LOAD_STATE -> 渲染 -> 构建"]
     D --> E["策略循环"]
-    E --> F["完成 → 提交记忆"]
+    E --> F["完成 -> 提交记忆"]
     F --> G["流 EOF"]
 ```
 
@@ -48,8 +48,8 @@ flowchart LR
 `ChatObject` 运行一条预编译的工作流。**默认**（`workflow=None` 时）是
 `_workflow_rendered`，即完整外壳：
 
-`LOAD_STATE → NORMALIZE_MESSAGES → (COMPACT) → JINJA2_RENDER → BUILD_MESSAGE →
-_pre_runner → _prepare_strategy → agent 分支 → LLM_COMPLETION → _post_runner →
+`LOAD_STATE -> NORMALIZE_MESSAGES -> (COMPACT) -> JINJA2_RENDER -> BUILD_MESSAGE ->
+_pre_runner -> _prepare_strategy -> agent 分支 -> LLM_COMPLETION -> _post_runner ->
 COMMIT_MEMORY`
 
 其 **agent 分支是传统的单调用循环**（`AGENT_BLOCK`：每轮迭代一次
@@ -57,7 +57,7 @@ COMMIT_MEMORY`
 `RUN_INLINE_STRATEGY` 分支。`_pre_runner`（触发 `PRECOMPLE` 断点与预完成匹配器）
 和 `_post_runner` 都属于这个默认外壳。
 
-要运行内置的 **Step 驱动 ReAct 循环**（decompose → Step → summarize、
+要运行内置的 **Step 驱动 ReAct 循环**（decompose -> Step -> summarize、
 `update_step` 计划修订），请传入 `_step_workflow_rendered`——同一外壳，
 只是把 `AGENT_BLOCK` 换成 `STEP_AGENT_BLOCK`：
 
@@ -83,7 +83,7 @@ chat = ChatObject(..., workflow=SIMPLE_STEP_REACT)  # Step 循环，仅组件节
 > `workflow` 与 `archived_nodes` 互斥——同时传入会抛出 `ValueError`。
 > Step 循环工作流正是开启 `step` 元数据事件（`decompose` / `intro` /
 > `leave`）与 `update_step` 工具的开关——见
-> [进阶 → Step 循环](../advanced/step-loop.md)。
+> [进阶 -> Step 循环](../advanced/step-loop.md)。
 
 ## 为什么"生命周期管理器"重要
 

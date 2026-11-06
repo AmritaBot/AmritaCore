@@ -1,4 +1,4 @@
-# Migration Guide: 1.3 → 1.4
+# Migration Guide: 1.3 -> 1.4
 
 AmritaCore 1.4 lets a tool return something other than text — an image, a file
 reference — and moves adapter capability flags into one `FeatureFlag` object.
@@ -75,11 +75,18 @@ deprecated, not removed.
 Assign the **whole** `FeatureFlag` on the subclass — it is a frozen dataclass, so
 in-place field assignment was never possible.
 
-## 3. The Gateway Degrades What the Protocol Cannot Carry
+## 3. The Gateway Checks What the Protocol Cannot Carry
 
-Before each request, the gateway looks at the target adapter's `features` and
-replaces any block the protocol cannot carry with a text notice on a **copy** of
-the message:
+Before each request, the gateway looks at the target adapter's `features`. Two
+kinds of content take different paths:
+
+- a **tool result** carrying a block the protocol cannot hold raises
+  `UnsupportedContentError` before the request is sent. The agent loop replaces
+  the offending blocks with the error's `notice` on a **copy** of the payload and
+  retries the round, so the model knows the media is missing and can ask the tool
+  for text or pick another tool;
+- a **`user` / `system` message** is degraded: the block becomes a text notice on
+  a **copy** of the message, and a warning is logged once per protocol.
 
 ```
 <image omitted: the current adapter cannot carry it>
@@ -90,9 +97,12 @@ Consequences worth knowing:
 - **Stored history is untouched.** A later fallback to a stronger adapter still
   has the original blocks.
 - **One warning per (protocol, payload kind).** A long-running process does not
-  flood its log; it also will not warn again after the first turn.
+  flood its log; it also will not warn again after the first turn. The tool-result
+  path logs no warning at all — the exception is the signal.
 - **Fallback re-negotiates.** Each attempt is prepared against the preset that is
-  actually going to be used, so a protocol switch mid-run is handled.
+  actually going to be used, so a protocol switch mid-run is handled. A capability
+  mismatch is not retried as a transport failure — swapping presets cannot add
+  wire support.
 - **`file` blocks are not carried by any built-in adapter.** The Anthropic
   endpoint needs `source.type="file"` plus the `anthropic-beta:
   files-api-2025-04-14` header, which the adapter cannot inject yet; the block
@@ -101,10 +111,11 @@ Consequences worth knowing:
 
 Built-in declarations:
 
-| Adapter                     | `input_multimodal` | `tool_result_multimodal` |
-| --------------------------- | ------------------ | ------------------------ |
-| `openai` (Chat Completions) | ✅                 | ❌                       |
-| `anthropic` (Messages)      | ✅                 | ✅                       |
+| Adapter                        | `input_multimodal` | `tool_result_multimodal` |
+| ------------------------------ | ------------------ | ------------------------ |
+| `openai` (Chat Completions)    | ✅                 | ❌                       |
+| `openai-responses` (Responses) | ✅                 | ✅                       |
+| `anthropic` (Messages)         | ✅                 | ✅                       |
 
 ## Checklist
 
@@ -113,5 +124,7 @@ Built-in declarations:
 - [ ] Custom adapters declare `features` (or keep the deprecated
       `supports_agentic_call`, which still works).
 - [ ] If you rely on images from tools, check your adapter declares
-      `tool_result_multimodal`; otherwise the gateway replaces them with a text
-      notice.
+      `tool_result_multimodal`; otherwise `UnsupportedContentError` is raised and
+      the model is handed a text notice to retry from.
+- [ ] Catch `AdapterError` (not vendor SDK exceptions) around adapter calls;
+      the original is on `.original`.

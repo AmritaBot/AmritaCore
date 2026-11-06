@@ -9,7 +9,7 @@ node execution instead of running to completion:
 async def debug(chat: ChatObject) -> None:
     interp = chat._interpreter
     async for result in interp.run_step_by():
-        print(f"→ {result}")
+        print(f"-> {result}")
 ```
 
 Combine with [suspend points](suspend.md) to inspect state between nodes.

@@ -1,4 +1,4 @@
-# 迁移指南：1.3 → 1.4
+# 迁移指南：1.3 -> 1.4
 
 AmritaCore 1.4 允许工具返回文本之外的东西——图片、文件引用——并把适配器的能力标记
 收进一个 `FeatureFlag`。已有的工具与适配器继续可用；文末清单列出了需要复查的点。
@@ -67,10 +67,15 @@ class MyAdapter(ModelAdapter):
 
 子类请**整个** `FeatureFlag` 赋值——它是 frozen dataclass，本来就不支持就地改字段。
 
-## 3. 协议带不了的，网关负责降级
+## 3. 协议带不了的，网关先拦下来
 
-每次请求前，网关查看目标适配器的 `features`，把协议携带不了的块在消息的**副本**上
-换成文本说明：
+每次请求前，网关查看目标适配器的 `features`，两类内容走两条路：
+
+- **工具返回**里带协议承载不了的块时，在请求发出前抛 `UnsupportedContentError`。
+  agent 循环在载荷的**副本**上把问题块换成该异常的 `notice` 并重试这一轮，模型
+  因此知道媒体缺失，可以改让工具返回文本或换一个工具。
+- **`user` / `system` 消息**仍然降级：块换成文本说明写在消息的**副本**上，并按
+  协议各记一条 warning。
 
 ```
 <image omitted: the current adapter cannot carry it>
@@ -79,9 +84,10 @@ class MyAdapter(ModelAdapter):
 几个值得知道的后果：
 
 - **存储侧历史不动。** 后续回退到更强的适配器时，原始块还在。
-- **每个 (协议, 载荷种类) 只告警一次。** 长跑进程不会刷屏，也不会在第一轮之后再提醒。
+- **每个 (协议, 载荷种类) 只告警一次。** 长跑进程不会刷屏，也不会在第一轮之后再提醒；
+  工具返回那条路径不告警，异常本身就是信号。
 - **回退会重新协商。** 每次尝试都按真正要用的那个 preset 整理载荷，因此运行中途换
-  协议也能处理。
+  协议也能处理。能力缺口不会被当成传输失败反复回退——换 preset 也变不出线上格式。
 - **`file` 块目前任何内置适配器都带不了。** Anthropic 端点需要
   `source.type="file"` 加 `anthropic-beta: files-api-2025-04-14` 头，适配器还没有
   注入请求头的通道；该块会变成 `<file:name omitted: ...>` 而不是凭空消失。此前它是
@@ -89,10 +95,11 @@ class MyAdapter(ModelAdapter):
 
 内置适配器的声明：
 
-| 适配器                      | `input_multimodal` | `tool_result_multimodal` |
-| --------------------------- | ------------------ | ------------------------ |
-| `openai`（Chat Completions） | ✅                 | ❌                       |
-| `anthropic`（Messages）      | ✅                 | ✅                       |
+| 适配器                          | `input_multimodal` | `tool_result_multimodal` |
+| ------------------------------- | ------------------ | ------------------------ |
+| `openai`（Chat Completions）     | ✅                 | ❌                       |
+| `openai-responses`（Responses）  | ✅                 | ✅                       |
+| `anthropic`（Messages）          | ✅                 | ✅                       |
 
 ## 检查清单
 
@@ -100,4 +107,5 @@ class MyAdapter(ModelAdapter):
 - [ ] 读 `StepToolReturnEvent.result` 的 matcher，改用 `content_text()`。
 - [ ] 自定义适配器声明 `features`（或保留已弃用的 `supports_agentic_call`，仍然有效）。
 - [ ] 如果依赖工具返回的图片，确认你的适配器声明了 `tool_result_multimodal`，
-      否则网关会把它们换成文本说明。
+      否则会抛 `UnsupportedContentError`，模型收到的是一条文本说明并据此重试。
+- [ ] 适配器调用处捕获 `AdapterError`（而不是各家 SDK 异常），原始异常在 `.original`。

@@ -107,7 +107,7 @@ the text — see [Streaming and Callbacks](streaming.md) for the full list.
 
 ## What Just Happened
 
-- `minimal_init()` + `create_agent()` → ready to talk
+- `minimal_init()` + `create_agent()` -> ready to talk
 - `ChatObject` = one dialogue: workflow + stream + session
 - Default workflow = simple chat (one call, one answer)
 - Step loop requires `workflow=_step_workflow_rendered` explicitly

@@ -1,4 +1,4 @@
-# Migration Guide: 1.1 → 1.2
+# Migration Guide: 1.1 -> 1.2
 
 AmritaCore 1.2 turns history management into an explicit **policy**. The boolean
 that used to enable or disable it is gone, and with it two identifiers that only
@@ -99,4 +99,4 @@ passing `workflow=None` or one of the shipped `SIMPLE_*` graphs is unaffected.
 ## Next
 
 [API Reference](api-reference/index.md) — the current surface, or
-[Migration Guide: 0.13 → 1.0](migration.md) — the previous breaking release.
+[Migration Guide: 0.13 -> 1.0](migration.md) — the previous breaking release.

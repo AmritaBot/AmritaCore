@@ -176,6 +176,11 @@ async def screenshot(url: str) -> list[Content]:
 `simple_tool` passes a `list[Content]` through untouched. Every other return
 value is still JSON-encoded into a string, so existing tools keep working.
 
+Tools served over MCP behave the same way: `MCPClient` converts the server's
+`image` / `audio` / embedded-resource blocks into `image_url` / `file` / `text`
+blocks, and only collapses to a string when the result is text-only. See
+[MCP Servers](../extensions-integration/mcp-server.md#multimodal-results).
+
 `ToolResult.content` stores the list as it came back, and `.text` gives the
 plain-text view — non-text blocks collapse into `<image>` / `<file:name>`
 placeholders:
@@ -207,14 +212,33 @@ adapters declare it in `features` (`FeatureFlag`):
 message carries text only — an image there has to travel as a separate `user`
 message, which the framework does not do on its own.
 
-The gateway reads those flags before every request. Where a block cannot be
-sent, it is swapped for a text notice on a **copy** of the message —
-`<image omitted: the current adapter cannot carry it>` — and a warning is logged
-once per protocol. The stored history is left alone, so a later fallback to a
-stronger adapter still has the original blocks.
+The gateway reads those flags before every request, and the two kinds of
+content are handled differently:
 
-Preset fallback re-negotiates on every attempt, because the replacement preset
-may speak a different protocol than the one that failed.
+- **A tool result that cannot be sent raises `UnsupportedContentError`** before
+  any request leaves the process. The agent loop catches it, replaces the
+  offending blocks with the error's `notice` on a **copy** of the payload and
+  retries the round, so the model reads why the media is missing and can ask the
+  tool for text or pick another tool. Swapping an image for an "omitted" note
+  and sending it anyway would leave the model answering about something it never
+  received, with no way to tell that it should ask again.
+- **A `user` / `system` message** is degraded instead: the blocks become a text
+  notice (`<image omitted: the current adapter cannot carry it>`) and a warning
+  is logged once per protocol. The input already happened; aborting the turn
+  helps nobody.
+
+Either way the stored history is left alone, so a later fallback to a stronger
+adapter still has the original blocks. Preset fallback re-negotiates on every
+attempt, because the replacement preset may speak a different protocol than the
+one that failed — and a capability mismatch is never retried as a transport
+failure.
+
+If you build a payload yourself — a custom strategy, a replay tool, a test —
+call `filter_multimodal(context, adapter)` to apply the same rule. It returns a
+new list with every untransportable block replaced by
+`TextContent(text="[Image Unsupported]")`, judged per message kind:
+`tool_result_multimodal` for `tool` results, `input_multimodal` for everything
+else. The original objects are never touched.
 
 ## Advanced: `custom_run` and `ToolContext`
 

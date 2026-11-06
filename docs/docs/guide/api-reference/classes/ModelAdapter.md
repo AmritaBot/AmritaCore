@@ -86,15 +86,28 @@ class MyAdapter(ModelAdapter):
 | `agentic_call`           | implements `agentic_call_api()` (text + tool calls, one request) |
 | `input_multimodal`       | non-text blocks allowed in `user` / `system` content           |
 | `tool_result_multimodal` | non-text blocks allowed in `tool` message content              |
+| `fetch_models`           | implements `fetch_models()` (model catalogue)                 |
 
 Assign the **whole object** on a subclass; the dataclass is frozen, so mutating
 a field is not possible anyway.
 
-What the gateway does with it: a non-text block that the target protocol cannot
-carry is replaced by a text notice on a copy of the message
-(`<image omitted: the current adapter cannot carry it>`), leaving stored history
-untouched. The notice uses the same labels as `ToolResult.text`. One warning per
-(protocol, payload kind) is logged.
+What the gateway does with it, before every request:
+
+- a **tool result** holding a block the protocol cannot carry raises
+  `UnsupportedContentError` before anything is sent. The agent loop replaces the
+  offending blocks with the error's `notice` on a copy of the payload and retries
+  the round, so the model learns the media is missing and can ask the tool for
+  text instead;
+- a **`user` / `system`** message is degraded: the block becomes a text notice on
+  a copy of the message (`<image omitted: the current adapter cannot carry it>`),
+  with one warning per (protocol, payload kind).
+
+Either path leaves stored history untouched, and the notice uses the same labels
+as `ToolResult.text`.
+
+Failures raised by an adapter method are normalized to `AdapterError` (or a
+subclass) with the SDK exception kept on `.original`; see the
+[adapters guide](../../extensions-integration/adapters.md#errors).
 
 ## Methods
 
@@ -279,6 +292,25 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     return embeddings
 ```
 
+### fetch*models() \*(Classmethod)\_
+
+List the models the protocol exposes for a preset.
+
+**Signature**: `async fetch_models(preset: ModelPreset) -> list[ModelInfo]`
+
+It is a class method and takes only the preset: the endpoint and credentials
+already live there, and no conversation state is involved.
+
+**Returns**: `list[ModelInfo]` — `id` is always present; `name`, `owned_by`,
+`context_window`, `max_output_tokens` and the input/output modalities are filled
+in when the provider reports them. Anything else the provider sends is kept
+(`extra="allow"`).
+
+Adapters that do not declare `features.fetch_models` raise `NotImplementedError`,
+so callers can feature-detect before asking. Provider failures surface as
+`AdapterError` — a provider without a model endpoint (DeepSeek's Anthropic
+surface, for example) raises `AdapterRequestError` with the 404 on `.original`.
+
 ### protocol _(Property)_
 
 Get the model protocol adapter identifier.
@@ -318,16 +350,27 @@ AmritaCore provides several built-in adapters:
 ### OpenAIAdapter
 
 - **Protocols**: `"openai"`, `"__main__"`
-- **Location**: `amrita_core.builtins.adapter.OpenAIAdapter`
+- **Location**: `amrita_core.adapters.openai.OpenAIAdapter`
 - **Features**:
   - Supports both streaming and non-streaming modes
   - Implements tool calling via OpenAI's function calling API
   - Compatible with any OpenAI-compatible API endpoint
 
+### OpenAIResponsesAdapter
+
+- **Protocols**: `"openai-responses"`
+- **Location**: `amrita_core.adapters.openai_responses.OpenAIResponsesAdapter`
+- **Features**:
+  - Stateless: each request sends the whole conversation as `input`, `store` is
+    pinned to `False`, and `previous_response_id` is never used
+  - Tool results may carry `input_image` / `input_file` parts, so
+    `tool_result_multimodal=True`
+  - Streams `output_text` deltas while assembling separate `function_call` items
+
 ### AnthropicAdapter
 
 - **Protocols**: `"anthropic"`, `"claude"`
-- **Location**: `amrita_core.builtins.adapter.AnthropicAdapter`
+- **Location**: `amrita_core.adapters.anthropic.AnthropicAdapter`
 - **Features**:
   - Supports streaming responses
   - Full tool calling support via Anthropic's tool use API

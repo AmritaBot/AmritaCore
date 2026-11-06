@@ -29,9 +29,9 @@ flowchart TD
 flowchart LR
     A["create / __init__"] --> B["begin()"]
     B --> C["_entry: run workflow"]
-    C --> D["LOAD_STATE → render → build"]
+    C --> D["LOAD_STATE -> render -> build"]
     D --> E["strategy loop"]
-    E --> F["completion → commit memory"]
+    E --> F["completion -> commit memory"]
     F --> G["stream EOF"]
 ```
 
@@ -50,8 +50,8 @@ flowchart LR
 `ChatObject` runs a pre-compiled workflow. The **default** (used when
 `workflow=None`) is `_workflow_rendered`, the full shell:
 
-`LOAD_STATE → NORMALIZE_MESSAGES → (COMPACT) → JINJA2_RENDER → BUILD_MESSAGE →
-_pre_runner → _prepare_strategy → agent branch → LLM_COMPLETION → _post_runner →
+`LOAD_STATE -> NORMALIZE_MESSAGES -> (COMPACT) -> JINJA2_RENDER -> BUILD_MESSAGE ->
+_pre_runner -> _prepare_strategy -> agent branch -> LLM_COMPLETION -> _post_runner ->
 COMMIT_MEMORY`
 
 Its **agent branch is the legacy single-call loop** (`AGENT_BLOCK`: one
@@ -60,7 +60,7 @@ agent-category take the `RUN_INLINE_STRATEGY` branch instead. Both
 `_pre_runner` (which fires the `PRECOMPLE` breakpoint and the pre-completion
 matchers) and `_post_runner` are part of this default shell.
 
-For the built-in **step-driven ReAct loop** (decompose → Step → summarize, with
+For the built-in **step-driven ReAct loop** (decompose -> Step -> summarize, with
 `update_step` plan revision), pass `_step_workflow_rendered` — the same shell
 with `STEP_AGENT_BLOCK` in place of `AGENT_BLOCK`:
 
