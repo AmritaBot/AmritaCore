@@ -11,7 +11,7 @@ from amrita_core.config import AmritaConfig, get_config
 from amrita_core.utils import _did_you_mean_hint
 
 from ..tools.models import ToolChoice, ToolFunctionSchema
-from ..types import EmbeddingChunk, ModelPreset, ToolCall, UniResponse
+from ..types import EmbeddingChunk, ModelInfo, ModelPreset, ToolCall, UniResponse
 
 
 class MessageContent(ABC):
@@ -64,6 +64,9 @@ class FeatureFlag:
     tool_result_multimodal: bool = field(default=False)
     """非文本块能否出现在 ``tool`` 消息（工具返回值）的内容里。"""
 
+    fetch_models: bool = field(default=False)
+    """是否实现 ``fetch_models``（枚举该协议的用户可用模型）。"""
+
 
 _DEFAULT_FEATURES = FeatureFlag()
 
@@ -75,10 +78,9 @@ class ModelAdapter:
     preset: ModelPreset
     config: AmritaConfig = field(default_factory=get_config)
     __override__: bool = False  # Whether to allow overriding existing adapters
-    # 适配器出口能力声明。子类覆盖整个对象，而不是就地改字段——`FeatureFlag`
-    # 是 frozen 的，改字段本身就不允许。
+    # Adapter wire capabilities. Subclasses assign the whole object; FeatureFlag is frozen.
     features: ClassVar[FeatureFlag] = _DEFAULT_FEATURES
-    # 兼容旧字段：子类若只声明了它，`__init_subclass__` 会搬进 `features`。
+    # Legacy field: a subclass that only declares it gets folded into ``features``.
     supports_agentic_call: ClassVar[bool] = False
 
     def __init_subclass__(cls) -> None:
@@ -101,7 +103,7 @@ class ModelAdapter:
         流式的子类会顺手把父类的多模态声明一起清零，症状是「图怎么不发了」。
         """
         if "features" in cls.__dict__:
-            # 显式声明了新标记，以它为准；旧字段跟着同步，外部读取方不会读到过期值
+            # Explicit features win, and the legacy field is kept in sync for readers.
             cls.supports_agentic_call = cls.features.agentic_call
             return
         legacy = cls.__dict__.get("supports_agentic_call")
@@ -126,7 +128,7 @@ class ModelAdapter:
         tools: list[ToolFunctionSchema],
         tool_choice: ToolChoice | None = None,
         **kwargs,
-    ) -> UniResponse[None, list[ToolCall] | None]:
+    ) -> UniResponse[str | None, list[ToolCall] | None]:
         raise NotImplementedError
 
     async def agentic_call_api(
@@ -146,6 +148,22 @@ class ModelAdapter:
             yield ""
         else:
             raise NotImplementedError
+
+    @classmethod
+    async def fetch_models(cls, preset: ModelPreset) -> list[ModelInfo]:
+        """List the models this protocol exposes for ``preset``.
+
+        Optional capability: adapters that can query a model catalogue set
+        :attr:`FeatureFlag.fetch_models` and implement this. It is a class
+        method because the call needs only the endpoint and credentials already
+        on the preset - no configured instance, no conversation state.
+
+        The default raises so callers can feature-detect instead of sending a
+        request the provider may not support.
+        """
+        raise NotImplementedError(
+            f"Adapter {cls.__name__} does not implement fetch_models"
+        )
 
     async def call_embed(
         self, texts: Sequence[str], **kwargs

@@ -16,6 +16,7 @@ from openai.types.chat.chat_completion_named_tool_choice_param import (
 from openai.types.chat.chat_completion_tool_choice_option_param import (
     ChatCompletionToolChoiceOptionParam,
 )
+from openai.types.chat.chat_completion_tool_param import ChatCompletionToolParam
 from typing_extensions import override
 
 from amrita_core.base.adapter import (
@@ -26,6 +27,7 @@ from amrita_core.base.adapter import (
 )
 from amrita_core.config import AmritaConfig
 from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
+from amrita_core.exceptions import normalize_adapter_errors
 from amrita_core.tools.models import (
     ToolChoice,
     ToolFunctionSchema,
@@ -33,6 +35,7 @@ from amrita_core.tools.models import (
 from amrita_core.types import (
     EmbeddingChunk,
     ModelConfig,
+    ModelInfo,
     ModelPreset,
     ToolCall,
     UniResponse,
@@ -54,6 +57,23 @@ R2R_MAP: dict[
 }
 
 
+def _convert_tools(tools: list[ToolFunctionSchema]) -> list[ChatCompletionToolParam]:
+    """Serialize tool schemas into the Chat Completions shape explicitly.
+
+    Handing the pydantic objects to the SDK is not enough: it serializes them
+    with ``exclude_unset``, and ``type`` / ``strict`` carry defaults, so they are
+    dropped and the provider rejects the request with "tools[0]: missing field
+    `type`". ``strict`` also belongs inside ``function`` here — at the tool's top
+    level the schema ignores it.
+    """
+    converted: list[dict] = []
+    for tool in tools:
+        function = tool.function.model_dump(exclude_none=True)
+        function["strict"] = tool.strict
+        converted.append({"type": "function", "function": function})
+    return cast(list[ChatCompletionToolParam], converted)
+
+
 class OpenAIAdapter(ModelAdapter):
     """OpenAI Protocol Adapter
 
@@ -67,10 +87,12 @@ class OpenAIAdapter(ModelAdapter):
     features = FeatureFlag(
         agentic_call=True,
         input_multimodal=True,
-        tool_result_multimodal=False,  # tool 消息只收文本块
+        tool_result_multimodal=False,  # tool messages carry text blocks only.
+        fetch_models=True,
     )
 
     @override
+    @normalize_adapter_errors("openai")
     async def call_api(
         self,
         messages: Iterable[ChatCompletionMessageParam],
@@ -224,6 +246,7 @@ class OpenAIAdapter(ModelAdapter):
         )
 
     @override
+    @normalize_adapter_errors("openai")
     async def agentic_call_api(
         self,
         messages: Iterable,
@@ -290,7 +313,7 @@ class OpenAIAdapter(ModelAdapter):
             "stop": stop,
         }
         if tools:
-            request_kwargs["tools"] = tools
+            request_kwargs["tools"] = _convert_tools(tools)
             request_kwargs["tool_choice"] = choice
         request_kwargs.update(kwargs)
 
@@ -426,13 +449,14 @@ class OpenAIAdapter(ModelAdapter):
         )
 
     @override
+    @normalize_adapter_errors("openai")
     async def call_tools(
         self,
         messages: Iterable,
         tools: list,
         tool_choice: ToolChoice | None = None,
         **kwargs,
-    ) -> UniResponse[None, list[ToolCall] | None]:
+    ) -> UniResponse[str | None, list[ToolCall] | None]:
         if not tool_choice:
             choice: ChatCompletionToolChoiceOptionParam = "auto"
         elif isinstance(tool_choice, ToolFunctionSchema):
@@ -472,7 +496,7 @@ class OpenAIAdapter(ModelAdapter):
             messages=messages,
             stream=False,
             tool_choice=choice,
-            tools=tools,
+            tools=_convert_tools(tools),
             top_p=preset_config.top_p,
             temperature=preset_config.temperature,
             **kwargs,
@@ -498,7 +522,8 @@ class OpenAIAdapter(ModelAdapter):
                 if msg.tool_calls
                 else None
             ),
-            content=None,
+            # A tool-calling turn may also speak; dropping it hides the text next round.
+            content=msg.content or None,
             reasoning_content=getattr(msg, "reasoning_content", None),
             usage=(
                 UniResponseUsage.model_validate(completion.usage, from_attributes=True)
@@ -509,6 +534,7 @@ class OpenAIAdapter(ModelAdapter):
         )
 
     @override
+    @normalize_adapter_errors("openai")
     async def call_embed(
         self, texts: Sequence[str], **kwargs
     ) -> Sequence[EmbeddingChunk]:
@@ -534,6 +560,17 @@ class OpenAIAdapter(ModelAdapter):
             EmbeddingChunk.model_validate(i, from_attributes=True)
             for i in response.data
         ]
+
+    @classmethod
+    @normalize_adapter_errors("openai")
+    async def fetch_models(cls, preset: ModelPreset) -> list[ModelInfo]:
+        """List the models the endpoint advertises on ``/models``."""
+        client = openai.AsyncOpenAI(
+            base_url=preset.base_url,
+            api_key=preset.api_key,
+        )
+        page = await client.models.list()
+        return [ModelInfo.model_validate(item.model_dump()) for item in page.data]
 
     @staticmethod
     def get_adapter_protocol() -> tuple[str, str]:

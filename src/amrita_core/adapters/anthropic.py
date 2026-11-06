@@ -14,6 +14,7 @@ from amrita_core.base.adapter import (
 )
 from amrita_core.config import AmritaConfig
 from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
+from amrita_core.exceptions import normalize_adapter_errors
 from amrita_core.tools.models import (
     FunctionParametersSchema,
     ToolChoice,
@@ -22,6 +23,7 @@ from amrita_core.tools.models import (
 from amrita_core.types import (
     Function,
     ModelConfig,
+    ModelInfo,
     ModelPreset,
     ToolCall,
     UniResponse,
@@ -32,7 +34,7 @@ from amrita_core.types.response import RequestMetadata
 from amrita_core.types.tool import DEGRADED_BLOCK_NOTE, block_label_of_type
 from amrita_core.utils import model_dump
 
-#: ``file`` 块送不出去时留在正文里的说明，与网关降级的写法保持一致
+#: Note left in the body when a ``file`` block cannot be sent; matches the gateway wording.
 _FILE_BLOCK_NOTE = "<file:{name} omitted: this adapter cannot carry file blocks>"
 
 
@@ -174,10 +176,7 @@ try:
                             }
                         )
                 elif item_type == "file":
-                    #  ``file`` 块要 ``source.type="file"`` 加 ``anthropic-beta:
-                    #  files-api-2025-04-14`` 头，适配器没有注入请求头的通道，所以送
-                    #  不出去。静默丢掉会让模型对着一份从未收到的文件作答；这里按网关
-                    #  降级的同一套做法换成文本说明，模型至少知道自己少了什么。
+                    # ``file`` blocks need a beta header the adapter cannot inject, so they become a text note.
                     blocks.append(
                         {
                             "type": "text",
@@ -217,10 +216,7 @@ try:
 
                 if role == "system":
                     flush_tool_results()
-                    # System 只收纯文本，块要在这里摊平。摊平不能只挑 text 块——这个
-                    # 适配器声明了 input_multimodal，网关不会再替它补占位说明，静默
-                    # 丢掉就等于让模型对着一份没看到的东西作答。非文本块改用与网关
-                    # 同一句说明，模型至少知道自己少了什么。
+                    # System takes text only, so blocks are flattened here; non-text blocks get the gateway note.
                     if isinstance(content, list):
                         text = "".join(_system_block_text(item) for item in content)
                     else:
@@ -267,8 +263,7 @@ try:
 
                 elif role == "tool":
                     tc_id = msg.get("tool_call_id", "")
-                    #  ``tool_result`` 原生支持内容块（含 image），不必先摊平成文本：
-                    #  摊平会把多模态工具返回的图片整块丢掉
+                    # Keep tool_result blocks as-is: flattening would drop the image entirely.
                     temp_tool_results.append(
                         {
                             "type": "tool_result",
@@ -317,6 +312,7 @@ try:
             raise ValueError(f"Invalid choice: {choice}")
 
         @override
+        @normalize_adapter_errors("anthropic")
         async def call_api(
             self, messages: Iterable, **kwargs
         ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
@@ -326,12 +322,17 @@ try:
             config: AmritaConfig = self.config
             if (
                 preset.thinking_config
-                and preset.thinking_config.thinking_type == "enabled"
+                and preset.thinking_config.thinking_type is not None
             ):
-                kwargs["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
+                # Send "disabled" explicitly: DeepSeek defaults thinking on.
+                thinking: dict[str, object] = {
+                    "type": preset.thinking_config.thinking_type
                 }
+                if preset.thinking_config.thinking_type == "enabled":
+                    thinking["budget_tokens"] = int(
+                        resolve_max_output(preset, config) / 2
+                    )
+                kwargs["thinking"] = thinking
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -443,6 +444,7 @@ try:
             )
 
         @override
+        @normalize_adapter_errors("anthropic")
         async def agentic_call_api(
             self,
             messages: Iterable,
@@ -462,12 +464,17 @@ try:
             config: AmritaConfig = self.config
             if (
                 preset.thinking_config
-                and preset.thinking_config.thinking_type == "enabled"
+                and preset.thinking_config.thinking_type is not None
             ):
-                kwargs["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
+                # Send "disabled" explicitly: DeepSeek defaults thinking on.
+                thinking: dict[str, object] = {
+                    "type": preset.thinking_config.thinking_type
                 }
+                if preset.thinking_config.thinking_type == "enabled":
+                    thinking["budget_tokens"] = int(
+                        resolve_max_output(preset, config) / 2
+                    )
+                kwargs["thinking"] = thinking
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -614,25 +621,31 @@ try:
             )
 
         @override
+        @normalize_adapter_errors("anthropic")
         async def call_tools(
             self,
             messages: Iterable,
             tools: list[ToolFunctionSchema],
             tool_choice: ToolChoice | None = None,
             **kwargs,
-        ) -> UniResponse[None, list[ToolCall] | None]:
+        ) -> UniResponse[str | None, list[ToolCall] | None]:
             """Tool call specific interface; returns tool_calls in UniResponse"""
             preset: ModelPreset = self.preset
             preset_config: ModelConfig = preset.config
             config: AmritaConfig = self.config
             if (
                 preset.thinking_config
-                and preset.thinking_config.thinking_type == "enabled"
+                and preset.thinking_config.thinking_type is not None
             ):
-                kwargs["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
+                # Send "disabled" explicitly: DeepSeek defaults thinking on.
+                thinking: dict[str, object] = {
+                    "type": preset.thinking_config.thinking_type
                 }
+                if preset.thinking_config.thinking_type == "enabled":
+                    thinking["budget_tokens"] = int(
+                        resolve_max_output(preset, config) / 2
+                    )
+                kwargs["thinking"] = thinking
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -682,8 +695,12 @@ try:
             tool_calls = []
             reasoning = ""
             reasoning_signature = ""
+            text_parts: list[str] = []
             for block in response.content:
-                if isinstance(block, ToolUseBlock):
+                if isinstance(block, TextBlock):
+                    # A tool-calling turn may also speak; keep the text for the next round.
+                    text_parts.append(block.text)
+                elif isinstance(block, ToolUseBlock):
                     tool_calls.append(
                         ToolCall(
                             id=block.id,
@@ -700,7 +717,7 @@ try:
                         reasoning_signature = block.signature  # pyright: ignore[reportAttributeAccessIssue]
             return UniResponse(
                 role="assistant",
-                content=None,
+                content="".join(text_parts) or None,
                 tool_calls=tool_calls if tool_calls else None,
                 usage=usage,
                 reasoning_content=reasoning or None,
@@ -711,8 +728,29 @@ try:
         features = FeatureFlag(
             agentic_call=True,
             input_multimodal=True,
-            tool_result_multimodal=True,  # tool_result 原生支持内容块
+            tool_result_multimodal=True,  # tool_result carries content blocks natively.
+            fetch_models=True,
         )
+
+        @classmethod
+        @normalize_adapter_errors("anthropic")
+        async def fetch_models(cls, preset: ModelPreset) -> list[ModelInfo]:
+            """List the models the endpoint advertises on ``/v1/models``."""
+            client = anthropic.AsyncAnthropic(
+                api_key=preset.api_key,
+                base_url=preset.base_url,
+            )
+            page = await client.models.list()
+            return [
+                ModelInfo.model_validate(
+                    {
+                        "id": item.id,
+                        "name": getattr(item, "display_name", None),
+                        "created_at": getattr(item, "created_at", None),
+                    }
+                )
+                for item in page.data
+            ]
 
         @staticmethod
         def get_adapter_protocol() -> tuple[str, str]:

@@ -21,6 +21,7 @@ from amrita_core.types.message import (
     Message,
     SendMessageWrap,
 )
+from amrita_core.types.model import ModelInfo
 from amrita_core.types.preset import (
     ModelConfig,
     ModelPreset,
@@ -61,6 +62,7 @@ __all__ = [
     "MemoryModel",
     "Message",
     "ModelConfig",
+    "ModelInfo",
     "ModelPreset",
     "RateConfig",
     "SendMessageWrap",
