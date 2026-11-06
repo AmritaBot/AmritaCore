@@ -41,15 +41,14 @@ class ToolCall(BaseModel):
 TOOL_RESULT_CONTENT = str | SerializeAsAny[list[Content]]
 """工具返回内容的形状：纯文本，或内容块列表（可含图片等非文本块）。"""
 
-#  非文本块在纯文本视图里的占位：日志、判错前缀摘要压缩都只关心文本
+#  Placeholder for a non-text block in the text view: logs, ERR checks and compaction read text.
 _BLOCK_PLACEHOLDER = "<{label}>"
 
-#  内部 ``type`` 与对外标签不一致的块；未列出的直接沿用 ``type``
+#  Blocks whose external label differs from ``type``; anything else keeps ``type``.
 _BLOCK_LABELS: dict[str, str] = {"image_url": "image"}
 
 
-#: 块携带不了时留在正文里的说明。文案只有一份：网关降级与适配器自身的降级都要用它，
-#: 否则同一张图在两处会得到两种说法。
+#: Note left when a block cannot be carried; one wording shared by gateway and adapters.
 DEGRADED_BLOCK_NOTE = "<{kind} omitted: the current adapter cannot carry it>"
 
 

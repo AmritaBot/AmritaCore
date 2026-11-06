@@ -52,8 +52,7 @@ from amrita_core.types.preset import (
 from amrita_core.types.tool import ToolResult
 from amrita_core.usage import SessionUsageProxy
 
-#: 非文本块在权重里的名义字符数。一张图大约按千级 token 计费，纯文本视图里却贡献
-#: 零字符；折算成一个文本块量级的常量，让含图的消息按真实体量参与份额分配。
+#: Nominal characters a non-text block contributes to weighting, so image messages count at text scale.
 _NON_TEXT_BLOCK_WEIGHT = 1000
 
 
@@ -368,8 +367,8 @@ class ContextCompactor:
            declared its ``tool_call_id``;
         2. every ``tool_call_id`` an assistant declared must have a result.
 
-        A turn is self-contained — ``user`` → ``assistant(tool_calls)`` →
-        ``tool``* → ``assistant`` — so a turn boundary satisfies both by
+        A turn is self-contained — ``user`` -> ``assistant(tool_calls)`` ->
+        ``tool``* -> ``assistant`` — so a turn boundary satisfies both by
         construction, and that is where the cut is placed: at the newest
         ``user`` message at or before the request, or, when that leaves
         nothing to drop, at the next boundary after it. Without the forward

@@ -564,7 +564,7 @@ class TestSlide:
         )
         compactor = self._compactor(window=10**6)
         text_only, with_image = compactor._estimate(memory.messages, 1000)
-        # 同样的正文，带图的消息要分到更大的份额
+        # Same body text; the message with an image must get a larger share.
         assert with_image > text_only
 
     def test_estimate_weights_long_messages_higher(self):

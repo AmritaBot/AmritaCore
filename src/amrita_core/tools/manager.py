@@ -298,8 +298,7 @@ def simple_tool(
             else await asyncio.to_thread(func, **bound_args.arguments)
         )
 
-        #  内容块列表要原样透传：它是要发给模型的多模态载荷，先序列化成字符串
-        #  就只剩一串 base64 文本了，既不被识别也查不出来
+        # Pass content blocks through: serializing them would leave only base64 text for the model.
         if _is_content_list(result):
             return result
         # Convert result to string as expected by the schema
