@@ -714,7 +714,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         Parallel tool calling is left untouched — this only appends a context
         message, it never disables or alters concurrent execution.
         """
-        #  判错只看文本视图：多模态结果里的图片块不该被当成错误前缀
+        # Error detection reads the text view; image blocks must not look like an ERR prefix.
         if not content_text(func_response).startswith("ERROR"):
             return
         rs = self._init_run_state()
@@ -744,7 +744,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
     async def _build_stop_response_and_append(
         self,
         function_args: dict[str, Any],
-        response_msg: UniResponse[None, list[ToolCall] | None],
+        response_msg: UniResponse[str | None, list[ToolCall] | None],
         function_name: str,
         function_call_id: str,
         function_response: str,
@@ -790,7 +790,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         tool_call: ToolCall,
         error_content: str,
         original_exception: BaseException | None = None,
-        response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
+        response_msg: UniResponse[str | None, list[ToolCall] | None] | None = None,
     ):
         """ReAct strategy: append error as an assistant+tool message pair.
 
@@ -881,7 +881,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
 
         response_msg: UniResponse[
-            None, list[ToolCall] | None
+            str | None, list[ToolCall] | None
         ] = await self._model_round(
             msg_list.unwrap(),
             tools,

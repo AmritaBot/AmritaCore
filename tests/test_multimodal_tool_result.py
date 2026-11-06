@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import typing
 from dataclasses import FrozenInstanceError
 from datetime import datetime, timedelta
@@ -20,6 +19,7 @@ from amrita_sense.hook.matcher import Matcher
 from amrita_core import libchat
 from amrita_core.adapters.anthropic import AnthropicAdapter
 from amrita_core.base.adapter import AdapterManager, FeatureFlag, ModelAdapter
+from amrita_core.exceptions import UnsupportedContentError
 from amrita_core.hook.event import FallbackContext
 from amrita_core.libchat import (
     _prepare_payload,
@@ -180,7 +180,7 @@ class TestFeatureFlag:
             supports_agentic_call = True
 
         assert Explicit.features.tool_result_multimodal is True
-        # 旧字段跟着新标记同步，避免读到过期值
+        # The legacy field stays in sync so readers never see a stale value.
         assert Explicit.supports_agentic_call is False
 
 
@@ -207,7 +207,7 @@ class TestGatewayDegrade:
         assert payload[0] is messages[0]
         assert payload[1] is messages[1]
 
-    def test_unsupported_tool_result_degrades_on_copy(self):
+    def test_unsupported_tool_result_raises_before_sending(self):
         result = ToolResult(
             role="tool",
             name="f",
@@ -219,13 +219,14 @@ class TestGatewayDegrade:
             Message(role="assistant", content=None),
             result,
         ]
-        payload = _prepare_payload(messages, self._preset("openai"))
-        degraded = payload[2]
-        assert isinstance(degraded, ToolResult)
-        assert degraded is not result
-        assert all(isinstance(b, TextContent) for b in degraded.content)
-        assert "omitted" in degraded.text
-        # 存储侧的历史必须保持原样：回退到更强适配器时图还得在
+        with pytest.raises(UnsupportedContentError) as excinfo:
+            _prepare_payload(messages, self._preset("openai"))
+        exc = excinfo.value
+        assert exc.protocol == "openai"
+        assert exc.scope == "tool_result"
+        assert exc.tool_call_ids == ("1",)
+        assert "image" in exc.kinds
+        # Raising must not rewrite the stored history; the image stays.
         assert any(isinstance(b, ImageContent) for b in result.content)
 
     def test_text_only_history_passes_through(self):
@@ -270,23 +271,15 @@ class TestDegradeWarning:
         assert warn.call_count == 1
         assert "declares no input_multimodal" in warn.call_args.args[0]
 
-    def test_differs_by_payload_kind(self):
+    def test_tool_result_raises_while_input_only_warns(self):
         preset = ModelPreset()
         preset.protocol = "test-off"
         tool = ToolResult(role="tool", name="f", tool_call_id="1", content=[_image()])
+        with pytest.raises(UnsupportedContentError):
+            _prepare_payload([tool], preset)
         with patch.object(libchat.logger, "warning") as warn:
-            _prepare_payload(
-                [
-                    ToolResult(
-                        role="tool", name="f", tool_call_id="1", content=[_image()]
-                    )
-                ],
-                preset,
-            )
-            _prepare_payload([Message(role="user", content=[_image()]), tool], preset)
-        kinds = [c.args[0] for c in warn.call_args_list]
-        assert any("tool_result_multimodal" in k for k in kinds)
-        assert any("input_multimodal" in k for k in kinds)
+            _prepare_payload([Message(role="user", content=[_image()])], preset)
+        assert "declares no input_multimodal" in warn.call_args.args[0]
 
     def test_supported_adapter_never_warns(self):
         preset = ModelPreset()
@@ -388,7 +381,7 @@ class TestGatewayEndToEnd:
 
         sent = adapter.calls[0][0]
         assert all(block["type"] == "text" for block in sent["content"])
-        # 原对象没有被就地改掉，历史里那张图还在
+        # The object is not mutated in place; the image stays in history.
         assert any(isinstance(b, ImageContent) for b in message.content)
 
     @pytest.mark.asyncio
@@ -411,7 +404,7 @@ class TestAgenticFallbackRenegotiates:
     """回退换了 preset 就要按新协议重新协商载荷。"""
 
     @pytest.mark.asyncio
-    async def test_fallback_degrades_for_the_weaker_protocol(self):
+    async def test_fallback_refuses_untransportable_tool_result(self):
         multi = _install_adapter(
             "test-agentic-multi",
             FeatureFlag(
@@ -460,18 +453,20 @@ class TestAgenticFallbackRenegotiates:
                 return await _reflect(preset, call_func, config)
 
             with patch("amrita_core.libchat._call_with_reflection", side_effect=flaky):
-                async for _ in agentic_call_completion(
-                    messages, preset=_preset("test-agentic-multi", "strong")
-                ):
-                    pass
+                with pytest.raises(UnsupportedContentError) as excinfo:
+                    async for _ in agentic_call_completion(
+                        messages, preset=_preset("test-agentic-multi", "strong")
+                    ):
+                        pass
         finally:
             matcher._dead_at = datetime.now() - timedelta(minutes=1)
 
-        # 第一个协议还没发出请求就失败了，所以没有记录
+        # The first protocol failed before sending, so nothing was recorded.
         assert multi.calls == []
-        sent = text.calls[0]
-        assert "omitted" in json.dumps(sent[2]["content"], ensure_ascii=False)
-        # 存储侧那条历史保持原样
+        # A capability gap is not retried; the weaker protocol sends nothing.
+        assert text.calls == []
+        assert excinfo.value.protocol == "test-agentic-text"
+        # The stored history stays unchanged.
         assert isinstance(messages[2].content[1], ImageContent)
 
 
@@ -593,7 +588,7 @@ class TestLegacyFlagKeepsInheritedFeatures:
             supports_agentic_call = False
 
         assert Child.features.agentic_call is False
-        # 只想关流式的子类，多模态声明仍在
+        # A subclass that only turns streaming off keeps the multimodal declarations.
         assert Child.features.input_multimodal is True
 
     def test_child_without_the_legacy_field_shares_the_parent_flag(self):
@@ -659,7 +654,7 @@ class TestAnthropicSystemBlocks:
             ]
         )
         assert converted[0]["role"] == "system"
-        # system 摊平成纯文本，这里断言的是那段文本
+        # system is flattened to text; this asserts that text.
         text = typing.cast(str, converted[0]["content"])
         assert "be nice" in text
         assert "<image omitted" in text

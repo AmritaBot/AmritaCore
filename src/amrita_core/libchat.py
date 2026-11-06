@@ -17,7 +17,11 @@ from amrita_core.base.adapter import (
     MessageContent,
     ModelAdapter,
 )
-from amrita_core.exceptions import ContextOverflowError, is_context_overflow_error
+from amrita_core.exceptions import (
+    ContextOverflowError,
+    UnsupportedContentError,
+    is_context_overflow_error,
+)
 from amrita_core.hook.event import (
     CompletionFallbackContext,
     EmbeddingFallbackContext,
@@ -49,8 +53,11 @@ T = typing.TypeVar("T")
 
 RESPONSE_TYPE: typing.TypeAlias = str | MessageContent
 
-#  已经告警过的降级原因，避免同一原因在每轮请求里刷屏
+#  Degrade reasons already warned about, so one reason does not flood every request.
 _DEGRADE_WARNED: set[tuple[str, str]] = set()
+
+#: Placeholder left where an untransportable block was removed; one fixed string for all kinds.
+MULTIMODAL_UNSUPPORTED_PLACEHOLDER = "[Image Unsupported]"
 
 
 def _warn_degrade_once(protocol: str, kind: str) -> None:
@@ -84,29 +91,123 @@ def _degrade_blocks(content: list[Content]) -> list[Content]:
     return degraded
 
 
+def filter_multimodal(
+    context: CONTENT_LIST_TYPE, adapter: type[ModelAdapter]
+) -> CONTENT_LIST_TYPE:
+    """Replace every non-text block the adapter cannot carry with a placeholder.
+
+    Public counterpart of the gateway's own negotiation, for callers that build
+    a payload themselves (custom strategies, replay tools, tests) and need the
+    same answer as :func:`call_completion` would give: a ``tool`` result is
+    judged by ``tool_result_multimodal``, every other message by
+    ``input_multimodal``, and the original objects are never mutated — the
+    stored history keeps its blocks.
+
+    Args:
+        context: The message list to filter.
+        adapter: Adapter class whose ``features`` decide what survives.
+
+    Returns:
+        The original list when the adapter carries everything, otherwise a new
+        list where each untransportable block became
+        ``TextContent(text=MULTIMODAL_UNSUPPORTED_PLACEHOLDER)``.
+    """
+    features = adapter.features
+    if features.input_multimodal and features.tool_result_multimodal:
+        return context
+
+    filtered: CONTENT_LIST_TYPE = []
+    for item in context:
+        supported = (
+            features.tool_result_multimodal
+            if isinstance(item, ToolResult)
+            else features.input_multimodal
+        )
+        if supported or not isinstance(item.content, list):
+            filtered.append(item)
+            continue
+        if all(isinstance(block, TextContent) for block in item.content):
+            filtered.append(item)
+            continue
+        filtered.append(
+            item.model_copy(
+                update={
+                    "content": [
+                        block
+                        if isinstance(block, TextContent)
+                        else TextContent(text=MULTIMODAL_UNSUPPORTED_PLACEHOLDER)
+                        for block in item.content
+                    ]
+                }
+            )
+        )
+    return filtered
+
+
+def _unsupported_tool_result(
+    messages: CONTENT_LIST_TYPE, preset: ModelPreset
+) -> UnsupportedContentError | None:
+    """Collect the tool-result blocks this turn cannot send.
+
+    Collection only: the caller needs the full list at once, since raising per
+    block would turn one request into several retries over the same payload.
+    """
+    kinds: set[str] = set()
+    tool_call_ids: list[str] = []
+    for item in messages:
+        if not isinstance(item, ToolResult) or not isinstance(item.content, list):
+            continue
+        unsupported = [
+            block for block in item.content if not isinstance(block, TextContent)
+        ]
+        if not unsupported:
+            continue
+        kinds.update(block_label(block) for block in unsupported)
+        tool_call_ids.append(item.tool_call_id)
+    if not tool_call_ids:
+        return None
+    return UnsupportedContentError(
+        protocol=preset.protocol,
+        scope="tool_result",
+        kinds=tuple(sorted(kinds)),
+        tool_call_ids=tuple(tool_call_ids),
+    )
+
+
 def _prepare_payload(
     messages: CONTENT_LIST_TYPE, preset: ModelPreset
 ) -> CONTENT_LIST_TYPE:
-    """按目标适配器的能力声明整理出这一轮要发出去的载荷。
+    """Prepare this turn's payload against the target adapter's declarations.
 
-    网关是适配器的直接消费者，能力协商只发生在这里；策略层与存储层始终只处理标准
-    数据模型。降级作用在副本上：``MemoryModel`` 里的历史保持原样，否则同一份历史
-    回退到更强的适配器时，被裁掉的图片就永久丢了。
+    The gateway is the adapter's direct consumer, so capability negotiation lives
+    only here; strategies and storage always handle the standard models.
+
+    Unsupported content takes two different paths:
+
+    - **non-text blocks in a tool result** raise :class:`UnsupportedContentError`.
+      Replacing them with a placeholder would let the model answer about an image
+      it never received; the agent loop turns the error into a text tool result
+      so the model can choose another return shape or another tool.
+    - **non-text blocks in an ordinary message** are still degraded on a copy.
+      The input already happened, so keeping the turn beats aborting it; the
+      history in ``MemoryModel`` keeps its blocks for a stronger adapter later.
     """
     adapter_cls = AdapterManager().safe_get_adapter(preset.protocol)
     features = adapter_cls.features if adapter_cls else FeatureFlag()
     if features.input_multimodal and features.tool_result_multimodal:
         return messages
 
+    if not features.tool_result_multimodal:
+        unsupported = _unsupported_tool_result(messages, preset)
+        if unsupported is not None:
+            raise unsupported
+
+    if features.input_multimodal:
+        return messages
+
     prepared: CONTENT_LIST_TYPE = []
     for item in messages:
-        is_tool_result = isinstance(item, ToolResult)
-        supported = (
-            features.tool_result_multimodal
-            if is_tool_result
-            else features.input_multimodal
-        )
-        if supported or not isinstance(item.content, list):
+        if isinstance(item, ToolResult) or not isinstance(item.content, list):
             prepared.append(item)
             continue
         needs_degrade = any(
@@ -115,10 +216,7 @@ def _prepare_payload(
         if not needs_degrade:
             prepared.append(item)
             continue
-        _warn_degrade_once(
-            preset.protocol,
-            "tool_result_multimodal" if is_tool_result else "input_multimodal",
-        )
+        _warn_degrade_once(preset.protocol, "input_multimodal")
         prepared.append(
             item.model_copy(update={"content": _degrade_blocks(item.content)})
         )
@@ -431,6 +529,9 @@ async def _with_preset_fallback(
         try:
             return await attempt(preset)
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry on failure
+            if isinstance(e, UnsupportedContentError):
+                # A capability gap is not a transport failure, so do not spend the fallback budget.
+                raise
             logger.warning(
                 f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_fallbacks})..."
             )
@@ -445,7 +546,7 @@ async def tools_caller(
     tool_choice: ToolChoice | None = None,
     config: AmritaConfig | None = None,
     usage: SessionUsageProxy | None = None,
-) -> UniResponse[None, list[ToolCall] | None]:
+) -> UniResponse[str | None, list[ToolCall] | None]:
     """Call tools using the specified model preset.
 
     Args:
@@ -465,11 +566,11 @@ async def tools_caller(
 
     async def _attempt(
         current_preset: ModelPreset,
-    ) -> UniResponse[None, list[ToolCall] | None]:
+    ) -> UniResponse[str | None, list[ToolCall] | None]:
         validated = _validate_msg_list(
             messages, thinking_config=current_preset.thinking_config
         )
-        #  每轮 attempt 都要重新协商：回退会换 preset，而不同 preset 的协议可能不同
+        # Re-negotiate per attempt: fallback may switch to a preset with another protocol.
         payload = _prepare_payload(validated, current_preset)
 
         async def _call_tools(
@@ -698,7 +799,7 @@ async def agentic_call_completion(
             if emitted:
                 # Chunks already reached the caller; a retry would stack a second answer.
                 raise
-            if isinstance(e, NotImplementedError):
+            if isinstance(e, (NotImplementedError, UnsupportedContentError)):
                 # Not a provider failure: swapping presets cannot add support.
                 raise
             if is_context_overflow_error(e):

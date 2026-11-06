@@ -30,6 +30,7 @@ from amrita_core.builtins.agent.events import (
 )
 from amrita_core.builtins.agent.state import AgentRunState, DAGNode
 from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
+from amrita_core.exceptions import UnsupportedContentError
 from amrita_core.libchat import (
     agentic_call_completion,
     call_completion,
@@ -89,6 +90,33 @@ TOOL_BUDGET_NOTICE = (
     "[AmritaAgent] Tool call budget exhausted; the model kept requesting tools,"
     " so the run was closed with the information gathered so far."
 )
+
+
+def _relax_unsupported_tool_results(
+    messages: list[CONTENT_LIST_TYPE_ITEM], exc: UnsupportedContentError
+) -> list[CONTENT_LIST_TYPE_ITEM] | None:
+    """Replace untransportable tool results with a text notice on a copy.
+
+    Stored history must stay as it is: this only affects one request, so the
+    original image is still there once the model returns text. ``None`` means
+    nothing was changed and the caller should re-raise the original error.
+    """
+    targets = set(exc.tool_call_ids)
+    repaired: list[CONTENT_LIST_TYPE_ITEM] = []
+    changed = False
+    for msg in messages:
+        if (
+            isinstance(msg, ToolResult)
+            and isinstance(msg.content, list)
+            and (not targets or msg.tool_call_id in targets)
+        ):
+            blocks = [block for block in msg.content if isinstance(block, TextContent)]
+            blocks.append(TextContent(text=exc.notice))
+            repaired.append(msg.model_copy(update={"content": blocks}))
+            changed = True
+        else:
+            repaired.append(msg)
+    return repaired if changed else None
 
 
 class BaseReActAgentStrategy(AgentStrategy, ABC):
@@ -218,7 +246,34 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         messages: list[CONTENT_LIST_TYPE_ITEM],
         tools: list[ToolFunctionSchema],
         tool_choice: ToolChoice | None = None,
-    ) -> UniResponse[None, list[ToolCall] | None]:
+    ) -> UniResponse[str | None, list[ToolCall] | None]:
+        """Run one model round, repairing untransportable tool results once.
+
+        When the adapter cannot carry a tool result's non-text blocks the gateway
+        raises :class:`UnsupportedContentError` before sending anything. The
+        offending blocks are replaced with the error's ``notice`` on a copy and
+        the round is retried, so the model reads why the media is missing and
+        decides what to do - ask the tool for text, or pick another tool -
+        instead of the run dying on a capability mismatch.
+        """
+        try:
+            return await self._model_round_once(messages, tools, tool_choice)
+        except UnsupportedContentError as exc:
+            repaired = _relax_unsupported_tool_results(messages, exc)
+            if repaired is None:
+                raise
+            logger.warning(
+                f"{exc.message} The tool result(s) are retried as text so the"
+                " model can choose a different return shape."
+            )
+            return await self._model_round_once(repaired, tools, tool_choice)
+
+    async def _model_round_once(
+        self,
+        messages: list[CONTENT_LIST_TYPE_ITEM],
+        tools: list[ToolFunctionSchema],
+        tool_choice: ToolChoice | None = None,
+    ) -> UniResponse[str | None, list[ToolCall] | None]:
         """Run one model round, streaming text live on the agentic path.
 
         The legacy path only ever asks for tool calls; the agentic path gets
@@ -253,7 +308,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             await stream.aclose()
         if response is None:
             raise RuntimeError("No final response from agentic call.")
-        return cast(UniResponse[None, list[ToolCall] | None], response)
+        return cast(UniResponse[str | None, list[ToolCall] | None], response)
 
     def __init__(self, ctx: StrategyContext):
         super().__init__(ctx)
@@ -499,7 +554,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     def _assistant_fields_from_response(
         self,
-        response_msg: UniResponse[None, list[ToolCall] | None] | None,
+        response_msg: UniResponse[str | None, list[ToolCall] | None] | None,
     ) -> dict[str, Any]:
         """Extract assistant-message fields from the provider response verbatim.
 
@@ -897,7 +952,9 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
             ),
             *self.ctx.message.unwrap(exclude_system=True),
         ]
-        tool_response: UniResponse[None, list[ToolCall] | None] = await tools_caller(
+        tool_response: UniResponse[
+            str | None, list[ToolCall] | None
+        ] = await tools_caller(
             reasoning_trigger_msg,
             [REASONING_TOOL, *tools_ctx],
             tool_choice=self._resolve_tool_choice(REASONING_TOOL),
@@ -995,7 +1052,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
     async def _build_stop_response_and_append(
         self,
         function_args: dict[str, Any],
-        response_msg: UniResponse[None, list[ToolCall] | None],
+        response_msg: UniResponse[str | None, list[ToolCall] | None],
         function_name: str,
         function_call_id: str,
         function_response: str,
@@ -1337,7 +1394,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     async def _execute_tool_loop(
         self,
-        response_msg: UniResponse[None, list[ToolCall] | None],
+        response_msg: UniResponse[str | None, list[ToolCall] | None],
     ) -> bool:
         """Execute the main tool calling loop.
 
@@ -1488,7 +1545,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
 
     async def _append_tool_results_batch(
         self,
-        response_msg: UniResponse[None, list[ToolCall] | None],
+        response_msg: UniResponse[str | None, list[ToolCall] | None],
         results: list[tuple[ToolCall, TOOL_RESULT_CONTENT, BaseException | None]],
     ) -> None:
         """Append ONE assistant message with all tool_calls, then all results.
@@ -1526,7 +1583,7 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         tool_call: ToolCall,
         error_content: str,
         original_exception: BaseException | None = None,
-        response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
+        response_msg: UniResponse[str | None, list[ToolCall] | None] | None = None,
     ):
         """Handle appending error messages to context (strategy-specific).
 
