@@ -9,7 +9,7 @@ AmritaSense 的 `WorkflowInterpreter` 支持 `run_step_by()`——逐步产出�
 async def debug(chat: ChatObject) -> None:
     interp = chat._interpreter
     async for result in interp.run_step_by():
-        print(f"→ {result}")
+        print(f"-> {result}")
 ```
 
 结合[挂起点](suspend.md)在节点之间检查状态。

@@ -10,9 +10,9 @@ flowchart TB
     subgraph c1["ChatObject — 对话的基本单位（生命周期管理器）"]
         subgraph c2["工作流（AmritaSense 指令序列）"]
             subgraph c3["策略（Step 驱动 ReAct，经工作流显式启用）"]
-                s1["decompose → Step 循环 → summarize"]
+                s1["decompose -> Step 循环 -> summarize"]
             end
-            w1["LOAD_STATE → 渲染 → 策略循环 → 完成"]
+            w1["LOAD_STATE -> 渲染 -> 策略循环 -> 完成"]
         end
         o1["SuspendObjectStream（双向） · 事件（matcher）"]
     end
@@ -35,6 +35,6 @@ flowchart TB
 
 ## 下一步
 
-- 扩展它 → [扩展与集成](../extensions-integration/index.md)
-- 调优它 → [代理工程](../agent-engineering/index.md)
-- 深入它 → [进阶](../advanced/index.md)
+- 扩展它 -> [扩展与集成](../extensions-integration/index.md)
+- 调优它 -> [代理工程](../agent-engineering/index.md)
+- 深入它 -> [进阶](../advanced/index.md)

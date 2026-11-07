@@ -45,11 +45,61 @@ class ModelAdapter:
 - **描述**：是否允许用相同协议覆盖已有适配器。设为 `True` 可替换已注册的适配器。
 - **默认**：`False`
 
+### `features`
+
+- **类型**：[`FeatureFlag`](#featureflag)
+- **描述**：该适配器能往 wire 上放什么。声明为 `ClassVar`，因此它是类上的能力标记，而不是每个实例上的 dataclass 字段。网关在每次请求前读它，决定载荷能否原样发出。
+- **默认**：`FeatureFlag()`——所有标记为关
+
 ### `supports_agentic_call`
 
+> **自 1.4 起弃用。** 请改读 `features.agentic_call`。该字段仍然有效：只声明了
+> `supports_agentic_call` 的适配器会在类创建时被翻译进 `features`，且旧属性与新
+> 标记保持同步，第三方读取方不会读到过期值。
+
 - **类型**：`bool`
-- **描述**：该适配器是否实现了 [`agentic_call_api()`](#agentic_call_api)。声明为 `ClassVar`，因此它是类上的能力标记，而不是每个实例上的 dataclass 字段。能在一次请求里同时流出文本与工具调用的适配器应设为 `True`。
+- **描述**：该适配器是否实现了 [`agentic_call_api()`](#agentic_call_api)。能在一次请求里同时流出文本与工具调用的适配器应设为 `True`。
 - **默认**：`False`
+
+## FeatureFlag
+
+一个 frozen dataclass，描述 **wire 级别**的能力：某类内容能否出现在发给该协议的
+请求里。它刻意不描述模型能理解什么——后者无法可靠判定，前者可以。
+
+```python
+from amrita_core.base.adapter import FeatureFlag, ModelAdapter
+
+
+class MyAdapter(ModelAdapter):
+    features = FeatureFlag(
+        agentic_call=True,
+        input_multimodal=True,
+        tool_result_multimodal=False,
+    )
+```
+
+| 字段                     | 含义                                                      |
+| ------------------------ | --------------------------------------------------------- |
+| `agentic_call`           | 实现 `agentic_call_api()`（一次请求同时流出文本与工具调用） |
+| `input_multimodal`       | 非文本块可否出现在 `user` / `system` 内容里               |
+| `tool_result_multimodal` | 非文本块可否出现在 `tool` 消息内容里                      |
+| `fetch_models`           | 实现 `fetch_models()`（模型目录）                         |
+
+子类请**整个对象**赋值；该 dataclass 是 frozen 的，本来也改不了单个字段。
+
+网关据此在每次请求前做两件事：
+
+- **工具返回**里带协议承载不了的块时，在请求发出前抛 `UnsupportedContentError`。
+  agent 循环在载荷的副本上把问题块换成该异常的 `notice` 并重试这一轮，模型因此
+  知道媒体缺失，可以改让工具返回文本；
+- **`user` / `system` 消息**降级：块在消息的副本上换成文本说明
+  （`<image omitted: the current adapter cannot carry it>`），每个
+  (协议, 载荷种类) 记一条 warning。
+
+两条路都不动存储侧历史，说明里的标签与 `ToolResult.text` 一致。
+
+适配器方法抛出的失败统一归一化为 `AdapterError`（或其子类），原始 SDK 异常保留在
+`.original`；见[适配器指南](../../extensions-integration/adapters.md#异常)。
 
 ## 方法
 
@@ -135,7 +185,13 @@ async def call_api(self, messages: Iterable, **kwargs):
 
 [`call_api()`](#call_api) 只流式输出文本，[`call_tools()`](#call_tools) 返回工具调用但不流式，两者都无法驱动一个既要实时显示输出、又要继续接受下一轮工具调用的 agent 循环。本方法在一次请求里同时做到：文本分片边到边发，末尾的 `UniResponse` 携带聚合完成的 `tool_calls`。`tool_calls` 为空表示模型直接给出了终答，而不是又要发起一轮工具调用。
 
-这是**可选能力**。基类实现直接抛 `NotImplementedError`，调用方会回退到传统的 `call_api()` + `call_tools()` 组合。实现它的适配器必须同时把 `supports_agentic_call` 置为 `True`。
+这是**可选能力**。基类实现直接抛 `NotImplementedError`，调用方会回退到传统的 `call_api()` + `call_tools()` 组合。实现它的适配器必须在 `features` 里声明：
+
+```python
+features = FeatureFlag(agentic_call=True, ...)
+```
+
+`supports_agentic_call = True` 仍然有效（类创建时会被翻译），但自 1.4 起已弃用。
 
 **参数**：
 
@@ -227,6 +283,22 @@ async def call_embed(self, texts: Iterable[str], **kwargs):
     return embeddings
 ```
 
+### fetch*models() \*(类方法)\_
+
+列出该协议在给定 preset 下可用的模型。
+
+**签名**：`async fetch_models(preset: ModelPreset) -> list[ModelInfo]`
+
+它是类方法，只吃 preset：端点和凭据都在 preset 里，不涉及会话状态。
+
+**返回**：`list[ModelInfo]`——`id` 必有；`name`、`owned_by`、`context_window`、
+`max_output_tokens` 以及输入/输出模态在供应商提供时填上。供应商返回的其他字段
+保留在模型上（`extra="allow"`）。
+
+未声明 `features.fetch_models` 的适配器抛 `NotImplementedError`，调用方可以先探测
+能力再问。供应商侧失败统一抛 `AdapterError`——没有模型端点的供应商（例如 DeepSeek
+的 Anthropic 入口）会抛 `AdapterRequestError`，404 原文在 `.original`。
+
 ### protocol _(属性)_
 
 获取模型协议适配器标识符。
@@ -266,16 +338,27 @@ AmritaCore 提供了若干内置适配器：
 ### OpenAIAdapter
 
 - **协议**：`"openai"`、`"__main__"`
-- **位置**：`amrita_core.builtins.adapter.OpenAIAdapter`
+- **位置**：`amrita_core.adapters.openai.OpenAIAdapter`
 - **特性**：
   - 同时支持流式和非流式模式
   - 通过 OpenAI 的函数调用 API 实现工具调用
   - 兼容任何 OpenAI 兼容的 API 端点
 
+### OpenAIResponsesAdapter
+
+- **协议**：`"openai-responses"`
+- **位置**：`amrita_core.adapters.openai_responses.OpenAIResponsesAdapter`
+- **特性**：
+  - 无状态：每次请求把完整对话放进 `input`，`store` 固定为 `False`，从不使用
+    `previous_response_id`
+  - 工具返回可以携带 `input_image` / `input_file` 块，因此
+    `tool_result_multimodal=True`
+  - 边流式输出 `output_text` 边组装独立的 `function_call` 条目
+
 ### AnthropicAdapter
 
 - **协议**：`"anthropic"`、`"claude"`
-- **位置**：`amrita_core.builtins.adapter.AnthropicAdapter`
+- **位置**：`amrita_core.adapters.anthropic.AnthropicAdapter`
 - **特性**：
   - 支持流式响应
   - 通过 Anthropic 的工具使用 API 提供完整的工具调用支持

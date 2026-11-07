@@ -210,5 +210,5 @@ Override `single_execute` for full control (see the built-in
 
 ## Next
 
-- [Concepts → Agent Strategy](../concepts/agent-strategy.md) — the contract in depth
-- [Advanced → Step Loop](../advanced/step-loop.md) — the built-in strategy's full machinery
+- [Concepts -> Agent Strategy](../concepts/agent-strategy.md) — the contract in depth
+- [Advanced -> Step Loop](../advanced/step-loop.md) — the built-in strategy's full machinery

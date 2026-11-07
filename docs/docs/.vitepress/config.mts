@@ -257,16 +257,20 @@ export default withMermaid({
             collapsed: false,
             items: [
               {
-                text: "Migration Guide: 0.13 → 1.0",
+                text: "Migration Guide: 0.13 -> 1.0",
                 link: "/guide/migration",
               },
               {
-                text: "Migration Guide: 1.1 → 1.2",
+                text: "Migration Guide: 1.1 -> 1.2",
                 link: "/guide/migration-1.2",
               },
               {
-                text: "Migration Guide: 1.2 → 1.3",
+                text: "Migration Guide: 1.2 -> 1.3",
                 link: "/guide/migration-1.3",
+              },
+              {
+                text: "Migration Guide: 1.3 -> 1.4",
+                link: "/guide/migration-1.4",
               },
             ],
           },
@@ -652,9 +656,10 @@ export default withMermaid({
             text: "迁移指南",
             collapsed: false,
             items: [
-              { text: "迁移指南：0.13 → 1.0", link: "/zh/guide/migration" },
-              { text: "迁移指南：1.1 → 1.2", link: "/zh/guide/migration-1.2" },
-              { text: "迁移指南：1.2 → 1.3", link: "/zh/guide/migration-1.3" },
+              { text: "迁移指南：0.13 -> 1.0", link: "/zh/guide/migration" },
+              { text: "迁移指南：1.1 -> 1.2", link: "/zh/guide/migration-1.2" },
+              { text: "迁移指南：1.2 -> 1.3", link: "/zh/guide/migration-1.3" },
+              { text: "迁移指南：1.3 -> 1.4", link: "/zh/guide/migration-1.4" },
             ],
           },
           {

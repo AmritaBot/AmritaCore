@@ -35,18 +35,18 @@ The stream has **two independent channels**:
 
 | Direction   | Producer API                        | Consumer API                                    |
 | ----------- | ----------------------------------- | ----------------------------------------------- |
-| Agent → You | `yield_response()`, `push_object()` | `get_response_generator()`                      |
-| You → Agent | `get_producer_input_generator()`    | `send_to_producer()`, `send_done_to_producer()` |
+| Agent -> You | `yield_response()`, `push_object()` | `get_response_generator()`                      |
+| You -> Agent | `get_producer_input_generator()`    | `send_to_producer()`, `send_done_to_producer()` |
 
-### Peer → Agent Injection at Step Boundaries
+### Peer -> Agent Injection at Step Boundaries
 
 Messages pushed with `send_to_producer()` are drained by the strategy at the
 next Step boundary (`intro_step`) and appended to the conversation context as
 `[peer message]` user messages:
 
-- pushed **before** a Step starts → consumed at that boundary
-- pushed **while** the agent works → queued until the next boundary
-- pushed **after** the run → dropped (channel closed)
+- pushed **before** a Step starts -> consumed at that boundary
+- pushed **while** the agent works -> queued until the next boundary
+- pushed **after** the run -> dropped (channel closed)
 
 This enables human-in-the-loop feedback, external context injection, and
 streaming inputs. See [Streaming](../tutorials/streaming.md) for the practical

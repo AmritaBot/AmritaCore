@@ -9,10 +9,12 @@ from typing_extensions import override
 from amrita_core.base.adapter import (
     AGENTIC_RETURNING,
     COMPLETION_RETURNING,
+    FeatureFlag,
     ModelAdapter,
 )
 from amrita_core.config import AmritaConfig
 from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
+from amrita_core.exceptions import normalize_adapter_errors
 from amrita_core.tools.models import (
     FunctionParametersSchema,
     ToolChoice,
@@ -21,6 +23,7 @@ from amrita_core.tools.models import (
 from amrita_core.types import (
     Function,
     ModelConfig,
+    ModelInfo,
     ModelPreset,
     ToolCall,
     UniResponse,
@@ -28,7 +31,32 @@ from amrita_core.types import (
 )
 from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import RequestMetadata
+from amrita_core.types.tool import block_label_of_type, degraded_block_note
 from amrita_core.utils import model_dump
+
+
+def _system_block_text(item: object) -> str:
+    """Flatten one ``system`` block to plain text.
+
+    ``text`` blocks keep their body; every other block becomes the same degrade
+    note the gateway writes, so one payload reads the same way across turns.
+    """
+    if not isinstance(item, dict):
+        return str(item) if isinstance(item, str) else ""
+    if item.get("type") == "text":
+        return str(item.get("text") or "")
+    return degraded_block_note(block_label_of_type(str(item.get("type"))))
+
+
+def _file_block_note(
+    raw: object,
+    template: str = "<file:{name} omitted: this adapter cannot carry file blocks>",
+) -> str:
+    """Note for a ``file`` block this adapter cannot send."""
+    name = ""
+    if isinstance(raw, dict):
+        name = str(raw.get("filename") or raw.get("file_id") or "")
+    return template.format(name=name)
 
 
 class AnthropicFunctionSchema(BaseModel):
@@ -147,7 +175,14 @@ try:
                                 },
                             }
                         )
-                # TODO: `FileContent` (type "file") is silently dropped here, so the model answers about a file it never received. The endpoint wants `source.type="file"` and the `anthropic-beta: files-api-2025-04-14` header, and the adapter has no way to inject that header yet. Until then this should at least raise instead of discarding.
+                elif item_type == "file":
+                    # ``file`` blocks need a beta header the adapter cannot inject, so they become a text note.
+                    blocks.append(
+                        {
+                            "type": "text",
+                            "text": _file_block_note(item.get("file")),
+                        }
+                    )
             return blocks or [{"type": "text", "text": ""}]
 
         @staticmethod
@@ -179,13 +214,9 @@ try:
 
                 if role == "system":
                     flush_tool_results()
-                    # System content may be str or list; extract plain text
+                    # System takes text only, so blocks are flattened here; non-text blocks get the gateway note.
                     if isinstance(content, list):
-                        text = "".join(
-                            item.get("text", "")
-                            for item in content
-                            if item.get("type") == "text"
-                        )
+                        text = "".join(_system_block_text(item) for item in content)
                     else:
                         text = content or ""
                     converted.append({"role": "system", "content": text})
@@ -230,19 +261,16 @@ try:
 
                 elif role == "tool":
                     tc_id = msg.get("tool_call_id", "")
-                    if isinstance(content, list):
-                        result_text = "".join(
-                            item.get("text", "")
-                            for item in content
-                            if item.get("type") == "text"
-                        )
-                    else:
-                        result_text = content or ""
+                    # Keep tool_result blocks as-is: flattening would drop the image entirely.
                     temp_tool_results.append(
                         {
                             "type": "tool_result",
                             "tool_use_id": tc_id,
-                            "content": result_text,
+                            "content": (
+                                AnthropicAdapter._convert_content_to_blocks(content)
+                                if isinstance(content, list)
+                                else (content or "")
+                            ),
                         }
                     )
             flush_tool_results()
@@ -282,6 +310,7 @@ try:
             raise ValueError(f"Invalid choice: {choice}")
 
         @override
+        @normalize_adapter_errors("anthropic")
         async def call_api(
             self, messages: Iterable, **kwargs
         ) -> AsyncGenerator[COMPLETION_RETURNING, None]:
@@ -291,12 +320,17 @@ try:
             config: AmritaConfig = self.config
             if (
                 preset.thinking_config
-                and preset.thinking_config.thinking_type == "enabled"
+                and preset.thinking_config.thinking_type is not None
             ):
-                kwargs["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
+                # Send the type explicitly: some providers default thinking on.
+                thinking: dict[str, object] = {
+                    "type": preset.thinking_config.thinking_type
                 }
+                if preset.thinking_config.thinking_type == "enabled":
+                    thinking["budget_tokens"] = int(
+                        resolve_max_output(preset, config) / 2
+                    )
+                kwargs["thinking"] = thinking
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -408,6 +442,7 @@ try:
             )
 
         @override
+        @normalize_adapter_errors("anthropic")
         async def agentic_call_api(
             self,
             messages: Iterable,
@@ -427,12 +462,17 @@ try:
             config: AmritaConfig = self.config
             if (
                 preset.thinking_config
-                and preset.thinking_config.thinking_type == "enabled"
+                and preset.thinking_config.thinking_type is not None
             ):
-                kwargs["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
+                # Send the type explicitly: some providers default thinking on.
+                thinking: dict[str, object] = {
+                    "type": preset.thinking_config.thinking_type
                 }
+                if preset.thinking_config.thinking_type == "enabled":
+                    thinking["budget_tokens"] = int(
+                        resolve_max_output(preset, config) / 2
+                    )
+                kwargs["thinking"] = thinking
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -579,25 +619,31 @@ try:
             )
 
         @override
+        @normalize_adapter_errors("anthropic")
         async def call_tools(
             self,
             messages: Iterable,
             tools: list[ToolFunctionSchema],
             tool_choice: ToolChoice | None = None,
             **kwargs,
-        ) -> UniResponse[None, list[ToolCall] | None]:
+        ) -> UniResponse[str | None, list[ToolCall] | None]:
             """Tool call specific interface; returns tool_calls in UniResponse"""
             preset: ModelPreset = self.preset
             preset_config: ModelConfig = preset.config
             config: AmritaConfig = self.config
             if (
                 preset.thinking_config
-                and preset.thinking_config.thinking_type == "enabled"
+                and preset.thinking_config.thinking_type is not None
             ):
-                kwargs["thinking"] = {
-                    "type": "enabled",
-                    "budget_tokens": int(resolve_max_output(preset, config) / 2),
+                # Send the type explicitly: some providers default thinking on.
+                thinking: dict[str, object] = {
+                    "type": preset.thinking_config.thinking_type
                 }
+                if preset.thinking_config.thinking_type == "enabled":
+                    thinking["budget_tokens"] = int(
+                        resolve_max_output(preset, config) / 2
+                    )
+                kwargs["thinking"] = thinking
             client = anthropic.AsyncAnthropic(
                 api_key=preset.api_key,
                 base_url=preset.base_url,
@@ -647,8 +693,12 @@ try:
             tool_calls = []
             reasoning = ""
             reasoning_signature = ""
+            text_parts: list[str] = []
             for block in response.content:
-                if isinstance(block, ToolUseBlock):
+                if isinstance(block, TextBlock):
+                    # A tool-calling turn may also speak; keep the text for the next round.
+                    text_parts.append(block.text)
+                elif isinstance(block, ToolUseBlock):
                     tool_calls.append(
                         ToolCall(
                             id=block.id,
@@ -665,7 +715,7 @@ try:
                         reasoning_signature = block.signature  # pyright: ignore[reportAttributeAccessIssue]
             return UniResponse(
                 role="assistant",
-                content=None,
+                content="".join(text_parts) or None,
                 tool_calls=tool_calls if tool_calls else None,
                 usage=usage,
                 reasoning_content=reasoning or None,
@@ -673,7 +723,32 @@ try:
                 metadata=metadata,
             )
 
-        supports_agentic_call = True
+        features = FeatureFlag(
+            agentic_call=True,
+            input_multimodal=True,
+            tool_result_multimodal=True,  # tool_result carries content blocks natively.
+            fetch_models=True,
+        )
+
+        @classmethod
+        @normalize_adapter_errors("anthropic")
+        async def fetch_models(cls, preset: ModelPreset) -> list[ModelInfo]:
+            """List the models the endpoint advertises on ``/v1/models``."""
+            client = anthropic.AsyncAnthropic(
+                api_key=preset.api_key,
+                base_url=preset.base_url,
+            )
+            page = await client.models.list()
+            return [
+                ModelInfo.model_validate(
+                    {
+                        "id": item.id,
+                        "name": getattr(item, "display_name", None),
+                        "created_at": getattr(item, "created_at", None),
+                    }
+                )
+                for item in page.data
+            ]
 
         @staticmethod
         def get_adapter_protocol() -> tuple[str, str]:

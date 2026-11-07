@@ -245,7 +245,7 @@ def add(a: int, b: int) -> int:
 **Supported Parameter Types**:
 
 - Basic types: `str`, `int`, `float`, `bool`
-- Literal types: `Literal["a", "b"]` → auto-generates `string` + `enum` constraint; `Literal[1, 2, 3]` likewise supports `integer` enum
+- Literal types: `Literal["a", "b"]` -> auto-generates `string` + `enum` constraint; `Literal[1, 2, 3]` likewise supports `integer` enum
 - Pydantic BaseModel classes for complex nested structures
 - Container types: `List[T]` (single-level only)
 - Optional types: `Optional[T]` or `T | None`
@@ -391,7 +391,7 @@ AmritaCore provides several predefined types for consistency:
 - [DAGNode](classes/DAGNode.md): A sub-step of the task plan
 - [StepLifecycleEvents](classes/StepLifecycleEvents.md): The mutable step lifecycle events (`step_intro` / `step_leave` / `step_iteration` / `tool_call` / `tool_return`) and `StepAbortError`
 
-See [Advanced → Step Loop](../advanced/step-loop.md) for how they fit together.
+See [Advanced -> Step Loop](../advanced/step-loop.md) for how they fit together.
 
 ### Exception Types
 

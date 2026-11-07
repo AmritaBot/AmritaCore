@@ -79,7 +79,7 @@ stream = SuspendObjectStream(callback=on_chunk)
 
 > 每个流只允许一种消费方式——生成器 _或_ 回调。
 
-## 4. 反向通道（Peer → Agent）
+## 4. 反向通道（Peer -> Agent）
 
 `SuspendObjectStream` 是**双向**的。consumer 可以用 `send_to_producer()`
 把消息推回 producer；agent 在下一个 Step 边界消费并追加到对话上下文：
@@ -90,9 +90,9 @@ await chat.io_stream.send_to_producer(
 )
 ```
 
-- **Step 开始前**推送的消息 → 在该边界被消费。
-- **agent 工作期间**推送 → 在下一个边界被拾取。
-- **运行结束后**推送 → 被丢弃（通道已关闭）。
+- **Step 开始前**推送的消息 -> 在该边界被消费。
+- **agent 工作期间**推送 -> 在下一个边界被拾取。
+- **运行结束后**推送 -> 被丢弃（通道已关闭）。
 
 > **必须有 Step 边界。** peer 消息在 `intro_step` 中被排空，而只有 native step
 > 工作流会走到那里。默认的简单对话流水线下它们会被静默丢弃，因此需要反向通道时

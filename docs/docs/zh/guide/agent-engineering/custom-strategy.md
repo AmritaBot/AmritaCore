@@ -201,5 +201,5 @@ class MyReActStrategy(BaseReActAgentStrategy):
 
 ## 下一步
 
-- [核心概念 → Agent 策略](../concepts/agent-strategy.md)——深入契约
-- [进阶 → Step 循环](../advanced/step-loop.md)——内置策略的完整机制
+- [核心概念 -> Agent 策略](../concepts/agent-strategy.md)——深入契约
+- [进阶 -> Step 循环](../advanced/step-loop.md)——内置策略的完整机制

@@ -8,15 +8,38 @@ from collections.abc import Awaitable, Callable, Iterable
 from contextlib import nullcontext
 from copy import deepcopy
 from pathlib import Path
-from typing import Any, overload
+from typing import Any, cast, overload
 
 import aiologic
 from amrita_sense.logging import logger
 from fastmcp import Client
 from fastmcp.client.client import CallToolResult
-from mcp_types import TextContent
+from mcp_types import (
+    AudioContent as MCPAudioContent,
+)
+from mcp_types import (
+    BlobResourceContents,
+    EmbeddedResource,
+    ResourceLink,
+    TextResourceContents,
+)
+from mcp_types import (
+    ImageContent as MCPImageContent,
+)
+from mcp_types import (
+    TextContent as MCPTextContent,
+)
 from typing_extensions import Self
 
+from amrita_core.types import (
+    Content,
+    File,
+    FileContent,
+    ImageContent,
+    ImageUrl,
+    TextContent,
+)
+from amrita_core.types.tool import TOOL_RESULT_CONTENT
 from amrita_core.utils import _did_you_mean_hint
 
 from ._parser import resolve_transport
@@ -33,6 +56,98 @@ from .models import (
 MCP_SERVER_SCRIPT_TYPE = (
     str | Path  # Supports: file paths, http(s)://, sse://, stream+http(s)://, stdio://
 )
+
+
+# MCP reports only a MIME type; a file block also needs a filename.
+_EXT_BY_MIME: dict[str, str] = {
+    "audio/mpeg": "mp3",
+    "audio/mp3": "mp3",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/ogg": "ogg",
+    "audio/mp4": "m4a",
+    "audio/webm": "webm",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+    "application/pdf": "pdf",
+}
+
+
+def _extension_for(mime_type: str) -> str:
+    """Pick a file extension for a MIME type, falling back to its subtype."""
+    lowered = (mime_type or "").lower()
+    if lowered in _EXT_BY_MIME:
+        return _EXT_BY_MIME[lowered]
+    subtype = lowered.partition("/")[2]
+    return subtype or "bin"
+
+
+def _data_uri(data: str, mime_type: str) -> str:
+    """Wrap MCP's raw base64 payload as the inline URL the framework stores."""
+    return f"data:{mime_type or 'application/octet-stream'};base64,{data}"
+
+
+def _convert_block(block: object) -> Content | None:
+    """Convert one MCP content block into a framework ``Content`` block.
+
+    MCP returns media as bare base64 plus a MIME type; the framework's
+    ``image_url`` block wants an inline data URI, and a non-image binary has to
+    become a ``file`` block (which requires a filename). Unknown block types
+    return ``None`` instead of raising: a server that adds a new content kind
+    should not break every call, and the text parts still reach the model.
+    """
+    if isinstance(block, MCPTextContent):
+        return TextContent(text=block.text)
+    if isinstance(block, MCPImageContent):
+        return ImageContent(
+            image_url=ImageUrl(url=_data_uri(block.data, block.mime_type))
+        )
+    if isinstance(block, MCPAudioContent):
+        return FileContent(
+            file=File(
+                filename=f"audio.{_extension_for(block.mime_type)}",
+                file_data=block.data,
+                type=block.mime_type,
+            )
+        )
+    if isinstance(block, EmbeddedResource):
+        resource = block.resource
+        if isinstance(resource, TextResourceContents):
+            return TextContent(text=resource.text)
+        if isinstance(resource, BlobResourceContents):
+            mime_type = getattr(resource, "mime_type", None) or (
+                "application/octet-stream"
+            )
+            return FileContent(
+                file=File(
+                    filename=f"resource.{_extension_for(mime_type)}",
+                    file_data=resource.blob,
+                    type=mime_type,
+                )
+            )
+        return None
+    if isinstance(block, ResourceLink):
+        name = getattr(block, "name", "") or ""
+        uri = getattr(block, "uri", "") or ""
+        return TextContent(text=f"<resource:{name}> {uri}".strip())
+    return None
+
+
+def _content_blocks_to_result(blocks: Iterable[object]) -> TOOL_RESULT_CONTENT:
+    """Collapse a tool result into text when it is text-only, else keep blocks.
+
+    The string return keeps every existing caller working (and is what the
+    plain-text view reads anyway); the block list is only used when the server
+    actually sent media, which is what makes ``tool_result_multimodal`` matter.
+    """
+    converted = [
+        item for item in (_convert_block(block) for block in blocks) if item is not None
+    ]
+    if all(isinstance(item, TextContent) for item in converted):
+        return "".join(f"{cast(TextContent, item).text}\n\n" for item in converted)
+    return cast(TOOL_RESULT_CONTENT, converted)
 
 
 class MCPClient:
@@ -87,7 +202,9 @@ class MCPClient:
                 await tm.unregister_client(self.server_script)
             raise
 
-    async def simple_call(self, tool_name: str, data: dict[str, Any]) -> str:
+    async def simple_call(
+        self, tool_name: str, data: dict[str, Any]
+    ) -> TOOL_RESULT_CONTENT:
         """Call MCP tool
 
         The underlying fastmcp ``Client`` is a reentrant context manager with
@@ -112,10 +229,7 @@ class MCPClient:
                 response: CallToolResult = await self.mcp_client.call_tool(
                     tool_name, data
                 )
-                ct: list[TextContent] = [
-                    i for i in response.content if isinstance(i, TextContent)
-                ]
-                return "".join([f"{i.text}\n\n" for i in ct])
+                return _content_blocks_to_result(response.content)
         except Exception as e:
             logger.opt(exception=e).error(
                 f"Failed to call tool:{tool_name}, because {e}."
@@ -290,8 +404,8 @@ class MultiClientManager:
 
     def _tools_wrapper(
         self, tool_name: str
-    ) -> Callable[[dict[str, Any]], Awaitable[str]]:
-        async def tools_runner(data: dict[str, Any]) -> str:
+    ) -> Callable[[dict[str, Any]], Awaitable[TOOL_RESULT_CONTENT]]:
+        async def tools_runner(data: dict[str, Any]) -> TOOL_RESULT_CONTENT:
             client: MCPClient = await self.get_client_by_tool_name(tool_name)
             return await client.simple_call(tool_name, data)
 

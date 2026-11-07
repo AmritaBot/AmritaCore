@@ -16,7 +16,7 @@ and lifecycle.
 ### The Step Is the Unit of Prompt Engineering
 
 The built-in ReAct loop treats each **Step** (one DAG node) as an explicit
-prompt-engineering unit: enter → execute → summarize. No hardcoded planner or
+prompt-engineering unit: enter -> execute -> summarize. No hardcoded planner or
 subagent machinery — the LLM decomposes into a **semantic DAG**, the framework
 walks it in topological order with stdlib `graphlib`, and execution stays
 linear. The DAG is a hint layer, not a parallel graph.
@@ -30,16 +30,16 @@ burning tokens.
 
 ### Framework-Managed Loop, Strategy-Managed Step
 
-`get_category()` decides who owns the loop: `agent`/`agent-mixed` → the
-framework loops and calls `single_execute()` per round; `rag`/`workflow` →
+`get_category()` decides who owns the loop: `agent`/`agent-mixed` -> the
+framework loops and calls `single_execute()` per round; `rag`/`workflow` ->
 the strategy owns everything. This keeps custom strategies small and the
 framework's guarantees (limits, rollback, events) uniform.
 
 ### Sense-Specific Knowledge Is Not Duplicated
 
 AmritaCore recaps AmritaSense inline where needed and links out for the rest.
-The documentation journey mirrors the engineering journey: run → use →
-understand → extend → tune → go deeper.
+The documentation journey mirrors the engineering journey: run -> use ->
+understand -> extend -> tune -> go deeper.
 
 ## Naming Conventions
 
@@ -73,7 +73,7 @@ containers. Examples:
 | ------------------------- | ---------------------------------------------------------------------- |
 | **Agent**                 | A strategy-driven executor that calls tools to achieve goals           |
 | **ChatObject**            | The lifecycle manager — the unit of a dialogue                         |
-| **Step**                  | One DAG node of the built-in step loop (enter → execute → leave)       |
+| **Step**                  | One DAG node of the built-in step loop (enter -> execute -> leave)       |
 | **Stall**                 | Repeating identical tool signatures within a Step                      |
 | **`SuspendObjectStream`** | Bidirectional stream between workflow (producer) and caller (consumer) |
 | **DI Context**            | Typed state injected into workflow nodes (e.g. `AgentLoopState`)       |

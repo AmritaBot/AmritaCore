@@ -33,17 +33,17 @@ async def interactive(chat):
 
 | 方向       | Producer API                        | Consumer API                                    |
 | ---------- | ----------------------------------- | ----------------------------------------------- |
-| Agent → 你 | `yield_response()`、`push_object()` | `get_response_generator()`                      |
-| 你 → Agent | `get_producer_input_generator()`    | `send_to_producer()`、`send_done_to_producer()` |
+| Agent -> 你 | `yield_response()`、`push_object()` | `get_response_generator()`                      |
+| 你 -> Agent | `get_producer_input_generator()`    | `send_to_producer()`、`send_done_to_producer()` |
 
-### Peer → Agent 在 Step 边界注入
+### Peer -> Agent 在 Step 边界注入
 
 `send_to_producer()` 推送的消息由策略在下一个 Step 边界（`intro_step`）消费，
 以 `[peer message]` 用户消息追加到对话上下文：
 
-- **Step 开始前**推送 → 在该边界消费
-- **agent 工作期间**推送 → 排队至下一个边界
-- **运行结束后**推送 → 丢弃（通道关闭）
+- **Step 开始前**推送 -> 在该边界消费
+- **agent 工作期间**推送 -> 排队至下一个边界
+- **运行结束后**推送 -> 丢弃（通道关闭）
 
 这实现了人机协同反馈、外部上下文注入与流式输入。实践用法见
 [流式](../tutorials/streaming.md)。

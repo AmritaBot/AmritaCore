@@ -11,8 +11,8 @@ MultiClientManager 处理连接多个 MCP 服务器、发现其工具、通过�
 - `clients` (list[MCPClient])：所有已注册 MCP 客户端的列表
 - `script_to_clients` (dict[str, MCPClient])：服务器脚本路径到客户端实例的映射
 - `name_to_clients` (dict[str, MCPClient])：工具名到其所属客户端的映射
-- `tools_remapping` (dict[str, str])：工具名重映射字典（原始名 → 重映射名）
-- `reversed_remappings` (dict[str, str])：反向重映射字典（重映射名 → 原始名）
+- `tools_remapping` (dict[str, str])：工具名重映射字典（原始名 -> 重映射名）
+- `reversed_remappings` (dict[str, str])：反向重映射字典（重映射名 -> 原始名）
 - `tools_manager` (MultiToolsManager)：MCP 工具注册到的工具管理器
 - `_is_initialized` (bool)：所有客户端是否已初始化
 - `_lock` (asyncio.Lock)：用于线程安全操作的异步锁
@@ -249,7 +249,7 @@ await manager.reinitialize_all()
 当多个服务器提供同名工具时：
 
 - 首次注册保留原名
-- 后续注册会被自动重映射（例如 `search` → `referred_42_search`）
+- 后续注册会被自动重映射（例如 `search` -> `referred_42_search`）
 - 每检测到一个冲突都会生成警告日志
 - 重映射信息存储在 `tools_remapping` 和 `reversed_remappings` 字典中
 

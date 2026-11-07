@@ -118,6 +118,25 @@ counting — so parallel calls (e.g. the agent's tool runner) never tear the
 connection down under each other. The connection is reclaimed only after the
 last active call exits, then released by the TTL task.
 
+## Multimodal Results
+
+An MCP tool can return media, not just text. `simple_call` converts the server's
+content blocks into the framework's types:
+
+| MCP block           | Becomes                                           |
+| ------------------- | ------------------------------------------------- |
+| `text`              | `TextContent`                                     |
+| `image`             | `ImageContent` with an inline `data:` URI         |
+| `audio`             | `FileContent` (`audio.<ext>` from the MIME type)  |
+| embedded `resource` | `TextContent` (text) or `FileContent` (blob)      |
+| `resource_link`     | `TextContent` describing the link                 |
+
+A text-only result is still a plain `str`, so existing servers are unaffected.
+When media is present the result is a `list[Content]`, which then goes through
+the same capability negotiation as a local tool's blocks — a protocol without
+`tool_result_multimodal` raises `UnsupportedContentError` instead of dropping
+the image (see [Tool Results](../concepts/tool.md#not-every-adapter-can-carry-every-block)).
+
 ## Tool Name Collisions
 
 If an MCP tool name already exists in the tools manager, it is **remapped**

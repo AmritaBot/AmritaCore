@@ -10,6 +10,8 @@ from typing import Any, overload
 
 from typing_extensions import Self
 
+from amrita_core.types.content import Content
+from amrita_core.types.tool import TOOL_RESULT_CONTENT
 from amrita_core.utils import _did_you_mean_hint
 
 from .models import (
@@ -66,8 +68,8 @@ class MultiToolsManager:
     def get_tool_func(
         self, name: str, default: T
     ) -> (
-        Callable[[dict[str, Any]], Awaitable[str]]
-        | Callable[[ToolContext], Awaitable[str | None]]
+        Callable[[dict[str, Any]], Awaitable[TOOL_RESULT_CONTENT]]
+        | Callable[[ToolContext], Awaitable[TOOL_RESULT_CONTENT | None]]
         | T
     ): ...
     @overload
@@ -75,15 +77,15 @@ class MultiToolsManager:
         self,
         name: str,
     ) -> (
-        Callable[[dict[str, Any]], Awaitable[str]]
-        | Callable[[ToolContext], Awaitable[str | None]]
+        Callable[[dict[str, Any]], Awaitable[TOOL_RESULT_CONTENT]]
+        | Callable[[ToolContext], Awaitable[TOOL_RESULT_CONTENT | None]]
         | None
     ): ...
     def get_tool_func(
         self, name: str, default: T | None = None
     ) -> (
-        Callable[[dict[str, Any]], Awaitable[str]]
-        | Callable[[ToolContext], Awaitable[str | None]]
+        Callable[[dict[str, Any]], Awaitable[TOOL_RESULT_CONTENT]]
+        | Callable[[ToolContext], Awaitable[TOOL_RESULT_CONTENT | None]]
         | T
         | None
     ):
@@ -198,6 +200,7 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
     lines = [line.strip() for line in docstring.split("\n") if line.strip()]
     args_start_idx = -1
     for i, line in enumerate(lines):
+        # The section header may be "Args:" or its translated form.
         if line.lower().startswith("args:") or line.lower().startswith("参数:"):
             args_start_idx = i
             break
@@ -229,9 +232,14 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
     return func_desc, param_descriptions
 
 
+def _is_content_list(value: object) -> bool:
+    """Whether a return value is a list of ``Content`` blocks (a multimodal tool result)."""
+    return isinstance(value, list) and all(isinstance(i, Content) for i in value)
+
+
 def simple_tool(
     func: Callable[..., Any | Awaitable[Any]],
-) -> Callable[[dict[str, Any]], Awaitable[str]]:
+) -> Callable[[dict[str, Any]], Awaitable[TOOL_RESULT_CONTENT]]:
     """
     A decorator that creates a ToolData object based on the function signature and annotations.
     It automatically generates parameter descriptions and metadata.
@@ -281,16 +289,19 @@ def simple_tool(
 
     @on_tools(function_def, strict=True)
     @wraps(func)
-    async def tool_wrapper(params: dict[str, Any]) -> str:
+    async def tool_wrapper(params: dict[str, Any]) -> TOOL_RESULT_CONTENT:
         bound_args: inspect.BoundArguments = signature.bind(**params)
         bound_args.apply_defaults()
 
-        result = (
+        result: Any = (
             await func(**bound_args.arguments)
             if iscoroutinefunction(func)
             else await asyncio.to_thread(func, **bound_args.arguments)
         )
 
+        # Pass content blocks through: serializing them would leave only base64 text for the model.
+        if _is_content_list(result):
+            return result
         # Convert result to string as expected by the schema
         return (
             json.dumps(result, indent=4, ensure_ascii=False)

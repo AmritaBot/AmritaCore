@@ -37,8 +37,13 @@ from amrita_core.consts import ABSTRACT_INSTRUCTION
 from amrita_core.contexts import AbilityState, MemoryContext, RespState
 from amrita_core.enums import SuspendEnum
 from amrita_core.libchat import call_completion, get_last_response, text_generator
+from amrita_core.types.content import TextContent
 from amrita_core.types.memory import MemoryModel
-from amrita_core.types.message import CONTENT_LIST_TYPE, Message
+from amrita_core.types.message import (
+    CONTENT_LIST_TYPE,
+    CONTENT_LIST_TYPE_ITEM,
+    Message,
+)
 from amrita_core.types.preset import (
     ModelPreset,
     resolve_max_context,
@@ -46,6 +51,14 @@ from amrita_core.types.preset import (
 )
 from amrita_core.types.tool import ToolResult
 from amrita_core.usage import SessionUsageProxy
+
+
+def _count_non_text_blocks(msg: CONTENT_LIST_TYPE_ITEM) -> int:
+    """Count the non-text blocks carried by one message."""
+    content = getattr(msg, "content", None)
+    if not isinstance(content, list):
+        return 0
+    return sum(1 for block in content if not isinstance(block, TextContent))
 
 
 def split_history(
@@ -276,17 +289,34 @@ class ContextCompactor:
         memory.usage = None
         return True
 
-    def _weights(self, messages: CONTENT_LIST_TYPE) -> list[int]:
+    def _weights(
+        self,
+        messages: CONTENT_LIST_TYPE,
+        non_text_block_weight: int = 1000,
+    ) -> list[int]:
         """Per-message character counts, used as the token-share weights.
 
         A message with no text at all (a bare tool call) still occupies a
         slot in the payload, so the floor is 1 rather than 0 — a zero weight
         would let it be dropped for free while contributing nothing to the
         estimated total.
+
+        Non-text blocks are counted too, at ``non_text_block_weight`` each.
+        :func:`text_generator` only reads text, so a tool that returns a
+        screenshot contributes zero characters and would be weighted as if it
+        were free — yet the image is usually the largest thing in the payload,
+        billed at roughly a thousand tokens. The image would then be the last
+        message the estimate drops and the first reason the real prompt stays
+        over budget. The weight is a nominal proxy, not a measurement: the total
+        still comes from the provider, only the split between messages is
+        estimated here, and counting an image as a chunk of text keeps that
+        split in one unit.
         """
         return [
             max(
-                1, sum(len(chunk) for chunk in text_generator([msg], full_message=True))
+                1,
+                sum(len(chunk) for chunk in text_generator([msg], full_message=True))
+                + non_text_block_weight * _count_non_text_blocks(msg),
             )
             for msg in messages
         ]
@@ -338,8 +368,8 @@ class ContextCompactor:
            declared its ``tool_call_id``;
         2. every ``tool_call_id`` an assistant declared must have a result.
 
-        A turn is self-contained — ``user`` → ``assistant(tool_calls)`` →
-        ``tool``* → ``assistant`` — so a turn boundary satisfies both by
+        A turn is self-contained — ``user`` -> ``assistant(tool_calls)`` ->
+        ``tool``* -> ``assistant`` — so a turn boundary satisfies both by
         construction, and that is where the cut is placed: at the newest
         ``user`` message at or before the request, or, when that leaves
         nothing to drop, at the next boundary after it. Without the forward

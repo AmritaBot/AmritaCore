@@ -1,4 +1,4 @@
-# 迁移指南：1.1 → 1.2
+# 迁移指南：1.1 -> 1.2
 
 AmritaCore 1.2 把历史管理变成了一条显式**策略**。原先用来开关它的布尔值已被删除，
 随之删除的还有两个只在「策略唯一」时才说得通的名字。本页列出全部破坏性变更及其
@@ -91,4 +91,4 @@ config.llm.slide_target_ratio = 0.7  # 必须小于 compaction_trigger_ratio
 ## 下一步
 
 [API 参考](api-reference/index.md)——当前接口全貌，或
-[迁移指南：0.13 → 1.0](migration.md)——上一个破坏性版本。
+[迁移指南：0.13 -> 1.0](migration.md)——上一个破坏性版本。

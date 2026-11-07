@@ -27,7 +27,7 @@ state.begin_step("execute")
 | `tool_error_hints`     | `int`                   | 当前 Step 中遇到的硬 ERROR 工具结果数（驱动「先重试后改计划」指引） |
 | `last_summary`         | `StepSummary \| None`   | 前一个 Step 的主谓摘要                                              |
 | `tokens`               | `TokenBudget`           | 真实 API token 统计                                                 |
-| `exec_finished`        | `bool`                  | 策略完成工具调用 → 迭代循环结束                                     |
+| `exec_finished`        | `bool`                  | 策略完成工具调用 -> 迭代循环结束                                     |
 | `step_started_ts`      | `float \| None`         | 当前 Step 的墙上时钟起点；token 预算窗口锚点                        |
 
 ## 方法
@@ -48,4 +48,4 @@ state.begin_step("execute")
 - [DAGNode](DAGNode.md) —— 计划子步骤
 - `StepSummary` —— 主谓摘要
 - `TokenBudget` —— token 统计
-- 完整机制见[进阶 → Step 循环](../../advanced/step-loop.md)
+- 完整机制见[进阶 -> Step 循环](../../advanced/step-loop.md)

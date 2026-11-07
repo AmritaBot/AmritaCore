@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import typing
+from typing import Any
 
-from pydantic import Field
+from pydantic import Field, SerializeAsAny, model_validator
 
 from amrita_core.types.base import BaseModel
+from amrita_core.types.content import (
+    Content,
+    FileContent,
+    TextContent,
+    coerce_content,
+)
 
 
 class Function(BaseModel):
@@ -31,8 +38,107 @@ class ToolCall(BaseModel):
     """The type of the tool. Currently, only `function` is supported."""
 
 
+TOOL_RESULT_CONTENT = str | SerializeAsAny[list[Content]]
+"""Wire shape of a tool result: plain text, or a list of content blocks."""
+
+# Blocks whose external label differs from ``type``; anything else keeps ``type``.
+_BLOCK_LABELS: dict[str, str] = {"image_url": "image"}
+
+
+def degraded_block_note(
+    kind: str,
+    template: str = "<{kind} omitted: the current adapter cannot carry it>",
+) -> str:
+    """Note left where a block cannot be carried; gateway and adapters share it."""
+    return template.format(kind=kind)
+
+
+def block_label_of_type(type_name: str, name: str = "") -> str:
+    """Short label for a block's ``type``, with ``name`` appended when set.
+
+    Three places share this mapping: the text view, the gateway's degrade note,
+    and callers holding a raw ``dict`` payload without a ``Content`` instance.
+    One image must not read as ``<image>`` in one turn and ``<image_url>`` in
+    the next.
+    """
+    label: str = _BLOCK_LABELS.get(type_name, type_name) or str(type_name)
+    return f"{label}:{name}" if name else label
+
+
+def block_label(block: Content) -> str:
+    """Short label for a content block; see :func:`block_label_of_type`."""
+    name = ""
+    if isinstance(block, FileContent):
+        name = block.file.filename or block.file.file_id or ""
+    return block_label_of_type(block.type, name)
+
+
+def content_text(
+    value: TOOL_RESULT_CONTENT | None,
+    placeholder: str = "<{label}>",
+) -> str:
+    """Flatten a tool result into plain text.
+
+    :attr:`ToolResult.content` may carry images and other non-text blocks while
+    logs, the ``ERR:`` prefix check and compaction only read text. Non-text
+    blocks become a ``placeholder`` mark, so the payload is never dropped.
+
+    The input is deliberately loose: ``StepToolReturnEvent.result`` is a plain
+    dataclass field that skips ``ToolResult`` validation, so a matcher gets
+    whatever the handler wrote - ``list[Content]`` or a ``list[dict]`` never
+    coerced. Both checks live here, and raising ``AttributeError`` on the
+    latter would turn one tool result into a crash.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    parts: list[str] = []
+    for block in value:
+        if isinstance(block, TextContent):
+            parts.append(block.text)
+        elif isinstance(block, str):
+            parts.append(block)
+        elif isinstance(block, dict):
+            item_type = str(block.get("type"))
+            if item_type == "text":
+                parts.append(str(block.get("text") or ""))
+            else:
+                parts.append(
+                    placeholder.format(
+                        label=block_label_of_type(
+                            item_type, _raw_file_block_name(block)
+                        )
+                    )
+                )
+        else:
+            parts.append(placeholder.format(label=block_label(block)))
+    return "".join(parts)
+
+
+def _raw_file_block_name(block: dict[str, Any]) -> str:
+    """Filename from a not-yet-coerced ``file`` block, or an empty string."""
+    raw = block.get("file")
+    if not isinstance(raw, dict):
+        return ""
+    return str(raw.get("filename") or raw.get("file_id") or "")
+
+
 class ToolResult(BaseModel):
     role: typing.Literal["tool"] = Field(..., description="Role")
     name: str = Field(..., description="Tool name")
-    content: str = Field(..., description="Tool return content")
+    content: TOOL_RESULT_CONTENT = Field(..., description="Tool return content")
     tool_call_id: str = Field(..., description="Tool call ID")
+
+    @model_validator(mode="before")
+    @classmethod
+    def _coerce_content(cls, data: Any) -> Any:
+        """Rebuild content-block dicts into registered ``Content`` models by ``type``."""
+        if isinstance(data, dict) and "content" in data:
+            data["content"] = coerce_content(data["content"])
+        return data
+
+    @property
+    def text(self) -> str:
+        """Plain-text view of the content; see :func:`content_text`."""
+        return content_text(self.content)

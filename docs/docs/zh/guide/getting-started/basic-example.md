@@ -58,7 +58,7 @@ async def main() -> None:
         async for msg in chat.io_stream.get_response_generator():
             print(msg, end="", flush=True)
 
-    # 3. 同一会话 → agent 记得上一轮。
+    # 3. 同一会话 -> agent 记得上一轮。
     chat2 = agent.get_chatobject(
         "Double the number you just computed.",
         session_id="demo-session",
@@ -84,5 +84,5 @@ if __name__ == "__main__":
 
 ## 下一步
 
-跟随[教程](../tutorials/index.md)——它们系统化递进：第一个 agent →
-工具 → 流式 → 钩子 → 记忆。
+跟随[教程](../tutorials/index.md)——它们系统化递进：第一个 agent ->
+工具 -> 流式 -> 钩子 -> 记忆。

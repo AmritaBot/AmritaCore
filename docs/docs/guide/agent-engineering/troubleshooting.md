@@ -89,7 +89,7 @@ summary calls fail.
 **Root cause**: some providers return `''` when thinking is engaged.
 
 **Fix**: built in — empty responses degrade to a fallback instead of crashing
-(decompose → run directly; summarize → `"Completed <phase>"`). The warning log
+(decompose -> run directly; summarize -> `"Completed <phase>"`). The warning log
 includes the **original request id** so you can find the call in provider
 logs: `Empty decomposition response (request_id=..., thinking_content=True)`.
 

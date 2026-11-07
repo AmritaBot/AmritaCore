@@ -184,6 +184,7 @@ class TestOpenAIAdapter:
 
             # Verify result
             assert isinstance(result, UniResponse)
+            # This turn's assistant content was None to begin with.
             assert result.content is None
             assert result.tool_calls is not None
             assert len(result.tool_calls) == 1
@@ -267,7 +268,8 @@ class TestOpenAIAdapter:
             result = await adapter.call_tools(mock_messages, tools=[])
 
             assert isinstance(result, UniResponse)
-            assert result.content is None
+            # Text must survive even when the model requests no tool.
+            assert result.content == "No tools needed"
             assert result.tool_calls is None
 
     @pytest.mark.asyncio
@@ -344,7 +346,8 @@ class TestOpenAIAdapter:
             )
 
             assert isinstance(result, UniResponse)
-            assert result.content is None
+            # Text must survive even when the model requests no tool.
+            assert result.content == "No tools needed"
             assert result.tool_calls is None
 
 
@@ -1121,3 +1124,31 @@ class TestAnthropicAdapter:
         )  # tool results merged into user message
 
         # The actual API call would be tested with proper mocking in a real implementation For coverage purposes, we've tested all the helper methods thoroughly
+
+
+class TestOpenAIToolSerialization:
+    """The SDK serializes pydantic models with exclude_unset, dropping defaults."""
+
+    def test_tools_are_sent_as_complete_dicts(self):
+        from amrita_core.adapters.openai import _convert_tools
+        from amrita_core.tools.models import (
+            FunctionDefinitionSchema,
+            FunctionParametersSchema,
+            ToolFunctionSchema,
+        )
+
+        tool = ToolFunctionSchema(
+            function=FunctionDefinitionSchema(
+                name="f",
+                description="d",
+                parameters=FunctionParametersSchema(
+                    type="object", properties={}, required=[]
+                ),
+            ),
+            strict=True,
+        )
+        converted = _convert_tools([tool])
+        assert converted[0]["type"] == "function"
+        assert converted[0]["function"]["strict"] is True
+        # `type` must survive: the provider rejects a tool without it
+        assert "type" in converted[0]

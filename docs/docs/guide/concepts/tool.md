@@ -20,8 +20,9 @@ Three ways to register a tool:
 | `@on_tools(schema)`                  | Explicit `FunctionDefinitionSchema` | Global (module load) |
 | `ToolsManager` / `MultiToolsManager` | Manual                              | Per-session, runtime |
 
-Handlers receive validated arguments as `dict` and return `str` (the result the
-model sees).
+Handlers receive validated arguments as `dict` and return `str` — or a list of
+content blocks when the result has to carry an image (the result the model
+sees). See [Multimodal Tool Results](#multimodal-tool-results).
 
 ## Schemas and Validation
 
@@ -146,6 +147,98 @@ list or the output stream directly, the latter carry no trustworthy read/write
 hint. A misclassification costs unnecessary serialisation rather than a race —
 a raising classifier, a non-literal `True` return, unparseable arguments, and an
 unregistered or disabled tool all fall on the unsafe side.
+
+## Multimodal Tool Results
+
+A handler may return content blocks instead of a string, so a tool can hand the
+model an image — a screenshot, a rendered chart — alongside its text. The return
+type is `TOOL_RESULT_CONTENT`: `str`, or `list[Content]`.
+
+```python
+from amrita_core import simple_tool
+from amrita_core.types import Content, ImageContent, ImageUrl, TextContent
+
+
+@simple_tool
+async def screenshot(url: str) -> list[Content]:
+    """Render a page and return it as an image.
+
+    Args:
+        url (str): page to capture
+    """
+    png = await capture(url)  # your own helper
+    return [
+        TextContent(text=f"captured {url}"),
+        ImageContent(image_url=ImageUrl(url=f"data:image/png;base64,{png}")),
+    ]
+```
+
+`simple_tool` passes a `list[Content]` through untouched. Every other return
+value is still JSON-encoded into a string, so existing tools keep working.
+
+Tools served over MCP behave the same way: `MCPClient` converts the server's
+`image` / `audio` / embedded-resource blocks into `image_url` / `file` / `text`
+blocks, and only collapses to a string when the result is text-only. See
+[MCP Servers](../extensions-integration/mcp-server.md#multimodal-results).
+
+`ToolResult.content` stores the list as it came back, and `.text` gives the
+plain-text view — non-text blocks collapse into `<image>` / `<file:name>`
+placeholders:
+
+```python
+result = ToolResult(
+    role="tool", name="screenshot", content=blocks, tool_call_id=call.id
+)
+result.text  # "captured https://...<image>"
+```
+
+That text view is what logging, the `ERR:` check and compaction read; the blocks
+themselves only leave the process on the wire. Use `content_text()` — or
+`result.text` — anywhere you need the text-only form, rather than inspecting the
+list yourself.
+
+### Not every adapter can carry every block
+
+Whether a block can be sent is a property of the **protocol**, not the model, so
+adapters declare it in `features` (`FeatureFlag`):
+
+| Field                    | Meaning                                               |
+| ------------------------ | ----------------------------------------------------- |
+| `input_multimodal`       | non-text blocks allowed in `user` / `system` content  |
+| `tool_result_multimodal` | non-text blocks allowed in `tool` message content     |
+
+`anthropic` sets both: its `tool_result` block takes a content array natively.
+`openai` sets `tool_result_multimodal=False`, because a Chat Completions `tool`
+message carries text only — an image there has to travel as a separate `user`
+message, which the framework does not do on its own.
+
+The gateway reads those flags before every request, and the two kinds of
+content are handled differently:
+
+- **A tool result that cannot be sent raises `UnsupportedContentError`** before
+  any request leaves the process. The agent loop catches it, replaces the
+  offending blocks with the error's `notice` on a **copy** of the payload and
+  retries the round, so the model reads why the media is missing and can ask the
+  tool for text or pick another tool. Swapping an image for an "omitted" note
+  and sending it anyway would leave the model answering about something it never
+  received, with no way to tell that it should ask again.
+- **A `user` / `system` message** is degraded instead: the blocks become a text
+  notice (`<image omitted: the current adapter cannot carry it>`) and a warning
+  is logged once per protocol. The input already happened; aborting the turn
+  helps nobody.
+
+Either way the stored history is left alone, so a later fallback to a stronger
+adapter still has the original blocks. Preset fallback re-negotiates on every
+attempt, because the replacement preset may speak a different protocol than the
+one that failed — and a capability mismatch is never retried as a transport
+failure.
+
+If you build a payload yourself — a custom strategy, a replay tool, a test —
+call `filter_multimodal(context, adapter)` to apply the same rule. It returns a
+new list with every untransportable block replaced by
+`TextContent(text="[Image Unsupported]")`, judged per message kind:
+`tool_result_multimodal` for `tool` results, `input_multimodal` for everything
+else. The original objects are never touched.
 
 ## Advanced: `custom_run` and `ToolContext`
 

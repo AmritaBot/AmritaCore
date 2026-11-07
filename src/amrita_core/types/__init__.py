@@ -21,6 +21,7 @@ from amrita_core.types.message import (
     Message,
     SendMessageWrap,
 )
+from amrita_core.types.model import ModelInfo
 from amrita_core.types.preset import (
     ModelConfig,
     ModelPreset,
@@ -29,7 +30,13 @@ from amrita_core.types.preset import (
     resolve_max_output,
 )
 from amrita_core.types.response import UniResponse, UniResponseUsage
-from amrita_core.types.tool import Function, ToolCall, ToolResult
+from amrita_core.types.tool import (
+    TOOL_RESULT_CONTENT,
+    Function,
+    ToolCall,
+    ToolResult,
+    content_text,
+)
 
 # Register built-in content types
 register_content(TextContent)
@@ -40,6 +47,7 @@ __all__ = [
     "CONTENT_LIST_TYPE",
     "CONTENT_LIST_TYPE_ITEM",
     "CT_MAP",
+    "TOOL_RESULT_CONTENT",
     "USER_INPUT",
     "BaseModel",
     "BillingRecord",
@@ -54,6 +62,7 @@ __all__ = [
     "MemoryModel",
     "Message",
     "ModelConfig",
+    "ModelInfo",
     "ModelPreset",
     "RateConfig",
     "SendMessageWrap",
@@ -63,6 +72,7 @@ __all__ = [
     "ToolResult",
     "UniResponse",
     "UniResponseUsage",
+    "content_text",
     "register_content",
     "resolve_max_context",
     "resolve_max_output",

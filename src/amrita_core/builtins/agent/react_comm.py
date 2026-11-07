@@ -35,6 +35,7 @@ from amrita_core.types import (
     ToolResult,
     UniResponse,
 )
+from amrita_core.types.tool import TOOL_RESULT_CONTENT, content_text
 
 if TYPE_CHECKING:
     from amrita_core.builtins.agent.state import Phase
@@ -698,7 +699,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
 
     @override
     def _maybe_inject_tool_failure_hint(
-        self, tool_call: ToolCall, func_response: str
+        self, tool_call: ToolCall, func_response: TOOL_RESULT_CONTENT
     ) -> None:
         """Append a one-shot failure -> revise hint after a hard ERROR result.
 
@@ -713,7 +714,8 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         Parallel tool calling is left untouched — this only appends a context
         message, it never disables or alters concurrent execution.
         """
-        if not func_response.startswith("ERROR"):
+        # Error detection reads the text view; image blocks must not look like an ERR prefix.
+        if not content_text(func_response).startswith("ERROR"):
             return
         rs = self._init_run_state()
         rs.tool_error_hints += 1
@@ -742,7 +744,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
     async def _build_stop_response_and_append(
         self,
         function_args: dict[str, Any],
-        response_msg: UniResponse[None, list[ToolCall] | None],
+        response_msg: UniResponse[str | None, list[ToolCall] | None],
         function_name: str,
         function_call_id: str,
         function_response: str,
@@ -788,7 +790,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         tool_call: ToolCall,
         error_content: str,
         original_exception: BaseException | None = None,
-        response_msg: UniResponse[None, list[ToolCall] | None] | None = None,
+        response_msg: UniResponse[str | None, list[ToolCall] | None] | None = None,
     ):
         """ReAct strategy: append error as an assistant+tool message pair.
 
@@ -879,7 +881,7 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
             )
 
         response_msg: UniResponse[
-            None, list[ToolCall] | None
+            str | None, list[ToolCall] | None
         ] = await self._model_round(
             msg_list.unwrap(),
             tools,

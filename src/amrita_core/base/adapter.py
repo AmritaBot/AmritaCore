@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 from amrita_sense.logging import logger
@@ -11,7 +11,7 @@ from amrita_core.config import AmritaConfig, get_config
 from amrita_core.utils import _did_you_mean_hint
 
 from ..tools.models import ToolChoice, ToolFunctionSchema
-from ..types import EmbeddingChunk, ModelPreset, ToolCall, UniResponse
+from ..types import EmbeddingChunk, ModelInfo, ModelPreset, ToolCall, UniResponse
 
 
 class MessageContent(ABC):
@@ -43,6 +43,35 @@ ADAPTER_TYPE = Literal[
 ]
 
 
+@dataclass(frozen=True, slots=True)
+class FeatureFlag:
+    """Static declaration of an adapter's wire capabilities.
+
+    Only the gateway reads these flags: it decides what this turn's payload can
+    carry. Strategy, context and storage work on the framework's own models and
+    never need to know which protocol supports what.
+
+    The flags describe the wire, not the model: whether a block may appear in
+    the request, not whether the model understands it. The latter cannot be
+    decided reliably; the former can.
+    """
+
+    agentic_call: bool = field(default=False)
+    """Whether ``agentic_call_api`` is implemented (text and tool calls from one request)."""
+
+    input_multimodal: bool = field(default=False)
+    """Whether non-text blocks may appear in ``user`` / ``system`` message content."""
+
+    tool_result_multimodal: bool = field(default=False)
+    """Whether non-text blocks may appear in ``tool`` message content (tool results)."""
+
+    fetch_models: bool = field(default=False)
+    """Whether ``fetch_models`` is implemented (lists the models a user may pick)."""
+
+
+_DEFAULT_FEATURES = FeatureFlag()
+
+
 @dataclass
 class ModelAdapter:
     """Base class for model adapter"""
@@ -50,15 +79,44 @@ class ModelAdapter:
     preset: ModelPreset
     config: AmritaConfig = field(default_factory=get_config)
     __override__: bool = False  # Whether to allow overriding existing adapters
-    # Whether this adapter implements ``agentic_call_api`` (streaming text + tool calls).
+    # Adapter wire capabilities. Subclasses assign the whole object; FeatureFlag is frozen.
+    features: ClassVar[FeatureFlag] = _DEFAULT_FEATURES
+    # Legacy field: a subclass that only declares it gets folded into ``features``.
     supports_agentic_call: ClassVar[bool] = False
 
     def __init_subclass__(cls) -> None:
         super().__init_subclass__()
+        cls._sync_legacy_features()
         if not getattr(cls, "__abstract__", False) and not getattr(
             cls, "__no_register__", False
         ):
             AdapterManager().register_adapter(cls)
+
+    @classmethod
+    def _sync_legacy_features(cls) -> None:
+        """Fold the legacy ``supports_agentic_call`` into :attr:`features`.
+
+        Third-party adapters that only set the old field must keep working;
+        otherwise ``agentic_call_api`` silently stops being called and the only
+        symptom is a vague question about missing streaming.
+
+        The old field describes streaming alone, so it may only change that one
+        flag: copy the inherited declaration, swap ``agentic_call``, keep the
+        rest. Building a fresh default object would also clear the parent's
+        multimodal declarations, and the symptom would be images that suddenly
+        stop being sent.
+        """
+        if "features" in cls.__dict__:
+            # Explicit features win, and the legacy field is kept in sync for readers.
+            cls.supports_agentic_call = cls.features.agentic_call
+            return
+        legacy = cls.__dict__.get("supports_agentic_call")
+        if legacy is None:
+            return
+        inherited = cls.features
+        if inherited.agentic_call == bool(legacy):
+            return
+        cls.features = replace(inherited, agentic_call=bool(legacy))
 
     async def call_api(
         self, messages: Iterable, **kwargs
@@ -74,7 +132,7 @@ class ModelAdapter:
         tools: list[ToolFunctionSchema],
         tool_choice: ToolChoice | None = None,
         **kwargs,
-    ) -> UniResponse[None, list[ToolCall] | None]:
+    ) -> UniResponse[str | None, list[ToolCall] | None]:
         raise NotImplementedError
 
     async def agentic_call_api(
@@ -94,6 +152,22 @@ class ModelAdapter:
             yield ""
         else:
             raise NotImplementedError
+
+    @classmethod
+    async def fetch_models(cls, preset: ModelPreset) -> list[ModelInfo]:
+        """List the models this protocol exposes for ``preset``.
+
+        Optional capability: adapters that can query a model catalogue set
+        :attr:`FeatureFlag.fetch_models` and implement this. It is a class
+        method because the call needs only the endpoint and credentials already
+        on the preset - no configured instance, no conversation state.
+
+        The default raises so callers can feature-detect instead of sending a
+        request the provider may not support.
+        """
+        raise NotImplementedError(
+            f"Adapter {cls.__name__} does not implement fetch_models"
+        )
 
     async def call_embed(
         self, texts: Sequence[str], **kwargs

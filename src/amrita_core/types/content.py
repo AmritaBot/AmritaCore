@@ -114,3 +114,27 @@ def register_content(cls: type[Content]):
 
 
 USER_INPUT = Sequence[Content] | str | None
+
+
+def coerce_content(value: object) -> object:
+    """Turn raw ``content`` dict items into registered ``Content`` models.
+
+    ``Message`` and ``ToolResult`` share this path: with two copies, a newly
+    registered ``Content`` subclass would eventually be missing from one.
+    """
+    if not isinstance(value, list):
+        return value
+    validated: list[object] = []
+    for item in value:
+        if isinstance(item, dict):
+            if "type" not in item:
+                raise ValueError("Content item is missing 'type' field")
+            content_type = item["type"]
+            if content_type not in CT_MAP:
+                raise ValueError(
+                    f"Unknown content type: `{content_type}`, please register it by calling `register_content` first."
+                )
+            validated.append(CT_MAP[content_type].model_validate(item))
+        else:
+            validated.append(item)
+    return validated

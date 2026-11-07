@@ -45,7 +45,7 @@ flowchart LR
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | **decompose**  | First `intro_step`: LLM decides simple vs DAG `{needs_decomposition, dag, reason}`                                                         |
 | **intro_step** | Pick the next ready DAG node (topological order via `graphlib.TopologicalSorter`); drain peer messages; emit `step_intro` event + metadata |
-| **STEP_EXEC**  | One `single_execute()` round: model → tools → results; `after_iteration()` runs stall detection _inside_ the loop                          |
+| **STEP_EXEC**  | One `single_execute()` round: model -> tools -> results; `after_iteration()` runs stall detection _inside_ the loop                          |
 | **leave_step** | Summarize (subject-predicate), complete the node, compress history; emit `step_leave` event + metadata                                     |
 
 ## Semantic State: `AgentRunState`
@@ -60,10 +60,10 @@ All step-level state lives in `AgentRunState` (bridged between
 | `plan` / `completed_step_ids`       | The task DAG + progress                                           |
 | `step_tool_signatures`              | Tool signatures in the current Step (stall window)                |
 | `stall_injected`                    | Give-up prompt injected (once per Step)                           |
-| `tool_error_hints`                  | Hard ERROR tool results seen in this Step (retry→revise guidance) |
+| `tool_error_hints`                  | Hard ERROR tool results seen in this Step (retry->revise guidance) |
 | `last_summary`                      | Subject-predicate summary of the previous Step                    |
 | `tokens`                            | Real API token accounting (compression trigger)                   |
-| `exec_finished`                     | Strategy done calling tools → iteration loop ends                 |
+| `exec_finished`                     | Strategy done calling tools -> iteration loop ends                 |
 | `step_started_ts`                   | Wall-clock start of the Step (token-budget window anchor)         |
 
 ## Stall Protection

@@ -81,7 +81,7 @@ stream = SuspendObjectStream(callback=on_chunk)
 
 > Only one consumption mode is allowed per stream — generator _or_ callback.
 
-## 4. The Reverse Channel (Peer → Agent)
+## 4. The Reverse Channel (Peer -> Agent)
 
 `SuspendObjectStream` is **bidirectional**. The consumer can push messages back
 to the producer with `send_to_producer()`; the agent drains them at the next

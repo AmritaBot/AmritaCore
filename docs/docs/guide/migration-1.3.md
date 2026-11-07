@@ -1,4 +1,4 @@
-# Migration Guide: 1.2 → 1.3
+# Migration Guide: 1.2 -> 1.3
 
 AmritaCore 1.3 changes **how an agent turn ends**. The tool-round budget now
 counts rounds rather than tool calls, the loop winds down instead of being cut off, and a native-thinking run
@@ -13,7 +13,7 @@ the end lists what to re-check in your own code.
 | `function_config.agent_tool_refusal_rounds` (new) | Default `2`. Rounds the agent may keep asking for tools after the budget is spent, before the turn closes.                                                       |
 | `strategy.on_limited()`                          | No longer terminates the run. It marks the budget spent and asks the model to answer with what it has.                                                          |
 | Native-thinking runs                             | Stream text during tool rounds and skip the separate completion, so the reply arrives while it is produced.                                                     |
-| `ModelAdapter.agentic_call_api()` (new)          | Optional capability. Implement it and set `supports_agentic_call = True` to let an adapter serve the new path.                                                  |
+| `ModelAdapter.agentic_call_api()` (new)          | Optional capability. Implement it and set `supports_agentic_call = True` to let an adapter serve the new path. (Superseded by `features` in [1.4](migration-1.4.md); the old field still works.) |
 
 ## 1. The Tool Budget Is Exact
 
@@ -66,4 +66,5 @@ tool-less request described in §2.
 - [ ] If you tuned `agent_tool_call_limit` around the old overshoot, re-check it.
 - [ ] If you override `on_limited()`, make sure it still marks the budget spent.
 - [ ] If you ship a custom adapter, implement `agentic_call_api()` and set
-      `supports_agentic_call = True` to get the streaming path.
+      `supports_agentic_call = True` to get the streaming path. In 1.4 this moves
+      to `features`; see [1.3 -> 1.4](migration-1.4.md).

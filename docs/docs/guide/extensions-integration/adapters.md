@@ -25,7 +25,7 @@ agent = create_agent(
 ```
 
 `create_agent()` always builds a preset with the default protocol
-(`"__main__"` → OpenAIAdapter), so an OpenAI-compatible endpoint works with
+(`"__main__"` -> OpenAIAdapter), so an OpenAI-compatible endpoint works with
 zero protocol configuration — DeepSeek, Azure and friends are not separate
 protocols, just different `base_url`/`model` values.
 
@@ -33,6 +33,42 @@ protocols, just different `base_url`/`model` values.
 `x-request-id` (OpenAI), `x-ds-trace-id` / `eo-log-uuid` (DeepSeek) — the id
 surfaces on empty-response warnings so you can trace a failed call in provider
 logs.
+
+### OpenAIResponsesAdapter
+
+Speaks the OpenAI **Responses** API (`/v1/responses`). Registered protocol:
+`"openai-responses"`.
+
+```python
+preset = ModelPreset(
+    name="responses",
+    protocol="openai-responses",
+    base_url="https://api.openai.com/v1",
+    api_key=os.environ["OPENAI_API_KEY"],
+    model="gpt-5",
+    config=ModelConfig(),
+)
+```
+
+Two wire shapes differ from Chat Completions, and they are why this adapter
+exists:
+
+- a tool result is a `function_call_output` item whose `output` may be a list of
+  `input_text` / `input_image` / `input_file` parts, so the adapter declares
+  `tool_result_multimodal=True` — a screenshot reaches the model as an image
+  instead of a placeholder;
+- tool calls are separate `function_call` items rather than fields on an
+  assistant message, and text comes back as `output_text` parts.
+
+The adapter is **stateless**: each request sends the whole conversation as
+`input`, `store` is pinned to `False`, and `previous_response_id` is never used.
+Nothing server-side is needed to continue a conversation, so a retry, a preset
+fallback or a process restart all behave the same way.
+
+Reasoning items are replayed. When a turn produces reasoning, the adapter keeps
+the items' ids and encrypted content on `reasoning_signature` and sends them back
+on the next request, which the Responses API requires for tool-calling
+follow-ups.
 
 ### AnthropicAdapter
 
@@ -77,10 +113,15 @@ requests — required by DeepSeek (HTTP 400 otherwise) and by Claude's signature
 round-trip. The thinking filter (`thinking_config.content_mode`) strips it for
 the _request payload_ without mutating the live message objects.
 
+Thinking is provider-defaulted: an absent field means "keep the default", so
+turning it off requires an explicit value. `ThinkingConfig(thinking_type="disabled")`
+makes the adapters send `thinking: {"type": "disabled"}` (Chat Completions,
+Anthropic) or `reasoning: {"effort": "none"}` (Responses).
+
 ## Writing a Custom Adapter
 
 Subclass `ModelAdapter`; it **registers itself automatically**
-(`__init_subclass__` → `AdapterManager().register_adapter(cls)`):
+(`__init_subclass__` -> `AdapterManager().register_adapter(cls)`):
 
 ```python
 from amrita_core.base.adapter import ModelAdapter
@@ -135,3 +176,42 @@ adapter for the same protocol.
 - Streaming: yield `UniResponse` chunks (content / reasoning / usage)
 - Return `reasoning_content` on assistant messages for thinking providers
 - Expose `metadata.original_request_id` when the provider sends a trace id
+
+## Listing Models
+
+`fetch_models(preset)` is a class method on every adapter, so a model picker can
+ask the endpoint directly without building an instance:
+
+```python
+models = await OpenAIAdapter.fetch_models(preset)
+for model in models:
+    print(model.id, model.name, model.context_window, model.input_modalities)
+```
+
+`OpenAIAdapter` and `OpenAIResponsesAdapter` read `GET /models`;
+`AnthropicAdapter` reads `GET /v1/models`. The capability is declared as
+`features.fetch_models` — check it before calling, since a compatible endpoint
+may not implement the route; that failure surfaces as `AdapterRequestError`.
+
+## Errors
+
+Adapter methods never leak an SDK exception. Every failure is raised as
+`amrita_core.exceptions.AdapterError`, or a subclass that names the cause:
+
+| Type                    | Meaning                                             |
+| ----------------------- | --------------------------------------------------- |
+| `AdapterAuthError`      | credentials missing, invalid or lacking permission  |
+| `AdapterRateLimitError` | provider throttled the request                      |
+| `AdapterTimeoutError`   | request exceeded `llm_timeout`                      |
+| `AdapterConnectionError`| provider unreachable (DNS, TLS, socket)             |
+| `AdapterRequestError`   | provider rejected the request (4xx/5xx)             |
+| `AdapterResponseError`  | response the adapter cannot interpret               |
+| `UnsupportedContentError` | payload carries blocks this protocol cannot hold  |
+
+The untouched SDK exception stays reachable on `.original`, the HTTP status on
+`.status_code`, and the message is prefixed with the adapter name. Third-party
+adapters can get the same behaviour by decorating their methods with
+`normalize_adapter_errors("<name>")`; it handles coroutines and async generators.
+
+`UnsupportedContentError` is raised **before** a request is sent and is never
+retried as a transport failure — see [tool results](../concepts/tool.md#not-every-adapter-can-carry-every-block).

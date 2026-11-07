@@ -39,7 +39,7 @@ agent = create_agent(..., config=config)  # or per-agent
 | `function_config.agent_step_token_budget`   | `-1`        | Per-Step prompt-token budget (`<= 0` = disabled/unlimited)                                 |
 | `builtin.tool_calling_mode`                 | `"agent"`   | `"agent"` / `"rag"` / `"none"`                                                             |
 | `builtin.agent_thought_mode`                | `"chat"`    | `"reasoning"` / `"chat"` / `"reasoning-required"` / `"reasoning-optional"`                 |
-| `builtin.loop_reasoning_trigger`            | `5`         | Stall detection: N identical tool signatures → give up                                     |
+| `builtin.loop_reasoning_trigger`            | `5`         | Stall detection: N identical tool signatures -> give up                                     |
 | `llm.context_strategy`                      | `"compact"` | How an oversized history is handled: `"compact"` / `"slide"` / `"none"`                    |
 | `llm.compaction_trigger_ratio`              | `0.9`       | Fraction of the attention window at which history management fires                         |
 | `llm.slide_target_ratio`                    | `0.7`       | Under `"slide"`, the fraction of the window history is trimmed down to                     |

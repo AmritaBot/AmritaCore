@@ -13,10 +13,15 @@ from amrita_core.base.adapter import (
     AGENTIC_RETURNING,
     COMPLETION_RETURNING,
     AdapterManager,
+    FeatureFlag,
     MessageContent,
     ModelAdapter,
 )
-from amrita_core.exceptions import ContextOverflowError, is_context_overflow_error
+from amrita_core.exceptions import (
+    ContextOverflowError,
+    UnsupportedContentError,
+    is_context_overflow_error,
+)
 from amrita_core.hook.event import (
     CompletionFallbackContext,
     EmbeddingFallbackContext,
@@ -32,18 +37,189 @@ from .config import AmritaConfig, get_config
 from .tools.models import ToolChoice, ToolFunctionSchema
 from .types import (
     CONTENT_LIST_TYPE,
+    Content,
     EmbeddingChunk,
     Message,
     ModelPreset,
+    TextContent,
     ThinkingConfig,
     ToolCall,
     ToolResult,
     UniResponse,
 )
+from .types.tool import block_label, degraded_block_note
 
 T = typing.TypeVar("T")
 
 RESPONSE_TYPE: typing.TypeAlias = str | MessageContent
+
+# Degrade reasons already warned about, so one reason does not flood every request.
+_DEGRADE_WARNED: set[tuple[str, str]] = set()
+
+
+def _warn_degrade_once(protocol: str, kind: str) -> None:
+    """Warn once per (protocol, payload kind) pair, so a reason does not flood the log."""
+    key = (protocol, kind)
+    if key in _DEGRADE_WARNED:
+        return
+    _DEGRADE_WARNED.add(key)
+    logger.warning(
+        f"Adapter `{protocol}` declares no {kind} support; non-text blocks in this"
+        " turn are replaced with a text placeholder in the outgoing payload."
+        " The stored history is left untouched."
+    )
+
+
+def _degrade_blocks(content: list[Content]) -> list[Content]:
+    """Replace non-text blocks with a text note; text blocks pass through.
+
+    Labels come from :func:`block_label`, the same helper :func:`content_text`
+    uses. Two names for one image would read as two different things across
+    turns.
+    """
+    degraded: list[Content] = []
+    for block in content:
+        if isinstance(block, TextContent):
+            degraded.append(block)
+        else:
+            degraded.append(TextContent(text=degraded_block_note(block_label(block))))
+    return degraded
+
+
+def filter_multimodal(
+    context: CONTENT_LIST_TYPE,
+    adapter: type[ModelAdapter],
+    *,
+    unsupported_placeholder: str = "[Image Unsupported]",
+) -> CONTENT_LIST_TYPE:
+    """Replace every non-text block the adapter cannot carry with a placeholder.
+
+    Public counterpart of the gateway's own negotiation, for callers that build
+    a payload themselves (custom strategies, replay tools, tests) and need the
+    same answer as :func:`call_completion` would give: a ``tool`` result is
+    judged by ``tool_result_multimodal``, every other message by
+    ``input_multimodal``, and the original objects are never mutated — the
+    stored history keeps its blocks.
+
+    Args:
+        context: The message list to filter.
+        adapter: Adapter class whose ``features`` decide what survives.
+        unsupported_placeholder: Text substituted for each dropped block.
+
+    Returns:
+        The original list when the adapter carries everything, otherwise a new
+        list where each untransportable block became
+        ``TextContent(text=unsupported_placeholder)``.
+    """
+    features = adapter.features
+    if features.input_multimodal and features.tool_result_multimodal:
+        return context
+
+    filtered: CONTENT_LIST_TYPE = []
+    for item in context:
+        supported = (
+            features.tool_result_multimodal
+            if isinstance(item, ToolResult)
+            else features.input_multimodal
+        )
+        if supported or not isinstance(item.content, list):
+            filtered.append(item)
+            continue
+        if all(isinstance(block, TextContent) for block in item.content):
+            filtered.append(item)
+            continue
+        filtered.append(
+            item.model_copy(
+                update={
+                    "content": [
+                        block
+                        if isinstance(block, TextContent)
+                        else TextContent(text=unsupported_placeholder)
+                        for block in item.content
+                    ]
+                }
+            )
+        )
+    return filtered
+
+
+def _unsupported_tool_result(
+    messages: CONTENT_LIST_TYPE, preset: ModelPreset
+) -> UnsupportedContentError | None:
+    """Collect the tool-result blocks this turn cannot send.
+
+    Collection only: the caller needs the full list at once, since raising per
+    block would turn one request into several retries over the same payload.
+    """
+    kinds: set[str] = set()
+    tool_call_ids: list[str] = []
+    for item in messages:
+        if not isinstance(item, ToolResult) or not isinstance(item.content, list):
+            continue
+        unsupported = [
+            block for block in item.content if not isinstance(block, TextContent)
+        ]
+        if not unsupported:
+            continue
+        kinds.update(block_label(block) for block in unsupported)
+        tool_call_ids.append(item.tool_call_id)
+    if not tool_call_ids:
+        return None
+    return UnsupportedContentError(
+        protocol=preset.protocol,
+        scope="tool_result",
+        kinds=tuple(sorted(kinds)),
+        tool_call_ids=tuple(tool_call_ids),
+    )
+
+
+def _prepare_payload(
+    messages: CONTENT_LIST_TYPE, preset: ModelPreset
+) -> CONTENT_LIST_TYPE:
+    """Prepare this turn's payload against the target adapter's declarations.
+
+    The gateway is the adapter's direct consumer, so capability negotiation lives
+    only here; strategies and storage always handle the standard models.
+
+    Unsupported content takes two different paths:
+
+    - **non-text blocks in a tool result** raise :class:`UnsupportedContentError`.
+      Replacing them with a placeholder would let the model answer about an image
+      it never received; the agent loop turns the error into a text tool result
+      so the model can choose another return shape or another tool.
+    - **non-text blocks in an ordinary message** are still degraded on a copy.
+      The input already happened, so keeping the turn beats aborting it; the
+      history in ``MemoryModel`` keeps its blocks for a stronger adapter later.
+    """
+    adapter_cls = AdapterManager().safe_get_adapter(preset.protocol)
+    features = adapter_cls.features if adapter_cls else FeatureFlag()
+    if features.input_multimodal and features.tool_result_multimodal:
+        return messages
+
+    if not features.tool_result_multimodal:
+        unsupported = _unsupported_tool_result(messages, preset)
+        if unsupported is not None:
+            raise unsupported
+
+    if features.input_multimodal:
+        return messages
+
+    prepared: CONTENT_LIST_TYPE = []
+    for item in messages:
+        if isinstance(item, ToolResult) or not isinstance(item.content, list):
+            prepared.append(item)
+            continue
+        needs_degrade = any(
+            not isinstance(block, TextContent) for block in item.content
+        )
+        if not needs_degrade:
+            prepared.append(item)
+            continue
+        _warn_degrade_once(preset.protocol, "input_multimodal")
+        prepared.append(
+            item.model_copy(update={"content": _degrade_blocks(item.content)})
+        )
+    return prepared
 
 
 def text_generator(
@@ -352,6 +528,9 @@ async def _with_preset_fallback(
         try:
             return await attempt(preset)
         except Exception as e:  # noqa: PERF203 -- fallback loop must retry on failure
+            if isinstance(e, UnsupportedContentError):
+                # A capability gap is not a transport failure, so do not spend the fallback budget.
+                raise
             logger.warning(
                 f"Because of `{e!s}`, LLM request failed, retrying ({i}/{config.llm.max_fallbacks})..."
             )
@@ -366,7 +545,7 @@ async def tools_caller(
     tool_choice: ToolChoice | None = None,
     config: AmritaConfig | None = None,
     usage: SessionUsageProxy | None = None,
-) -> UniResponse[None, list[ToolCall] | None]:
+) -> UniResponse[str | None, list[ToolCall] | None]:
     """Call tools using the specified model preset.
 
     Args:
@@ -386,13 +565,17 @@ async def tools_caller(
 
     async def _attempt(
         current_preset: ModelPreset,
-    ) -> UniResponse[None, list[ToolCall] | None]:
-        _validate_msg_list(messages, thinking_config=current_preset.thinking_config)
+    ) -> UniResponse[str | None, list[ToolCall] | None]:
+        validated = _validate_msg_list(
+            messages, thinking_config=current_preset.thinking_config
+        )
+        # Re-negotiate per attempt: fallback may switch to a preset with another protocol.
+        payload = _prepare_payload(validated, current_preset)
 
         async def _call_tools(
             adapter: ModelAdapter,
         ):
-            return await adapter.call_tools(messages, tools, tool_choice)
+            return await adapter.call_tools(payload, tools, tool_choice)
 
         resp = await _call_with_reflection(current_preset, _call_tools, config)
         if usage is not None and resp.usage is not None:
@@ -441,6 +624,7 @@ async def call_completion(
         validated = _validate_msg_list(
             messages, thinking_config=current_preset.thinking_config
         )
+        payload = _prepare_payload(validated, current_preset)
 
         async def _call_api(
             adapter: ModelAdapter,
@@ -456,7 +640,7 @@ async def call_completion(
                     f"Model adapter {adapter.get_type()} does not support text-gen"
                 )
             return lambda: adapter.call_api(
-                [(i.model_dump()) for i in validated], **kwargs
+                [(i.model_dump()) for i in payload], **kwargs
             )
 
         # Call adapter to get chat response
@@ -527,7 +711,7 @@ async def agentic_call_completion(
     Same contract as :func:`call_completion` (preset fallback, usage
     accounting, thinking-content filtering), except the trailing
     ``UniResponse`` may also carry ``tool_calls`` and text keeps streaming while
-    they are assembled. Adapters without ``supports_agentic_call`` fail fast
+    they are assembled. Adapters whose ``features.agentic_call`` is unset fail fast
     with ``NotImplementedError`` before any request is sent, so callers can fall
     back to the legacy tool-calling path.
 
@@ -552,6 +736,7 @@ async def agentic_call_completion(
         validated = _validate_msg_list(
             messages, thinking_config=current_preset.thinking_config
         )
+        payload = _prepare_payload(validated, current_preset)
 
         async def _call_api(
             adapter: ModelAdapter,
@@ -559,7 +744,7 @@ async def agentic_call_completion(
             [],
             AsyncGenerator[AGENTIC_RETURNING, typing.Any],
         ]:
-            if not adapter.supports_agentic_call:
+            if not adapter.features.agentic_call:
                 raise NotImplementedError(
                     f"Model adapter {adapter.get_type()} does not support"
                     " agentic_call_api"
@@ -572,7 +757,7 @@ async def agentic_call_completion(
                     f"Model adapter {adapter.get_type()} does not support text-gen"
                 )
             return lambda: adapter.agentic_call_api(
-                [(i.model_dump()) for i in validated],
+                [(i.model_dump()) for i in payload],
                 tools=tools,
                 tool_choice=tool_choice,
                 **kwargs,
@@ -613,7 +798,7 @@ async def agentic_call_completion(
             if emitted:
                 # Chunks already reached the caller; a retry would stack a second answer.
                 raise
-            if isinstance(e, NotImplementedError):
+            if isinstance(e, (NotImplementedError, UnsupportedContentError)):
                 # Not a provider failure: swapping presets cannot add support.
                 raise
             if is_context_overflow_error(e):

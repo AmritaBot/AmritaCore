@@ -44,14 +44,14 @@
 对应一个节点。
 
 ```
-intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
+intro_step -> [NATIVE_WHILE: single_execute -> after_iteration] -> leave_step
 ```
 
 - **decompose** —— LLM 返回 `{needs_decomposition, dag, reason}`。
   **SIMPLE 模式（`needs_decomposition=false`）也是 ReAct**——普通工具循环照常
   运行，只是非步骤驱动（不分解 DAG）；常规提问与简单任务默认分配到此模式。
 - **Step** —— 一个 DAG 节点；可跨多轮工具调用
-- **停滞检测** —— 重复相同签名 → give-up prompt + 取消
+- **停滞检测** —— 重复相同签名 -> give-up prompt + 取消
 - **摘要** —— 每个 Step 以主谓短语摘要结束（可被事件覆盖）
 - **生命周期事件** —— `step_intro/leave/iteration`、`tool_call/return`
 - **update_step 工具** —— agent 可中途修订计划
@@ -62,9 +62,9 @@ intro_step → [NATIVE_WHILE: single_execute → after_iteration] → leave_step
 > 每轮一次 `single_execute`、不做 DAG 分解；传入
 > `workflow=_step_workflow_rendered`
 > （或 `SIMPLE_STEP_REACT`）即可启用上面的循环。见
-> [ChatObject](chat-object.md) 与 [进阶 → Step 循环](../advanced/step-loop.md)。
+> [ChatObject](chat-object.md) 与 [进阶 -> Step 循环](../advanced/step-loop.md)。
 
-完整细节：[进阶 → Step 循环](../advanced/step-loop.md)。
+完整细节：[进阶 -> Step 循环](../advanced/step-loop.md)。
 
 ## Agentic 调用路径
 

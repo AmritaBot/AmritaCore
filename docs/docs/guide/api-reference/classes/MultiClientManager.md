@@ -11,8 +11,8 @@ MultiClientManager handles the complexity of connecting to multiple MCP servers,
 - `clients` (list[MCPClient]): List of all registered MCP clients
 - `script_to_clients` (dict[str, MCPClient]): Mapping from server script paths to client instances
 - `name_to_clients` (dict[str, MCPClient]): Mapping from tool names to their owning clients
-- `tools_remapping` (dict[str, str]): Tool name remapping dictionary (original_name → remapped_name)
-- `reversed_remappings` (dict[str, str]): Reverse remapping dictionary (remapped_name → original_name)
+- `tools_remapping` (dict[str, str]): Tool name remapping dictionary (original_name -> remapped_name)
+- `reversed_remappings` (dict[str, str]): Reverse remapping dictionary (remapped_name -> original_name)
 - `tools_manager` (MultiToolsManager): The tool manager where MCP tools are registered
 - `_is_initialized` (bool): Whether all clients have been initialized
 - `_lock` (asyncio.Lock): Async lock for thread-safe operations
@@ -249,7 +249,7 @@ All tools from registered MCP servers are automatically discovered and added to 
 When multiple servers provide tools with identical names:
 
 - First registration retains the original name
-- Subsequent registrations are automatically remapped (e.g., `search` → `referred_42_search`)
+- Subsequent registrations are automatically remapped (e.g., `search` -> `referred_42_search`)
 - Warning logs are generated for each conflict detected
 - Remapping information is stored in `tools_remapping` and `reversed_remappings` dictionaries
 

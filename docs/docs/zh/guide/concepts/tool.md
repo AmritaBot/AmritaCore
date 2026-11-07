@@ -18,7 +18,8 @@
 | `@on_tools(schema)`                  | 显式 `FunctionDefinitionSchema` | 全局（模块加载） |
 | `ToolsManager` / `MultiToolsManager` | 手动                            | 每会话、运行时   |
 
-handler 接收已解析的参数 `dict` 并返回 `str`（模型看到的结果）。
+handler 接收已解析的参数 `dict` 并返回 `str`——需要携带图片时改返回内容块列表
+（模型看到的结果）。见[多模态工具结果](#多模态工具结果)。
 
 ## Schema 与校验
 
@@ -32,8 +33,8 @@ handler 接收已解析的参数 `dict` 并返回 `str`（模型看到的结果�
 
 | 方向 | 入口                                                                      | 用途                 |
 | ---- | ------------------------------------------------------------------------- | -------------------- |
-| 投影 | `function_definition_from_pydantic`、`function_definition_from_signature` | Python 类型 → schema |
-| 编译 | `compile_parameters_model`                                                | schema → 校验器      |
+| 投影 | `function_definition_from_pydantic`、`function_definition_from_signature` | Python 类型 -> schema |
+| 编译 | `compile_parameters_model`                                                | schema -> 校验器      |
 
 schema 是给**模型**读的；编译出的 Pydantic 模型负责校验**调用**。因为编译只从
 schema 出发，所以它对所有来源都成立——手写 schema、`@simple_tool` 的类型注解、
@@ -126,6 +127,83 @@ flowchart LR
 内置工具与 MCP 工具始终按不安全处理：前者直接改写消息列表或输出流，后者的 schema
 里没有可信的读写提示。标错方向的代价是不必要的串行，而不是竞态——分类器抛错、返回
 非字面 `True`、参数无法解析、工具未注册或已禁用，都会落到不安全一侧。
+
+## 多模态工具结果
+
+handler 可以返回内容块而非字符串，于是工具能在文本之外交给模型一张图——截图、
+渲染出的图表等。返回类型是 `TOOL_RESULT_CONTENT`：`str` 或 `list[Content]`。
+
+```python
+from amrita_core import simple_tool
+from amrita_core.types import Content, ImageContent, ImageUrl, TextContent
+
+
+@simple_tool
+async def screenshot(url: str) -> list[Content]:
+    """Render a page and return it as an image.
+
+    Args:
+        url (str): page to capture
+    """
+    png = await capture(url)  # 你自己的实现
+    return [
+        TextContent(text=f"captured {url}"),
+        ImageContent(image_url=ImageUrl(url=f"data:image/png;base64,{png}")),
+    ]
+```
+
+`simple_tool` 会把 `list[Content]` 原样透传。其余返回值仍会被 JSON 编码成字符串，
+因此已有工具不受影响。
+
+通过 MCP 提供的工具也一样：`MCPClient` 会把服务端的 `image` / `audio` / 嵌入资源块
+转成 `image_url` / `file` / `text` 块，只有结果全是文本时才折回字符串。见
+[MCP 服务器](../extensions-integration/mcp-server.md#多模态结果)。
+
+`ToolResult.content` 原样保存这个列表，`.text` 给出纯文本视图——非文本块折算成
+`<image>` / `<file:name>` 占位：
+
+```python
+result = ToolResult(
+    role="tool", name="screenshot", content=blocks, tool_call_id=call.id
+)
+result.text  # "captured https://...<image>"
+```
+
+日志、`ERR:` 判错与历史压缩读的都是这个文本视图；内容块本身只在请求里离开进程。
+需要纯文本形态时用 `content_text()` 或 `result.text`，不要自己去翻那个列表。
+
+### 并非每个适配器都能携带每种块
+
+一个块能否发出去是**协议**的属性，不是模型的属性，因此由适配器在 `features`
+（`FeatureFlag`）里声明：
+
+| 字段                     | 含义                                       |
+| ------------------------ | ------------------------------------------ |
+| `input_multimodal`       | 非文本块可否出现在 `user` / `system` 内容里 |
+| `tool_result_multimodal` | 非文本块可否出现在 `tool` 消息内容里        |
+
+`anthropic` 两项都为真：它的 `tool_result` 块原生接收内容数组。
+`openai` 的 `tool_result_multimodal` 为 `False`，因为 Chat Completions 的 `tool`
+消息只承载文本——那里的图片得另发一条 `user` 消息，框架不会代劳。
+
+网关在每次请求前读这些标记，两类内容的处理并不相同：
+
+- **送不出去的工具返回直接抛 `UnsupportedContentError`**，请求根本不会发出去。
+  agent 循环接住它，在载荷的**副本**上把问题块换成该异常的 `notice` 并重试这一轮，
+  模型因此能读到媒体为什么不在，进而改让工具返回文本或换一个工具。把图片换成
+  「已省略」照常发送，等于让模型对着一份没收到的东西作答，而且它无从知道该重试。
+- **`user` / `system` 消息**仍然降级：块换成文本说明
+  （`<image omitted: the current adapter cannot carry it>`），并按协议各记一条
+  warning。输入已经发生，为它中断整轮对谁都没好处。
+
+两种情况都不动存储侧的历史，因此后续回退到更强的适配器时原始块还在。preset 回退
+每次尝试都会重新协商，因为替换后的 preset 可能说的是另一种协议；能力缺口不会被
+当成传输失败反复回退。
+
+如果你自己拼载荷——自定义策略、回放工具、测试——用
+`filter_multimodal(context, adapter)` 套用同一套规则。它返回一个新列表，把带不了的
+块换成 `TextContent(text="[Image Unsupported]")`；判定按消息种类分开：
+`tool` 结果看 `tool_result_multimodal`，其余看 `input_multimodal`。原始对象不会被改。
 
 ## 进阶：`custom_run` 与 `ToolContext`
 
