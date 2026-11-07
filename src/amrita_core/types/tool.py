@@ -39,49 +39,55 @@ class ToolCall(BaseModel):
 
 
 TOOL_RESULT_CONTENT = str | SerializeAsAny[list[Content]]
-"""工具返回内容的形状：纯文本，或内容块列表（可含图片等非文本块）。"""
+"""Wire shape of a tool result: plain text, or a list of content blocks."""
 
-#  Placeholder for a non-text block in the text view: logs, ERR checks and compaction read text.
-_BLOCK_PLACEHOLDER = "<{label}>"
-
-#  Blocks whose external label differs from ``type``; anything else keeps ``type``.
+# Blocks whose external label differs from ``type``; anything else keeps ``type``.
 _BLOCK_LABELS: dict[str, str] = {"image_url": "image"}
 
 
-#: Note left when a block cannot be carried; one wording shared by gateway and adapters.
-DEGRADED_BLOCK_NOTE = "<{kind} omitted: the current adapter cannot carry it>"
+def degraded_block_note(
+    kind: str,
+    template: str = "<{kind} omitted: the current adapter cannot carry it>",
+) -> str:
+    """Note left where a block cannot be carried; gateway and adapters share it."""
+    return template.format(kind=kind)
 
 
 def block_label_of_type(type_name: str, name: str = "") -> str:
-    """按内容块的 ``type`` 取短标签，``name`` 非空时接在后面。
+    """Short label for a block's ``type``, with ``name`` appended when set.
 
-    单列一份是因为标签要被三处共用：纯文本视图、网关降级说明、以及持有原始
-    ``dict`` 载荷、拿不到 ``Content`` 实例的调用点。映射只能有一份，否则同一个被
-    省略的图片会在不同轮次里被叫成 ``<image>`` 和 ``<image_url>``，模型会当成两种
-    东西。
+    Three places share this mapping: the text view, the gateway's degrade note,
+    and callers holding a raw ``dict`` payload without a ``Content`` instance.
+    One image must not read as ``<image>`` in one turn and ``<image_url>`` in
+    the next.
     """
     label: str = _BLOCK_LABELS.get(type_name, type_name) or str(type_name)
     return f"{label}:{name}" if name else label
 
 
 def block_label(block: Content) -> str:
-    """内容块的短标签，见 :func:`block_label_of_type`。"""
+    """Short label for a content block; see :func:`block_label_of_type`."""
     name = ""
     if isinstance(block, FileContent):
         name = block.file.filename or block.file.file_id or ""
     return block_label_of_type(block.type, name)
 
 
-def content_text(value: TOOL_RESULT_CONTENT | None) -> str:
-    """把工具返回内容折算成纯文本。
+def content_text(
+    value: TOOL_RESULT_CONTENT | None,
+    placeholder: str = "<{label}>",
+) -> str:
+    """Flatten a tool result into plain text.
 
-    :attr:`ToolResult.content` 允许携带图片等非文本块，而日志、``ERR:`` 判错前缀、
-    摘要压缩都只处理文本。非文本块折算成占位标记，不会把整个载荷丢掉。
+    :attr:`ToolResult.content` may carry images and other non-text blocks while
+    logs, the ``ERR:`` prefix check and compaction only read text. Non-text
+    blocks become a ``placeholder`` mark, so the payload is never dropped.
 
-    入参放宽到原始载荷：``StepToolReturnEvent.result`` 是普通 dataclass 字段，不经
-    过 ``ToolResult`` 的校验，matcher 拿到的是 handler 原样写进去的东西——可能是
-    ``list[Content]``，也可能是没还原成模型的 ``list[dict]``。判错与日志都在这个函数
-    上，遇到后者直接抛 ``AttributeError`` 会把一次工具返回变成一次崩溃。
+    The input is deliberately loose: ``StepToolReturnEvent.result`` is a plain
+    dataclass field that skips ``ToolResult`` validation, so a matcher gets
+    whatever the handler wrote - ``list[Content]`` or a ``list[dict]`` never
+    coerced. Both checks live here, and raising ``AttributeError`` on the
+    latter would turn one tool result into a crash.
     """
     if value is None:
         return ""
@@ -99,19 +105,19 @@ def content_text(value: TOOL_RESULT_CONTENT | None) -> str:
                 parts.append(str(block.get("text") or ""))
             else:
                 parts.append(
-                    _BLOCK_PLACEHOLDER.format(
+                    placeholder.format(
                         label=block_label_of_type(
                             item_type, _raw_file_block_name(block)
                         )
                     )
                 )
         else:
-            parts.append(_BLOCK_PLACEHOLDER.format(label=block_label(block)))
+            parts.append(placeholder.format(label=block_label(block)))
     return "".join(parts)
 
 
 def _raw_file_block_name(block: dict[str, Any]) -> str:
-    """从尚未还原成模型的 ``file`` 块里取文件名，取不到留空。"""
+    """Filename from a not-yet-coerced ``file`` block, or an empty string."""
     raw = block.get("file")
     if not isinstance(raw, dict):
         return ""
@@ -127,12 +133,12 @@ class ToolResult(BaseModel):
     @model_validator(mode="before")
     @classmethod
     def _coerce_content(cls, data: Any) -> Any:
-        """按 ``type`` 字段把内容块 dict 还原成已注册的 ``Content`` 模型。"""
+        """Rebuild content-block dicts into registered ``Content`` models by ``type``."""
         if isinstance(data, dict) and "content" in data:
             data["content"] = coerce_content(data["content"])
         return data
 
     @property
     def text(self) -> str:
-        """内容的纯文本视图，见 :func:`content_text`。"""
+        """Plain-text view of the content; see :func:`content_text`."""
         return content_text(self.content)

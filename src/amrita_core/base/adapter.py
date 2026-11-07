@@ -45,27 +45,28 @@ ADAPTER_TYPE = Literal[
 
 @dataclass(frozen=True, slots=True)
 class FeatureFlag:
-    """适配器出口能力的静态声明。
+    """Static declaration of an adapter's wire capabilities.
 
-    读点集中在网关层：网关是所有适配器的直接消费者，由它决定这一轮请求的载荷能
-    不能原样发出去。框架层（策略、上下文、存储）不读这些标记——它只处理标准数据
-    模型，不该知道哪家协议支持什么。
+    Only the gateway reads these flags: it decides what this turn's payload can
+    carry. Strategy, context and storage work on the framework's own models and
+    never need to know which protocol supports what.
 
-    语义是 **wire 级别**的：字段描述的是「这类内容能否出现在发给该协议的请求里」，
-    而不是「该模型能否理解这类内容」。后者无法可靠判定，前者可以。
+    The flags describe the wire, not the model: whether a block may appear in
+    the request, not whether the model understands it. The latter cannot be
+    decided reliably; the former can.
     """
 
     agentic_call: bool = field(default=False)
-    """是否实现 ``agentic_call_api``（同一请求里流式产出文本与工具调用）。"""
+    """Whether ``agentic_call_api`` is implemented (text and tool calls from one request)."""
 
     input_multimodal: bool = field(default=False)
-    """非文本块能否出现在 ``user`` / ``system`` 消息的内容里。"""
+    """Whether non-text blocks may appear in ``user`` / ``system`` message content."""
 
     tool_result_multimodal: bool = field(default=False)
-    """非文本块能否出现在 ``tool`` 消息（工具返回值）的内容里。"""
+    """Whether non-text blocks may appear in ``tool`` message content (tool results)."""
 
     fetch_models: bool = field(default=False)
-    """是否实现 ``fetch_models``（枚举该协议的用户可用模型）。"""
+    """Whether ``fetch_models`` is implemented (lists the models a user may pick)."""
 
 
 _DEFAULT_FEATURES = FeatureFlag()
@@ -93,14 +94,17 @@ class ModelAdapter:
 
     @classmethod
     def _sync_legacy_features(cls) -> None:
-        """把旧式 ``supports_agentic_call`` 翻译进 :attr:`features`。
+        """Fold the legacy ``supports_agentic_call`` into :attr:`features`.
 
-        第三方适配器只写了旧字段的情况必须继续生效，否则 ``agentic_call_api``
-        会静默不再被调用，而症状只是一个「怎么没走流式」的疑问，极难定位。
+        Third-party adapters that only set the old field must keep working;
+        otherwise ``agentic_call_api`` silently stops being called and the only
+        symptom is a vague question about missing streaming.
 
-        旧字段只描述流式这一种能力，所以它只能改这一个标记：在父类声明的副本上换掉
-        ``agentic_call``，其余标记原样继承。整块新建一个默认对象的话，一个只想关掉
-        流式的子类会顺手把父类的多模态声明一起清零，症状是「图怎么不发了」。
+        The old field describes streaming alone, so it may only change that one
+        flag: copy the inherited declaration, swap ``agentic_call``, keep the
+        rest. Building a fresh default object would also clear the parent's
+        multimodal declarations, and the symptom would be images that suddenly
+        stop being sent.
         """
         if "features" in cls.__dict__:
             # Explicit features win, and the legacy field is kept in sync for readers.

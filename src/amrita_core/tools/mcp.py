@@ -58,7 +58,7 @@ MCP_SERVER_SCRIPT_TYPE = (
 )
 
 
-#: MCP reports only a MIME type; a file block also needs a filename.
+# MCP reports only a MIME type; a file block also needs a filename.
 _EXT_BY_MIME: dict[str, str] = {
     "audio/mpeg": "mp3",
     "audio/mp3": "mp3",

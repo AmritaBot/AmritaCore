@@ -193,7 +193,7 @@ class StepToolReturnEvent(ConstructableEvent):
     phase: str | None
     tool_name: str
     tool_id: str
-    #: Tool result: plain text, or a block list (multimodal tools).
+    # Tool result: plain text, or a block list (multimodal tools).
     result: TOOL_RESULT_CONTENT = ""
     # Mutable: handlers may set this to skip writing the result back.
     skip_append: bool = False

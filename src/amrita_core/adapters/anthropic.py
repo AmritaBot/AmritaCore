@@ -31,32 +31,32 @@ from amrita_core.types import (
 )
 from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import RequestMetadata
-from amrita_core.types.tool import DEGRADED_BLOCK_NOTE, block_label_of_type
+from amrita_core.types.tool import block_label_of_type, degraded_block_note
 from amrita_core.utils import model_dump
-
-#: Note left in the body when a ``file`` block cannot be sent; matches the gateway wording.
-_FILE_BLOCK_NOTE = "<file:{name} omitted: this adapter cannot carry file blocks>"
 
 
 def _system_block_text(item: object) -> str:
-    """``system`` 消息里单个块的纯文本折算。
+    """Flatten one ``system`` block to plain text.
 
-    ``text`` 块取正文，其余块换成降级说明——与网关的 ``<image omitted: ...>``
-    写法一致，避免同一份内容在两轮里被叫成两种东西。
+    ``text`` blocks keep their body; every other block becomes the same degrade
+    note the gateway writes, so one payload reads the same way across turns.
     """
     if not isinstance(item, dict):
         return str(item) if isinstance(item, str) else ""
     if item.get("type") == "text":
         return str(item.get("text") or "")
-    return DEGRADED_BLOCK_NOTE.format(kind=block_label_of_type(str(item.get("type"))))
+    return degraded_block_note(block_label_of_type(str(item.get("type"))))
 
 
-def _file_block_name(raw: object) -> str:
-    """从 ``file`` 块的载荷里取出文件名，取不到就留空。"""
-    if not isinstance(raw, dict):
-        return ""
-    name = raw.get("filename") or raw.get("file_id") or ""
-    return str(name)
+def _file_block_note(
+    raw: object,
+    template: str = "<file:{name} omitted: this adapter cannot carry file blocks>",
+) -> str:
+    """Note for a ``file`` block this adapter cannot send."""
+    name = ""
+    if isinstance(raw, dict):
+        name = str(raw.get("filename") or raw.get("file_id") or "")
+    return template.format(name=name)
 
 
 class AnthropicFunctionSchema(BaseModel):
@@ -180,9 +180,7 @@ try:
                     blocks.append(
                         {
                             "type": "text",
-                            "text": _FILE_BLOCK_NOTE.format(
-                                name=_file_block_name(item.get("file"))
-                            ),
+                            "text": _file_block_note(item.get("file")),
                         }
                     )
             return blocks or [{"type": "text", "text": ""}]
@@ -324,7 +322,7 @@ try:
                 preset.thinking_config
                 and preset.thinking_config.thinking_type is not None
             ):
-                # Send "disabled" explicitly: DeepSeek defaults thinking on.
+                # Send the type explicitly: some providers default thinking on.
                 thinking: dict[str, object] = {
                     "type": preset.thinking_config.thinking_type
                 }
@@ -466,7 +464,7 @@ try:
                 preset.thinking_config
                 and preset.thinking_config.thinking_type is not None
             ):
-                # Send "disabled" explicitly: DeepSeek defaults thinking on.
+                # Send the type explicitly: some providers default thinking on.
                 thinking: dict[str, object] = {
                     "type": preset.thinking_config.thinking_type
                 }
@@ -637,7 +635,7 @@ try:
                 preset.thinking_config
                 and preset.thinking_config.thinking_type is not None
             ):
-                # Send "disabled" explicitly: DeepSeek defaults thinking on.
+                # Send the type explicitly: some providers default thinking on.
                 thinking: dict[str, object] = {
                     "type": preset.thinking_config.thinking_type
                 }

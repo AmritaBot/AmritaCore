@@ -47,21 +47,18 @@ from .types import (
     ToolResult,
     UniResponse,
 )
-from .types.tool import DEGRADED_BLOCK_NOTE, block_label
+from .types.tool import block_label, degraded_block_note
 
 T = typing.TypeVar("T")
 
 RESPONSE_TYPE: typing.TypeAlias = str | MessageContent
 
-#  Degrade reasons already warned about, so one reason does not flood every request.
+# Degrade reasons already warned about, so one reason does not flood every request.
 _DEGRADE_WARNED: set[tuple[str, str]] = set()
-
-#: Placeholder left where an untransportable block was removed; one fixed string for all kinds.
-MULTIMODAL_UNSUPPORTED_PLACEHOLDER = "[Image Unsupported]"
 
 
 def _warn_degrade_once(protocol: str, kind: str) -> None:
-    """按 (协议, 载荷种类) 去重地提示一次降级。"""
+    """Warn once per (protocol, payload kind) pair, so a reason does not flood the log."""
     key = (protocol, kind)
     if key in _DEGRADE_WARNED:
         return
@@ -74,25 +71,26 @@ def _warn_degrade_once(protocol: str, kind: str) -> None:
 
 
 def _degrade_blocks(content: list[Content]) -> list[Content]:
-    """把非文本块换成文本说明；文本块原样保留。
+    """Replace non-text blocks with a text note; text blocks pass through.
 
-    标签走 :func:`block_label`，与 :func:`content_text` 保持同一套叫法——模型在这
-    一轮读到 ``<image omitted…>``、下一轮读到 ``<image_url omitted…>``，会把同一张
-    图当成两种东西。
+    Labels come from :func:`block_label`, the same helper :func:`content_text`
+    uses. Two names for one image would read as two different things across
+    turns.
     """
     degraded: list[Content] = []
     for block in content:
         if isinstance(block, TextContent):
             degraded.append(block)
         else:
-            degraded.append(
-                TextContent(text=DEGRADED_BLOCK_NOTE.format(kind=block_label(block)))
-            )
+            degraded.append(TextContent(text=degraded_block_note(block_label(block))))
     return degraded
 
 
 def filter_multimodal(
-    context: CONTENT_LIST_TYPE, adapter: type[ModelAdapter]
+    context: CONTENT_LIST_TYPE,
+    adapter: type[ModelAdapter],
+    *,
+    unsupported_placeholder: str = "[Image Unsupported]",
 ) -> CONTENT_LIST_TYPE:
     """Replace every non-text block the adapter cannot carry with a placeholder.
 
@@ -106,11 +104,12 @@ def filter_multimodal(
     Args:
         context: The message list to filter.
         adapter: Adapter class whose ``features`` decide what survives.
+        unsupported_placeholder: Text substituted for each dropped block.
 
     Returns:
         The original list when the adapter carries everything, otherwise a new
         list where each untransportable block became
-        ``TextContent(text=MULTIMODAL_UNSUPPORTED_PLACEHOLDER)``.
+        ``TextContent(text=unsupported_placeholder)``.
     """
     features = adapter.features
     if features.input_multimodal and features.tool_result_multimodal:
@@ -135,7 +134,7 @@ def filter_multimodal(
                     "content": [
                         block
                         if isinstance(block, TextContent)
-                        else TextContent(text=MULTIMODAL_UNSUPPORTED_PLACEHOLDER)
+                        else TextContent(text=unsupported_placeholder)
                         for block in item.content
                     ]
                 }

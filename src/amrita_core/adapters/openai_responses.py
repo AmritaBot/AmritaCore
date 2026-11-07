@@ -50,43 +50,12 @@ from amrita_core.types import (
 )
 from amrita_core.types.preset import resolve_max_output
 from amrita_core.types.response import STOP_REASON, RequestMetadata
-from amrita_core.types.tool import DEGRADED_BLOCK_NOTE, block_label_of_type
+from amrita_core.types.tool import block_label_of_type, degraded_block_note
 from amrita_core.utils import model_dump
 
-#: Responses ``input_image`` detail levels. ``original`` is not in every vendor's
-#: accepted set, so it is only forwarded when the caller asked for it.
+# Responses ``input_image`` detail levels. ``original`` is not in every vendor's
+# accepted set, so it is only forwarded when the caller asked for it.
 _IMAGE_DETAILS = {"auto", "low", "high", "original"}
-
-
-def _image_part(raw: Any) -> dict[str, Any] | None:
-    """Build an ``input_image`` part from the internal ``image_url`` block."""
-    if isinstance(raw, dict):
-        url = raw.get("url")
-        detail = raw.get("detail")
-    else:
-        url, detail = raw, None
-    if not url:
-        return None
-    part: dict[str, Any] = {"type": "input_image", "image_url": str(url)}
-    if isinstance(detail, str) and detail in _IMAGE_DETAILS:
-        part["detail"] = detail
-    return part
-
-
-def _file_part(raw: Any) -> dict[str, Any] | None:
-    """Build an ``input_file`` part from the internal ``file`` block."""
-    if not isinstance(raw, dict):
-        return None
-    part: dict[str, Any] = {"type": "input_file"}
-    if file_id := raw.get("file_id"):
-        part["file_id"] = str(file_id)
-    elif file_data := raw.get("file_data"):
-        part["file_data"] = str(file_data)
-        if filename := raw.get("filename"):
-            part["filename"] = str(filename)
-    else:
-        return None
-    return part
 
 
 def _content_parts(content: Any, *, assistant: bool = False) -> list[dict[str, Any]]:
@@ -112,20 +81,39 @@ def _content_parts(content: Any, *, assistant: bool = False) -> list[dict[str, A
         if item_type == "text":
             parts.append({"type": text_type, "text": str(item.get("text") or "")})
         elif item_type == "image_url" and not assistant:
-            part = _image_part(item.get("image_url"))
-            if part is not None:
-                parts.append(part)
+            raw = item.get("image_url")
+            if isinstance(raw, dict):
+                url, detail = raw.get("url"), raw.get("detail")
+            else:
+                url, detail = raw, None
+            if url:
+                image_part: dict[str, Any] = {
+                    "type": "input_image",
+                    "image_url": str(url),
+                }
+                if isinstance(detail, str) and detail in _IMAGE_DETAILS:
+                    image_part["detail"] = detail
+                parts.append(image_part)
         elif item_type == "file" and not assistant:
-            part = _file_part(item.get("file"))
-            if part is not None:
-                parts.append(part)
+            raw = item.get("file")
+            file_part: dict[str, Any] | None = None
+            if isinstance(raw, dict):
+                if raw.get("file_id"):
+                    file_part = {"type": "input_file", "file_id": str(raw["file_id"])}
+                elif raw.get("file_data"):
+                    file_part = {
+                        "type": "input_file",
+                        "file_data": str(raw["file_data"]),
+                    }
+                    if filename := raw.get("filename"):
+                        file_part["filename"] = str(filename)
+            if file_part is not None:
+                parts.append(file_part)
         else:
             parts.append(
                 {
                     "type": text_type,
-                    "text": DEGRADED_BLOCK_NOTE.format(
-                        kind=block_label_of_type(str(item_type))
-                    ),
+                    "text": degraded_block_note(block_label_of_type(str(item_type))),
                 }
             )
     return parts or ([] if assistant else [{"type": text_type, "text": ""}])
@@ -147,8 +135,8 @@ def _tool_output(content: Any) -> str | list[dict[str, Any]]:
 def _reasoning_items_from(signature: str | None) -> list[dict[str, Any]]:
     """Read back the reasoning items stored on an assistant message.
 
-    DeepSeek (and OpenAI) reject a follow-up whose earlier tool-calling turn
-    lacks the reasoning items that produced it, even when thinking looks off.
+    Some providers reject a follow-up whose earlier tool-calling turn lacks the
+    reasoning items that produced it, even when thinking looks off.
     The items cannot be rebuilt from the text alone — they carry an ``id`` and
     ``encrypted_content`` — so the adapter parks them on ``reasoning_signature``
     (a string field every adapter may use for round-trip state) and replays them

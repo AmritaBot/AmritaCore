@@ -118,7 +118,7 @@ class TestUnsupportedContentError:
 
 
 class TestAgentLoopRepair:
-    """agent 循环把送不出去的块折成文本说明，再让模型自己决定。"""
+    """The agent loop folds untransportable blocks into a text note and lets the model decide."""
 
     def _messages(self) -> list:
         return [

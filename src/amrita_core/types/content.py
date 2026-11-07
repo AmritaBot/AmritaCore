@@ -117,10 +117,10 @@ USER_INPUT = Sequence[Content] | str | None
 
 
 def coerce_content(value: object) -> object:
-    """把原始 ``content`` 载荷里的 dict 项转成已注册的 ``Content`` 模型。
+    """Turn raw ``content`` dict items into registered ``Content`` models.
 
-    ``Message`` 与 ``ToolResult`` 共用这一份逻辑：两处各写一遍的话，以后新增
-    ``Content`` 子类时总有一边会漏掉。
+    ``Message`` and ``ToolResult`` share this path: with two copies, a newly
+    registered ``Content`` subclass would eventually be missing from one.
     """
     if not isinstance(value, list):
         return value

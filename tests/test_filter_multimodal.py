@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from amrita_core.base.adapter import FeatureFlag, ModelAdapter
-from amrita_core.libchat import MULTIMODAL_UNSUPPORTED_PLACEHOLDER, filter_multimodal
+from amrita_core.libchat import filter_multimodal
 from amrita_core.types import (
     ImageContent,
     ImageUrl,
@@ -61,7 +61,7 @@ class TestFilterMultimodal:
         result = filtered[2]
         assert result is not context[2]
         assert [block.type for block in result.content] == ["text", "text"]
-        assert result.content[1].text == MULTIMODAL_UNSUPPORTED_PLACEHOLDER
+        assert result.content[1].text == "[Image Unsupported]"
 
     def test_closed_adapter_filters_every_message(self):
         context = _context()

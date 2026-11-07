@@ -17,21 +17,6 @@ import re
 from collections.abc import AsyncGenerator, Callable
 from typing import Any, Literal
 
-__all__ = [
-    "AdapterAuthError",
-    "AdapterConnectionError",
-    "AdapterError",
-    "AdapterRateLimitError",
-    "AdapterRequestError",
-    "AdapterResponseError",
-    "AdapterTimeoutError",
-    "ContextOverflowError",
-    "UnsupportedContentError",
-    "is_context_overflow_error",
-    "normalize_adapter_error",
-    "normalize_adapter_errors",
-]
-
 
 class ContextOverflowError(RuntimeError):
     """Raised when a provider rejects a request for exceeding its context window."""
@@ -61,12 +46,12 @@ class AdapterError(RuntimeError):
     ) -> None:
         super().__init__(message)
         self.message = message
-        #: The untouched SDK/provider exception, when this error wraps one.
+        # The untouched SDK/provider exception, when this error wraps one.
         self.original = original
-        #: Adapter class or protocol that raised, for logs.
+        # Adapter class or protocol that raised, for logs.
         self.adapter = adapter
         self.protocol = protocol
-        #: HTTP status when the provider answered with one.
+        # HTTP status when the provider answered with one.
         self.status_code = status_code
 
     def __str__(self) -> str:
@@ -275,3 +260,19 @@ def normalize_adapter_errors(
         return async_wrapper
 
     return decorator
+
+
+__all__ = [
+    "AdapterAuthError",
+    "AdapterConnectionError",
+    "AdapterError",
+    "AdapterRateLimitError",
+    "AdapterRequestError",
+    "AdapterResponseError",
+    "AdapterTimeoutError",
+    "ContextOverflowError",
+    "UnsupportedContentError",
+    "is_context_overflow_error",
+    "normalize_adapter_error",
+    "normalize_adapter_errors",
+]

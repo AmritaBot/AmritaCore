@@ -1,8 +1,9 @@
 # pyright: reportArgumentType=false, reportIndexIssue=false, reportReturnType=false, reportIncompatibleMethodOverride=false, reportAttributeAccessIssue=false
-"""多模态工具返回：类型、工具声明、能力标记与网关降级。
+"""Multimodal tool results: types, tool declarations, capability flags, gateway degradation.
 
-这个文件刻意构造畸形载荷（缺字段的 dict、非 list 的 content、假适配器），
-类型检查在这些用例里只会和测试意图打架，所以文件级关掉相关诊断。
+The cases build malformed payloads on purpose (dicts with missing fields, a non-list
+content, fake adapters), where type checking only fights the test intent, so the
+relevant diagnostics are disabled for the whole file.
 """
 
 from __future__ import annotations
@@ -54,14 +55,14 @@ def _file(name: str = "report.pdf") -> FileContent:
 
 @pytest.fixture(autouse=True)
 def _reset_degrade_warnings():
-    """``_DEGRADE_WARNED`` 是进程级去重表，用例之间不清会互相串味。"""
+    """``_DEGRADE_WARNED`` is process-wide; stale state would leak between cases."""
     libchat._DEGRADE_WARNED.clear()
     yield
     libchat._DEGRADE_WARNED.clear()
 
 
 class TestToolResultContent:
-    """ToolResult 的 content 支持纯文本与内容块列表。"""
+    """ToolResult content accepts plain text and a list of content blocks."""
 
     def test_str_content(self):
         result = ToolResult(role="tool", name="f", tool_call_id="1", content="done")
@@ -120,7 +121,7 @@ class TestToolResultContent:
 
 
 class TestSimpleToolPassThrough:
-    """simple_tool 不能把内容块列表 json 化。"""
+    """simple_tool must not JSON-encode a content-block list."""
 
     def test_content_list_is_not_serialized(self):
         @simple_tool
@@ -151,7 +152,7 @@ class TestSimpleToolPassThrough:
 
 
 class TestFeatureFlag:
-    """能力标记与旧字段的兼容翻译。"""
+    """Capability flags and the legacy-field translation."""
 
     def test_defaults_are_closed(self):
         flag = FeatureFlag()
@@ -185,7 +186,7 @@ class TestFeatureFlag:
 
 
 class TestGatewayDegrade:
-    """网关按目标协议能力整理载荷，且不就地修改历史。"""
+    """The gateway shapes the payload per target protocol without mutating history."""
 
     @staticmethod
     def _preset(protocol: str) -> ModelPreset:
@@ -236,7 +237,7 @@ class TestGatewayDegrade:
 
 
 class TestBlockLabel:
-    """纯文本视图与降级说明共用同一套标签。"""
+    """The text view and the degrade note share one set of labels."""
 
     def test_image_type_maps_to_readable_label(self):
         assert content_text([_image()]) == "<image>"
@@ -259,7 +260,7 @@ class TestBlockLabel:
 
 
 class TestDegradeWarning:
-    """降级提示按 (协议, 种类) 去重，不会每轮刷屏。"""
+    """Degrade warnings are deduplicated per (protocol, kind), not per turn."""
 
     def test_warns_once_per_key(self):
         preset = ModelPreset()
@@ -291,7 +292,7 @@ class TestDegradeWarning:
 
 
 class TestDegradedNoteUsesBlockLabel:
-    """降级说明与 ``content_text`` 读起来必须是同一种块。"""
+    """The degrade note and ``content_text`` must read as the same block."""
 
     def test_image_note_is_not_the_raw_type(self):
         preset = ModelPreset()
@@ -311,7 +312,7 @@ class TestDegradedNoteUsesBlockLabel:
 
 
 class _RecordingAdapter(ModelAdapter):
-    """记录网关实际发出的载荷，供端到端断言。"""
+    """Record the payload the gateway actually sent, for end-to-end assertions."""
 
     __no_register__ = True
     __abstract__ = True
@@ -339,7 +340,7 @@ class _RecordingAdapter(ModelAdapter):
 
 
 def _install_adapter(protocol: str, flag: FeatureFlag) -> type[_RecordingAdapter]:
-    """注册一个带指定能力声明的适配器，返回其类以便读取 call 记录。"""
+    """Register an adapter with the given flags; return its class so calls can be read."""
 
     class _Adapter(_RecordingAdapter):
         __override__ = True
@@ -355,7 +356,7 @@ def _install_adapter(protocol: str, flag: FeatureFlag) -> type[_RecordingAdapter
 
 
 async def _reflect(preset, call_func, config):
-    """真的把载荷交给适配器，而不是走 ``_call_with_reflection`` 的空壳。"""
+    """Hand the payload to the adapter, not to the ``_call_with_reflection`` shell."""
     adapter_cls = AdapterManager().safe_get_adapter(preset.protocol)
     assert adapter_cls is not None
     return await call_func(adapter_cls(preset, config))
@@ -367,7 +368,7 @@ def _preset(protocol: str, name: str = "p") -> ModelPreset:
 
 
 class TestGatewayEndToEnd:
-    """降级后的载荷确实送到了适配器手上。"""
+    """The degraded payload really reached the adapter."""
 
     @pytest.mark.asyncio
     async def test_call_completion_sends_degraded_payload(self):
@@ -401,7 +402,7 @@ class TestGatewayEndToEnd:
 
 
 class TestAgenticFallbackRenegotiates:
-    """回退换了 preset 就要按新协议重新协商载荷。"""
+    """A fallback that swaps the preset must renegotiate the payload for the new protocol."""
 
     @pytest.mark.asyncio
     async def test_fallback_refuses_untransportable_tool_result(self):
@@ -471,7 +472,7 @@ class TestAgenticFallbackRenegotiates:
 
 
 class TestAnthropicToolResultBlocks:
-    """anthropic 的 tool_result 原生带内容块，图片不该被摊平丢掉。"""
+    """Anthropic ``tool_result`` carries blocks natively; images must not be flattened away."""
 
     def _messages(self, content: list) -> list[dict]:
         return [
@@ -534,7 +535,7 @@ class TestAnthropicToolResultBlocks:
 
 
 class TestAnthropicFileBlock:
-    """``file`` 块送不出去，但也不能静默消失。"""
+    """A ``file`` block cannot be sent, but it must not vanish silently."""
 
     def test_file_block_leaves_a_note(self):
         blocks = AnthropicAdapter._convert_content_to_blocks(
@@ -556,7 +557,7 @@ class TestAnthropicFileBlock:
 
 
 class TestBuiltinAdapterDeclarations:
-    """内置适配器的能力声明，是网关降级的唯一依据。"""
+    """Built-in adapters flags are the only basis for gateway degradation."""
 
     def test_openai_declares_no_tool_result_multimodal(self):
         from amrita_core.adapters.openai import OpenAIAdapter
@@ -577,7 +578,7 @@ class TestBuiltinAdapterDeclarations:
 
 
 class TestLegacyFlagKeepsInheritedFeatures:
-    """旧字段只描述流式，不该把父类声明的其它能力一起清零。"""
+    """The legacy field covers streaming only; it must not clear other inherited flags."""
 
     def test_child_disabling_agentic_call_keeps_multimodal(self):
         from amrita_core.adapters.openai import OpenAIAdapter
@@ -602,7 +603,7 @@ class TestLegacyFlagKeepsInheritedFeatures:
 
 
 class TestContentTextToleratesRawPayloads:
-    """``StepToolReturnEvent.result`` 不经校验，文本视图不能因此抛异常。"""
+    """``StepToolReturnEvent.result`` skips validation; the text view must not raise."""
 
     def test_dict_blocks(self):
         assert content_text([{"type": "text", "text": "hi"}]) == "hi"
@@ -635,7 +636,7 @@ class TestContentTextToleratesRawPayloads:
 
 
 class TestAnthropicSystemBlocks:
-    """``system`` 只收纯文本，但摊平时不能把非文本块静默丢掉。"""
+    """``system`` accepts text only, but flattening must not silently drop non-text blocks."""
 
     def test_system_image_leaves_a_note(self):
         converted = AnthropicAdapter._convert_messages(

@@ -200,6 +200,7 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
     lines = [line.strip() for line in docstring.split("\n") if line.strip()]
     args_start_idx = -1
     for i, line in enumerate(lines):
+        # The section header may be "Args:" or its translated form.
         if line.lower().startswith("args:") or line.lower().startswith("参数:"):
             args_start_idx = i
             break
@@ -232,7 +233,7 @@ def _parse_google_docstring(docstring: str | None) -> tuple[str, dict[str, str]]
 
 
 def _is_content_list(value: object) -> bool:
-    """判断返回值是不是 ``Content`` 块列表（工具的多模态出口）。"""
+    """Whether a return value is a list of ``Content`` blocks (a multimodal tool result)."""
     return isinstance(value, list) and all(isinstance(i, Content) for i in value)
 
 

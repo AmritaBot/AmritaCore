@@ -52,12 +52,9 @@ from amrita_core.types.preset import (
 from amrita_core.types.tool import ToolResult
 from amrita_core.usage import SessionUsageProxy
 
-#: Nominal characters a non-text block contributes to weighting, so image messages count at text scale.
-_NON_TEXT_BLOCK_WEIGHT = 1000
-
 
 def _count_non_text_blocks(msg: CONTENT_LIST_TYPE_ITEM) -> int:
-    """数一个消息里有多少个非文本块。"""
+    """Count the non-text blocks carried by one message."""
     content = getattr(msg, "content", None)
     if not isinstance(content, list):
         return 0
@@ -292,7 +289,11 @@ class ContextCompactor:
         memory.usage = None
         return True
 
-    def _weights(self, messages: CONTENT_LIST_TYPE) -> list[int]:
+    def _weights(
+        self,
+        messages: CONTENT_LIST_TYPE,
+        non_text_block_weight: int = 1000,
+    ) -> list[int]:
         """Per-message character counts, used as the token-share weights.
 
         A message with no text at all (a bare tool call) still occupies a
@@ -300,7 +301,7 @@ class ContextCompactor:
         would let it be dropped for free while contributing nothing to the
         estimated total.
 
-        Non-text blocks are counted too, at :data:`_NON_TEXT_BLOCK_WEIGHT` each.
+        Non-text blocks are counted too, at ``non_text_block_weight`` each.
         :func:`text_generator` only reads text, so a tool that returns a
         screenshot contributes zero characters and would be weighted as if it
         were free — yet the image is usually the largest thing in the payload,
@@ -315,7 +316,7 @@ class ContextCompactor:
             max(
                 1,
                 sum(len(chunk) for chunk in text_generator([msg], full_message=True))
-                + _NON_TEXT_BLOCK_WEIGHT * _count_non_text_blocks(msg),
+                + non_text_block_weight * _count_non_text_blocks(msg),
             )
             for msg in messages
         ]

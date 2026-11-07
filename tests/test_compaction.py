@@ -547,7 +547,7 @@ class TestSlide:
         assert sum(estimates) == 900
 
     def test_estimate_counts_images_as_payload(self):
-        """纯文本视图里图片是零字符，但它在载荷里并不免费。"""
+        """An image contributes zero characters to the text view, but it is not free in the payload."""
         from amrita_core.types import ImageContent, ImageUrl
 
         memory = MemoryModel(
