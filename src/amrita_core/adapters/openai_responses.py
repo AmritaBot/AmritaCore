@@ -53,8 +53,7 @@ from amrita_core.types.response import STOP_REASON, RequestMetadata
 from amrita_core.types.tool import block_label_of_type, degraded_block_note
 from amrita_core.utils import model_dump
 
-# Responses ``input_image`` detail levels. ``original`` is not in every vendor's
-# accepted set, so it is only forwarded when the caller asked for it.
+# For Responses `input_image` detail levels, `original` isn't accepted by every vendor, so it's forwarded only when requested.
 _IMAGE_DETAILS = {"auto", "low", "high", "original"}
 
 
