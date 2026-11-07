@@ -299,12 +299,12 @@ class TestRequests:
 
 
 class TestReasoningRoundTrip:
-    """DeepSeek rejects a tool turn whose reasoning items are not replayed."""
+    """Providers reject a tool turn whose reasoning items are not replayed."""
 
     def _signature(self) -> str:
         from amrita_core.adapters.openai_responses import _reasoning_signature
 
-        return _reasoning_signature(
+        signature = _reasoning_signature(
             [
                 {
                     "id": "rs_1",
@@ -313,6 +313,8 @@ class TestReasoningRoundTrip:
                 }
             ]
         )
+        assert signature is not None
+        return signature
 
     def test_reasoning_item_is_replayed_before_the_message(self):
         items = _to_input_items(

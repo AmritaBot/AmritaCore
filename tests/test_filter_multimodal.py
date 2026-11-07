@@ -1,3 +1,4 @@
+# pyright: reportAttributeAccessIssue=false, reportOptionalMemberAccess=false
 """`filter_multimodal`: the public capability filter for caller-built payloads."""
 
 from __future__ import annotations

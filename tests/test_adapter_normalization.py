@@ -1,3 +1,4 @@
+# pyright: reportAttributeAccessIssue=false, reportOptionalMemberAccess=false
 """Adapter-layer error normalization and the tool-result capability guard."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# pyright: reportAttributeAccessIssue=false, reportOptionalMemberAccess=false
 """MCP content blocks: media from a server becomes a framework content block."""
 
 from __future__ import annotations

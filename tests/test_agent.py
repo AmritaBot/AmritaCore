@@ -609,7 +609,7 @@ async def test_template_method_execute_tool_loop_no_calls(mock_strategy_context)
     """Test _execute_tool_loop returns False when no tool calls."""
     strategy = ReActAgentStrategy(mock_strategy_context)
 
-    mock_response: UniResponse[None, list[ToolCall] | None] = UniResponse(
+    mock_response: UniResponse[str | None, list[ToolCall] | None] = UniResponse(
         content=None, tool_calls=[], usage=None
     )
     result = await strategy._execute_tool_loop(
@@ -628,7 +628,7 @@ async def test_react_append_paired_messages(mock_strategy_context, mock_config):
     mock_strategy_context.chat_object.config = mock_config
 
     # Mock a successful tool call
-    mock_response: UniResponse[None, list[ToolCall] | None] = UniResponse(
+    mock_response: UniResponse[str | None, list[ToolCall] | None] = UniResponse(
         content=None,
         tool_calls=[
             ToolCall(

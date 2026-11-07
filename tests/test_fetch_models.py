@@ -69,13 +69,15 @@ class TestOpenAIListing:
             models = await OpenAIAdapter.fetch_models(_preset("openai"))
 
         assert models == [
-            ModelInfo(
-                id="deepseek-flash",
-                object="model",
-                owned_by="deepseek",
-                name="DeepSeek-V4.1-Flash",
-                context_window=1048576,
-                input_modalities=["text", "image"],
+            ModelInfo.model_validate(
+                {
+                    "id": "deepseek-flash",
+                    "object": "model",
+                    "owned_by": "deepseek",
+                    "name": "DeepSeek-V4.1-Flash",
+                    "context_window": 1048576,
+                    "input_modalities": ["text", "image"],
+                }
             )
         ]
         # A class method needs only the preset.
