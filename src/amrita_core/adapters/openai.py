@@ -130,6 +130,8 @@ class OpenAIAdapter(ModelAdapter):
 
         if stream := preset.config.stream:
             kwargs.update({"stream_options": {"include_usage": True}})
+        if stop:
+            kwargs["stop"] = stop
         completion = await client.chat.completions.create(
             model=preset.model,
             messages=messages,
@@ -137,7 +139,6 @@ class OpenAIAdapter(ModelAdapter):
             top_p=preset_config.top_p,
             temperature=preset_config.temperature,
             stream=stream,
-            stop=stop,
             **kwargs,
         )
         response: str = ""
