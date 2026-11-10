@@ -146,6 +146,85 @@ class TestOpenAIAdapter:
             assert isinstance(results[1], UniResponse)
             assert results[1].content == ""
 
+    @staticmethod
+    def _stop_completion(text: str = "Hello there!") -> ChatCompletion:
+        """Minimal non-streaming completion used by the ``stop`` regression tests."""
+        completion = ChatCompletion(
+            id="chatcmpl-stop",
+            choices=[
+                {
+                    "index": 0,
+                    "message": {"role": "assistant", "content": text},
+                    "finish_reason": "stop",
+                }
+            ],
+            created=1234567890,
+            model="gpt-3.5-turbo",
+            object="chat.completion",
+        )
+        object.__setattr__(completion, "_request_id", "req_mock_stop")
+        return completion
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("stop", [None, []])
+    async def test_call_api_omits_empty_stop(self, adapter, mock_messages, stop):
+        """An unset ``stop`` must not reach the SDK: strict gateways reject ``stop=[]``."""
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create.return_value = self._stop_completion()
+            mock_openai.return_value = mock_client
+
+            async for _ in adapter.call_api(mock_messages, stop=stop):
+                pass
+
+            create_kwargs = mock_client.chat.completions.create.call_args.kwargs
+            assert "stop" not in create_kwargs
+
+    @pytest.mark.asyncio
+    async def test_call_api_keeps_non_empty_stop(self, adapter, mock_messages):
+        """A configured ``stop`` is still forwarded unchanged."""
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create.return_value = self._stop_completion()
+            mock_openai.return_value = mock_client
+
+            async for _ in adapter.call_api(mock_messages, stop=["\n\n"]):
+                pass
+
+            create_kwargs = mock_client.chat.completions.create.call_args.kwargs
+            assert create_kwargs["stop"] == ["\n\n"]
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("stop", [None, []])
+    async def test_agentic_call_api_omits_empty_stop(
+        self, adapter, mock_messages, stop
+    ):
+        """The agentic entry point shares the same rule: no empty ``stop`` on the wire."""
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create.return_value = self._stop_completion()
+            mock_openai.return_value = mock_client
+
+            async for _ in adapter.agentic_call_api(mock_messages, stop=stop):
+                pass
+
+            create_kwargs = mock_client.chat.completions.create.call_args.kwargs
+            assert "stop" not in create_kwargs
+
+    @pytest.mark.asyncio
+    async def test_agentic_call_api_keeps_non_empty_stop(self, adapter, mock_messages):
+        """A configured ``stop`` is forwarded by the agentic entry point too."""
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
+            mock_client = AsyncMock()
+            mock_client.chat.completions.create.return_value = self._stop_completion()
+            mock_openai.return_value = mock_client
+
+            async for _ in adapter.agentic_call_api(mock_messages, stop=["\n\n"]):
+                pass
+
+            create_kwargs = mock_client.chat.completions.create.call_args.kwargs
+            assert create_kwargs["stop"] == ["\n\n"]
+
     @pytest.mark.asyncio
     async def test_call_tools_auto_choice(self, adapter, mock_messages):
         """Test call_tools with auto tool choice"""
