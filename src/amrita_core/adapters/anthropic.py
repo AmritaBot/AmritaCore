@@ -59,6 +59,32 @@ def _file_block_note(
     return template.format(name=name)
 
 
+def _anthropic_usage(u: object) -> UniResponseUsage[int]:
+    """Map Anthropic's usage onto the framework's usage model.
+
+    Anthropic splits the prompt into three disjoint buckets: ``input_tokens``
+    counts only the part that was neither written to nor read from the cache,
+    ``cache_creation_input_tokens`` is the prefix just written, and
+    ``cache_read_input_tokens`` is the prefix served from cache. The whole
+    prompt is their sum, so taking ``input_tokens`` alone reports a cached
+    conversation as nothing but its uncached tail - a few hundred tokens for a
+    context of many thousands.
+    """
+    cache_creation = getattr(u, "cache_creation_input_tokens", None)
+    cache_hit = getattr(u, "cache_read_input_tokens", None)
+    prompt = (
+        (getattr(u, "input_tokens", 0) or 0) + (cache_creation or 0) + (cache_hit or 0)
+    )
+    completion = getattr(u, "output_tokens", 0) or 0
+    return UniResponseUsage[int](
+        prompt_tokens=prompt,
+        completion_tokens=completion,
+        total_tokens=prompt + completion,
+        cache_creation=cache_creation,
+        cache_hit=cache_hit,
+    )
+
+
 class AnthropicFunctionSchema(BaseModel):
     """Validate Anthropic function definition structure"""
 
@@ -379,18 +405,7 @@ try:
                         stop_reason=getattr(last_msg, "stop_reason", None),
                         model=getattr(last_msg, "model", "__NOT_GIVEN__"),
                     )
-                    usage: UniResponseUsage[int] = UniResponseUsage[int](
-                        prompt_tokens=last_msg.usage.input_tokens,
-                        completion_tokens=last_msg.usage.output_tokens,
-                        total_tokens=last_msg.usage.input_tokens
-                        + last_msg.usage.output_tokens,
-                        cache_creation=getattr(
-                            last_msg.usage, "cache_creation_input_tokens", None
-                        ),
-                        cache_hit=getattr(
-                            last_msg.usage, "cache_read_input_tokens", None
-                        ),
-                    )
+                    usage = _anthropic_usage(last_msg.usage)
             else:
                 last_msg: Message = await client.messages.create(
                     model=preset.model,
@@ -406,16 +421,7 @@ try:
                     stop_reason=getattr(last_msg, "stop_reason", None),
                     model=getattr(last_msg, "model", "__NOT_GIVEN__"),
                 )
-                usage = UniResponseUsage[int](
-                    prompt_tokens=last_msg.usage.input_tokens,
-                    completion_tokens=last_msg.usage.output_tokens,
-                    total_tokens=last_msg.usage.input_tokens
-                    + last_msg.usage.output_tokens,
-                    cache_creation=getattr(
-                        last_msg.usage, "cache_creation_input_tokens", None
-                    ),
-                    cache_hit=getattr(last_msg.usage, "cache_read_input_tokens", None),
-                )
+                usage = _anthropic_usage(last_msg.usage)
                 for ct in last_msg.content:
                     if isinstance(ct, TextBlock):
                         text_resp.write(ct.text)
@@ -546,18 +552,7 @@ try:
                         stop_reason=getattr(last_msg, "stop_reason", None),
                         model=getattr(last_msg, "model", "__NOT_GIVEN__"),
                     )
-                    usage: UniResponseUsage[int] = UniResponseUsage[int](
-                        prompt_tokens=last_msg.usage.input_tokens,
-                        completion_tokens=last_msg.usage.output_tokens,
-                        total_tokens=last_msg.usage.input_tokens
-                        + last_msg.usage.output_tokens,
-                        cache_creation=getattr(
-                            last_msg.usage, "cache_creation_input_tokens", None
-                        ),
-                        cache_hit=getattr(
-                            last_msg.usage, "cache_read_input_tokens", None
-                        ),
-                    )
+                    usage = _anthropic_usage(last_msg.usage)
             else:
                 last_msg: Message = await client.messages.create(**request_kwargs)
                 metadata = RequestMetadata(
@@ -566,16 +561,7 @@ try:
                     stop_reason=getattr(last_msg, "stop_reason", None),
                     model=getattr(last_msg, "model", "__NOT_GIVEN__"),
                 )
-                usage = UniResponseUsage[int](
-                    prompt_tokens=last_msg.usage.input_tokens,
-                    completion_tokens=last_msg.usage.output_tokens,
-                    total_tokens=last_msg.usage.input_tokens
-                    + last_msg.usage.output_tokens,
-                    cache_creation=getattr(
-                        last_msg.usage, "cache_creation_input_tokens", None
-                    ),
-                    cache_hit=getattr(last_msg.usage, "cache_read_input_tokens", None),
-                )
+                usage = _anthropic_usage(last_msg.usage)
                 for block_idx, block in enumerate(last_msg.content):
                     if isinstance(block, ToolUseBlock):
                         blocks[block_idx] = {
@@ -680,16 +666,7 @@ try:
 
             usage = None
             if getattr(response, "usage", None) is not None:
-                usage = UniResponseUsage[int](
-                    prompt_tokens=response.usage.input_tokens,
-                    completion_tokens=response.usage.output_tokens,
-                    total_tokens=response.usage.input_tokens
-                    + response.usage.output_tokens,
-                    cache_creation=getattr(
-                        response.usage, "cache_creation_input_tokens", None
-                    ),
-                    cache_hit=getattr(response.usage, "cache_read_input_tokens", None),
-                )
+                usage = _anthropic_usage(response.usage)
             tool_calls = []
             reasoning = ""
             reasoning_signature = ""

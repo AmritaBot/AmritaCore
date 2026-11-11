@@ -2,6 +2,7 @@
 import importlib.util
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1124,6 +1125,37 @@ class TestAnthropicAdapter:
         )  # tool results merged into user message
 
         # The actual API call would be tested with proper mocking in a real implementation For coverage purposes, we've tested all the helper methods thoroughly
+
+    def test_usage_counts_the_cached_prefix(self):
+        """The prompt is input + cache writes + cache reads, not just input.
+
+        Anthropic reports those three buckets separately, and ``input_tokens``
+        covers only the uncached tail. Reading it alone makes a cached
+        conversation look like a few hundred tokens.
+        """
+        usage = anthropic_module._anthropic_usage(
+            SimpleNamespace(
+                input_tokens=243,
+                output_tokens=19,
+                cache_creation_input_tokens=384,
+                cache_read_input_tokens=1536,
+            )
+        )
+        assert usage.prompt_tokens == 243 + 384 + 1536
+        assert usage.completion_tokens == 19
+        assert usage.total_tokens == usage.prompt_tokens + 19
+        assert usage.cache_creation == 384
+        assert usage.cache_hit == 1536
+
+    def test_usage_without_cache_details(self):
+        """Providers that omit the cache fields still map cleanly."""
+        usage = anthropic_module._anthropic_usage(
+            SimpleNamespace(input_tokens=10, output_tokens=5)
+        )
+        assert usage.prompt_tokens == 10
+        assert usage.total_tokens == 15
+        assert usage.cache_creation is None
+        assert usage.cache_hit is None
 
 
 class TestOpenAIToolSerialization:
