@@ -158,6 +158,14 @@ class OpenAIAdapter(ModelAdapter):
                     or getattr(completion, "_request_id", None)
                 )
                 async for chunk in completion:
+                    # The final chunk of an OpenAI-compatible stream carries the
+                    # usage with an empty ``choices`` list, so it has to be read
+                    # before touching ``choices[0]`` — otherwise the IndexError
+                    # below ends the loop and the usage is lost.
+                    if chunk.usage:
+                        uni_usage = UniResponseUsage.model_validate(
+                            chunk.usage, from_attributes=True
+                        )
                     try:
                         if chunk.choices[0].finish_reason is not None:
                             model_name = chunk.model
@@ -170,10 +178,6 @@ class OpenAIAdapter(ModelAdapter):
                                     if chunk.choices[0].finish_reason
                                     else None
                                 ),
-                            )
-                        if chunk.usage:
-                            uni_usage = UniResponseUsage.model_validate(
-                                chunk.usage, from_attributes=True
                             )
 
                         if (
@@ -197,7 +201,9 @@ class OpenAIAdapter(ModelAdapter):
                             yield chunk
                             debug_log(chunk)
                     except IndexError:
-                        break
+                        # A chunk without choices (e.g. the usage-only tail) is
+                        # not the end of the stream; keep draining it.
+                        continue
 
         else:
             if isinstance(completion, ChatCompletion):

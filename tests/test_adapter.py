@@ -9,6 +9,7 @@ from openai import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
+from openai.types.completion_usage import CompletionUsage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
 )
@@ -314,6 +315,52 @@ class TestOpenAIAdapter:
             assert len(results) == 1  # Only UniResponse
             assert isinstance(results[0], UniResponse)
             assert results[0].content == ""
+
+    @pytest.mark.asyncio
+    async def test_call_api_streaming_usage_in_tail_chunk(self, adapter, mock_messages):
+        """usage 挂在 choices 为空的尾块上时不应丢失"""
+        adapter.preset.config.stream = True
+
+        body_chunk = ChatCompletionChunk(
+            id="chatcmpl-1",
+            choices=[
+                {
+                    "index": 0,
+                    "delta": {"content": "hi"},
+                    "finish_reason": None,
+                }
+            ],
+            created=1,
+            model="gpt-4o",
+            object="chat.completion.chunk",
+        )
+        tail_chunk = ChatCompletionChunk(
+            id="chatcmpl-1",
+            choices=[],
+            created=1,
+            model="gpt-4o",
+            object="chat.completion.chunk",
+            usage=CompletionUsage(
+                prompt_tokens=100, completion_tokens=20, total_tokens=120
+            ),
+        )
+
+        with patch("amrita_core.adapters.openai.openai.AsyncOpenAI") as mock_openai:
+            mock_client = AsyncMock()
+            mock_stream = MockAsyncStream([body_chunk, tail_chunk])
+            mock_client.chat.completions.create.return_value = mock_stream
+            mock_openai.return_value = mock_client
+
+            results = []
+            async for result in adapter.call_api(mock_messages):
+                results.append(result)
+
+        final = results[-1]
+        assert isinstance(final, UniResponse)
+        assert final.usage is not None
+        assert final.usage.prompt_tokens == 100
+        assert final.usage.completion_tokens == 20
+        assert final.usage.total_tokens == 120
 
     @pytest.mark.asyncio
     async def test_call_tools_with_string_tool_choice(self, adapter, mock_messages):
