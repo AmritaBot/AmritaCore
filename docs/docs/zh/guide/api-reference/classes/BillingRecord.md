@@ -17,7 +17,7 @@ AmritaCore 不计算货币金额。消费方依据 `rate` 与 token 计数自行
 | `model`             | `str \| None`                           | `None`        | 请求使用的模型名            |
 | `preset_name`       | `str \| None`                           | `None`        | 发起请求所用的预设名        |
 | `rate`              | [`RateConfig`](RateConfig.md)` \| None` | `None`        | 请求时刻捕获的价格快照      |
-| `prompt_tokens`     | `int`                                   | `0`           | 上报的 prompt token 数      |
+| `prompt_tokens`     | `int`                                   | `0`           | 上报的 prompt token 数（含缓存部分） |
 | `completion_tokens` | `int`                                   | `0`           | 上报的 completion token 数  |
 | `total_tokens`      | `int`                                   | `0`           | 上报的总 token 数           |
 | `cache_hit`         | `int \| None`                           | `None`        | 从缓存读取的 token 数       |

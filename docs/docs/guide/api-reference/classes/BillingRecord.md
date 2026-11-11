@@ -17,7 +17,7 @@ AmritaCore does not compute currency amounts. Consumers derive money from `rate`
 | `model`             | `str \| None`                           | `None`        | Model name used for the request           |
 | `preset_name`       | `str \| None`                           | `None`        | Preset name the request was issued with   |
 | `rate`              | [`RateConfig`](RateConfig.md)` \| None` | `None`        | Pricing snapshot captured at request time |
-| `prompt_tokens`     | `int`                                   | `0`           | Prompt tokens reported                    |
+| `prompt_tokens`     | `int`                                   | `0`           | Prompt tokens reported, cache included    |
 | `completion_tokens` | `int`                                   | `0`           | Completion tokens reported                |
 | `total_tokens`      | `int`                                   | `0`           | Total tokens reported                     |
 | `cache_hit`         | `int \| None`                           | `None`        | Tokens read from cache                    |
