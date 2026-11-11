@@ -9,13 +9,13 @@ from openai import AsyncStream
 from openai.types.chat.chat_completion import ChatCompletion
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from openai.types.chat.chat_completion_message import ChatCompletionMessage
-from openai.types.completion_usage import CompletionUsage
 from openai.types.chat.chat_completion_message_tool_call import (
     ChatCompletionMessageToolCall,
 )
 from openai.types.chat.chat_completion_message_tool_call import (
     Function as ToolCallFunction,
 )
+from openai.types.completion_usage import CompletionUsage
 
 from amrita_core.adapters import anthropic as anthropic_module
 from amrita_core.adapters.anthropic import AnthropicAdapter
