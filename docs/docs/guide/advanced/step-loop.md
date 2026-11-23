@@ -33,20 +33,37 @@ chat = agent.get_chatobject("Plan and run the migration", workflow=SIMPLE_STEP_R
 
 ## Anatomy of a Step
 
+A Step boundary is not an `if` in the strategy: decomposition, selection,
+opening and plan publication are each a node on `STEP_BODY`, separated by
+`NATIVE_IF` predicates.
+
 ```mermaid
 flowchart LR
-    A["intro_step"] --> B["NATIVE_WHILE(iter_cond)"]
-    B --> C["STEP_EXEC (one tool round)"]
-    C --> D["leave_step"]
-    C -. "after_iteration" .-> B
+    P{"NEEDS_DECOMPOSITION"} -->|true| D["STEP_DECOMPOSE"]
+    P -->|false| Q{"HAS_READY_NODE"}
+    D --> Q
+    Q -->|true| N["STEP_BEGIN_NODE"]
+    Q -->|false| S["STEP_BEGIN_SIMPLE / STEP_BEGIN_BOUNDARY"]
+    N --> I["intro_step (events + metadata)"]
+    S --> I
+    I --> L["NATIVE_WHILE(iter_cond): STEP_EXEC"]
+    L --> V["leave_step"]
 ```
 
-| Phase          | What happens                                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| **decompose**  | First `intro_step`: LLM decides simple vs DAG `{needs_decomposition, dag, reason}`                                                         |
-| **intro_step** | Pick the next ready DAG node (topological order via `graphlib.TopologicalSorter`); drain peer messages; emit `step_intro` event + metadata |
-| **STEP_EXEC**  | One `single_execute()` round: model -> tools -> results; `after_iteration()` runs stall detection _inside_ the loop                          |
-| **leave_step** | Summarize (subject-predicate), complete the node, compress history; emit `step_leave` event + metadata                                     |
+| Phase | What happens |
+| --- | --- |
+| **NEEDS_DECOMPOSITION / STEP_DECOMPOSE** | First Step: the LLM decides simple vs DAG `{needs_decomposition, dag, reason}`; a failed call degrades to simple |
+| **HAS_READY_NODE / STEP_BEGIN_NODE** | Picks the next ready DAG node in topological order and opens it as the current Step |
+| **USES_SIMPLE_STEP / STEP_BEGIN_SIMPLE** | Bare run: one implicit `execute` Step |
+| **PLAN_EXHAUSTED / STEP_BEGIN_BOUNDARY** | Plan finished or blocked on deps: opens a `verify` boundary Step |
+| **STEP_PLAN_STATUS** | Injects the plan snapshot when it changed (idempotent) |
+| **intro_step** | Drains peer messages; emits the `step_intro` event + metadata |
+| **STEP_EXEC** | One `single_execute()` round: model -> tools -> results; `after_iteration()` runs stall detection _inside_ the loop |
+| **leave_step** | Summarizes (subject-predicate, failure goes through `Try`'s catch branch), completes the node, compresses history; emits `step_leave` |
+
+The predicates and actions live in `components/step_nodes.py`;
+`intro_step` stays as an equivalent direct-call entry point (same functions),
+so custom strategies and unit tests do not need an interpreter.
 
 ## Semantic State: `AgentRunState`
 
@@ -56,6 +73,8 @@ All step-level state lives in `AgentRunState` (bridged between
 | Field                               | Meaning                                                           |
 | ----------------------------------- | ----------------------------------------------------------------- |
 | `step_index`                        | Global step counter                                               |
+| `decomposition_done`                | The first decompose decision already ran (re-entry guard)         |
+| `open_step_index`                   | `step_index` of the opened Step (graph node / intro de-dup mark)  |
 | `current_phase` / `current_step_id` | The active DAG node                                               |
 | `plan` / `completed_step_ids`       | The task DAG + progress                                           |
 | `step_tool_signatures`              | Tool signatures in the current Step (stall window)                |

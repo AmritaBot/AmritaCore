@@ -28,7 +28,7 @@ from amrita_core.builtins.agent.events import (
     StepToolCallEvent,
     StepToolReturnEvent,
 )
-from amrita_core.builtins.agent.state import AgentRunState, DAGNode
+from amrita_core.builtins.agent.state import AgentRunState
 from amrita_core.contents import MessageMetadataPayload, MessageWithMetadata
 from amrita_core.exceptions import UnsupportedContentError
 from amrita_core.libchat import (
@@ -602,40 +602,16 @@ class BaseReActAgentStrategy(AgentStrategy, ABC):
         return False
 
     async def _handle_update_step(self, args: dict[str, Any]) -> None:
-        """Handle the ``update_step`` built-in tool.
+        """Apply one ``update_step`` action through the handler table.
 
-        Updates the semantic plan in ``run_state`` only — the Sense workflow
-        itself is not modified (DAG is a hint layer, execution stays linear).
-
-        Args:
-            args: tool arguments with ``action`` (replan/mark_done/add_step/
-                remove_step) and optional ``dag`` / ``node`` / ``node_id``.
+        The four actions (replan / mark_done / add_step / remove_step) are
+        separate functions in ``step_nodes.PLAN_UPDATE_ACTIONS``; this method
+        only routes to them, so a new action is a table entry rather than
+        another branch in the tool handler.
         """
-        rs = self._init_run_state()
-        action = args.get("action")
+        from amrita_core.components import step_nodes
 
-        if action == "replan" and args.get("dag"):
-            rs.plan = [DAGNode.model_validate(n) for n in args["dag"]]
-            rs.completed_step_ids = []
-            rs.current_step_id = None
-        elif action == "mark_done":
-            rs.complete_current_node()
-        elif action == "add_step" and args.get("node"):
-            node = DAGNode.model_validate(args["node"])
-            if rs.plan is None:
-                rs.plan = []
-            rs.plan.append(node)
-        elif action == "remove_step" and args.get("node_id"):
-            nid = args["node_id"]
-            if rs.plan:
-                rs.plan = [n for n in rs.plan if n.id != nid]
-            if nid in rs.completed_step_ids:
-                rs.completed_step_ids.remove(nid)
-        rs.plan_revision += 1
-        logger.info(
-            f"update_step({action}) applied, plan_revision={rs.plan_revision}, "
-            f"plan={[n.id for n in (rs.plan or [])]}, done={rs.completed_step_ids}"
-        )
+        step_nodes.apply_plan_update(self, args)
 
     async def _generate_reasoning_content(
         self, tool_call: ToolCall, reasoning_trigger_msg: list[CONTENT_LIST_TYPE_ITEM]

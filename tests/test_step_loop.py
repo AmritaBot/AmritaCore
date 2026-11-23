@@ -341,7 +341,7 @@ class TestStrategyStepLifecycle:
             yield UniResponse(content="not json at all", tool_calls=None, usage=None)
 
         with patch(
-            "amrita_core.builtins.agent.react_comm.call_completion",
+            "amrita_core.components.step_nodes.call_completion",
             return_value=fake_bad_generator(),
         ):
             asyncio.run(strategy._summarize_step())
@@ -1749,3 +1749,116 @@ class TestBetweenStepCompression:
             asyncio_run(st._compress_history_between_steps())
         assert len(st.ctx.message.memory) == 4  # kept
         assert rs.tokens.prompt_tokens == 0  # baseline reset
+
+
+class TestStepNodes:
+    """The Step boundary as graph control flow (components/step_nodes.py).
+
+    The strategy wrappers are covered above; these tests drive the predicates
+    and the STEP_BODY branches directly, so the workflow path is exercised
+    rather than only ``intro_step``.
+    """
+
+    def test_predicates_cover_the_four_step_kinds(self):
+        from amrita_core.components import step_nodes as sn
+
+        rs = AgentRunState()
+        # First Step: decompose has not decided yet.
+        assert sn.needs_decomposition(rs) is True
+        assert sn.has_ready_node(rs) is False
+        assert sn.plan_exhausted(rs) is False
+        assert sn.should_inject_plan_status(rs) is False
+
+        # After a simple decision: bare run.
+        rs.decomposition_done = True
+        rs.simple_mode = True
+        assert sn.needs_decomposition(rs) is False
+        assert sn.uses_simple_step(rs) is True
+
+        # Plan mode with a ready node.
+        rs.simple_mode = False
+        rs.plan = [DAGNode(id="a", description="first")]
+        assert sn.uses_simple_step(rs) is False
+        assert sn.has_ready_node(rs) is True
+        assert sn.plan_exhausted(rs) is False
+        assert sn.should_inject_plan_status(rs) is True
+
+        # Every node done: the plan is exhausted.
+        rs.completed_step_ids = ["a"]
+        assert sn.has_ready_node(rs) is False
+        assert sn.plan_exhausted(rs) is True
+
+    def test_plan_update_table_reports_unknown_actions(self, strategy):
+        from amrita_core.components import step_nodes as sn
+
+        rs = strategy._init_run_state()
+        before = rs.plan_revision
+        sn.apply_plan_update(strategy, {"action": "no-such-action"})
+        assert rs.plan_revision == before + 1
+        assert rs.plan is None
+
+    def test_step_body_runs_the_graph_branches(self, strategy):
+        """The rendered workflow opens exactly one Step and consumes the mark."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from amrita_sense import WorkflowInterpreter
+
+        from amrita_core.contexts import (
+            AbilityState,
+            AgentLoopState,
+            MemoryContext,
+            RespState,
+            SessionMetadata,
+            StrategyPayload,
+            WorkingState,
+        )
+
+        ctx = strategy.ctx
+        io = strategy.io_stream
+        io._wait_for_continue = AsyncMock()
+        rs = strategy._init_run_state()
+        loop = AgentLoopState(strategy=strategy, run_state=rs, stg_ctx=ctx)
+        loop.ctx_backup = ctx.original_context
+        wok = WorkingState(context_wrap=ctx.original_context)
+        ab = AbilityState(
+            config=strategy.config,
+            slot=MagicMock(),
+            ability=None,
+            preset=strategy.preset,
+        )
+
+        async def _run() -> None:
+            interp = WorkflowInterpreter(
+                STEP_BODY.render(),
+                io,
+                extra_args=(
+                    ctx.chat_object,
+                    ab,
+                    MemoryContext(),
+                    wok,
+                    RespState(),
+                    None,
+                    loop,
+                    StrategyPayload(strategy),
+                    None,
+                    SessionMetadata(),
+                ),
+            )
+            await interp.run()
+
+        def _offline(*args, **kwargs):
+            raise RuntimeError("offline")
+
+        # Offline: the decompose call fails and degrades to simple mode.
+        with patch(
+            "amrita_core.components.step_nodes.call_completion",
+            new=_offline,
+        ):
+            asyncio_run(_run())
+
+        assert rs.decomposition_done is True
+        assert rs.simple_mode is True
+        assert rs.step_index == 1
+        assert rs.current_phase == "execute"
+        # The graph branch opened the Step; intro_step consumed the mark.
+        assert rs.open_step_index == -1
