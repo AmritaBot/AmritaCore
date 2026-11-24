@@ -162,6 +162,13 @@ class AgentRunState(BaseModel):
     current_phase: Phase | None = None
     plan: list[DAGNode] | None = None
     simple_mode: bool = False
+    decomposition_done: bool = False  # Set once the first Step decided simple vs DAG; guards re-entry of the decompose node.
+    open_step_index: int = -1
+    """``step_index`` of the Step whose boundary already ran (``begin_step``).
+
+    The workflow's ``STEP_BEGIN_*`` nodes and ``intro_step`` both open the
+    Step; whichever runs first sets this, the other sees it and does nothing.
+    """
     current_step_id: str | None = None
     completed_step_ids: list[str] = Field(default_factory=list)
     plan_revision: int = 0
@@ -183,6 +190,7 @@ class AgentRunState(BaseModel):
         simple mode): it may span multiple tool-call iterations.
         """
         self.step_index += 1
+        self.open_step_index = self.step_index
         self.current_phase = phase
         # Fresh per-Step window for stall detection and give-up injection.
         self.step_tool_signatures = []

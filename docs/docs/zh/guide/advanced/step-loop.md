@@ -29,20 +29,35 @@ chat = agent.get_chatobject("规划并执行迁移", workflow=SIMPLE_STEP_REACT)
 
 ## Step 解剖
 
+Step 边界不是策略里的一段 `if`：分解、选取、开启、发布计划各自是
+`STEP_BODY` 上的一个节点，中间用 `NATIVE_IF` 谓词隔开。
+
 ```mermaid
 flowchart LR
-    A["intro_step"] --> B["NATIVE_WHILE(iter_cond)"]
-    B --> C["STEP_EXEC（一轮工具）"]
-    C --> D["leave_step"]
-    C -. "after_iteration" .-> B
+    P{"NEEDS_DECOMPOSITION"} -->|true| D["STEP_DECOMPOSE"]
+    P -->|false| Q{"HAS_READY_NODE"}
+    D --> Q
+    Q -->|true| N["STEP_BEGIN_NODE"]
+    Q -->|false| S["STEP_BEGIN_SIMPLE / STEP_BEGIN_BOUNDARY"]
+    N --> I["intro_step（事件 + 元数据）"]
+    S --> I
+    I --> L["NATIVE_WHILE(iter_cond): STEP_EXEC"]
+    L --> V["leave_step"]
 ```
 
-| 阶段           | 发生什么                                                                                                        |
-| -------------- | --------------------------------------------------------------------------------------------------------------- |
-| **decompose**  | 首次 `intro_step`：LLM 决定 simple 还是 DAG `{needs_decomposition, dag, reason}`                                |
-| **intro_step** | 选取下一个就绪 DAG 节点（`graphlib.TopologicalSorter` 拓扑序）；消费 peer 消息；发出 `step_intro` 事件 + 元数据 |
-| **STEP_EXEC**  | 一轮 `single_execute()`：模型 -> 工具 -> 结果；`after_iteration()` 在*循环内*运行停滞检测                         |
-| **leave_step** | 摘要（主谓短语）、完成节点、压缩历史；发出 `step_leave` 事件 + 元数据                                           |
+| 阶段 | 发生什么 |
+| --- | --- |
+| **NEEDS_DECOMPOSITION / STEP_DECOMPOSE** | 首次 Step：LLM 决定 simple 还是 DAG `{needs_decomposition, dag, reason}`；失败降级为 simple |
+| **HAS_READY_NODE / STEP_BEGIN_NODE** | 按拓扑序选下一个就绪 DAG 节点并作为当前 Step |
+| **USES_SIMPLE_STEP / STEP_BEGIN_SIMPLE** | 裸跑：一个隐式 `execute` Step |
+| **PLAN_EXHAUSTED / STEP_BEGIN_BOUNDARY** | 计划走完或依赖未满足：开一个 `verify` 边界 Step |
+| **STEP_PLAN_STATUS** | 计划快照变化时注入当前计划（幂等） |
+| **intro_step** | 消费 peer 消息；发出 `step_intro` 事件 + 元数据 |
+| **STEP_EXEC** | 一轮 `single_execute()`：模型 -> 工具 -> 结果；`after_iteration()` 在*循环内*运行停滞检测 |
+| **leave_step** | 摘要（主谓短语，失败走 `Try` 的 catch 分支）、完成节点、压缩历史；发出 `step_leave` 事件 + 元数据 |
+
+谓词与动作都在 `components/step_nodes.py`；`intro_step` 保留为等价的直接
+调用入口（调用同一批函数），自定义策略与单元测试不必经过解释器。
 
 ## 语义状态：`AgentRunState`
 
@@ -52,6 +67,8 @@ flowchart LR
 | 字段                                | 含义                                                   |
 | ----------------------------------- | ------------------------------------------------------ |
 | `step_index`                        | 全局 step 计数器                                       |
+| `decomposition_done`                | 首次分解已完成（阻止再次分解）                         |
+| `open_step_index`                   | 已开启 Step 的 `step_index`（图节点与 intro 去重）     |
 | `current_phase` / `current_step_id` | 活动 DAG 节点                                          |
 | `plan` / `completed_step_ids`       | 任务 DAG + 进度                                        |
 | `step_tool_signatures`              | 当前 Step 内的工具签名（停滞窗口）                     |

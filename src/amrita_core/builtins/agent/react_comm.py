@@ -13,19 +13,14 @@ from amrita_core.builtins.agent.events import (
     StepIterationEvent,
     StepLeaveEvent,
 )
-from amrita_core.builtins.agent.state import DecomposeDecision, StepSummary
+from amrita_core.builtins.agent.state import StepSummary
 from amrita_core.builtins.types import (
     AgentStepCompressMetadata,
-    AgentStepDecomposeMetadata,
     AgentStepIntroMetadata,
     AgentStepLeaveMetadata,
     AgentStepStallMetadata,
 )
 from amrita_core.components.compaction import ContextCompactor
-from amrita_core.libchat import (
-    call_completion,
-    get_last_response,
-)
 from amrita_core.tools.models import ToolFunctionSchema
 from amrita_core.types import (
     Function,
@@ -121,119 +116,15 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
     # Step lifecycle implementation (native step loop): decomposition, stall give-up, per-Step summary, between-Step token-driven compression.
 
     async def _decide_decomposition(self) -> None:
-        """Analyze phase: ask the LLM whether to decompose the task into a DAG.
+        """Analyze phase: ask the model whether to decompose into a DAG.
 
-        Simple QA / simple tasks run directly (``simple_mode=True``) without
-        decomposition.  Complex tasks produce a DAG (semantic layer only — the
-        workflow itself stays linear).
+        The call, its degradation path and the emitted metadata live in
+        ``step_nodes.decide_decomposition``; the workflow runs the same
+        function through the ``STEP_DECOMPOSE`` node.
         """
-        rs = self._init_run_state()
-        prompt: list = [
-            Message(
-                role="system",
-                content=(
-                    "# Task Decomposition Decision\n"
-                    "Decide whether this task needs multi-step execution.\n"
-                    "\n"
-                    "## Use SIMPLE mode (needs_decomposition=false) when:\n"
-                    "SIMPLE mode is still ReAct — the normal tool loop runs;\n"
-                    "it just is not step-driven (no DAG decomposition).\n"
-                    "Most requests, including routine questions and simple\n"
-                    "tasks, belong here.\n"
-                    "- Chitchat, greetings, or casual conversation\n"
-                    "- A direct question answerable from the conversation context\n"
-                    "- A single tool call suffices (lookup, calculation, format conversion)\n"
-                    "- Summarizing or rephrasing content already available\n"
-                    "- The user asks for a direct answer without further work\n"
-                    "\n"
-                    "## Use STEP mode (needs_decomposition=true, DAG) ONLY when:\n"
-                    "- Multiple dependent steps are required\n"
-                    "- Information must be gathered first, then used to produce the result\n"
-                    "- Research or multi-source synthesis\n"
-                    "\n"
-                    "## Rules\n"
-                    "- NEVER create a single-node DAG; if one step covers the task, use simple mode.\n"
-                    '- DAG node ids are short semantic names ("search-web", "read-docs", "write-summary"), never step-1/step-2.\n'
-                    'Output strictly as JSON: {"needs_decomposition": bool, "dag": [...], "reason": "..."}\n'
-                    "\n"
-                    "## Examples\n"
-                    "Example 1 (simple):\n"
-                    "User: What is 2+2?\n"
-                    'Output: {"needs_decomposition": false, "dag": [], "reason": "Simple arithmetic; answer directly."}\n'
-                    "\n"
-                    "Example 2 (complex):\n"
-                    "User: Summarize the repo docs: first list all doc files, then read each one, then write a summary.\n"
-                    'Output: {"needs_decomposition": true, '
-                    '"dag": [{"id": "list-files", "description": "List all doc files", "depends_on": []}, '
-                    '{"id": "read-docs", "description": "Read each doc file", "depends_on": ["list-files"]}, '
-                    '{"id": "write-summary", "description": "Write the summary", "depends_on": ["read-docs"]}], '
-                    '"reason": "Reading depends on listing; writing depends on reading."}'
-                ),
-            ),
-            *self.ctx.message.unwrap(exclude_system=True),
-            Message(
-                role="user",
-                content=(
-                    "Now decide whether the above task needs decomposition. "
-                    "Output ONLY the JSON object, nothing else: "
-                    '{"needs_decomposition": bool, "dag": [...], "reason": "..."}'
-                ),
-            ),
-        ]
-        try:
-            resp = await get_last_response(
-                call_completion(
-                    prompt, preset=self.preset, config=self.config, usage=self.usage
-                )
-            )
-            # Empty response (some providers return '' when thinking is engaged) - degrade immediately instead of parsing garbage.
-            if not (resp.content or "").strip():
-                req_id = getattr(resp.metadata, "original_request_id", None)
-                logger.warning(
-                    f"Empty decomposition response (request_id={req_id}, "
-                    f"thinking_content={bool(resp.reasoning_content)}); "
-                    "fallback: Sorry, no response was returned"
-                )
-                raise ValueError("empty decomposition response")
-            decision = DecomposeDecision.model_validate_json(resp.content)
-        except Exception as e:
-            logger.warning(f"Decomposition decision failed, running directly: {e!s}")
-            decision = DecomposeDecision(needs_decomposition=False)
+        from amrita_core.components import step_nodes
 
-        rs.simple_mode = not decision.needs_decomposition
-        rs.plan = decision.dag if decision.needs_decomposition else None
-        logger.debug(
-            f"Decompose decision: simple_mode={rs.simple_mode}, "
-            f"plan={[n.id for n in (rs.plan or [])]}"
-        )
-        # Push the decomposition decision metadata.
-        dag_ids = [n.id for n in (rs.plan or [])]
-        dag_desc = {n.id: n.description for n in (rs.plan or [])}
-        dag_desc_str = (
-            ", ".join(f"{n.id} ({n.description})" for n in (rs.plan or []))
-            if rs.plan
-            else ""
-        )
-        await self._emit_step_event(
-            content=(
-                "[step] decompose: "
-                + (
-                    "simple mode (no DAG)"
-                    if rs.simple_mode
-                    else f"DAG [{dag_desc_str}]"
-                )
-                + f" — {decision.reason}"
-            ),
-            metadata=AgentStepDecomposeMetadata(
-                type="step",
-                extra_type="decompose",
-                needs_decomposition=decision.needs_decomposition,
-                simple_mode=rs.simple_mode,
-                dag=dag_ids,
-                descriptions=dag_desc,
-                reason=decision.reason,
-            ),
-        )
+        await step_nodes.decide_decomposition(self)
 
     def _record_tool_signature(self, tool_call: ToolCall) -> None:
         """Record a tool-call signature in the current Step (stall detection)."""
@@ -245,73 +136,15 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         rs.record_tool_call(sig)
 
     def _inject_plan_status(self) -> None:
-        """Inject the current plan snapshot into the context (plan mode only).
+        """Inject the current plan snapshot (plan mode only, idempotent).
 
-        Called at every Step intro so the model always sees the *current*
-        plan — including revisions made by ``update_step`` mid-run.  The
-        snapshot is appended only when it changed (plain text, no DSML
-        tags), keeping the context lean and pairing intact: a ``user``
-        message at a Step boundary never splits a tool-call/result pair.
-
-        The note tells the model the plan is only a hint: revise it ONLY
-        when the plan turns out to be wrong (a step is redundant, missing,
-        or the task changed) — not for its own sake.  Normal step progress
-        is handled automatically by the framework (``leave_step`` marks the
-        node done), so ``mark_done`` is never needed from the model side.
-
-        The snapshot carries each node's dependencies as well as its id,
-        state and description.  The snapshot doubles as the change-detection
-        key, so a ``replan`` that rewires edges while keeping ids and
-        descriptions identical would otherwise look unchanged and the model
-        would keep following the stale dependency information.
-
-        The note also forbids ``agent_stop`` while steps remain.  That tool
-        ends the whole task loop (``task_cond`` returns ``False``), not just
-        the current Step, so calling it after finishing one Step silently
-        discards every remaining node — models routinely do this because
-        "I have enough to answer" is exactly how a Step feels when it ends.
+        Shared with the ``STEP_PLAN_STATUS`` node: both suppress a snapshot
+        identical to the previous one, so the graph path and a direct caller
+        cannot double-inject.
         """
-        rs = self._init_run_state()
-        if rs.simple_mode or not rs.plan:
-            return
-        done = set(rs.completed_step_ids)
-        lines = []
-        for node in rs.plan:
-            state = "done" if node.id in done else "pending"
-            if node.id == rs.current_step_id:
-                state = "current"
-            deps = f" (after: {', '.join(node.depends_on)})" if node.depends_on else ""
-            lines.append(f"- {node.id} [{state}]{deps}: {node.description}")
-        snapshot = "[Plan status]\n" + "\n".join(lines)
-        if snapshot == self._last_plan_snapshot:
-            return
-        self._last_plan_snapshot = snapshot
-        remaining = [
-            n.id for n in rs.plan if n.id not in done and n.id != rs.current_step_id
-        ]
-        current = next((n for n in rs.plan if n.id == rs.current_step_id), None)
-        note = (
-            (
-                f"\n[Current step] {current.id}: {current.description}\n"
-                if current is not None
-                else "\n[Current step] (none)\n"
-            )
-            + "Work on this step ONLY. Do not produce the final answer for the whole "
-            "task yet — the remaining steps cover the rest, and answering now makes "
-            "them look redundant.\n"
-            "You are executing this plan. NEVER call agent_stop while any step is still "
-            "`pending` or `current`"
-            + (f" (still pending: {', '.join(remaining)})" if remaining else "")
-            + ": it ends the entire task and discards every remaining step. A finished "
-            "step needs no signal — just stop calling tools and the framework advances "
-            "to the next step on its own. If a step turns out to be wrong, redundant, or "
-            "impossible (its tool keeps failing with persistent ERROR results), fix the "
-            "plan with update_step (remove_step / add_step / replan) and carry on; never "
-            "use agent_stop to escape the plan. When a tool fails, retry at most once. "
-            "Do NOT use mark_done — the framework marks steps done for you."
-        )
-        self.ctx.message.append(Message(role="user", content=snapshot + note))
-        logger.debug(f"Plan status injected into context ({len(lines)} nodes).")
+        from amrita_core.components import step_nodes
+
+        step_nodes.inject_plan_status(self)
 
     def _detect_step_stall(self) -> bool:
         """True when the last N tool signatures within this Step are identical."""
@@ -414,64 +247,18 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         )
 
     async def _summarize_step(self) -> None:
-        """Leave-step: ask the LLM for a short subject-predicate phrase.
+        """Leave-step: short subject-predicate summary, degrading on failure.
 
-        The phrase is split into ``verb`` (past tense) + ``object`` (noun
-        phrase), e.g. ``Reviewed`` + ``codebase``.  Stored in
-        ``run_state.last_summary`` and feeds the next Step's ``<last_step>``.
+        The graph runs ``Try(STEP_SUMMARY).CATCH(Exception, STEP_SUMMARY_FALLBACK)``;
+        a direct caller gets the same fallback here.
         """
+        from amrita_core.components import step_nodes
 
-        rs = self._init_run_state()
-        prompt: list = [
-            Message(
-                role="system",
-                content=(
-                    "# Step Summary\n"
-                    "Summarize what was accomplished in this step using a short "
-                    "subject-predicate phrase: a verb (past tense) + an object phrase. "
-                    'Output strictly as JSON: {"verb": "...", "object": "..."}\n'
-                    "\n"
-                    "## Examples\n"
-                    "Example 1 (research step):\n"
-                    "Step: the assistant searched the web for the latest version, "
-                    "then read the changelog page, then answered with the version number.\n"
-                    'Output: {"verb": "Retrieved", "object": "latest version number"}\n'
-                    "\n"
-                    "Example 2 (computation step):\n"
-                    "Step: the assistant called the calculator tool with 2+2 and got 4.\n"
-                    'Output: {"verb": "Calculated", "object": "2+2 result"}'
-                ),
-            ),
-            *self.ctx.message.unwrap(exclude_system=True),
-            Message(
-                role="user",
-                content=(
-                    "Now summarize the step above. "
-                    'Output ONLY the JSON object, nothing else: {"verb": "...", "object": "..."}'
-                ),
-            ),
-        ]
         try:
-            resp = await get_last_response(
-                call_completion(
-                    prompt, preset=self.preset, config=self.config, usage=self.usage
-                )
-            )
-            # Empty response (some providers return '' when thinking is engaged) - degrade immediately instead of parsing garbage.
-            if not (resp.content or "").strip():
-                req_id = getattr(resp.metadata, "original_request_id", None)
-                logger.warning(
-                    f"Empty summary response (request_id={req_id}, "
-                    f"thinking_content={bool(resp.reasoning_content)}); "
-                    "fallback: Sorry, no response was returned"
-                )
-                raise ValueError("empty summary response")
-            rs.last_summary = StepSummary.model_validate_json(resp.content)
+            await step_nodes.summarize_step(self)
         except Exception as e:
             logger.warning(f"Step summary failed, falling back: {e!s}")
-            rs.last_summary = StepSummary(
-                verb="Completed", object=rs.current_phase or ""
-            )
+            step_nodes.apply_summary_fallback(self)
 
     async def _compress_history_between_steps(self) -> None:
         """Between-Step history management when the real API prompt-token
@@ -581,20 +368,12 @@ class ReActAgentStrategy(BaseReActAgentStrategy):
         self._ensure_step_tools()
         await self._drain_peer_input()
         rs = self._init_run_state()
-        if rs.step_index == 0 and rs.plan is None and not rs.simple_mode:
-            # First Step ever: decide whether to decompose.
-            await self._decide_decomposition()
+        # On the graph path NEEDS_DECOMPOSITION and the STEP_BEGIN_* branches
+        # already ran; both helpers are no-ops when the state says so.
+        from amrita_core.components import step_nodes
 
-        if rs.simple_mode or not rs.plan:
-            # Bare run: one implicit execute Step ("execute").
-            rs.begin_step("execute")
-        else:
-            node = rs.next_ready_node()
-            if node is None:
-                # Plan done or unready deps: fall back to a boundary Step.
-                rs.begin_step("verify")
-            else:
-                rs.begin_node(node)
+        await step_nodes.maybe_decompose(self)
+        step_nodes.begin_step_for_current_state(self)
         # Refresh the Step's prompt-token window from the ledger proxy.
         rs.tokens.refresh_window(self.usage, rs.step_started_ts)
         # Keep the model aware of the current plan (idempotent snapshot) so it can autonomously revise the plan via update_step mid-run.

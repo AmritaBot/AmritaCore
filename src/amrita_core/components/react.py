@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 from amrita_sense import POINTER_DEPENDS, Node, NodeType, WorkflowInterpreter
 from amrita_sense.exceptions import BreakLoop
 from amrita_sense.hook.matcher import Depends
-from amrita_sense.instructions.native import NATIVE_WHILE
+from amrita_sense.instructions.native import NATIVE_IF, NATIVE_WHILE
 from amrita_sense.logging import logger
 from amrita_sense.streaming import SuspendObjectStream
 
@@ -37,6 +37,20 @@ from amrita_core.contexts import (
 )
 from amrita_core.enums import SuspendEnum
 from amrita_core.types.message import Message, SendMessageWrap
+
+from .step_nodes import (
+    HAS_READY_NODE,
+    NEEDS_DECOMPOSITION,
+    PLAN_EXHAUSTED,
+    SHOULD_INJECT_PLAN_STATUS,
+    STEP_BEGIN_BOUNDARY,
+    STEP_BEGIN_NODE,
+    STEP_BEGIN_SIMPLE,
+    STEP_DECOMPOSE,
+    STEP_PLAN_STATUS,
+    STEP_PREPARE,
+    USES_SIMPLE_STEP,
+)
 
 
 @Node(tag="subconscious_strategy_init")
@@ -467,4 +481,18 @@ async def simple_mode(loop: AgentLoopState) -> bool:
 NODE_INTRO, NODE_LEAVE = STEP_SLOT("node")
 
 # BREAK_LOOP cannot sit inside a NATIVE_IF branch (DFS scanner configures loop-control nodes pre-expansion); plan completion lives in task_cond.
-STEP_BODY = NODE_INTRO >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC) >> NODE_LEAVE
+#
+# Step boundary as control flow: decompose, pick the Step, open it, publish the
+# plan — each behind its own predicate, so the strategy's intro_step only
+# emits the event. The branches are mutually exclusive by construction.
+STEP_BODY = (
+    STEP_PREPARE
+    >> NATIVE_IF(NEEDS_DECOMPOSITION, STEP_DECOMPOSE)
+    >> NATIVE_IF(HAS_READY_NODE, STEP_BEGIN_NODE)
+    >> NATIVE_IF(USES_SIMPLE_STEP, STEP_BEGIN_SIMPLE)
+    >> NATIVE_IF(PLAN_EXHAUSTED, STEP_BEGIN_BOUNDARY)
+    >> NATIVE_IF(SHOULD_INJECT_PLAN_STATUS, STEP_PLAN_STATUS)
+    >> NODE_INTRO
+    >> NATIVE_WHILE(iter_cond).ACTION(STEP_EXEC)
+    >> NODE_LEAVE
+)
