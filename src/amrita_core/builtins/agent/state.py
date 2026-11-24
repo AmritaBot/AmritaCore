@@ -273,9 +273,22 @@ class AgentRunState(BaseModel):
         return None
 
     def complete_current_node(self) -> None:
-        """Mark the current DAG node as completed."""
-        if self.current_step_id and self.current_step_id not in self.completed_step_ids:
-            self.completed_step_ids.append(self.current_step_id)
+        """Mark the current DAG node as completed.
+
+        A node removed from the plan mid-Step (``update_step(remove_step)``) is
+        not recorded: it no longer belongs to the task, and writing it into
+        ``completed_step_ids`` would leave an id the plan cannot resolve — the
+        next ``all_plan_done`` / ``next_ready_node`` pass would then work from
+        a progress set that contradicts the plan.
+        """
+        node_id = self.current_step_id
+        if node_id is None:
+            return
+        if self.plan and all(node.id != node_id for node in self.plan):
+            self.current_step_id = None
+            return
+        if node_id not in self.completed_step_ids:
+            self.completed_step_ids.append(node_id)
         self.current_step_id = None
 
     def all_plan_done(self) -> bool:

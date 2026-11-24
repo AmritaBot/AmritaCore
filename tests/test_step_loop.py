@@ -1862,3 +1862,42 @@ class TestStepNodes:
         assert rs.current_phase == "execute"
         # The graph branch opened the Step; intro_step consumed the mark.
         assert rs.open_step_index == -1
+
+
+class TestRemovedStepCompletion:
+    """``complete_current_node`` must not resurrect a node the plan dropped."""
+
+    def test_complete_skips_a_node_removed_from_the_plan(self):
+        rs = AgentRunState()
+        rs.plan = [
+            DAGNode(id="a", description="first"),
+            DAGNode(id="b", description="second"),
+        ]
+        rs.begin_node(rs.plan[1])
+        # update_step(remove_step) while "b" is the current Step.
+        rs.plan = [node for node in rs.plan if node.id != "b"]
+        rs.complete_current_node()
+        assert rs.completed_step_ids == []
+        assert rs.current_step_id is None
+
+    def test_normal_completion_still_records_the_node(self):
+        rs = AgentRunState()
+        rs.plan = [DAGNode(id="a", description="first")]
+        rs.begin_node(rs.plan[0])
+        rs.complete_current_node()
+        assert rs.completed_step_ids == ["a"]
+
+    def test_remove_step_then_leave_keeps_the_progress_set_consistent(self, strategy):
+        rs = strategy._init_run_state()
+        rs.plan = [
+            DAGNode(id="a", description="first"),
+            DAGNode(id="b", description="second"),
+        ]
+        rs.begin_node(rs.plan[1])
+        asyncio_run(
+            strategy._handle_update_step({"action": "remove_step", "node_id": "b"})
+        )
+        # leave_step calls this after the Step ends.
+        rs.complete_current_node()
+        assert [node.id for node in rs.plan] == ["a"]
+        assert rs.completed_step_ids == []
